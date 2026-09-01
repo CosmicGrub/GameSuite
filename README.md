@@ -244,6 +244,54 @@ the library. No shell code changes needed.
       fixed in passing: the turn/round-over text read "You's turn" for the
       human player — grammatically wrong — before a `possessive()` helper
       special-cased "You" → "Your".
+- [x] 9f. Hangman research + upgrade pass. A solo word-guessing puzzle has
+      no opponent to make smarter/dumber, so "difficulty scaling" here
+      honestly means the word pool, not a bot — see `HangmanGame.kt`'s
+      KDoc. Shipped: three curated word pools (EASY: short everyday words
+      like APPLE/HOUSE/WATER; MEDIUM: longer but still common, e.g.
+      ELEPHANT/MOUNTAIN/CHEMISTRY; HARD: long and/or specialized, e.g.
+      XYLOPHONE/QUARANTINE/BUREAUCRACY — the guess limit stays a fixed 6
+      across all three deliberately, so the word pool is the only lever
+      that changed, not two levers muddying which one made a round
+      harder), selected from Settings' "Default CPU difficulty" the same
+      way item 9a wired Tic-Tac-Toe; a running session score (wins/losses)
+      and a **New Word** button, replacing the old dead end where any
+      single win or loss left "Back to menu" as the only way forward.
+      Fixed in passing: `endMatch()`'s result was never actually reaching
+      `sessionManager` before — the old "Back to menu" button called
+      `onMatchEnded` directly, skipping the module's own end-of-match
+      reporting entirely; the new `leaveSession()` goes through
+      `endMatch()` properly, matching every other game.
+      **Verified on-device (Tab S9)**: a fresh match starts with the
+      word-length and "Word difficulty: Easy" label matching the EASY pool,
+      and wins/losses correctly start at 0. **Not verified this pass**: an
+      actual win, loss, or New Word round-trip — the Tab S9 switched to a
+      different app mid-verification for a second time this session (see
+      item 9a's notes; this time to a photo picker in an unrelated
+      coloring-book app), so the rest was reviewed in code, directly
+      reusing the same round-over/session-score pattern already proven
+      working end-to-end for Tic-Tac-Toe in 9a.
+- [x] 9g. Air Hockey research + upgrade pass. The CPU paddle was a single
+      fixed-speed, zero-error tracker (`cpuSpeed = 0.9f`, always aims
+      exactly at the ball's current x) — replaced with a real 3-tier
+      ladder in `AirHockeyGame.kt`'s `cpuSpeedFor`/`chooseCpuTargetX`:
+      EASY is slower and re-rolls a wide random aim offset every frame
+      (reads as a genuinely sloppy, wobbly paddle, not just a slow one);
+      MEDIUM is the original untouched behavior, kept as the middle tier
+      rather than silently changed; HARD is faster and aims slightly
+      *ahead* of the ball along its current velocity instead of at its
+      exact current position, so it starts closing on fast shots before
+      they arrive. Wired to Settings' "Default CPU difficulty", same
+      pattern as 9a/9f, with a difficulty label on-screen.
+      **Not verified on-device this pass** — the same app-switch
+      interruption noted in 9f happened before Air Hockey could be
+      launched at all. Lower-risk than usual to ship unverified: it's a
+      single parameter substitution behind an existing, already-shipped
+      physics loop, not new game logic, and the three tiers' speed/error/
+      lookahead values are reviewable in code without needing a play
+      session to confirm they compile and wire correctly — but real-time
+      "does Hard actually feel hard" playtesting specifically still needs
+      a hands-on pass before calling this fully done.
 - [x] 9b. **Full audit-verify-fix pass** across all 9 games + shared infra —
       run as a 30-agent pipelined workflow (audit → adversarially verify →
       fix, per game), then build + install + on-device spot-check by hand.

@@ -172,6 +172,7 @@ class MainActivity : ComponentActivity() {
                             HangmanScreen(
                                 sessionManager = sessionManager,
                                 game = hangmanGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
@@ -220,6 +221,7 @@ class MainActivity : ComponentActivity() {
                             AirHockeyScreen(
                                 sessionManager = sessionManager,
                                 game = airHockeyGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }

@@ -6,35 +6,53 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.hangman.HangmanGame
+import com.gamesuite.settings.SettingsViewModel
 
+/**
+ * Research pass (README item 9f) added: the word is now drawn from a
+ * difficulty-tiered pool sourced from Settings' "Default CPU difficulty" —
+ * a solo word-guessing puzzle has no opponent to make smarter/dumber, so the
+ * word itself is the difficulty lever here (see HangmanGame's KDoc). Also
+ * added a running session score and "New Word" so one loss doesn't end the
+ * whole visit to this screen — previously "Back to menu" was the only way
+ * forward after any single round.
+ */
 @Composable
 fun HangmanScreen(
     sessionManager: GameSessionManager,
     game: HangmanGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
     val state by game.state
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
+            onMatchEnded()
         }
         game.startMatch()
     }
 
     val s = state ?: return
+    val wins = game.wins.value
+    val losses = game.losses.value
 
     // Primary-only (no secondary/hand content in this game) — same treatment
     // as TicTacToeScreen: caps + centers on a Tab S9 / unfolded Fold instead
@@ -48,6 +66,15 @@ fun HangmanScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                Text(
+                    "Wins: $wins · Losses: $losses",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    "Word difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(Modifier.height(16.dp))
                 Text("Guesses left: ${s.remainingGuesses}")
                 Spacer(Modifier.height(16.dp))
                 Text(s.revealedWord, style = MaterialTheme.typography.headlineMedium)
@@ -56,7 +83,9 @@ fun HangmanScreen(
                 if (s.matchOver) {
                     Text(if (s.won) "You got it!" else "Out of guesses — the word was ${s.word}")
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = onMatchEnded) { Text("Back to menu") }
+                    Button(onClick = game::playAgain) { Text("New Word") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 56.dp),

@@ -17,11 +17,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.cards.CardSounds
+import com.gamesuite.settings.SettingsViewModel
 
 /**
  * Real-time physics loop: each frame (withFrameNanos) computes elapsed
@@ -30,11 +32,17 @@ import com.gamesuite.games.cards.CardSounds
  * drag-controlled (finger position maps directly to paddle position,
  * clamped to their half of the table) for real free-range motion, not
  * discrete taps.
+ *
+ * Research pass (README item 9g) added a real CPU difficulty ladder — see
+ * AirHockeyGame's `cpuSpeedFor`/`chooseCpuTargetX` KDoc — read here from
+ * Settings' "Default CPU difficulty" the same way Tic-Tac-Toe and Hangman
+ * already do.
  */
 @Composable
 fun AirHockeyScreen(
     sessionManager: GameSessionManager,
     game: AirHockeyGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
@@ -42,9 +50,11 @@ fun AirHockeyScreen(
     val sounds = remember { CardSounds.get(androidContext) }
     val haptics = LocalHapticFeedback.current
     val state by game.state
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
         game.startMatch()
@@ -102,6 +112,10 @@ fun AirHockeyScreen(
                 Text(
                     "You ${state.playerScore} — ${state.cpuScore} CPU (first to ${AirHockeyGame.WIN_SCORE})",
                     style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                    style = MaterialTheme.typography.labelSmall
                 )
                 Spacer(Modifier.height(8.dp))
 

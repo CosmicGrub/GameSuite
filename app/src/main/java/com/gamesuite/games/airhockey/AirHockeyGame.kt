@@ -3,6 +3,7 @@ package com.gamesuite.games.airhockey
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import com.gamesuite.core.*
+import com.gamesuite.settings.CpuDifficulty
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -50,6 +51,9 @@ class AirHockeyGame : GameModule {
     )
 
     val state = mutableStateOf(AirHockeyState())
+
+    /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -106,10 +110,12 @@ class AirHockeyGame : GameModule {
         if (ball.x - BALL_RADIUS < 0f) { ball = ball.copy(x = BALL_RADIUS); vel = Vec(-vel.x, vel.y) }
         if (ball.x + BALL_RADIUS > 1f) { ball = ball.copy(x = 1f - BALL_RADIUS); vel = Vec(-vel.x, vel.y) }
 
-        // CPU paddle: simple tracking AI — chase the ball's x when it's on CPU's half, else drift to center.
+        // CPU paddle: tracking AI, scaled by difficulty — see chooseCpuTargetX's KDoc for what
+        // actually differs between the three tiers (speed, aim error, lookahead), not just a
+        // single reskinned number.
         var cpuPaddle = s.cpuPaddle
-        val targetX = if (ball.y < 0.5f) ball.x else 0.5f
-        val cpuSpeed = 0.9f
+        val targetX = chooseCpuTargetX(ball, vel)
+        val cpuSpeed = cpuSpeedFor(difficulty)
         val dx = (targetX - cpuPaddle.x).coerceIn(-cpuSpeed * dt, cpuSpeed * dt)
         cpuPaddle = Offset(
             (cpuPaddle.x + dx).coerceIn(PADDLE_RADIUS, 1f - PADDLE_RADIUS),
@@ -168,6 +174,32 @@ class AirHockeyGame : GameModule {
             }
         } else {
             state.value = s.copy(ballPos = ball, ballVel = vel, cpuPaddle = cpuPaddle, playerScore = playerScore, cpuScore = cpuScore)
+        }
+    }
+
+    private fun cpuSpeedFor(difficulty: CpuDifficulty): Float = when (difficulty) {
+        CpuDifficulty.EASY -> 0.55f
+        CpuDifficulty.MEDIUM -> 0.9f // the original, single fixed speed this ladder replaces
+        CpuDifficulty.HARD -> 1.3f
+    }
+
+    /**
+     * Drifts to center once the ball is back on the player's half, same as
+     * before at every tier. On the CPU's half, the three tiers genuinely
+     * play differently rather than just moving at different speeds:
+     * EASY re-rolls a wide random aim offset every frame (reads as a sloppy,
+     * wobbly paddle, not just a slow one); MEDIUM keeps the original
+     * behavior — track the ball's exact x, no error, no anticipation;
+     * HARD adds lookahead, aiming slightly ahead of the ball along its
+     * current velocity instead of where it is *right now*, so it starts
+     * closing on fast shots before they arrive.
+     */
+    private fun chooseCpuTargetX(ball: Offset, ballVel: Vec): Float {
+        if (ball.y >= 0.5f) return 0.5f
+        return when (difficulty) {
+            CpuDifficulty.EASY -> ball.x + (Math.random().toFloat() - 0.5f) * 0.24f
+            CpuDifficulty.MEDIUM -> ball.x
+            CpuDifficulty.HARD -> ball.x + ballVel.x * 0.15f
         }
     }
 
