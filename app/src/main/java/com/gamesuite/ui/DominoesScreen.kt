@@ -23,18 +23,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.dominoes.Domino
 import com.gamesuite.games.dominoes.DominoGame
+import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
 
+/**
+ * Research pass (README item 9h) added a real CPU difficulty ladder — see
+ * DominoGame's `chooseBotPlay`/`chooseOpeningPlay` KDoc — read here from
+ * Settings' "Default CPU difficulty" the same way the other per-game
+ * upgrade passes (9a, 9f, 9g) already do.
+ */
 @Composable
 fun DominoesScreen(
     sessionManager: GameSessionManager,
     game: DominoGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
@@ -42,9 +51,11 @@ fun DominoesScreen(
     val sounds = remember { CardSounds.get(androidContext) }
     val haptics = LocalHapticFeedback.current
     val state by game.state
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
         game.startMatch()
@@ -109,6 +120,10 @@ fun DominoesScreen(
         }
         Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
         Text("Boneyard: ${s.boneyardSize}", style = MaterialTheme.typography.labelSmall)
+        Text(
+            "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+            style = MaterialTheme.typography.labelSmall
+        )
 
         Spacer(Modifier.height(12.dp))
         Text("Chain", style = MaterialTheme.typography.titleSmall)

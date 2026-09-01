@@ -2,6 +2,7 @@ package com.gamesuite.games.dominoes
 
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
+import com.gamesuite.settings.CpuDifficulty
 
 data class Domino(val a: Int, val b: Int, val instanceId: Int) {
     val isDouble: Boolean get() = a == b
@@ -54,6 +55,9 @@ class DominoGame : GameModule {
     )
 
     val state = mutableStateOf<DominoState?>(null)
+
+    /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -187,7 +191,14 @@ class DominoGame : GameModule {
         return player.hand.any { it.a == s.leftEnd || it.b == s.leftEnd || it.a == s.rightEnd || it.b == s.rightEnd }
     }
 
-    /** Bounded bot: play the first legal domino it finds (prefers doubles), else draw, else pass. */
+    /**
+     * Bounded bot: play a legal domino if it has one, else draw, else pass —
+     * that sequencing is the rules, not a skill lever, so it's the same at
+     * every difficulty. *Which* legal domino to play is where the three
+     * tiers actually differ (see [chooseBotPlay]'s KDoc); the original,
+     * single "first legal, doubles-preferred-for-opening" bot lives on
+     * unchanged as MEDIUM.
+     */
     fun playBotTurn() {
         val s = state.value ?: return
         if (s.matchOver) return
@@ -196,15 +207,16 @@ class DominoGame : GameModule {
         if (!bot.isBot) return
 
         if (s.chain.isEmpty()) {
-            val best = bot.hand.maxByOrNull { if (it.isDouble) it.a + 10 else it.a + it.b }
+            val best = chooseOpeningPlay(bot.hand)
             if (best != null) { playDomino(botIndex, best, attachToLeft = true); return }
         }
 
-        val playableLeft = bot.hand.firstOrNull { it.a == s.leftEnd || it.b == s.leftEnd }
-        val playableRight = bot.hand.firstOrNull { it.a == s.rightEnd || it.b == s.rightEnd }
+        val legalLeft = bot.hand.filter { it.a == s.leftEnd || it.b == s.leftEnd }.map { it to true }
+        val legalRight = bot.hand.filter { it.a == s.rightEnd || it.b == s.rightEnd }.map { it to false }
+        val legalPlays = legalLeft + legalRight
+        val chosen = chooseBotPlay(legalPlays)
         when {
-            playableLeft != null -> playDomino(botIndex, playableLeft, attachToLeft = true)
-            playableRight != null -> playDomino(botIndex, playableRight, attachToLeft = false)
+            chosen != null -> playDomino(botIndex, chosen.first, attachToLeft = chosen.second)
             boneyard.isNotEmpty() -> {
                 drawFromBoneyard(botIndex)
                 // Re-evaluate with the newly drawn tile: play it if it now fits, keep
@@ -214,6 +226,33 @@ class DominoGame : GameModule {
                 playBotTurn()
             }
             else -> pass(botIndex)
+        }
+    }
+
+    private fun chooseOpeningPlay(hand: List<Domino>): Domino? = when (difficulty) {
+        CpuDifficulty.EASY -> hand.randomOrNull()
+        CpuDifficulty.MEDIUM, CpuDifficulty.HARD -> hand.maxByOrNull { if (it.isDouble) it.a + 10 else it.a + it.b }
+    }
+
+    /**
+     * EASY picks uniformly at random among every legal (domino, side) pair —
+     * no double preference, no pip weighting, genuinely weaker than the
+     * original bot rather than just relabeled. MEDIUM is the original
+     * behavior byte-for-byte: try the left end first, first match wins,
+     * only fall back to the right end if nothing on the hand fits left.
+     * HARD applies real (if simple) dominoes strategy given only what a
+     * human opponent could also see — no peeking at hidden hands — by
+     * preferring to shed its heaviest tiles first: a blocked game is
+     * scored on pips left in hand, so unloading high-value and double
+     * tiles early minimizes that liability later, same reasoning as the
+     * opening-move heuristic already used for MEDIUM/HARD above.
+     */
+    private fun chooseBotPlay(options: List<Pair<Domino, Boolean>>): Pair<Domino, Boolean>? {
+        if (options.isEmpty()) return null
+        return when (difficulty) {
+            CpuDifficulty.EASY -> options.random()
+            CpuDifficulty.MEDIUM -> options.first()
+            CpuDifficulty.HARD -> options.maxByOrNull { (d, _) -> (if (d.isDouble) 100 else 0) + d.a + d.b }
         }
     }
 

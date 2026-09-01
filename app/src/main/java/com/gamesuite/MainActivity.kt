@@ -205,6 +205,7 @@ class MainActivity : ComponentActivity() {
                             DominoesScreen(
                                 sessionManager = sessionManager,
                                 game = dominoGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
@@ -213,6 +214,7 @@ class MainActivity : ComponentActivity() {
                             MancalaScreen(
                                 sessionManager = sessionManager,
                                 game = mancalaGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }

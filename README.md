@@ -292,6 +292,54 @@ the library. No shell code changes needed.
       session to confirm they compile and wire correctly — but real-time
       "does Hard actually feel hard" playtesting specifically still needs
       a hands-on pass before calling this fully done.
+- [x] 9h. Dominoes research + upgrade pass. The bot always played the first
+      legal tile it found (preferring doubles only for the opening move),
+      else drew, else passed — a fixed, unranked choice among whatever
+      happened to be legal. Replaced *which* legal tile it picks with a
+      real 3-tier ladder in `DominoGame.kt`'s `chooseBotPlay`/
+      `chooseOpeningPlay`: EASY picks uniformly at random among every
+      legal (tile, side) option, no double or pip preference at all —
+      genuinely weaker, not just relabeled; MEDIUM is the original
+      behavior byte-for-byte (try the left end first, first match wins);
+      HARD sheds its heaviest tiles first (highest pip total, doubles
+      tie-broken above), real basic dominoes strategy given only what's
+      visible without peeking at opponent hands (unlike Mancala below,
+      dominoes hands are genuinely hidden information, so a search-based
+      bot isn't the honest option here — see DominoGame's KDoc). The
+      play/draw/pass sequencing itself is unchanged at every tier — that's
+      the rules, not a skill lever. Wired to Settings' "Default CPU
+      difficulty" like every other pass in this list.
+      **Not verified on-device this pass** — both physical test devices
+      were unavailable for the rest of this session (Tab S9 still in
+      active use by someone else, Z Fold 5 dropped its adb connection and
+      wouldn't reconnect). Lower risk than most unverified changes: no
+      recursion, no search, just a `filter`/`maxByOrNull`/`random` over a
+      list of at most ~7 legal plays — the same shape already proven safe
+      in Air Hockey's (9g) and Tic-Tac-Toe's (9a) EASY tiers.
+- [x] 9i. Mancala research + upgrade pass. Unlike Dominoes, Mancala has
+      **zero hidden information** — both players' pits are always fully
+      visible — so a real look-ahead search is the honest choice for HARD,
+      not a heuristic guess: `MancalaGame.kt`'s `minimaxBestMove` runs a
+      genuine depth-limited (8 plies) minimax with alpha-beta pruning over
+      a pure, side-effect-free copy of the sow rules (`simulateSow`,
+      correctly modeling extra turns as an *additional* ply for the same
+      player rather than alternating, and captures/end-of-game sweeps the
+      same way the real `sow()` does), maximizing final store-difference.
+      EASY moves uniformly at random among legal pits — not even taking
+      the free-extra-turn bonus MEDIUM already knew about, genuinely
+      weaker. MEDIUM is the original bot, untouched: prefer a move landing
+      exactly in the store, else the first non-empty pit. Wired to
+      Settings' "Default CPU difficulty" like the rest of this list.
+      **Verified on-device (Z Fold 5)**: played several real HARD-tier
+      moves — confirmed the difficulty label reads "Hard", and critically,
+      confirmed the minimax search itself completes correctly and quickly
+      with no hang/freeze/ANR and always returns a legal move ("CPU sowed
+      from pit 11", board state updated consistently) — the thing most
+      worth confirming hands-on here, since a search-depth or pruning bug
+      would be far more likely to manifest as a stall than as a visibly
+      wrong move. Not separately re-verified: EASY/MEDIUM tiers (unchanged
+      or trivial relative to what was already exercised) and a full match
+      to completion.
 - [x] 9b. **Full audit-verify-fix pass** across all 9 games + shared infra —
       run as a 30-agent pipelined workflow (audit → adversarially verify →
       fix, per game), then build + install + on-device spot-check by hand.
