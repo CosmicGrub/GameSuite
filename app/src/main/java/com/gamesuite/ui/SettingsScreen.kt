@@ -1,0 +1,267 @@
+package com.gamesuite.ui
+
+import android.os.Build
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.unit.dp
+import com.gamesuite.games.cards.CardVisual
+import com.gamesuite.games.cards.LocalCardScale
+import com.gamesuite.games.cards.PlayingCardView
+import com.gamesuite.settings.AppSettings
+import com.gamesuite.settings.CpuDifficulty
+import com.gamesuite.settings.NamedTheme
+import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.settings.ThemeMode
+
+/**
+ * App-wide settings only — per-game settings (UNO house rules, per-game
+ * difficulty overrides, ...) belong on each game's own setup screen, not
+ * here. See docs/SETTINGS_THEMING_ACCESSIBILITY.md §1's design note.
+ */
+@Composable
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    onBack: () -> Unit
+) {
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back") }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(24.dp))
+
+        SectionHeader("Theme")
+        ThemeModeSelector(settings.themeMode, onSelect = viewModel::setThemeMode)
+        Spacer(Modifier.height(12.dp))
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            SettingSwitchRow(
+                label = "Dynamic color (Material You)",
+                description = "Match your wallpaper's colors",
+                checked = settings.dynamicColor,
+                onCheckedChange = viewModel::setDynamicColor
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        NamedThemeSelector(
+            selected = settings.namedTheme,
+            enabled = !settings.dynamicColor,
+            onSelect = viewModel::setNamedTheme
+        )
+
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Sound & feedback")
+        SettingSwitchRow(
+            label = "Sound effects",
+            description = null,
+            checked = settings.soundEnabled,
+            onCheckedChange = viewModel::setSoundEnabled
+        )
+        SettingSwitchRow(
+            label = "Haptics",
+            description = null,
+            checked = settings.hapticsEnabled,
+            onCheckedChange = viewModel::setHapticsEnabled
+        )
+
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Accessibility")
+        SettingSwitchRow(
+            label = "Reduced motion",
+            description = "Minimize animations across all games",
+            checked = settings.reducedMotion,
+            onCheckedChange = viewModel::setReducedMotion
+        )
+        SettingSwitchRow(
+            label = "Colorblind-safe mode",
+            description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
+            checked = settings.colorblindMode,
+            onCheckedChange = viewModel::setColorblindMode
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
+        Slider(
+            value = settings.textScale,
+            onValueChange = viewModel::setTextScale,
+            valueRange = 0.85f..1.5f,
+            steps = 12
+        )
+
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Card size")
+        Text(
+            "Applies to every card game. Cards are capped to a size range computed " +
+                "for this device — the smallest setting stays comfortably tappable, and " +
+                "the largest still fits the table, so the game stays fully playable at " +
+                "either end.",
+            style = MaterialTheme.typography.labelSmall
+        )
+        Spacer(Modifier.height(12.dp))
+        CardSizePreview()
+        Spacer(Modifier.height(4.dp))
+        Slider(
+            value = settings.cardSizePreference,
+            onValueChange = viewModel::setCardSizePreference,
+            valueRange = 0f..1f
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Small", style = MaterialTheme.typography.labelSmall)
+            Text("Large", style = MaterialTheme.typography.labelSmall)
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Gameplay")
+        Text("Default CPU difficulty", style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Pre-selects each game's own difficulty picker — you can still override per match.",
+            style = MaterialTheme.typography.labelSmall
+        )
+        Spacer(Modifier.height(8.dp))
+        DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
+
+        Spacer(Modifier.height(32.dp))
+        OutlinedButton(onClick = viewModel::resetAll) {
+            Text("Reset all settings")
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Reads the exact same `LocalCardScale` every real card in the app reads
+ * (provided once at MainActivity's root from this same
+ * `settings.cardSizePreference`) and applies it itself — PlayingCardView
+ * deliberately never scales on its own (see CardScale.kt's KDoc: components
+ * like FannedHand compute overlap/fan-width FROM the size they're given, so
+ * scaling twice — once there, once again silently inside PlayingCardView —
+ * would desync the two). Every card-drawing call site is responsible for
+ * applying the multiplier itself; this preview is no exception, it's just
+ * reading the same live value the rest of the app does, so what's shown here
+ * updates instantly as the slider moves and matches a real in-game card
+ * exactly, not a separate approximation of one.
+ */
+@Composable
+private fun CardSizePreview() {
+    val scale = LocalCardScale.current
+    Box(modifier = Modifier.fillMaxWidth().height(130.dp), contentAlignment = Alignment.Center) {
+        PlayingCardView(
+            card = CardVisual(
+                id = 0,
+                label = "7",
+                // UNO's own red (matches UnoScreen's private colorFor(RED) exactly) —
+                // a real card color makes it obvious this preview is showing actual
+                // game cards, not a generic placeholder swatch.
+                backgroundColor = Color(0xFFD32F2F)
+            ),
+            width = 64.dp * scale,
+            height = 92.dp * scale
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun SettingSwitchRow(label: String, description: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (description != null) {
+                Text(description, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    Column {
+        ThemeMode.entries.forEach { mode ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = selected == mode, onClick = { onSelect(mode) })
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    when (mode) {
+                        ThemeMode.SYSTEM -> "Follow system"
+                        ThemeMode.LIGHT -> "Light"
+                        ThemeMode.DARK -> "Dark"
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect: (NamedTheme) -> Unit) {
+    // Only Classic and High Contrast ship with real palettes right now —
+    // see NamedTheme's KDoc. Midnight Arcade / Felt Table are future work.
+    val available = listOf(NamedTheme.CLASSIC, NamedTheme.HIGH_CONTRAST)
+    Column {
+        available.forEach { theme ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
+                Spacer(Modifier.width(8.dp))
+                Text(if (theme == NamedTheme.CLASSIC) "Classic" else "High Contrast")
+            }
+        }
+        if (!enabled) {
+            Text(
+                "Disable dynamic color to pick a palette",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun DifficultySelector(selected: CpuDifficulty, onSelect: (CpuDifficulty) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CpuDifficulty.entries.forEach { difficulty ->
+            FilterChip(
+                selected = selected == difficulty,
+                onClick = { onSelect(difficulty) },
+                label = { Text(difficulty.name.lowercase().replaceFirstChar { it.uppercase() }) }
+            )
+        }
+    }
+}

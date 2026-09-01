@@ -1,0 +1,23 @@
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# Gradle / Android build outputs
+**/build/
+**/*.apk
+**/*.aab
+**/*.ap_
+**/*.dex
+
+# Android Studio
+*.hprof
+.navigation/
+captures/

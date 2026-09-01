@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Nearby Connections permissions for ad-hoc local multiplayer (Wi-Fi Direct/
+         Bluetooth, no internet). minSdk 26 / targetSdk 34 — both real target devices
+         (Fold 5, Tab S9) run Android 14+, so the API 31+/33+ block below is what
+         actually executes on-device; the legacy entries only matter in theory for
+         a hypothetical API 26-30 device. See docs/DEVICE_SPECIFIC_PLAN.md §2. -->
+
+    <!-- Legacy Bluetooth — required only up to API 30, not a runtime/dangerous permission. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- ACCESS_WIFI_STATE/CHANGE_WIFI_STATE: normal (non-runtime) permissions, needed at
+         EVERY API level — NOT just legacy. Google's own Nearby Connections manifest
+         sample caps these at maxSdkVersion 31 (NEARBY_WIFI_DEVICES covers Nearby's own
+         internal discovery past that point), but WifiManager.isWifiEnabled() — the
+         classic platform API this app calls directly for its own radio-enabled
+         precheck — is a different, unrelated API that still requires this permission
+         on every API level. Capping it here crashed with a SecurityException on a
+         real API 34 device the first time this screen ran — found via on-device
+         testing, not visible from Google's own sample manifest alone. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!-- Legacy location — required for BLE scanning before BLUETOOTH_SCAN existed. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:minSdkVersion="29"
+        android:maxSdkVersion="31" />
+
+    <!-- API 31+ (Android 12+) runtime Bluetooth permissions, grouped by the system into
+         one "Nearby devices" prompt. neverForLocation is valid and used here: this app
+         never derives physical location from scan results, only proximity for matchmaking. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:minSdkVersion="31"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" android:minSdkVersion="31" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" android:minSdkVersion="31" />
+
+    <!-- API 33+ (Android 13+) Wi-Fi discovery/connection runtime permission. -->
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:minSdkVersion="33"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <application
+        android:allowBackup="true"
+        android:label="GameSuite"
+        android:theme="@style/Theme.GameSuite"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.GameSuite"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
