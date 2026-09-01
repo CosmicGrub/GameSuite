@@ -60,6 +60,22 @@ fun MainMenuScreen(
             Text("Play Tic-Tac-Toe (pass & play)")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(onClick = {
+            sessionManager.launchGame(
+                mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(
+                    PlayerInfo(playerId = "p1", displayName = "You"),
+                    PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
+                ),
+                localPlayerIndex = 0
+            )
+            onNavigateToGame("tic-tac-toe")
+        }) {
+            Text("Play Tic-Tac-Toe (vs CPU)")
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(onClick = {

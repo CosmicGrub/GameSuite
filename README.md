@@ -198,6 +198,52 @@ the library. No shell code changes needed.
       Tiles), Air Hockey. Each pass: real research into rules/variants/
       difficulty scaling/player feedback, then implement + verify on-device,
       same rigor as UNO got.
+- [x] 9a. Tic-Tac-Toe research + upgrade pass, the first game through item
+      9's list. Tic-Tac-Toe itself is a solved game (forced draw with
+      optimal play), so "rules research" here meant grounding the upgrade in
+      that game-theoretic result rather than inventing board-size/Ultimate-
+      Tic-Tac-Toe variants nobody asked for. Shipped, in
+      `games/tictactoe/TicTacToeGame.kt` and `ui/TicTacToeScreen.kt`:
+      1. **A real difficulty ladder, replacing the single fixed heuristic
+         bot** — HARD is full minimax (depth-scored so it prefers a faster
+         win / slower loss among equal outcomes), genuinely unbeatable;
+         MEDIUM keeps the original one-ply heuristic (win/block/positional)
+         as-is, still beatable with a deliberate fork; EASY plays mostly
+         random, only reaching for the heuristic move ~35% of the time.
+         `TicTacToeScreen` is also the **first screen in the suite to
+         actually read `settings.defaultCpuDifficulty`** — every other
+         game still just stores that setting unused (see `AppSettings.kt`'s
+         own KDoc). A new "Play Tic-Tac-Toe (vs CPU)" menu button exposes
+         `SINGLE_PLAYER_VS_BOT`, which the engine already declared
+         supported but no button had ever launched.
+      2. **Winning-line highlight** — the 3 completing cells turn gold
+         instead of the match just silently ending.
+      3. **A round-over panel with session score tracking** — previously a
+         win/draw immediately kicked the player back to the main menu with
+         no result screen at all. Now: "You win!" / "CPU wins!" / "It's a
+         draw!" plus a running `You: 2 · CPU: 1 · Draws: 1` score line,
+         **Play Again** (resets the board, keeps the score, alternates who
+         opens the next round for fairness) and **Back to Menu** (ends the
+         session, reporting cumulative score as the match result).
+      **Verified on-device (Tab S9)**: played a full HARD game through
+      real tactical decisions (blocked a column threat, then a diagonal
+      threat) to a forced draw — confirms the minimax is actually
+      unbeatable, not just claimed to be; confirmed EASY's opening move
+      differs from HARD/MEDIUM's (center) proving it isn't silently
+      running the same logic; confirmed Play Again resets the board while
+      keeping the score and correctly alternates the starting player
+      (CPU opened round 2); confirmed the CPU-difficulty label updates
+      live when changed in Settings between matches. **Not confirmed
+      on-device this pass**: the winning-line gold highlight and the
+      pass-and-play (2-human) path specifically — both are small,
+      low-risk composable/data changes reusing already-verified
+      `winningLine` computation, reviewed in code rather than screenshotted,
+      because the Tab S9 went into use by someone else mid-verification
+      (see item 10c's on-device-testing notes for the established pattern)
+      and the Z Fold 5 dropped its adb connection at the same time. Also
+      fixed in passing: the turn/round-over text read "You's turn" for the
+      human player — grammatically wrong — before a `possessive()` helper
+      special-cased "You" → "Your".
 - [x] 9b. **Full audit-verify-fix pass** across all 9 games + shared infra —
       run as a 30-agent pipelined workflow (audit → adversarially verify →
       fix, per game), then build + install + on-device spot-check by hand.

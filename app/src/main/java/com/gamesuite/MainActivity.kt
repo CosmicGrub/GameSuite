@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
                         composable("tic-tac-toe") {
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
