@@ -340,6 +340,44 @@ the library. No shell code changes needed.
       wrong move. Not separately re-verified: EASY/MEDIUM tiers (unchanged
       or trivial relative to what was already exercised) and a full match
       to completion.
+- [x] 9j. Word Tiles research + upgrade pass — the last game in the suite
+      with a real bot opponent. `TileBot` was a single fixed search: 20
+      random anchors, longest word first, first valid hit played. Now a
+      3-tier ladder (`TileBot.findMove(difficulty)`): EASY looks at only 5
+      anchors and takes the *shortest* valid word at each, so it plays weak
+      2-3 letter words and passes far more often; MEDIUM is the original
+      behavior byte-for-byte; HARD searches 40 anchors, never stops at the
+      first hit, collects every valid candidate and plays the one with the
+      highest total tile value — a deliberate proxy for real score (it
+      ignores premium squares, which would mean pulling `TileGame`'s
+      private scoring into the bot; tile value alone already separates a
+      Q/Z/X play from a pile of 1-point vowels, which is most of what a
+      stronger opponent feels like). The candidate machinery (permutations,
+      blank expansion, dictionary checks) is shared by all three — only
+      how much board it looks at and which found word it plays differ.
+      Wired to Settings' "Default CPU difficulty" like the rest of item 9.
+      **Real finding from code review, fixed before shipping**: the first
+      draft of HARD scanned *every* anchor on the board. `playBotTurn()`
+      runs synchronously on the UI thread from the bot-turn
+      `LaunchedEffect`, and each anchor is up to ~17k dictionary lookups
+      (×26 per blank tile) with no short-circuit — an unbounded scan of a
+      busy late-game board would have been a multi-second freeze or an
+      ANR. The original bot's 20-anchor cap existed for exactly this
+      reason; HARD is now capped at 40 (`HARD_ANCHOR_BUDGET`), ~2× the
+      original worst case, which was already tuned to feel instant.
+      **Verified on-device (Z Fold 5)**: the build installs and launches
+      to the main menu without crashing. **Not verified**: the difficulty
+      label and any of the three tiers' actual play — the Fold 5 switched
+      to someone else's app (a fitness tracker, mid-use) the moment Word
+      Tiles was tapped, and the Tab S9 was already in use by someone else,
+      so both devices were off-limits for the rest of the pass. The change
+      is the same shape as 9h (Dominoes): pure selection logic over
+      candidates the existing, already-shipped validator still gates —
+      an invalid bot proposal already falls through to `pass()` safely.
+      **Still open under item 9**: Word Search and Crossword. Both are
+      solo puzzles with no bot, so their pass is a different shape
+      (puzzle-generation difficulty, not an opponent) — same reasoning as
+      Hangman (9f) — and wasn't started this pass.
 - [x] 9b. **Full audit-verify-fix pass** across all 9 games + shared infra —
       run as a 30-agent pipelined workflow (audit → adversarially verify →
       fix, per game), then build + install + on-device spot-check by hand.

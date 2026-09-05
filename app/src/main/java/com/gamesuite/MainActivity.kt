@@ -197,6 +197,7 @@ class MainActivity : ComponentActivity() {
                             TileGameScreen(
                                 sessionManager = sessionManager,
                                 game = tileGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }

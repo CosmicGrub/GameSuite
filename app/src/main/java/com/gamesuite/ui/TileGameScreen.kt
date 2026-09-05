@@ -34,11 +34,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.wordgames.tiles.*
+import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -57,6 +59,7 @@ import kotlin.math.roundToInt
 fun TileGameScreen(
     sessionManager: GameSessionManager,
     game: TileGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
@@ -65,9 +68,11 @@ fun TileGameScreen(
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
     val state by game.state
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
         game.loadDictionary(androidContext)
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
@@ -162,6 +167,12 @@ fun TileGameScreen(
             }
             Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
             Text("Bag: ${s.bagCount}", style = MaterialTheme.typography.labelSmall)
+            if (s.players.any { it.isBot }) {
+                Text(
+                    "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
 

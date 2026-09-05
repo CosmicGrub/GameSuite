@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
+import com.gamesuite.settings.CpuDifficulty
 
 data class BoardCell(val tile: RackTile? = null, val letterOverride: Char? = null) {
     /** The letter to score/validate with — a blank's chosen letter, or the tile's own letter. */
@@ -53,6 +54,9 @@ class TileGame : GameModule {
     )
 
     val state = mutableStateOf<TileGameState?>(null)
+
+    /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -214,7 +218,7 @@ class TileGame : GameModule {
         val current = s.players[s.currentPlayerIndex]
         if (!current.isBot) return
 
-        val move = TileBot.findMove(s, current)
+        val move = TileBot.findMove(s, current, difficulty)
         if (move == null) {
             pass()
             return
