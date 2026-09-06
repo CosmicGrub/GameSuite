@@ -11,7 +11,11 @@
 
 struct MenuLayout {
     int16_t titleY, titleH;
-    int16_t tileX, tileY, tileW, tileH, tileGap; // tile i occupies tileY + i*(tileH+tileGap)
+    int16_t tileX, tileY, tileW, tileH, tileGap; // slot i occupies tileY + i*(tileH+tileGap)
+    // How many tiles actually fit in the vertical space at once -- with more
+    // games than this, the list scrolls (see the up/down arrows below)
+    // rather than running off the bottom of the screen.
+    uint8_t maxVisibleTiles;
 };
 
 // Computed from Config.h's SCREEN_WIDTH/SCREEN_HEIGHT and how many tiles need
@@ -19,19 +23,37 @@ struct MenuLayout {
 // gameCount, the same as Display.h's computeLayout().
 MenuLayout computeMenuLayout(uint8_t gameCount);
 
-void drawMenuChrome(TFT_eSPI &tft, const MenuLayout &layout);
+// canScrollUp/canScrollDown control whether the up/down arrow buttons (see
+// below) draw active or dimmed -- ArcadeOS.ino tracks the actual scroll
+// offset (this module has no memory of its own) and passes those in from
+// offset>0 / offset+maxVisibleTiles<gameCount.
+void drawMenuChrome(TFT_eSPI &tft, const MenuLayout &layout, bool canScrollUp, bool canScrollDown);
 
-// `enabled=false` draws the tile visibly dimmed with a "coming soon" label --
-// used for games this project's README already earmarks (Mancala, Dominoes)
-// but hasn't built yet, so the menu reads as a real roadmap instead of hiding
-// them entirely.
-void drawMenuTile(TFT_eSPI &tft, const MenuLayout &layout, uint8_t index, const char *label, bool enabled);
+// `slot` is the tile's position WITHIN the currently visible window (0 = the
+// topmost visible tile), NOT a game's absolute index in the full list --
+// ArcadeOS.ino maps between the two via its own scroll offset
+// (slot = gameIndex - scrollOffset), the same way it already tracks which
+// round/state is active elsewhere in this project. `enabled=false` draws the
+// tile visibly dimmed with a "coming soon" label -- used for games this
+// project's README already earmarks (Mancala, Dominoes) but hasn't built
+// yet, so the menu reads as a real roadmap instead of hiding them entirely.
+void drawMenuTile(TFT_eSPI &tft, const MenuLayout &layout, uint8_t slot, const char *label, bool enabled);
 
-// Returns true and writes the tapped tile's index (0..gameCount-1) when
-// (touchX, touchY) falls inside one of the gameCount tiles this layout was
-// computed for -- including a disabled one, since ArcadeOS.ino (not this
-// module) decides whether a disabled tile's tap does anything.
-bool hitTestMenuTile(const MenuLayout &layout, uint8_t gameCount, int16_t touchX, int16_t touchY, uint8_t &outIndex);
+// Returns true and writes the tapped tile's SLOT (0..visibleCount-1, see
+// drawMenuTile's comment on slot vs. absolute index) when (touchX, touchY)
+// falls inside one of the `visibleCount` currently-shown tiles -- including a
+// disabled one, since ArcadeOS.ino (not this module) decides whether a
+// disabled tile's tap does anything.
+bool hitTestMenuTile(const MenuLayout &layout, uint8_t visibleCount, int16_t touchX, int16_t touchY, uint8_t &outSlot);
+
+// Up/down scroll buttons in a column to the right of the tile list -- tap
+// targets, not a drag/swipe gesture, matching this project's existing
+// discrete-tap interaction style everywhere else (Home, Play Again, Sleep)
+// rather than something less reliable on resistive touch. ArcadeOS.ino
+// decides whether tapping one actually does anything (i.e. whether the
+// requested scroll is in bounds) -- these are pure hit-tests only.
+bool hitTestScrollUp(const MenuLayout &layout, int16_t touchX, int16_t touchY);
+bool hitTestScrollDown(const MenuLayout &layout, int16_t touchX, int16_t touchY);
 
 // A "Sleep" button in the top-right of the title bar (drawn automatically as
 // part of drawMenuChrome, no separate draw call needed) -- this board only

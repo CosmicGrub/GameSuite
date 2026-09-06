@@ -70,10 +70,16 @@ void drawCell(TFT_eSPI &tft, const Layout &layout, uint8_t cellIndex, uint8_t va
 
     if (value == HUMAN) {
         // X: two diagonals, drawn 3px thick (as three parallel lines) so it
-        // reads clearly at this size instead of a hairline.
+        // reads clearly at this size instead of a hairline. BUG FIX: the
+        // second line used to repeat the SAME "\" (top-left-to-bottom-right)
+        // diagonal as the first, just thickened along the other axis --
+        // meaning no "/" diagonal was ever drawn, so only half an X ever
+        // rendered (confirmed by a real hardware photo showing a single
+        // stroke, not a full X). The second line now correctly runs the
+        // other way, top-right to bottom-left.
         for (int8_t t = -1; t <= 1; t++) {
-            tft.drawLine(cx - half + t, cy - half, cx + half + t, cy + half, COLOR_X);
-            tft.drawLine(cx - half, cy - half + t, cx + half, cy + half + t, COLOR_X);
+            tft.drawLine(cx - half + t, cy - half, cx + half + t, cy + half, COLOR_X); // "\"
+            tft.drawLine(cx + half + t, cy - half, cx - half + t, cy + half, COLOR_X); // "/"
         }
     } else if (value == AI) {
         int16_t r = half;

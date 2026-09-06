@@ -1,8 +1,6 @@
 #include "Chrome.h"
 #include "Config.h"
-
-static const uint16_t COLOR_BAR_BG   = TFT_NAVY;
-static const uint16_t COLOR_BAR_TEXT = TFT_WHITE;
+#include "Theme.h"
 
 const int16_t CHROME_BAR_HEIGHT = 36;
 
@@ -17,21 +15,23 @@ static int16_t homeButtonTop() {
 }
 
 void drawChromeBar(TFT_eSPI &tft, const char *statusText) {
-    tft.fillRect(0, 0, SCREEN_WIDTH, CHROME_BAR_HEIGHT, COLOR_BAR_BG);
+    tft.fillRect(0, 0, SCREEN_WIDTH, CHROME_BAR_HEIGHT, THEME_SURFACE);
 
+    // themeLoadFontSmall() is left loaded persistently by setup() as this
+    // arcade's default font -- drawString() below picks it up automatically
+    // (see Theme.h), no per-call load/unload needed for the common case.
     int16_t by = homeButtonTop();
-    tft.drawRoundRect(HOME_BTN_MARGIN, by, HOME_BTN_SIZE, HOME_BTN_SIZE, 4, TFT_WHITE);
-    tft.setTextColor(TFT_WHITE, COLOR_BAR_BG);
+    tft.drawRoundRect(HOME_BTN_MARGIN, by, HOME_BTN_SIZE, HOME_BTN_SIZE, 4, THEME_BORDER);
+    tft.setTextColor(THEME_TEXT, THEME_SURFACE);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(1);
+    tft.setTextSize(1); // smooth fonts render at their own native size -- always 1 here, never scaled
     tft.drawString("<", HOME_BTN_MARGIN + HOME_BTN_SIZE / 2, by + HOME_BTN_SIZE / 2);
 
     // Status text is centered in the remaining width to the right of the
     // Home button, not the full screen width, so it never overlaps it.
     int16_t textAreaX0 = HOME_BTN_MARGIN * 2 + HOME_BTN_SIZE;
-    tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR_BG);
+    tft.setTextColor(THEME_TEXT, THEME_SURFACE);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(2);
     tft.drawString(statusText, textAreaX0 + (SCREEN_WIDTH - textAreaX0) / 2, CHROME_BAR_HEIGHT / 2);
 }
 

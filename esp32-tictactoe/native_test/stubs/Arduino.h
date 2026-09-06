@@ -5,3 +5,10 @@
 // fixed-width integer types every embedded C++ project uses).
 #pragma once
 #include <cstdint>
+
+// Real Arduino.h defines PROGMEM as an attribute that places const data in
+// flash instead of RAM -- meaningless on a desktop compiler (everything's
+// just RAM here), so it's defined to nothing. Needed so Theme.cpp's
+// NotoSansBold15.h/36.h font-array headers (which use PROGMEM directly,
+// without going through the real TFT_eSPI.h) compile unchanged natively.
+#define PROGMEM

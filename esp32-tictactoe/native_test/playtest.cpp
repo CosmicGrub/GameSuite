@@ -227,6 +227,34 @@ static void checkLayout(const char *label, bool condition) {
     if (!condition) layoutChecksFailed++;
 }
 
+// ---------------------------------------------------------------------------
+// Actual-shape check: hit-test math alone can never catch "the mark drawn on
+// screen is the wrong shape" -- a real bug slipped through exactly this way
+// (drawCell()'s X mark drew the same "\" diagonal twice instead of a "\" and
+// a "/", confirmed by a real hardware photo showing a single stroke instead
+// of a full X, even though every hit-test check was passing). The stub
+// TFT_eSPI now records every drawLine() call (see stubs/TFT_eSPI.h) so this
+// can assert on the actual geometry a draw function requests.
+// ---------------------------------------------------------------------------
+static void xMarkShapeCheck() {
+    printf("=== X-mark shape check (Display.cpp's drawCell, against real drawLine() calls) ===\n");
+    Layout l = computeLayout();
+    TFT_eSPI tft;
+
+    TFT_eSPI::capturedLines.clear();
+    drawCell(tft, l, 4, HUMAN); // center cell -- arbitrary, any cell works
+
+    bool sawBackslash = false; // top-left -> bottom-right
+    bool sawSlash = false;     // top-right -> bottom-left
+    for (const auto &ln : TFT_eSPI::capturedLines) {
+        if (ln.x1 > ln.x0 && ln.y1 > ln.y0) sawBackslash = true;
+        if (ln.x1 < ln.x0 && ln.y1 > ln.y0) sawSlash = true;
+    }
+    checkLayout("drawCell(HUMAN) draws a \"\\\" diagonal (top-left to bottom-right)", sawBackslash);
+    checkLayout("drawCell(HUMAN) draws a \"/\" diagonal (top-right to bottom-left) -- the actual bug found on real hardware", sawSlash);
+    printf("  captured %zu drawLine() call(s) for one X mark\n\n", TFT_eSPI::capturedLines.size());
+}
+
 static void touchHitTestChecks() {
     printf("=== Touch hit-testing checks (Display.cpp, against Config.h's real screen size) ===\n");
     Layout l = computeLayout();
@@ -350,6 +378,42 @@ static void menuHitTestChecks() {
     checkLayout("sleep button does not swallow taps in the tile list",
                 !hitTestSleepButton(ml, ml.tileX + 10, ml.tileY + 10));
 
+    // Scrolling: a game count larger than fits on screen at once, matching
+    // this arcade's real roadmap (more games than one screenful once
+    // Mancala/Dominoes/Solitaire/Mahjong land) -- maxVisibleTiles must clamp
+    // to what actually fits rather than running tiles off the bottom, and the
+    // scroll arrows must sit in their own column, never overlapping a tile.
+    const uint8_t MANY_GAMES = 10;
+    MenuLayout big = computeMenuLayout(MANY_GAMES);
+    printf("  scrolling layout (10 games): maxVisibleTiles=%d, tile %dx%d\n", big.maxVisibleTiles, big.tileW, big.tileH);
+    checkLayout("maxVisibleTiles is less than the full game count (scrolling is actually needed)", big.maxVisibleTiles < MANY_GAMES);
+    checkLayout("maxVisibleTiles is at least 1", big.maxVisibleTiles >= 1);
+    int16_t bigListH = big.maxVisibleTiles * big.tileH + (big.maxVisibleTiles - 1) * big.tileGap;
+    checkLayout("the visible tile list fits within the screen height", big.tileY + bigListH <= SCREEN_HEIGHT);
+    checkLayout("tiles don't extend into the scroll-arrow column", big.tileX + big.tileW < SCREEN_WIDTH - 40);
+
+    // Up arrow: own center is a hit; down arrow: own center is a hit; neither
+    // is confused with the other or with a tile.
+    checkLayout("up-arrow center is a hit", hitTestScrollUp(big, SCREEN_WIDTH - 10 - 20, big.tileY + 20));
+    checkLayout("down-arrow center is a hit",
+                hitTestScrollDown(big, SCREEN_WIDTH - 10 - 20, big.tileY + bigListH - 20));
+    checkLayout("up-arrow location is not also a hit for the down-arrow test",
+                !hitTestScrollDown(big, SCREEN_WIDTH - 10 - 20, big.tileY + 20));
+    checkLayout("a tile-column tap is not mistaken for either scroll arrow",
+                !hitTestScrollUp(big, big.tileX + 10, big.tileY + 10) && !hitTestScrollDown(big, big.tileX + 10, big.tileY + 10));
+
+    // A full "scroll down one, then map slot back to absolute index" round
+    // trip -- exactly what ArcadeOS.ino does on a real scroll-down tap.
+    uint8_t scrollOffset = 1;
+    uint8_t remaining = MANY_GAMES - scrollOffset;
+    uint8_t visibleCount = (remaining < big.maxVisibleTiles) ? remaining : big.maxVisibleTiles;
+    uint8_t slot;
+    int16_t secondTileCx = big.tileX + big.tileW / 2;
+    int16_t secondTileTop = big.tileY + 1 * (big.tileH + big.tileGap); // slot 1's on-screen position -- same formula MenuScreen.cpp's own tileTop() uses
+    bool scrolledHit = hitTestMenuTile(big, visibleCount, secondTileCx, secondTileTop + big.tileH / 2, slot);
+    checkLayout("after scrolling down by 1, slot 1's own center still resolves to slot 1", scrolledHit && slot == 1);
+    checkLayout("...which maps back to absolute game index 2 (scrollOffset 1 + slot 1)", scrolledHit && (scrollOffset + slot) == 2);
+
     printf("\n");
 }
 
@@ -365,6 +429,7 @@ int main() {
     printf("Winning-line checks: %ld, mismatches: %ld\n\n", lineChecked, lineFailed);
 
     touchHitTestChecks();
+    xMarkShapeCheck();
     menuHitTestChecks();
 
     bool allGood = (humanWins == 0) && (checksFailed == 0) && (lineFailed == 0) && (layoutChecksFailed == 0);

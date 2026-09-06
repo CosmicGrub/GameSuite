@@ -22,11 +22,19 @@
 #include <TFT_eSPI.h>
 #include <Preferences.h>
 #include <esp_sleep.h>
+#include <esp_random.h>
 #include "Config.h"
 #include "GameLogic.h"
 #include "Display.h"
 #include "Chrome.h"
 #include "MenuScreen.h"
+#include "Theme.h"
+#include "CheckersLogic.h"
+#include "CheckersDisplay.h"
+#include "ChessLogic.h"
+#include "ChessDisplay.h"
+#include "UnoLogic.h"
+#include "UnoDisplay.h"
 
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
@@ -34,28 +42,61 @@ Preferences prefs;
 TicTacToeBoard board;
 Layout layout;
 
+CheckersBoard checkersBoard;
+CheckersLayout checkersLayout;
+uint8_t checkersSelRow = 0, checkersSelCol = 0;
+bool checkersHaveSelection = false;
+bool checkersRoundOver = false;
+unsigned long checkersAiMoveDueAt = 0;
+bool checkersAiMovePending = false;
+
+ChessBoard chessBoard;
+ChessLayout chessLayout;
+int8_t chessSelectedSquare = -1;
+bool chessRoundOver = false;
+unsigned long chessAiMoveDueAt = 0;
+bool chessAiMovePending = false;
+
+UnoRound unoRound;
+UnoLayout unoLayout;
+UnoColorOverlayLayout unoColorOverlayLayout;
+bool unoRoundOver = false;
+unsigned long unoAiMoveDueAt = 0;
+bool unoAiMovePending = false;
+
 // ---- Arcade home menu ----
 // Adding a game means: write its GameLogic/Display pair, add one entry here,
-// flip its `enabled` flag once it's built -- no other wiring needed. Mancala
-// and Dominoes are listed disabled ("coming soon") because the README's own
-// roadmap already named them as the next-best fits for this hardware; a
-// player sees the real roadmap on the device itself instead of it being
-// invisible until built.
+// flip its `enabled` flag once it's built -- no other wiring needed. Chess is
+// listed disabled ("coming soon") because it's still being built; Mancala and
+// Dominoes are listed disabled because the README's own roadmap already
+// named them as the next-best fits for this hardware -- a player sees the
+// real roadmap on the device itself instead of it being invisible until built.
 struct MenuGame {
     const char *label;
     bool enabled;
 };
 static const MenuGame MENU_GAMES[] = {
     {"Tic-Tac-Toe", true},
+    {"Checkers", true},
+    {"Chess", true},
+    {"UNO", true},
     {"Mancala", false},
     {"Dominoes", false},
 };
 static const uint8_t MENU_GAME_COUNT = sizeof(MENU_GAMES) / sizeof(MENU_GAMES[0]);
 static const uint8_t TICTACTOE_GAME_INDEX = 0;
+static const uint8_t CHECKERS_GAME_INDEX = 1;
+static const uint8_t CHESS_GAME_INDEX = 2;
+static const uint8_t UNO_GAME_INDEX = 3;
 
-enum class AppState { MENU, TICTACTOE };
+enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO };
 AppState appState = AppState::MENU;
 MenuLayout menuLayout;
+// Index of the first game currently shown in the (possibly scrolled) menu --
+// see MenuScreen.h's "slot vs. absolute index" comment. Reset to 0 whenever
+// the menu is (re)entered, so re-opening it is always predictable rather
+// than remembering wherever it was left scrolled to.
+uint8_t menuScrollOffset = 0;
 
 // Drives the short pause between the human's move and the AI's reply, and
 // between a finished round and the board accepting the next tap -- purely
@@ -73,15 +114,40 @@ void refreshStatusText();
 void handleTouch();
 void checkForRoundEnd();
 void enterLightSleep();
+void startNewCheckersRound();
+void refreshCheckersStatusText();
+void checkForCheckersRoundEnd();
+void startNewChessRound();
+void refreshChessStatusText();
+void checkForChessRoundEnd();
+void startNewUnoRound();
+void afterUnoStateChange();
+void checkForUnoRoundEnd();
+void redrawMenu();
 
 void enterMenu() {
     appState = AppState::MENU;
+    menuScrollOffset = 0;
     menuLayout = computeMenuLayout(MENU_GAME_COUNT);
-    drawMenuChrome(tft, menuLayout);
-    for (uint8_t i = 0; i < MENU_GAME_COUNT; i++) {
-        drawMenuTile(tft, menuLayout, i, MENU_GAMES[i].label, MENU_GAMES[i].enabled);
-    }
+    redrawMenu();
     Serial.println("[ArcadeOS] at home menu");
+}
+
+// Redraws the chrome (title, Sleep button, scroll arrows sized to the
+// current scroll position) plus whichever games/count fit given
+// menuScrollOffset -- called on every entry to the menu AND every scroll tap,
+// since which slot maps to which game shifts as the offset changes.
+void redrawMenu() {
+    bool canScrollUp = menuScrollOffset > 0;
+    bool canScrollDown = (menuScrollOffset + menuLayout.maxVisibleTiles) < MENU_GAME_COUNT;
+    drawMenuChrome(tft, menuLayout, canScrollUp, canScrollDown);
+
+    uint8_t remaining = MENU_GAME_COUNT - menuScrollOffset;
+    uint8_t visibleCount = (remaining < menuLayout.maxVisibleTiles) ? remaining : menuLayout.maxVisibleTiles;
+    for (uint8_t slot = 0; slot < visibleCount; slot++) {
+        uint8_t idx = menuScrollOffset + slot;
+        drawMenuTile(tft, menuLayout, slot, MENU_GAMES[idx].label, MENU_GAMES[idx].enabled);
+    }
 }
 
 // Puts the ESP32 into light sleep (NOT deep sleep) with the touch
@@ -145,6 +211,28 @@ void enterTicTacToe() {
     Serial.println("[ArcadeOS] entered Tic-Tac-Toe");
 }
 
+void enterCheckers() {
+    appState = AppState::CHECKERS;
+    checkersLayout = computeCheckersLayout();
+    startNewCheckersRound();
+    Serial.println("[ArcadeOS] entered Checkers");
+}
+
+void enterChess() {
+    appState = AppState::CHESS;
+    chessLayout = computeChessLayout();
+    startNewChessRound();
+    Serial.println("[ArcadeOS] entered Chess");
+}
+
+void enterUno() {
+    appState = AppState::UNO;
+    unoLayout = computeUnoLayout();
+    unoColorOverlayLayout = computeUnoColorOverlayLayout();
+    startNewUnoRound();
+    Serial.println("[ArcadeOS] entered UNO");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(300); // let the USB-serial link settle before the first print
@@ -157,8 +245,23 @@ void setup() {
     Serial.printf("[ArcadeOS] rotation set to %d (expect %dx%d landscape)\n",
                   SCREEN_ROTATION, SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    // The small smooth font is this arcade's default, left loaded for the
+    // rest of the program's life -- see Theme.h. Loaded before calibration
+    // so even the first-boot calibration screen gets it, not just the menu
+    // and games. Only the menu's title switches to the large font, and
+    // switches straight back afterward.
+    themeLoadFontSmall(tft);
+
     loadOrRunCalibration();
     Serial.println("[ArcadeOS] calibration ready");
+
+    // esp_random() is the ESP32's real hardware RNG (uses the RF subsystem's
+    // thermal noise, not a software PRNG seeded from a guessable value like
+    // millis()) -- UnoLogic.h keeps its own tiny xorshift32 out of Arduino's
+    // random()/randomSeed() so it compiles unchanged against native_test's
+    // stub, but a real board should still seed it with real entropy once,
+    // here, before the first shuffle.
+    seedUnoRandom(esp_random());
 
     enterMenu();
     Serial.println("[ArcadeOS] setup complete, entering loop()");
@@ -167,15 +270,35 @@ void setup() {
 void loop() {
     handleTouch();
 
-    // aiMovePending only ever becomes true from within handleTouch()'s
-    // TICTACTOE branch, so gating on appState here is belt-and-suspenders,
-    // not load-bearing -- kept explicit so this block can never fire a stale
-    // AI move into the menu screen if that invariant ever changes.
+    // Each *MovePending flag only ever becomes true from within handleTouch()'s
+    // own matching branch, so gating on appState here is belt-and-suspenders,
+    // not load-bearing -- kept explicit so no stale AI move can fire into the
+    // wrong screen if that invariant ever changes.
     if (appState == AppState::TICTACTOE && aiMovePending && millis() >= aiMoveDueAt) {
         aiMovePending = false;
         board.playAi();
         for (uint8_t i = 0; i < 9; i++) drawCell(tft, layout, i, board.at(i));
         checkForRoundEnd();
+    }
+
+    if (appState == AppState::CHECKERS && checkersAiMovePending && millis() >= checkersAiMoveDueAt) {
+        checkersAiMovePending = false;
+        checkersBoard.playAi(); // plays the AI's whole turn, every hop of a forced chain included
+        drawCheckersBoard(tft, checkersLayout, checkersBoard);
+        checkForCheckersRoundEnd();
+    }
+
+    if (appState == AppState::CHESS && chessAiMovePending && millis() >= chessAiMoveDueAt) {
+        chessAiMovePending = false;
+        chessBoard.playAi();
+        drawChessBoard(tft, chessLayout, chessBoard, chessSelectedSquare); // chessSelectedSquare is already -1 (cleared before the AI was scheduled)
+        checkForChessRoundEnd();
+    }
+
+    if (appState == AppState::UNO && unoAiMovePending && millis() >= unoAiMoveDueAt) {
+        unoAiMovePending = false;
+        unoRound.playAiTurn(); // plays the AI's whole turn, including its own color choice if any
+        afterUnoStateChange();
     }
 
     // A slow heartbeat so a remote/serial-only observer can tell the sketch is
@@ -184,9 +307,15 @@ void loop() {
     static unsigned long lastHeartbeat = 0;
     if (millis() - lastHeartbeat > 3000) {
         lastHeartbeat = millis();
-        Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s, humanTurn=%d, roundOver=%d\n",
-                      millis() / 1000, appState == AppState::MENU ? "menu" : "tictactoe",
-                      board.isHumanTurn(), roundOver);
+        const char *stateName = "menu";
+        switch (appState) {
+            case AppState::TICTACTOE: stateName = "tictactoe"; break;
+            case AppState::CHECKERS:  stateName = "checkers"; break;
+            case AppState::CHESS:     stateName = "chess"; break;
+            case AppState::UNO:       stateName = "uno"; break;
+            default: break;
+        }
+        Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s\n", millis() / 1000, stateName);
     }
 }
 
@@ -223,6 +352,123 @@ void refreshStatusText() {
     drawChromeBar(tft, board.isHumanTurn() ? "Your turn (X)" : "ESP32 thinking...");
 }
 
+void checkForCheckersRoundEnd() {
+    CheckersResult r = checkersBoard.result();
+    if (r == CheckersResult::IN_PROGRESS) {
+        refreshCheckersStatusText();
+        return;
+    }
+    checkersRoundOver = true;
+    switch (r) {
+        case CheckersResult::HUMAN_WINS: drawChromeBar(tft, "You win!"); break;
+        case CheckersResult::AI_WINS:    drawChromeBar(tft, "ESP32 wins!"); break;
+        default: break;
+    }
+    drawCheckersPlayAgainButton(tft, checkersLayout);
+}
+
+void startNewCheckersRound() {
+    checkersBoard.reset();
+    checkersRoundOver = false;
+    checkersAiMovePending = false;
+    checkersHaveSelection = false;
+    drawCheckersStaticChrome(tft, checkersLayout);
+    drawCheckersBoard(tft, checkersLayout, checkersBoard);
+    refreshCheckersStatusText();
+}
+
+void refreshCheckersStatusText() {
+    drawChromeBar(tft, checkersBoard.isHumanTurn() ? "Your turn" : "ESP32 thinking...");
+}
+
+void checkForChessRoundEnd() {
+    ChessRoundResult r = chessBoard.result();
+    if (r == ChessRoundResult::IN_PROGRESS) {
+        refreshChessStatusText();
+        return;
+    }
+    chessRoundOver = true;
+    switch (r) {
+        case ChessRoundResult::HUMAN_WINS:     drawChromeBar(tft, "You win!"); break;
+        case ChessRoundResult::AI_WINS:        drawChromeBar(tft, "ESP32 wins!"); break;
+        case ChessRoundResult::DRAW_STALEMATE: drawChromeBar(tft, "Stalemate!"); break;
+        default: break;
+    }
+    drawChessPlayAgainButton(tft, chessLayout);
+}
+
+void startNewChessRound() {
+    chessBoard.reset();
+    chessRoundOver = false;
+    chessAiMovePending = false;
+    chessSelectedSquare = -1;
+    drawChessStaticChrome(tft, chessLayout);
+    drawChessBoard(tft, chessLayout, chessBoard, chessSelectedSquare);
+    refreshChessStatusText();
+}
+
+void refreshChessStatusText() {
+    if (!chessBoard.isHumanTurn()) {
+        drawChromeBar(tft, "ESP32 thinking...");
+    } else {
+        drawChromeBar(tft, chessBoard.inCheck() ? "Your turn -- CHECK!" : "Your turn");
+    }
+}
+
+void checkForUnoRoundEnd() {
+    UnoRoundResult r = unoRound.result();
+    if (r == UnoRoundResult::IN_PROGRESS) return; // afterUnoStateChange() already refreshed the status text
+    unoRoundOver = true;
+    switch (r) {
+        case UnoRoundResult::HUMAN_WINS: drawChromeBar(tft, "You win!"); break;
+        case UnoRoundResult::AI_WINS:    drawChromeBar(tft, "ESP32 wins!"); break;
+        default: break;
+    }
+    drawUnoPlayAgainButton(tft, unoLayout);
+}
+
+void startNewUnoRound() {
+    unoRound.reset();
+    unoRoundOver = false;
+    unoAiMovePending = false;
+    drawUnoStaticChrome(tft, unoLayout);
+    afterUnoStateChange();
+}
+
+// The single place every UNO action (a human play/draw/color-choice, or the
+// AI's whole turn) funnels through afterward: redraw everything that could
+// have changed, check for a round end, show the color-choice overlay if the
+// human's own play just raised one, and schedule the AI's move if it's now
+// their turn -- matching this project's "one funnel, not one copy of this
+// logic per call site" approach elsewhere (e.g. checkForRoundEnd()).
+void afterUnoStateChange() {
+    drawUnoAiHand(tft, unoLayout, unoRound.aiHandCount());
+    drawUnoDiscardPile(tft, unoLayout, unoRound.topDiscard(), unoRound.currentColor());
+    drawUnoDrawPile(tft, unoLayout, unoRound.drawPileCount());
+
+    // UNO_MAX_HAND (108) sized so this never overflows even in a pathological
+    // "everything ended up in one hand" state -- see UnoLogic.h.
+    static UnoCardView handBuf[UNO_MAX_HAND];
+    uint8_t n = unoRound.humanHandCount();
+    for (uint8_t i = 0; i < n; i++) handBuf[i] = unoRound.humanHandCard(i);
+    drawUnoHumanHand(tft, unoLayout, handBuf, n);
+
+    drawChromeBar(tft, unoRound.isHumanTurn() ? "Your turn" : "ESP32 thinking...");
+
+    if (unoRound.result() != UnoRoundResult::IN_PROGRESS) {
+        checkForUnoRoundEnd();
+        return;
+    }
+    if (unoRound.awaitingColorChoice()) {
+        drawUnoColorOverlay(tft, unoColorOverlayLayout);
+        return;
+    }
+    if (!unoRound.isHumanTurn() && !unoAiMovePending) {
+        unoAiMovePending = true;
+        unoAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+    }
+}
+
 void handleTouch() {
     // TFT_eSPI's own getTouch() reads the XPT2046 over the same/adjacent SPI bus
     // (see UserSetup/User_Setup.h) and applies the calibration data already
@@ -245,10 +491,25 @@ void handleTouch() {
             enterLightSleep();
             return;
         }
-        uint8_t idx;
-        if (!hitTestMenuTile(menuLayout, MENU_GAME_COUNT, tx, ty, idx)) return;
+        if (hitTestScrollUp(menuLayout, tx, ty)) {
+            if (menuScrollOffset > 0) { menuScrollOffset--; redrawMenu(); }
+            return;
+        }
+        if (hitTestScrollDown(menuLayout, tx, ty)) {
+            if (menuScrollOffset + menuLayout.maxVisibleTiles < MENU_GAME_COUNT) { menuScrollOffset++; redrawMenu(); }
+            return;
+        }
+
+        uint8_t remaining = MENU_GAME_COUNT - menuScrollOffset;
+        uint8_t visibleCount = (remaining < menuLayout.maxVisibleTiles) ? remaining : menuLayout.maxVisibleTiles;
+        uint8_t slot;
+        if (!hitTestMenuTile(menuLayout, visibleCount, tx, ty, slot)) return;
+        uint8_t idx = menuScrollOffset + slot; // slot is the tile's position on screen; idx is its real place in MENU_GAMES
         if (!MENU_GAMES[idx].enabled) return; // "coming soon" tile -- silently inert, same as any other illegal tap in this project
         if (idx == TICTACTOE_GAME_INDEX) enterTicTacToe();
+        else if (idx == CHECKERS_GAME_INDEX) enterCheckers();
+        else if (idx == CHESS_GAME_INDEX) enterChess();
+        else if (idx == UNO_GAME_INDEX) enterUno();
         return;
     }
 
@@ -260,29 +521,179 @@ void handleTouch() {
         return;
     }
 
-    // appState == TICTACTOE from here on.
-    if (roundOver) {
-        if (hitTestPlayAgainButton(layout, tx, ty)) {
-            startNewRound();
+    if (appState == AppState::TICTACTOE) {
+        if (roundOver) {
+            if (hitTestPlayAgainButton(layout, tx, ty)) {
+                startNewRound();
+            }
+            return;
+        }
+
+        if (aiMovePending || !board.isHumanTurn()) return; // ignore taps while the AI is "thinking"
+
+        uint8_t cell;
+        if (!hitTestCell(layout, tx, ty, cell)) return;
+        if (!board.playHuman(cell)) return; // illegal tap (cell taken) -- silently ignored, same as GameSuite's own games do
+
+        drawCell(tft, layout, cell, HUMAN);
+        RoundResult r = board.result();
+        if (r != RoundResult::IN_PROGRESS) {
+            checkForRoundEnd();
+            return;
+        }
+        refreshStatusText();
+        aiMovePending = true;
+        aiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+        return;
+    }
+
+    if (appState == AppState::CHECKERS) {
+        if (checkersRoundOver) {
+            if (hitTestCheckersPlayAgainButton(checkersLayout, tx, ty)) {
+                startNewCheckersRound();
+            }
+            return;
+        }
+
+        if (checkersAiMovePending || !checkersBoard.isHumanTurn()) return; // ignore taps while the AI is "thinking"
+
+        uint8_t row, col;
+        if (!hitTestSquare(checkersLayout, tx, ty, row, col)) return;
+
+        // Two-step "tap source, tap destination" flow -- CheckersLogic.h's
+        // own hasLegalMoveFrom()/isLegalMove() already carry every rule this
+        // needs (mandatory capture, forced continuation, direction/king
+        // rules), so this has zero checkers-rules knowledge of its own; see
+        // CheckersDisplay.h's hitTestSquare() comment for the worked example
+        // this mirrors almost verbatim.
+        if (!checkersHaveSelection) {
+            if (checkersBoard.hasLegalMoveFrom(row, col)) {
+                checkersSelRow = row;
+                checkersSelCol = col;
+                checkersHaveSelection = true;
+                drawCheckersSquareHighlight(tft, checkersLayout, row, col, checkersBoard.at(row, col), true);
+            }
+            return;
+        }
+
+        if (checkersBoard.isLegalMove(checkersSelRow, checkersSelCol, row, col)) {
+            uint8_t fromRow = checkersSelRow, fromCol = checkersSelCol;
+            checkersBoard.playHuman(fromRow, fromCol, row, col);
+            drawCheckersBoard(tft, checkersLayout, checkersBoard); // simplest correct redraw -- cheap on this small board, same tradeoff Tic-Tac-Toe's grid makes
+
+            uint8_t contRow, contCol;
+            if (checkersBoard.inForcedContinuation(contRow, contCol)) {
+                // Same piece must jump again -- keep the selection (now at
+                // its landing square) instead of handing off to the AI.
+                checkersSelRow = contRow;
+                checkersSelCol = contCol;
+                drawCheckersSquareHighlight(tft, checkersLayout, contRow, contCol, checkersBoard.at(contRow, contCol), true);
+                return;
+            }
+
+            checkersHaveSelection = false;
+            CheckersResult r = checkersBoard.result();
+            if (r != CheckersResult::IN_PROGRESS) {
+                checkForCheckersRoundEnd();
+                return;
+            }
+            refreshCheckersStatusText();
+            checkersAiMovePending = true;
+            checkersAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+        } else {
+            // Tapped somewhere that isn't a legal destination for the
+            // current selection -- drop it, same as any other illegal tap
+            // in this project (silently ignored, not an error).
+            checkersHaveSelection = false;
+            drawCheckersBoard(tft, checkersLayout, checkersBoard); // clears the highlight
         }
         return;
     }
 
-    if (aiMovePending || !board.isHumanTurn()) return; // ignore taps while the AI is "thinking"
+    if (appState == AppState::CHESS) {
+        if (chessRoundOver) {
+            if (hitTestChessPlayAgainButton(chessLayout, tx, ty)) {
+                startNewChessRound();
+            }
+            return;
+        }
 
-    uint8_t cell;
-    if (!hitTestCell(layout, tx, ty, cell)) return;
-    if (!board.playHuman(cell)) return; // illegal tap (cell taken) -- silently ignored, same as GameSuite's own games do
+        if (chessAiMovePending || !chessBoard.isHumanTurn()) return; // ignore taps while the AI is "thinking"
 
-    drawCell(tft, layout, cell, HUMAN);
-    RoundResult r = board.result();
-    if (r != RoundResult::IN_PROGRESS) {
-        checkForRoundEnd();
+        uint8_t row, col;
+        if (!hitTestSquare(chessLayout, tx, ty, row, col)) return;
+        uint8_t sq = row * 8 + col;
+        uint8_t dests[32];
+        bool moved = false;
+
+        // Two-step "tap source, tap destination" flow -- mirrors
+        // ChessDisplay.h's own hitTestSquare() comment almost verbatim.
+        // legalDestinations()/playHuman() carry every rule this needs (pins,
+        // check, castling, en passant, promotion), so this has zero chess-
+        // rules knowledge of its own -- selection is purely a UI convenience
+        // for what to highlight, never itself trusted as a legality decision.
+        if (chessSelectedSquare < 0) {
+            if (chessBoard.legalDestinations(sq, dests) > 0) chessSelectedSquare = sq;
+        } else if (sq == (uint8_t)chessSelectedSquare) {
+            chessSelectedSquare = -1; // tapping the selected piece again deselects it
+        } else if (chessBoard.playHuman((uint8_t)chessSelectedSquare, sq)) {
+            chessSelectedSquare = -1;
+            moved = true;
+        } else {
+            // Tapped another of your own pieces (reselect) or an illegal
+            // square (drop the selection) -- either way, no rules knowledge
+            // needed here since legalDestinations() decides which it was.
+            chessSelectedSquare = (chessBoard.legalDestinations(sq, dests) > 0) ? (int8_t)sq : -1;
+        }
+
+        drawChessBoard(tft, chessLayout, chessBoard, chessSelectedSquare);
+
+        if (moved) {
+            ChessRoundResult r = chessBoard.result();
+            if (r != ChessRoundResult::IN_PROGRESS) {
+                checkForChessRoundEnd();
+            } else {
+                refreshChessStatusText();
+                chessAiMovePending = true;
+                chessAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+            }
+        }
         return;
     }
-    refreshStatusText();
-    aiMovePending = true;
-    aiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+
+    if (appState == AppState::UNO) {
+        if (unoRoundOver) {
+            if (hitTestUnoPlayAgainButton(unoLayout, tx, ty)) {
+                startNewUnoRound();
+            }
+            return;
+        }
+
+        if (unoRound.awaitingColorChoice()) {
+            UnoColor chosen;
+            if (hitTestUnoColorOverlay(unoColorOverlayLayout, tx, ty, chosen)) {
+                if (unoRound.chooseHumanColor(chosen)) {
+                    hideUnoColorOverlay(tft, unoColorOverlayLayout);
+                    afterUnoStateChange();
+                }
+            }
+            return;
+        }
+
+        if (unoAiMovePending || !unoRound.isHumanTurn()) return; // ignore taps while the AI is "thinking"
+
+        uint8_t idx;
+        if (hitTestUnoHumanHandCard(unoLayout, unoRound.humanHandCount(), tx, ty, idx)) {
+            if (unoRound.playHumanCard(idx)) afterUnoStateChange(); // illegal card -- silently ignored, same as any other illegal tap in this project
+            return;
+        }
+
+        if (hitTestUnoDrawPile(unoLayout, tx, ty)) {
+            bool ok = unoRound.awaitingHumanDrawDecision() ? unoRound.keepHumanDrawnCard() : unoRound.drawHumanCard();
+            if (ok) afterUnoStateChange();
+            return;
+        }
+    }
 }
 
 void loadOrRunCalibration() {
@@ -322,10 +733,9 @@ void loadOrRunCalibration() {
         ? "[ArcadeOS] forced recalibration requested (corner held at boot)"
         : "[ArcadeOS] no saved calibration -- running first-time calibration");
 
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.fillScreen(THEME_BG);
+    tft.setTextColor(THEME_TEXT, THEME_BG);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(2);
     tft.drawString("Touch each corner", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20);
     tft.drawString("as it's marked", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 10);
     delay(1200);
@@ -334,7 +744,7 @@ void loadOrRunCalibration() {
     // turn, waits for a touch, and fills calData with the raw ADC min/max
     // range this specific physical panel reports -- see this library's
     // "Touch_calibrate" example for the same call used the same way.
-    tft.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, 20);
+    tft.calibrateTouch(calData, THEME_TEXT, THEME_BG, 20);
     Serial.printf("[ArcadeOS] calibration captured: %u,%u,%u,%u,%u\n",
                   calData[0], calData[1], calData[2], calData[3], calData[4]);
 
