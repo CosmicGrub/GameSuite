@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
@@ -93,6 +95,18 @@ fun HangmanScreen(
                     ) {
                         items(('A'..'Z').toList()) { letter ->
                             val used = letter in s.guessedLetters
+                            val correct = used && letter in s.word
+                            // A single letter is not enough for a screen reader to
+                            // announce meaningfully on its own — this states the
+                            // letter plus its guessed/correct/incorrect status,
+                            // since a sighted player gets that same information
+                            // from the button being disabled and (once revealed
+                            // in the word) which letters turned out right.
+                            val status = when {
+                                !used -> "not guessed"
+                                correct -> "correct"
+                                else -> "incorrect"
+                            }
                             // Material3's default Button content padding is 24dp
                             // horizontal — sized for real text labels, not a
                             // single letter squeezed into a ~50dp grid cell. Left
@@ -104,7 +118,9 @@ fun HangmanScreen(
                             Button(
                                 onClick = { game.guessLetter(letter) },
                                 enabled = !used,
-                                modifier = Modifier.padding(2.dp),
+                                modifier = Modifier
+                                    .padding(2.dp)
+                                    .semantics { contentDescription = "Letter $letter, $status" },
                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                             ) {
                                 Text(letter.toString())

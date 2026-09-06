@@ -30,6 +30,12 @@ data class HangmanState(
  * count is deliberately left fixed at the classic 6 across all three —
  * varying it too would double up with the word-pool change as the
  * difficulty lever and muddy which one actually made a given round harder.
+ *
+ * Variety pass: [pickWord] now excludes [recentWords] (the last
+ * [WORD_HISTORY_SIZE] words played this session, in-memory only) from the
+ * random draw, so mashing "New Word" doesn't keep re-serving the same word
+ * out of these small pools — it falls back to allowing a repeat only once
+ * excluding history would leave nothing to pick from.
  */
 class HangmanGame : GameModule {
     override val gameId = "hangman"
@@ -55,6 +61,14 @@ class HangmanGame : GameModule {
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
+    /**
+     * Last few words played (most recent last), across "New Word" taps this
+     * session — excluded from [pickWord]'s draw so the same word doesn't keep
+     * coming back out of these small pools. In-memory only, cleared on
+     * [init]; see [WORD_HISTORY_SIZE].
+     */
+    private val recentWords = ArrayDeque<String>()
+
     private val wordBank: Map<CpuDifficulty, List<String>> = mapOf(
         CpuDifficulty.EASY to listOf(
             "APPLE", "HOUSE", "TIGER", "BEACH", "CHAIR", "SMILE", "TABLE", "MUSIC",
@@ -77,6 +91,7 @@ class HangmanGame : GameModule {
         wins.value = 0
         losses.value = 0
         matchOver.value = false
+        recentWords.clear()
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -85,11 +100,28 @@ class HangmanGame : GameModule {
 
     override fun startMatch() {
         state.value = HangmanState(
-            word = (wordBank[difficulty] ?: wordBank.getValue(CpuDifficulty.MEDIUM)).random(),
+            word = pickWord(wordBank[difficulty] ?: wordBank.getValue(CpuDifficulty.MEDIUM)),
             guessedLetters = emptySet(),
             wrongGuesses = 0,
             maxWrongGuesses = 6
         )
+    }
+
+    /**
+     * Draws a word for the round, avoiding [recentWords] where possible so
+     * back-to-back "New Word" taps don't keep re-serving the same word from
+     * these small (15-ish word) pools — falls back to allowing a repeat only
+     * once excluding history would leave nothing left to draw from (e.g.
+     * early in a session, before [WORD_HISTORY_SIZE] distinct words have
+     * been seen yet, exclusion never empties the pool).
+     */
+    private fun pickWord(pool: List<String>): String {
+        val available = pool.filterNot { it in recentWords }
+        val chosen = available.ifEmpty { pool }.random()
+
+        recentWords.addLast(chosen)
+        while (recentWords.size > WORD_HISTORY_SIZE) recentWords.removeFirst()
+        return chosen
     }
 
     override fun pause() {}
@@ -135,5 +167,10 @@ class HangmanGame : GameModule {
             ) else emptyList()
         )
         endMatch(result)
+    }
+
+    companion object {
+        /** How many past words [pickWord] avoids repeating. */
+        private const val WORD_HISTORY_SIZE = 5
     }
 }

@@ -63,3 +63,34 @@ shapes (`host`/`join`/`message`/`leave` client→server,
 `hosted`/`joined`/`playerJoined`/`playerLeft`/`message`/`error`
 server→client). `OnlineTransport.kt`'s KDoc cross-references this same
 protocol from the client side.
+
+## Hardening
+
+This is a small free/cheap-tier relay exposed to the open internet, so it
+carries a few defensive limits alongside the protocol above (all as named
+constants at the top of `index.js`):
+
+- **Payload cap** — the WebSocket server rejects any frame over 64KB
+  (`maxPayload`) instead of the `ws` library's 100MB default.
+- **Room/room-code caps** — at most 500 rooms exist at once, and the
+  random-room-code allocator gives up (with a clear error) after 50
+  collisions rather than looping forever as the code space fills.
+- **Heartbeat + idle reap** — every open socket is ws ping/ponged every 30
+  seconds and terminated if it misses a reply, so a half-open connection
+  (e.g. a phone that dropped off Wi-Fi) doesn't sit in a room forever. On
+  top of that, a sweep every 5 minutes deletes any room that's had no
+  relayed traffic (`lastActivity`) for 30 minutes.
+- **Join rate limiting** — a socket that racks up 20 failed `join` attempts
+  (bad room code, taken playerId, full room) is disconnected, as basic
+  protection against brute-forcing room codes.
+- **displayName length cap** — any `displayName` read off an incoming
+  message is truncated to 40 characters before it's stored or broadcast.
+- **Timestamped logging** — connect/host/join/leave/error events are logged
+  with an ISO timestamp for basic operational visibility.
+
+## Continuous integration
+
+`.github/workflows/relay-server.yml` runs `npm ci && npm test` in this
+directory on every push/PR that touches `server/**`, using the self-starting
+`smoke-test.js` above — so a broken protocol change or a regression of the
+crash/room-leak fixes it covers gets caught before merge.

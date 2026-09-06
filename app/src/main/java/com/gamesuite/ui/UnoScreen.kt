@@ -31,11 +31,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
@@ -47,13 +52,17 @@ import com.gamesuite.games.cards.PlayingCardView
 import com.gamesuite.games.uno.UnoCard
 import com.gamesuite.games.uno.UnoColor
 import com.gamesuite.games.uno.UnoGame
+import com.gamesuite.games.uno.UnoRank
 import com.gamesuite.games.uno.UnoRules
+import com.gamesuite.settings.LocalReducedMotion
+import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
 
 @Composable
 fun UnoScreen(
     sessionManager: GameSessionManager,
     game: UnoGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit,
     initialRules: UnoRules = UnoRules()
 ) {
@@ -62,11 +71,16 @@ fun UnoScreen(
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
     val haptics = LocalHapticFeedback.current
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+    val reducedMotion = LocalReducedMotion.current
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.init(ctx)
         game.rules = initialRules
+        // UNO's bot was the one CPU opponent in the suite that ignored this setting — see
+        // UnoBot.kt's difficulty ladder and the audited "Default CPU difficulty" finding.
+        game.difficulty = settings.defaultCpuDifficulty
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
         }
@@ -184,7 +198,7 @@ fun UnoScreen(
                             Spacer(Modifier.height(4.dp))
                             // At one card the fan collapses to a single large card instead of
                             // a counter — the hand's own shape is the "they're close" tell.
-                            OpponentHandFan(count = p.hand.size, scale = cardScale)
+                            OpponentHandFan(count = p.hand.size, playerName = p.displayName, scale = cardScale)
                             // index != myIndex: never let the human catch themselves for a self-inflicted penalty.
                             if (index != myIndex && p.hand.size == 1 && !p.calledUno) {
                                 TextButton(onClick = { game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index) }) {
@@ -212,19 +226,36 @@ fun UnoScreen(
                         AnimatedContent(
                             targetState = s.topCard.instanceId,
                             transitionSpec = {
-                                (scaleIn(animationSpec = tween(220), initialScale = 0.6f) + fadeIn(tween(220)))
-                                    .togetherWith(scaleOut(animationSpec = tween(150), targetScale = 0.8f) + fadeOut(tween(150)))
+                                // Settings -> Accessibility -> Reduced Motion: swap the scale/fade
+                                // transition for a near-instant one instead of skipping the setting
+                                // entirely (the audited "stored but consumed nowhere" finding).
+                                if (reducedMotion) {
+                                    fadeIn(tween(1)).togetherWith(fadeOut(tween(1)))
+                                } else {
+                                    (scaleIn(animationSpec = tween(220), initialScale = 0.6f) + fadeIn(tween(220)))
+                                        .togetherWith(scaleOut(animationSpec = tween(150), targetScale = 0.8f) + fadeOut(tween(150)))
+                                }
                             },
                             label = "discardPile"
                         ) { _ ->
                             PlayingCardView(
                                 card = unoCardToVisual(s.topCard, overrideColor = s.currentColor),
                                 width = 72.dp * cardScale,
-                                height = 104.dp * cardScale
+                                height = 104.dp * cardScale,
+                                modifier = Modifier.semantics {
+                                    contentDescription = "Discard pile: ${s.topCard.accessibleDescription(colorOverride = s.currentColor)}"
+                                }
                             )
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
+                        // liveRegion: this line is the running play-by-play ("Player played
+                        // Red 7", "Skip!", etc) — without it a screen-reader user has to
+                        // re-explore the screen after every move to notice anything changed.
+                        Text(
+                            s.lastAction,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
                     }
                 }
 
@@ -244,6 +275,17 @@ fun UnoScreen(
                             game.callUno(myIndex)
                             showUnoCallout = true
                         }) { Text("UNO!") }
+                        Spacer(Modifier.width(12.dp))
+                    }
+                    // Official UNO: playing a card you just drew is your OPTION, not mandatory —
+                    // only offered when the house rule doesn't force it (see UnoRules.forcePlayDrawnCard
+                    // and UnoGame.keepDrawnCard()). This is the fix for the audited finding that the
+                    // engine's true default silently forced this with no way to opt out.
+                    if (myTurn && s.awaitingDrawDecision && !game.rules.forcePlayDrawnCard) {
+                        OutlinedButton(onClick = {
+                            game.keepDrawnCard(myIndex)
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }) { Text("Keep card") }
                     }
                 }
             }
@@ -268,7 +310,10 @@ fun UnoScreen(
                         sounds.playPlace()
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    // Each card in the player's own hand announces its identity
+                    // ("Red Seven", "Wild Draw Four", "Skip") — see accessibleDescription().
+                    descriptionOf = { it.accessibleDescription() }
                 )
             }
         }
@@ -316,6 +361,42 @@ private fun unoCardToVisual(card: UnoCard, overrideColor: UnoColor? = null): Car
     backgroundColor = colorFor(overrideColor ?: card.color)
 )
 
+/** Spoken-out-loud form of [UnoRank]'s number ranks — [UnoCard.displayLabel] only
+ *  needs a single glyph ("7") for the compact on-card corner index, but a
+ *  screen reader needs the actual word for it to read sensibly. Index == rank.ordinal
+ *  for every number rank (see UnoCard.isNumber). */
+private val unoNumberWords = listOf(
+    "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"
+)
+
+/**
+ * Full screen-reader identity for a card — "Red Seven", "Blue Skip",
+ * "Wild Draw Four" — as opposed to [UnoCard.displayLabel]'s terse on-card glyph
+ * ("7", "Wild +4") meant to be read visually at a glance, not spoken aloud.
+ * This app had no screen-reader semantics anywhere before this pass (an
+ * audited finding), so there's no prior convention to match here beyond
+ * Compose's own `Modifier.semantics { contentDescription = ... }` idiom —
+ * see the FannedHand/discard-pile/opponent-fan call sites below.
+ *
+ * [colorOverride] lets the discard pile's top card describe the color the
+ * table has actually agreed on after a Wild is played (s.currentColor)
+ * rather than the card's own literal WILD color, matching what's shown
+ * visually via [unoCardToVisual]'s own overrideColor. Wild ranks ignore it
+ * and stay colorless ("Wild", "Wild Draw Four") since the two Wild ranks
+ * have no meaningful color of their own until a color is chosen.
+ */
+private fun UnoCard.accessibleDescription(colorOverride: UnoColor? = null): String {
+    if (rank == UnoRank.WILD) return "Wild"
+    if (rank == UnoRank.WILD_DRAW_FOUR) return "Wild Draw Four"
+    val colorName = (colorOverride ?: color).name.lowercase().replaceFirstChar { it.uppercase() }
+    return when (rank) {
+        UnoRank.SKIP -> "$colorName Skip"
+        UnoRank.REVERSE -> "$colorName Reverse"
+        UnoRank.DRAW_TWO -> "$colorName Draw Two"
+        else -> "$colorName ${unoNumberWords[rank.ordinal]}"
+    }
+}
+
 @Composable
 private fun ColorPickerDialog(onColorChosen: (UnoColor) -> Unit) {
     Dialog(onDismissRequest = {}) {
@@ -324,14 +405,26 @@ private fun ColorPickerDialog(onColorChosen: (UnoColor) -> Unit) {
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 listOf(UnoColor.RED, UnoColor.YELLOW, UnoColor.GREEN, UnoColor.BLUE).forEach { c ->
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colorFor(c))
-                            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-                            .clickable { onColorChosen(c) }
-                    )
+                    val label = c.name.lowercase().replaceFirstChar { it.uppercase() }
+                    // Fixes the audited finding that this dialog was four unlabeled color
+                    // swatches with zero non-color differentiation: a visible text label
+                    // covers colorblind players, and the semantics contentDescription (on top
+                    // of Text's own, for a single clear TalkBack announcement per swatch)
+                    // covers screen-reader users — docs/SETTINGS_THEMING_ACCESSIBILITY.md
+                    // named this its highest-priority accessibility gap.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colorFor(c))
+                                .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                                .semantics { contentDescription = label }
+                                .clickable { onColorChosen(c) }
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(label, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
@@ -598,14 +691,21 @@ private fun PlayerBadge(seatIndex: Int, size: androidx.compose.ui.unit.Dp = 44.d
  *  single `val cardScale = LocalCardScale.current` stays the one source of
  *  truth, matching the rule in CardScale.kt's KDoc. Applied to the fan's own
  *  spacing/offset math too, not just the cards themselves, so a scaled-up fan
- *  still overlaps proportionally instead of gapping or crowding. */
+ *  still overlaps proportionally instead of gapping or crowding.
+ *  [playerName] backs the fan's contentDescription ("Sam has 4 cards") — the
+ *  fan silhouette this composable renders is otherwise a purely visual tell
+ *  with nothing else on screen a screen reader could substitute for it. */
 @Composable
-private fun OpponentHandFan(count: Int, scale: Float, modifier: Modifier = Modifier) {
+private fun OpponentHandFan(count: Int, playerName: String, scale: Float, modifier: Modifier = Modifier) {
     if (count <= 0) return
+    // "Opponent has 4 cards" (by name, since up to 10 players can be at the
+    // table) — the fan silhouette this whole composable is built around is a
+    // purely visual tell with nothing else on screen to substitute for it.
+    val description = "$playerName has $count ${if (count == 1) "card" else "cards"}"
     if (count == 1) {
         PlayingCardView(
             card = CardVisual(id = -1, label = "", backgroundColor = Color.Transparent, faceDown = true),
-            modifier = modifier,
+            modifier = modifier.semantics { contentDescription = description },
             width = 40.dp * scale,
             height = 58.dp * scale
         )
@@ -616,7 +716,8 @@ private fun OpponentHandFan(count: Int, scale: Float, modifier: Modifier = Modif
     Box(
         modifier = modifier
             .height(50.dp * scale)
-            .width(22.dp * scale + cardStep * displayCount),
+            .width(22.dp * scale + cardStep * displayCount)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.TopCenter
     ) {
         for (i in 0 until displayCount) {
@@ -688,6 +789,10 @@ private fun TurnTag(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         modifier = modifier
+            // liveRegion: this tag is re-anchored to a new seat (or re-worded, e.g.
+            // "Draw or stack") every time the turn advances — without this a
+            // screen-reader user only learns whose turn it is by hunting for it.
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .background(Color(0xFF43A047), RoundedCornerShape(999.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         color = Color.White,

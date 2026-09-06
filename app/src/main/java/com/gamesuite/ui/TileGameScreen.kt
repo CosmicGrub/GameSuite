@@ -29,6 +29,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -89,6 +91,7 @@ fun TileGameScreen(
     }
 
     val s = state ?: return
+    val activeContext = context ?: return
 
     if (s.matchOver) {
         val winner = s.players.maxByOrNull { it.score }
@@ -122,7 +125,7 @@ fun TileGameScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    val humanIndex = s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else 0 }
+    val humanIndex = humanIndex(s, activeContext)
     val isMyTurn = s.currentPlayerIndex == humanIndex
     val tileSizePx = with(density) { 44.dp.toPx() }
 
@@ -166,6 +169,37 @@ fun TileGameScreen(
                 }
             }
             Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
+            if (s.lastPlayedWords.isNotEmpty()) {
+                // Word transparency affordance: submitMove() already dictionary-checks every
+                // word before it's ever committed, so a real "challenge that overturns an
+                // already-committed play" isn't meaningful here — nothing invalid ever lands
+                // on the board. What players (especially against the bot) actually lack is a
+                // way to tell whether an obscure-looking play was a real word, so tapping a
+                // just-played word simply surfaces the confirmation that the check already
+                // ran and passed. Low-stakes, informational — not a scoring/challenge mechanic.
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    s.lastPlayedWords.forEach { word ->
+                        Text(
+                            word,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                            modifier = Modifier
+                                .semantics {
+                                    contentDescription = "$word, last played word. Double tap to confirm it is a valid dictionary word."
+                                }
+                                .clickable {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("\"$word\" is a valid dictionary word.")
+                                    }
+                                }
+                        )
+                    }
+                }
+            }
             Text("Bag: ${s.bagCount}", style = MaterialTheme.typography.labelSmall)
             if (s.players.any { it.isBot }) {
                 Text(
@@ -201,6 +235,17 @@ fun TileGameScreen(
                                 derivedStateOf { draggedTile != null && cellBounds[row to col]?.contains(dragPosition) == true }
                             }
 
+                            // Computed up front (not just at render time) so the same letter/value
+                            // pair backing the visible Text can also back this cell's screen-reader
+                            // announcement below.
+                            val displayLetter = pending?.chosenLetter ?: cell.effectiveLetter
+                            val displayTile = pending?.tile ?: cell.tile
+                            val cellDescription = if (displayLetter != null && displayTile != null) {
+                                val pointsText = "${TileBag.valueOf(displayTile)} point${if (TileBag.valueOf(displayTile) == 1) "" else "s"}"
+                                if (pending != null) "$displayLetter, $pointsText, not yet submitted"
+                                else "$displayLetter, $pointsText"
+                            } else null
+
                             Box(
                                 modifier = Modifier
                                     .padding(0.3.dp)
@@ -211,6 +256,7 @@ fun TileGameScreen(
                                         else squareColor(squareType, cell.tile != null, pending != null)
                                     )
                                     .border(if (isDropTarget) 1.5.dp else 0.3.dp, if (isDropTarget) Color(0xFF558B2F) else Color.Gray)
+                                    .let { m -> if (cellDescription != null) m.semantics { contentDescription = cellDescription } else m }
                                     .clickable(enabled = isMyTurn) {
                                         when {
                                             pending != null -> game.unstageTile(row, col)
@@ -228,7 +274,6 @@ fun TileGameScreen(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                val displayLetter = pending?.chosenLetter ?: cell.effectiveLetter
                                 if (displayLetter != null) {
                                     Text(displayLetter.toString(), fontWeight = FontWeight.Bold)
                                 }
@@ -251,6 +296,8 @@ fun TileGameScreen(
                 items(s.players.getOrNull(humanIndex)?.rack ?: emptyList(), key = { it.instanceId }) { tile ->
                     if (tile.instanceId in stagedIds) return@items
                     val isBeingDragged = draggedTile?.instanceId == tile.instanceId
+                    val tileDescription = if (tile.isBlank) "Blank tile, 0 points"
+                        else "Letter ${tile.letter}, ${TileBag.valueOf(tile)} point${if (TileBag.valueOf(tile) == 1) "" else "s"}"
 
                     Box(
                         modifier = Modifier
@@ -266,6 +313,7 @@ fun TileGameScreen(
                                     else -> Color(0xFFE0C097)
                                 }
                             )
+                            .semantics { contentDescription = tileDescription }
                             .clickable(enabled = isMyTurn && !isBeingDragged) {
                                 if (swapMode) {
                                     swapSelectedIds = if (tile.instanceId in swapSelectedIds) {
@@ -419,6 +467,28 @@ private fun BlankLetterDialog(onLetterChosen: (Char) -> Unit, onDismiss: () -> U
         }
     }
 }
+
+/**
+ * "Which seat is this device/screen currently representing" — mode-dependent, the exact
+ * same fix (and same underlying bug) as UnoScreen.kt's private `humanIndex()`:
+ *  - LOCAL_AD_HOC: each device IS one specific, fixed player for the whole match —
+ *    context.localPlayerIndex (assigned once by the lobby) is exactly that.
+ *  - SINGLE_DEVICE_PASS_AND_PLAY: there's no single "local player" at all — the one
+ *    shared device is handed around, so "my seat" is whoever's turn it currently is.
+ *    This screen used to always return the first non-bot player's index regardless of
+ *    mode, which is harmless for SINGLE_PLAYER_VS_BOT (only one human seat, so "first
+ *    non-bot" and "current human's turn" coincide) but is a real bug for pass-and-play —
+ *    players 2/3/4 could never act, since turn-gating requires
+ *    s.currentPlayerIndex == humanIndex and humanIndex was frozen at whichever seat
+ *    happened to be the first non-bot in the player list.
+ *  - SINGLE_PLAYER_VS_BOT (default): the one human seat — first non-bot player.
+ */
+private fun humanIndex(s: TileGameState, context: com.gamesuite.core.GameContext): Int =
+    when (context.activeMode) {
+        com.gamesuite.core.PlayMode.LOCAL_AD_HOC -> context.localPlayerIndex
+        com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY -> s.currentPlayerIndex
+        else -> s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else 0 }
+    }
 
 private fun squareColor(type: SquareType, occupied: Boolean, pending: Boolean): Color {
     if (pending) return Color(0xFFFFF176)

@@ -28,7 +28,13 @@ data class DominoState(
     val currentPlayerIndex: Int,
     val consecutivePasses: Int,
     val lastAction: String,
-    val matchOver: Boolean = false,
+    /**
+     * True once the current hand has ended (someone emptied their hand, or
+     * everyone's blocked) -- distinct from [DominoGame.matchOver], which only
+     * flips once the whole session ends (the player leaves via the
+     * hand-over panel's "Back to Menu" rather than "Play Again").
+     */
+    val handOver: Boolean = false,
     val winnerPlayerId: String? = null
 ) {
     val leftEnd: Int? get() = chain.firstOrNull()?.leftValue
@@ -37,7 +43,7 @@ data class DominoState(
 
 /**
  * Standard double-six dominoes (28 tiles, 0-6 pips on each end). Draw hand
- * (7 for 2 players, 5-6 for 3-4), take turns extending either end of the
+ * (7 for 2 players, 5 for 3-4), take turns extending either end of the
  * chain with a matching tile; draw from the boneyard if you can't play;
  * pass if the boneyard is empty and you still can't play. Game ends when a
  * player empties their hand (win) or every player is blocked (lowest total
@@ -56,6 +62,18 @@ class DominoGame : GameModule {
 
     val state = mutableStateOf<DominoState?>(null)
 
+    /**
+     * Running per-player score across hands this session, keyed by playerId
+     * -- see [awardHandPoints]. Session-long scoring (mirroring
+     * TicTacToeGame's scoreP1/scoreP2/draws) is what gives Play Again a
+     * reason to exist: without it, every hand would just be its own
+     * disconnected match.
+     */
+    val sessionScores = mutableStateOf<Map<String, Int>>(emptyMap())
+
+    /** True only once the whole session ends (user leaves via the hand-over panel), not per-hand. */
+    val matchOver = mutableStateOf(false)
+
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
@@ -65,6 +83,8 @@ class DominoGame : GameModule {
 
     override fun init(context: GameContext) {
         this.context = context
+        matchOver.value = false
+        sessionScores.value = context.players.associate { it.playerId to 0 }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -114,14 +134,42 @@ class DominoGame : GameModule {
     override fun resume() {}
 
     override fun endMatch(result: GameResult) {
-        state.value = state.value?.copy(matchOver = true)
+        matchOver.value = true
         onMatchEnd?.invoke(result)
+    }
+
+    /**
+     * Called from the hand-over panel's "Back to Menu" button -- ends the
+     * whole session (not just the current hand), reporting the session's
+     * cumulative per-player score. Mirrors TicTacToeGame.leaveSession().
+     */
+    fun leaveSession() {
+        if (matchOver.value) return
+        val bestScore = sessionScores.value.values.maxOrNull() ?: 0
+        val scores = context.players.map {
+            val score = sessionScores.value[it.playerId] ?: 0
+            PlayerScore(playerId = it.playerId, score = score, isWinner = bestScore > 0 && score == bestScore)
+        }
+        endMatch(GameResult(scores = scores))
+    }
+
+    /**
+     * Called from the hand-over panel's "Play Again" button -- keeps the
+     * running session score and deals a fresh hand within the same session.
+     * Reuses [startMatch] itself (full reshuffle + redeal + opening-player
+     * pick) rather than duplicating that setup, since "a new hand" and "the
+     * first hand of the match" are the same operation. Mirrors
+     * TicTacToeGame.playAgain().
+     */
+    fun playAgain() {
+        if (matchOver.value) return
+        startMatch()
     }
 
     /** attachToLeft=true plays on the left end, false plays on the right end. Auto-flips as needed. */
     fun playDomino(playerIndex: Int, domino: Domino, attachToLeft: Boolean) {
         val s = state.value ?: return
-        if (s.matchOver || playerIndex != s.currentPlayerIndex) return
+        if (s.handOver || playerIndex != s.currentPlayerIndex) return
         val player = s.players[playerIndex]
         if (!player.hand.any { it.instanceId == domino.instanceId }) return
 
@@ -154,7 +202,7 @@ class DominoGame : GameModule {
 
     fun drawFromBoneyard(playerIndex: Int) {
         val s = state.value ?: return
-        if (s.matchOver || playerIndex != s.currentPlayerIndex || boneyard.isEmpty()) return
+        if (s.handOver || playerIndex != s.currentPlayerIndex || boneyard.isEmpty()) return
         if (canPlay(playerIndex)) return // must play a legal tile instead of drawing
         val player = s.players[playerIndex]
         val drawn = draw(1)
@@ -169,7 +217,7 @@ class DominoGame : GameModule {
 
     fun pass(playerIndex: Int) {
         val s = state.value ?: return
-        if (s.matchOver || playerIndex != s.currentPlayerIndex) return
+        if (s.handOver || playerIndex != s.currentPlayerIndex) return
         // Only allowed once the boneyard is empty and the player genuinely has no legal move.
         if (boneyard.isNotEmpty() || canPlay(playerIndex)) return
         val consecutivePasses = s.consecutivePasses + 1
@@ -179,7 +227,7 @@ class DominoGame : GameModule {
             currentPlayerIndex = (playerIndex + 1) % s.players.size,
             consecutivePasses = consecutivePasses,
             lastAction = "${s.players[playerIndex].displayName} passed",
-            matchOver = blocked
+            handOver = blocked
         )
         if (blocked) finishBlocked()
     }
@@ -201,7 +249,7 @@ class DominoGame : GameModule {
      */
     fun playBotTurn() {
         val s = state.value ?: return
-        if (s.matchOver) return
+        if (s.handOver) return
         val botIndex = s.currentPlayerIndex
         val bot = s.players[botIndex]
         if (!bot.isBot) return
@@ -259,20 +307,31 @@ class DominoGame : GameModule {
     private fun finishWithWinner(playerIndex: Int) {
         val s = state.value ?: return
         val winner = s.players[playerIndex]
-        val scores = s.players.map {
-            PlayerScore(playerId = it.playerId, score = it.hand.sumOf { d -> d.a + d.b }, isWinner = it.playerId == winner.playerId)
-        }
-        state.value = s.copy(matchOver = true, winnerPlayerId = winner.playerId, lastAction = "${winner.displayName} wins!")
-        endMatch(GameResult(scores = scores))
+        awardHandPoints(winner.playerId, s.players)
+        state.value = s.copy(handOver = true, winnerPlayerId = winner.playerId, lastAction = "${winner.displayName} wins!")
     }
 
     private fun finishBlocked() {
         val s = state.value ?: return
         val pipTotals = s.players.associate { it.playerId to it.hand.sumOf { d -> d.a + d.b } }
         val winnerId = pipTotals.minByOrNull { it.value }?.key
-        val scores = s.players.map { PlayerScore(playerId = it.playerId, score = pipTotals[it.playerId] ?: 0, isWinner = it.playerId == winnerId) }
+        awardHandPoints(winnerId, s.players)
         state.value = s.copy(winnerPlayerId = winnerId, lastAction = "Blocked — lowest pips wins")
-        endMatch(GameResult(scores = scores))
+    }
+
+    /**
+     * Standard "Draw Dominoes" hand scoring: whoever wins the hand (emptied
+     * their hand, or -- in a blocked game -- held the fewest pips) scores
+     * the pip total left in every OTHER player's hand, not just their own.
+     * Accumulates into [sessionScores] so the running total survives
+     * [playAgain]; only [leaveSession] reports it and ends the match. A null
+     * [winnerId] (a genuine tie) awards nothing for that hand.
+     */
+    private fun awardHandPoints(winnerId: String?, players: List<DominoPlayerState>) {
+        if (winnerId == null) return
+        val points = players.filter { it.playerId != winnerId }.sumOf { it.hand.sumOf { d -> d.a + d.b } }
+        val current = sessionScores.value
+        sessionScores.value = current + (winnerId to (current[winnerId] ?: 0) + points)
     }
 
     private fun draw(count: Int): List<Domino> {

@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +56,14 @@ import kotlinx.coroutines.delay
  * "tic-tac-toe-misere" route reuses this exact composable with the flag set
  * to true — see MainActivity's NavHost. Defaults to false so the existing
  * "tic-tac-toe" route (both pass-and-play and vs-CPU) is unaffected.
+ *
+ * The same pass added [wild] alongside it, threaded through exactly the
+ * same way (a param defaulting to false, forwarded to the game module
+ * before startMatch(), presumably wired up behind its own route the same
+ * way misere is). The only rendering change it needs beyond the indicator
+ * text is the X/O toggle just above the board — see the `wild` branch below
+ * — since [TicTacToeGame.cellClicked] reads the symbol to place from
+ * whatever that toggle last set.
  */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -61,6 +71,7 @@ fun TicTacToeScreen(
     sessionManager: GameSessionManager,
     settingsViewModel: SettingsViewModel,
     misere: Boolean = false,
+    wild: Boolean = false,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
@@ -74,6 +85,7 @@ fun TicTacToeScreen(
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
         game.misere = misere
+        game.wild = wild
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -89,6 +101,7 @@ fun TicTacToeScreen(
     val scoreP1 = game.scoreP1.value
     val scoreP2 = game.scoreP2.value
     val draws = game.draws.value
+    val selectedSymbol = game.selectedSymbol.value
 
     // Drive the bot's turn automatically, mirroring MancalaScreen's pattern:
     // once it becomes a bot player's turn, wait a beat and let it move itself.
@@ -135,6 +148,12 @@ fun TicTacToeScreen(
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
+                if (wild) {
+                    Text(
+                        "Wild mode: choose X or O each turn",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     when {
@@ -146,6 +165,24 @@ fun TicTacToeScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Wild-only symbol picker: which mark the acting player's next
+                // tap will place (TicTacToeGame.selectedSymbol) — standard
+                // rules fix that to the player's own mark, so there's nothing
+                // to choose. Hidden during the bot's turn/round-over the same
+                // way the board itself is disabled then.
+                if (wild && !isBotTurn && !roundOver) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1 to "X", 2 to "O").forEach { (symbol, label) ->
+                            if (selectedSymbol == symbol) {
+                                Button(onClick = { game.chooseSymbol(symbol) }) { Text("Place $label") }
+                            } else {
+                                OutlinedButton(onClick = { game.chooseSymbol(symbol) }) { Text("Place $label") }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 Box(contentAlignment = Alignment.Center) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
@@ -155,6 +192,17 @@ fun TicTacToeScreen(
                         items(9) { index ->
                             val cellValue = board[index]
                             val isWinningCell = winningLine?.contains(index) == true
+                            // Screen-reader label: 1-indexed row/column (index is
+                            // 0-8 row-major over the 3x3 grid) plus what's there,
+                            // since sighted players read the mark directly off
+                            // the Text below and the highlight color for a win.
+                            val cellContent = when (cellValue) {
+                                1 -> "X"
+                                2 -> "O"
+                                else -> "empty"
+                            }
+                            val cellDescription = "Row ${index / 3 + 1}, Column ${index % 3 + 1}, $cellContent" +
+                                if (isWinningCell) ", winning line" else ""
                             Box(
                                 modifier = Modifier
                                     .padding(4.dp)
@@ -164,7 +212,8 @@ fun TicTacToeScreen(
                                         game.cellClicked(index)
                                         sounds.playTap()
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    },
+                                    }
+                                    .semantics { contentDescription = cellDescription },
                                 contentAlignment = Alignment.Center
                             ) {
                                 androidx.compose.animation.AnimatedVisibility(

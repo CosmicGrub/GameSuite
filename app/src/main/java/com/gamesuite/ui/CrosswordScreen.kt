@@ -15,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -124,11 +126,30 @@ fun CrosswordScreen(
                                 val col = index % gridDimension
                                 val cell = s.grid[row][col]
 
+                                // Screen readers get no visual grid to scan, so each
+                                // playable cell announces which clue entry(ies) it
+                                // belongs to (a cell at an across/down intersection
+                                // belongs to two) and whether its letter is revealed
+                                // yet — black/unused cells stay undescribed like any
+                                // other decorative spacer.
+                                val cellModifier = if (cell.letter != null) {
+                                    val membership = s.entries
+                                        .filter { entry -> entry.cells.any { it.row == row && it.col == col } }
+                                        .joinToString(", ") { entry ->
+                                            "${entry.number} ${if (entry.direction.name == "ACROSS") "across" else "down"}"
+                                        }
+                                    val letterStatus = if (cell.revealed) "letter ${cell.letter}" else "blank"
+                                    Modifier.semantics { contentDescription = "$letterStatus, $membership" }
+                                } else {
+                                    Modifier
+                                }
+
                                 Box(
                                     modifier = Modifier
                                         .padding(0.5.dp)
                                         .aspectRatio(1f)
-                                        .background(if (cell.letter == null) Color.Transparent else Color(0xFFFAFAFA)),
+                                        .background(if (cell.letter == null) Color.Transparent else Color(0xFFFAFAFA))
+                                        .then(cellModifier),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (cell.letter != null) {
@@ -196,7 +217,14 @@ fun CrosswordScreen(
                     OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
                 } else {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = game::revealFirstLetters) { Text("Hint") }
+                    // The hint action itself lives in AnswerDialog below (it reveals
+                    // a letter of whichever entry is selected, reusing that same
+                    // selection state) — this just surfaces the shared per-puzzle
+                    // budget so it's visible even before a clue is tapped.
+                    Text(
+                        "Hints left: ${game.hintsRemaining.value}",
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -204,9 +232,19 @@ fun CrosswordScreen(
 
     val selectedEntry = s.entries.firstOrNull { it.id == s.selectedEntryId }
     if (selectedEntry != null) {
+        // Pattern of what's revealed so far for this entry, so the hint button
+        // inside the dialog has something to act on and the player can see
+        // its effect without leaving the dialog.
+        val pattern = selectedEntry.cells.joinToString(" ") { pos ->
+            val gridCell = s.grid[pos.row][pos.col]
+            if (gridCell.revealed) gridCell.letter.toString() else "_"
+        }
         AnswerDialog(
             clue = selectedEntry.clue,
             length = selectedEntry.word.length,
+            pattern = pattern,
+            hintsRemaining = game.hintsRemaining.value,
+            onHint = { game.revealNextLetter() },
             onSubmit = { answer -> game.submitAnswer(selectedEntry.id, answer) },
             onDismiss = { game.clearSelection() }
         )
@@ -214,7 +252,15 @@ fun CrosswordScreen(
 }
 
 @Composable
-private fun AnswerDialog(clue: String, length: Int, onSubmit: (String) -> Boolean, onDismiss: () -> Unit) {
+private fun AnswerDialog(
+    clue: String,
+    length: Int,
+    pattern: String,
+    hintsRemaining: Int,
+    onHint: () -> Unit,
+    onSubmit: (String) -> Boolean,
+    onDismiss: () -> Unit
+) {
     var text by remember { mutableStateOf("") }
     // Set when a submitted guess didn't match, so the field can show an
     // inline error instead of leaving the dialog looking unresponsive.
@@ -227,6 +273,8 @@ private fun AnswerDialog(clue: String, length: Int, onSubmit: (String) -> Boolea
             Text(clue)
             Spacer(Modifier.height(4.dp))
             Text("$length letters", style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(pattern, style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = text,
@@ -240,7 +288,15 @@ private fun AnswerDialog(clue: String, length: Int, onSubmit: (String) -> Boolea
                     { Text("Not quite — try again") }
                 } else null
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            // Reveals one more letter of THIS entry — capped by the shared
+            // per-puzzle hint budget (see CrosswordGame.revealNextLetter) and
+            // a no-op once every letter here is already shown.
+            TextButton(
+                onClick = onHint,
+                enabled = hintsRemaining > 0 && '_' in pattern
+            ) { Text("Hint ($hintsRemaining left)") }
+            Spacer(Modifier.height(8.dp))
             Row {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
                 Spacer(Modifier.width(8.dp))

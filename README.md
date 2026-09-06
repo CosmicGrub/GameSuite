@@ -13,94 +13,56 @@ which matters for the dual-screen requirement.
 
 ## Status
 
-Skeleton only — no Android Studio project exists yet. The `app/src/...`
-folder here holds the core interfaces and the first proof-of-concept game
-(Tic-Tac-Toe logic) as loose Kotlin files. Nothing has been opened in Android
-Studio yet.
+**v1.0.0**, plus two follow-up passes on top. This is a working Android
+Studio / Gradle project, not a skeleton — 13 games shipped and each verified
+on-device at least once (Tab S9 and/or Z Fold 5): Tic-Tac-Toe (plus Misère
+and Wild variants), UNO, Hangman, Word Search, Crossword, Word Tiles,
+Dominoes, Mancala, Air Hockey, Klondike Solitaire, and Sliding Puzzle. The
+shell-level features every game gets for free are also built: local
+pass-and-play, same-room ad-hoc multiplayer (Nearby Connections), online
+multiplayer via a self-hosted relay (`server/`), foldable/dual-screen-aware
+layout, a persistent per-game stats layer, and a settings/theming/
+accessibility foundation (see
+[docs/SETTINGS_THEMING_ACCESSIBILITY.md](docs/SETTINGS_THEMING_ACCESSIBILITY.md)).
+See the [Roadmap](#roadmap) below for the full build history,
+[Fixes and hardening](#fixes-and-hardening) for a bugfix/hardening pass
+across the relay server, UNO, Word Tiles, Dominoes, Mancala, Solitaire, and
+Settings plus a new JVM unit-test suite, and
+[Depth, accessibility, and gameplay pass](#depth-accessibility-and-gameplay-pass)
+for the persistent stats layer, the menu redesign, screen-reader semantics
+across every game, and a set of targeted gameplay additions.
 
-## Disk space setup (already done)
+## Building and running
 
-- Android Studio: `C:\Program Files\Android\Android Studio` (~3.3GB, left on C:)
-- Android SDK: moved to **`Z:\Android\Sdk`** (was 15GB on C:, now freed)
-- C: free space: ~3.2GB → ~18GB after the SDK move
-
-**One remaining manual step:** point Android Studio at the new SDK location
-(see Step 1 below) — this wasn't done automatically since it's a settings
-change best done by hand in the GUI.
-
-## Step 1 — point Android Studio at the moved SDK
-
-1. Open **Android Studio**.
-2. From the Welcome screen: **More Actions → SDK Manager**. (If a project is
-   already open instead: **File → Settings → Languages & Frameworks →
-   Android SDK**.)
-3. At the top, find **Android SDK Location** and change it to:
+1. Clone the repo:
    ```
-   Z:\Android\Sdk
+   git clone <repo-url>
+   cd GameSuite
    ```
-4. Click **Apply/OK**. Android Studio should recognize the existing SDK
-   packages there immediately (nothing needs re-downloading).
-5. (Optional but recommended) Set a persistent `ANDROID_HOME` environment
-   variable to `Z:\Android\Sdk` so command-line Gradle builds find it too —
-   Windows Settings → "Edit environment variables for your account" → New
-   → Name: `ANDROID_HOME`, Value: `Z:\Android\Sdk`.
+2. Open in Android Studio (**File → Open**, select the cloned folder) and let
+   Gradle sync finish, **or** build from the command line:
+   ```
+   ./gradlew assembleDebug
+   ```
+   (Windows: `gradlew.bat assembleDebug`.)
+3. Install on a device or emulator:
+   - From Android Studio: press **Run ▶** with a device/emulator selected.
+   - From the command line: `./gradlew installDebug`, or
+     `adb install app/build/outputs/apk/debug/app-debug.apk`.
 
-## Step 2 — create the project
+Minimum SDK 26 (Android 8.0), compiled against SDK 34. No manual SDK-path or
+project-creation steps are needed — this is a normal Gradle Android project
+and opens/builds the same way any other one does.
 
-1. Android Studio Welcome screen → **New Project**.
-2. Template: **Empty Activity** (this is the Compose template in current
-   Android Studio versions — confirm "Compose" is mentioned in its description).
-3. Name: `GameSuite`. Package name: `com.gamesuite`. Save location:
-   `Z:\GameSuite` — if Android Studio complains the folder isn't empty
-   (it has this README + `app/` already), that's fine, let it initialize
-   into the existing folder, or create at `Z:\GameSuiteTmp` and merge
-   afterward — tell me which happened and I'll help reconcile.
-4. Minimum SDK: **API 26 (Android 8.0)** is a safe floor for Compose;
-   raise later if you end up needing newer window/foldable APIs that require
-   higher.
-5. Let Gradle sync finish (first sync can take a few minutes).
+### Running the relay server (for online play)
 
-## Step 3 — bring in these Kotlin files
-
-The files below are already written, under `Z:\GameSuite\app\src\main\java\com\gamesuite\...`.
-Once Android Studio generates its own `app/` structure, make sure these land
-in (or get moved into) the matching path in the generated project:
-
-```
-app/src/main/java/com/gamesuite/
-  core/
-    GameModule.kt             - contract every game implements, GameContext/GameResult
-    GameSessionManager.kt     - ViewModel that launches games and tracks active context
-  transport/
-    MultiplayerTransport.kt   - abstract move/event channel
-    LocalPassAndPlayTransport.kt - first implementation (single device)
-  games/tictactoe/
-    TicTacToeGame.kt          - first proof-of-concept game module
-```
-
-You'll also need these dependencies in `app/build.gradle.kts` (Android
-Studio's Compose template includes most of this already):
-```kotlin
-implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-implementation("androidx.navigation:navigation-compose:2.8.0")
-```
-
-## Step 4 — prove the skeleton works (next session)
-
-1. Create a `MainMenuScreen` composable with a "Play Tic-Tac-Toe" button that
-   calls `gameSessionManager.launchGame(PlayMode.SINGLE_DEVICE_PASS_AND_PLAY, players, 0)`.
-2. Set up `NavHost` (navigation-compose) with two destinations: main menu and
-   tic-tac-toe, navigating to the latter once `activeContext` becomes non-null.
-3. Create a `TicTacToeScreen` composable: a 3x3 grid reading `TicTacToeGame.board`
-   state, each cell calling `ticTacToeGame.cellClicked(index)` on tap; navigate
-   back to main menu when `matchOver` becomes true.
-4. Run on an emulator or your Z Fold/Tab S9. Two players should be able to
-   take turns tapping cells, passing the device back and forth. That proves:
-   shell → session manager → game module → transport all connect correctly.
-
-Once that loop works, the pattern for every future game is the same: write a
-class implementing `GameModule`, add a Compose screen for it, register it in
-the library. No shell code changes needed.
+Online multiplayer (`OnlineTransport`) talks to a small Node.js WebSocket
+relay in `server/`, not a hosted service — see
+[server/README.md](server/README.md) for how to run it locally
+(`npm ci && npm start`) and run its regression suite (`npm test`), and how to
+point the app's Settings → Online multiplayer server address at it
+(`ws://<host>:8080` for a local run; a real deployment needs `wss://`, which
+`server/README.md` covers).
 
 ## Roadmap
 
@@ -900,6 +862,267 @@ the library. No shell code changes needed.
       correctly in the end, but the lesson is to stagger workflows that
       share the same "temporarily edit, verify, revert" touchpoints, or
       give them worktree isolation, rather than run them fully parallel.
+
+## Fixes and hardening
+
+A follow-up pass across the existing v1.0.0 codebase, run as several
+parallel, file-scoped lanes plus a set of UNO fixes done directly. Organized
+by area; each item names the files it touched. Nothing below is a new
+Roadmap item — it's bugfixes and hardening on top of what's already listed
+above.
+
+### Server (`server/`)
+- Fixed a crash where any client sending the JSON literal `"null"` (or any
+  other non-object JSON value) reached an unguarded `switch` on `msg.type`
+  and threw, taking down that connection's handling.
+- Fixed a room-membership leak: re-hosting or re-joining without leaving
+  first orphaned the socket's prior room. Note: the fix calls the
+  leave/cleanup path unconditionally at the top of both the host and join
+  handlers, so a socket whose *new* host/join attempt then fails (e.g. a bad
+  room code) still loses its old room membership rather than staying in it —
+  flagged as a behavioral nuance worth a product decision, not obviously a
+  bug.
+- Added proportionate hardening: a 64KB WebSocket `maxPayload`, a 500-room
+  cap with a bounded (50-attempt) room-code allocator, a 30s ping/pong
+  heartbeat that terminates unresponsive sockets, a 5-minute sweep that reaps
+  rooms idle 30+ minutes, per-socket join-failure rate limiting (disconnect
+  after 20 failures), 40-character `displayName` truncation, and timestamped
+  connect/host/join/leave/error logging.
+- Expanded `server/smoke-test.js` into a self-contained regression suite (it
+  spawns and kills its own `node index.js`, on a random high port by
+  default) covering the crash/leak fixes above plus duplicate-playerId
+  rejection, room-full rejection, and the last-player-leaves-deletes-room
+  path — 17 checks, all passing. Added `.github/workflows/relay-server.yml`
+  to run `npm ci && npm test` in `server/` on any push/PR touching
+  `server/**`. Documented all of the above in `server/README.md`.
+
+### UNO (`games/uno/`, `ui/UnoScreen.kt`, `ui/UnoHouseRulesScreen.kt`)
+- Fixed `PlayMode.ONLINE` never actually going networked — `UnoGame`'s
+  `isNetworked` check and its listener registration in `init()` previously
+  only matched `LOCAL_AD_HOC`.
+- Fixed a sender-spoofing gap: the host now validates that a network
+  `Intent`'s claimed acting seat actually belongs to the real sender (per
+  `MultiplayerTransport`) before applying it, instead of trusting a
+  client-declared player index.
+- Fixed `UnoRules.forcePlayDrawnCard`'s default (`true` → `false`, matching
+  the class's own "classic = every flag false" doc) and implemented real
+  optional play: drawing a still-playable card now leaves the turn open long
+  enough to act, with a new "Keep card" action for when the house rule
+  doesn't force a play.
+- Closed a privacy leak: every networked state broadcast previously sent
+  every seat's real hand to every peer. The host now sends a per-recipient
+  copy with every other seat's hand replaced by same-length placeholder
+  cards, so hand counts stay accurate but contents are never exposed over
+  the wire.
+- Gave `UnoBot` a real EASY/MEDIUM/HARD ladder wired to Settings' "Default
+  CPU difficulty" — UNO was the last bot in the suite ignoring that setting.
+- Added a UNO House Rules pre-game screen (`UnoHouseRulesScreen.kt`, route
+  `uno-house-rules` → `uno-custom`) exposing the already-implemented
+  stacking/7-0/jump-in/force-play toggles for local vs-bot and pass-and-play
+  modes. **Not yet extended to Nearby/Online lobbies**, which still launch
+  UNO with classic defaults.
+- Added a text label and a screen-reader `contentDescription` to each of the
+  Wild-card color picker's four swatches (previously zero non-color
+  differentiation).
+- Wired Settings' Reduced Motion into UNO's discard-pile transition and the
+  shared `FannedHand` fan-lift animation via a new `LocalReducedMotion`
+  CompositionLocal (`settings/LocalReducedMotion.kt`, mirrors the existing
+  `LocalCardScale` pattern), provided once at `MainActivity`'s root. Because
+  `FannedHand` is shared, Mancala's capture animation picks up Reduced Motion
+  through the same CompositionLocal without UNO-specific code.
+
+### Word Tiles (`ui/TileGameScreen.kt`, `games/wordgames/tiles/TileBot.kt`)
+- Fixed the "human player" index being computed as a fixed "first non-bot
+  player," which broke local pass-and-play for every seat after the first —
+  the same bug already found and fixed in `UnoScreen.kt`. Ported that
+  screen's mode-aware `humanIndex()` verbatim (LOCAL_AD_HOC uses
+  `context.localPlayerIndex`; pass-and-play uses
+  `TileGameState.currentPlayerIndex`; vs-CPU keeps "first non-bot player").
+  Word Tiles doesn't currently declare `LOCAL_AD_HOC` support, so that branch
+  is unreachable today but kept for parity and readiness.
+- Fixed a potential multi-second UI freeze/ANR in `TileBot`'s HARD-difficulty
+  opening move: it exhaustively evaluated every rack permutation × every
+  blank-letter combination with no bound (up to ~9.3M dictionary lookups for
+  a rack holding both blanks). Added a fixed `HARD_OPENING_WORD_BUDGET =
+  20_000` lookup budget with an early-exit counter, the same pattern the file
+  already used for HARD's attach-move anchor search — comfortably above the
+  ~13.7k lookups a blank-free rack needs, so the common case is unaffected.
+
+### Dominoes and Mancala (`ui/DominoesScreen.kt`, `games/dominoes/DominoGame.kt`, `ui/MancalaScreen.kt`, `games/mancala/MancalaGame.kt`)
+- Fixed a Dominoes UI bug where "Play on Left"/"Play on Right" stayed enabled
+  and fired success feedback even when the selected domino didn't match that
+  end — each button now checks its own end's pip value and only fires
+  feedback on an actual successful play.
+- Corrected a stale `DominoGame` class KDoc claiming a "5-6 for 3-4 players"
+  hand size; the code has always dealt 5.
+- Added a Play Again + running session score to both Dominoes and Mancala on
+  match-over (previously "Back to menu" was the only option), mirroring
+  Tic-Tac-Toe's `roundOver`/`matchOver` + `playAgain()`/`leaveSession()`
+  split. Dominoes scores real "Draw Dominoes" rules (hand winner scores the
+  pip total left in every other hand); Mancala uses a simple win/loss/draw
+  tally. This required renaming `DominoState.matchOver` → `handOver` and
+  `MancalaState.matchOver` → `roundOver` (per-hand/per-game end) and adding a
+  new session-level `matchOver` on both game classes — which also fixes a
+  latent bug where `GameSessionManager.endActiveGame()` fired the instant a
+  single hand/game ended, rather than when the player actually left.
+- Added `MancalaGame.captureCandidates()` (reusing the existing
+  `legalMoves()`/`simulateSow()` pair, which grew a `landingCursor` field to
+  support it) so `MancalaScreen` can outline, before the player taps, which
+  legal pit would land in an empty pit of theirs (a capture) — read-only,
+  doesn't touch `sow()`'s real rules.
+- Gated Mancala's pit capture-scale animation behind Settings' Reduced
+  Motion, the same `LocalReducedMotion` + `snap()` technique already used in
+  `FannedHand`.
+
+### Solitaire (`games/solitaire/SolitaireGame.kt`, `ui/SolitaireScreen.kt`)
+- Added a bounded (5-move) undo history: a private snapshot stack pushed
+  before each mutating move (stock draw/recycle, or a completed tableau/
+  foundation move), capped by dropping the oldest entry, cleared on
+  `startMatch()`. A new `undo()` restores the last snapshot; a new
+  `canUndo` flag (mirroring the existing `gamesWon`/`matchOver` pattern)
+  drives a new "Undo" button next to "Back to Menu" in `SolitaireScreen.kt`.
+  Selecting/deselecting a card does not push a snapshot — undo reverses
+  moves, not selection taps. Known edge case: undoing the winning move
+  correctly reverts `won` to `false`, but the `gamesWon` session tally
+  (already a monotonic "solved deals this session" counter) is not
+  decremented.
+
+### Settings (`theme/AppTheme.kt`, `ui/SettingsScreen.kt`, `MainActivity.kt`)
+- Wired Settings' "Text size" slider through to actual rendering: `AppTheme`
+  now takes a `textScale: Float`, builds a scaled `Typography` (multiplying
+  fontSize/lineHeight on all 15 Material3 text styles, skipping Em-based or
+  unspecified units to avoid double-scaling), and `MainActivity` passes
+  `textScale = settings.textScale` — every screen now reflects the slider,
+  not just the settings screen's own preview label.
+- Added a confirmation `AlertDialog` ("Reset all settings? This can't be
+  undone.") before "Reset all settings" actually calls `resetAll()`,
+  matching the app's convention of confirming irreversible actions.
+
+### Tests (new `app/src/test/java/com/gamesuite/` JUnit source set)
+Five pure-logic JUnit test files (no Robolectric/Compose UI), driving each
+game through its public API:
+- `TicTacToeGameTest` — the HARD misère minimax bot never voluntarily
+  completes its own line when a safe move exists.
+- `SolitaireGameTest` — an Ace banks to an empty foundation, a Two banks
+  onto an Ace, a King is rejected onto an exposed Ace (regression coverage
+  for the documented low-Ace/high-Ace bug fixed in Roadmap item 13a).
+- `MancalaGameTest` — the HARD minimax selector always sows from a pit that
+  had stones beforehand (parsed from the public `lastAction` status string,
+  since the chosen pit isn't otherwise observable).
+- `SlidingPuzzleGameTest` — an independent inversion-parity + blank-row
+  solvability check against 200 scrambles per difficulty tier.
+- `UnoBotTest` — `UnoBot.chooseMove` across open-turn, stacked-+2,
+  stacked-+4-on-+2, stacked-Wild-Draw-Four, no-legal-card, and a
+  HARD-reserve-filtering case, for all three difficulty tiers.
+
+One pre-existing, out-of-scope issue was flagged (not fixed) while writing
+these tests: `MancalaGame.kt`'s `sow()`/`playBotTurn()` still referenced the
+old `matchOver` field name after a concurrent rename to `roundOver`, which
+would not compile until the Dominoes/Mancala lane above finished — resolved
+by that lane, not by the test files themselves.
+
+## Depth, accessibility, and gameplay pass
+
+A second follow-up pass: a persistent stats layer and a menu redesign done
+directly, plus nine parallel, file-scoped lanes covering screen-reader
+accessibility (the app had none anywhere before this) and a set of targeted
+gameplay pitches from the audit. Organized by area.
+
+### Persistent stats (`stats/`, `core/GameModule.kt`, `core/GameSessionManager.kt`)
+- Every game already computed a correct result at match end; nothing kept it
+  past the current session. `GameSessionManager` now resolves each finished
+  match to a `MatchOutcome` (which game, and this device's own win/loss/draw)
+  the moment it still has both the `GameContext` and `GameResult` available,
+  and exposes it as `lastMatchOutcome` — the shell (not any game) computes
+  this, so no game needs to know about stats and the stats layer needs no
+  game-specific rules.
+- Added `StatsRepository`/`StatsViewModel` (DataStore-backed, mirroring
+  `SettingsRepository`/`SettingsViewModel`'s exact shape: one JSON blob under
+  one key, decoded defensively) and a new "My Stats" screen showing
+  matches/wins/losses/draws per game, with a reset action.
+
+### Main menu (`ui/MainMenuScreen.kt`, `MainActivity.kt`)
+- Replaced the flat 20-button scrolling list with categorized sections
+  (Board games / Cards / Word games / Arcade & puzzles), each in its own
+  card. Every individual button's launch behavior is unchanged from before —
+  only the layout is new.
+- Added a "Continue playing" row sourced from real match history (the three
+  most recently played games, each re-launching that game's own default
+  configuration) and a dismiss-once first-run welcome banner (a new
+  `hasSeenOnboarding` setting) — the audited "flat wall of unlabeled buttons
+  with zero onboarding" finding.
+- Added "My Stats" and kept "Settings" in the top bar.
+
+### Accessibility (every game screen)
+Added `Modifier.semantics { contentDescription = ... }` (and, for UNO, a
+`liveRegion` announcement on turn/status text) across every game that had
+none: Tic-Tac-Toe's 9 cells, Mancala's 14 pits, Dominoes' hand/chain tiles,
+Solitaire's tableau/waste/foundation cards, Word Tiles' rack/board tiles,
+UNO's hand/discard/opponent-fan cards, Word Search's grid cells, and
+Crossword's grid cells plus Hangman's letter buttons. `FannedHand` (UNO's
+hand renderer) gained an optional `descriptionOf` parameter so this needed
+no breaking change to its one call site.
+
+### Tic-Tac-Toe (`games/tictactoe/TicTacToeGame.kt`, `ui/TicTacToeScreen.kt`)
+- Added a Wild variant (`wild: Boolean`, mirroring the existing `misere`
+  flag): each mover chooses X or O before placing; the win-check already read
+  cell content rather than player identity, so it needed no change. Composes
+  with `misere`. New route `tic-tac-toe-wild`.
+- Wild doubles minimax's branching factor (a mover also picks a symbol), so
+  `minimax`/`minimaxBestMove` gained alpha-beta pruning — provably identical
+  results to unpruned search, just faster.
+
+### Air Hockey (`games/airhockey/AirHockeyGame.kt`, `ui/AirHockeyScreen.kt`)
+- The CPU paddle now moves in real 2D instead of a fixed horizontal rail: it
+  retreats toward its goal when the ball is deep in the player's half or just
+  conceded, and pushes forward at difficulty-scaled depth once the ball
+  crosses center. Existing speed-cap/collision tuning untouched.
+- Added local pass-and-play (`PlayMode.SINGLE_DEVICE_PASS_AND_PLAY`): a
+  second independent drag zone for the top half, routed via one
+  `awaitPointerEventScope` loop instead of a single-pointer handler. Also
+  fixed `GameResult` only ever scoring `context.localPlayerIndex` — the
+  second local player is now scored too, so pass-and-play results (and the
+  new stats layer) reflect both players.
+
+### Solitaire (`games/solitaire/SolitaireGame.kt`, `ui/SolitaireScreen.kt`)
+- Added one-tap Auto-complete once no card is face-down anywhere (the
+  standard "the rest is forced" Klondike condition): plays one legal move
+  every ~400ms via the existing single-card-move path. A bounded heuristic,
+  not a general solver — on deals needing more than one blocking card moved
+  out of the way, it stops a few cards short and silently hands control back
+  rather than getting stuck. Auto-played moves go through the same undo
+  history as manual moves.
+
+### Word Tiles (`games/wordgames/tiles/TileGame.kt`, `ui/TileGameScreen.kt`)
+- `submitMove()` already validates every word before committing, so a
+  challenge that could overturn a play isn't meaningful here. Added a
+  lower-stakes "word info" affordance instead: tapping the most recently
+  played word(s) confirms they're valid dictionary words — addresses the
+  audited "can't tell if the bot's odd-looking word is legit" finding without
+  a scoring/penalty mechanic the engine can't honestly support.
+
+### Word Search and Sliding Puzzle (daily-challenge groundwork)
+- Both `WordSearchGame.startMatch(seed: Long?)` and
+  `SlidingPuzzleGame.startMatch(dailySeed: Long?)` now accept an optional
+  seed that, when set, replaces the unseeded scramble/placement RNG — the
+  actual "read today's date" logic stays out of these files by design.
+  Neither is wired to a menu entry yet; that's a small, well-defined
+  follow-up (compute an epoch-day seed at a new "Daily Challenge" call site).
+  Sliding Puzzle separately gained a live move counter/stopwatch, a
+  best-move/best-time record per difficulty (its own self-contained
+  DataStore, independent of the shared stats layer), and its first-ever
+  sound/haptic feedback.
+
+### Crossword and Hangman (`games/wordgames/crossword/`, `games/hangman/HangmanGame.kt`)
+- Crossword no longer always seeds a puzzle on the single longest word in the
+  pool (identical anchor word every "New Puzzle" tap on Medium/Hard) — it now
+  picks among the longest word and any within 2 letters of it, further
+  avoiding the last 5 anchors used this session.
+- Hangman excludes the last 5 words played from the next draw (falling back
+  to a repeat only once the pool is smaller than that window).
+- Replaced Crossword's "reveal every entry's first letter for free" hint with
+  a per-entry hint (reveal one more letter of the selected clue), capped at 3
+  uses per puzzle.
 
 ## Design notes worth remembering
 

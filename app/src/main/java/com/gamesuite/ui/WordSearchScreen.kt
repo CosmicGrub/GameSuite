@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
@@ -128,6 +130,14 @@ fun WordSearchScreen(
                                 val letter = s.grid[row][col]
                                 val isFound = pos in cellFoundSet
                                 val isSelected = pos == s.selectionStart
+                                // Screen-reader label for this cell: the letter plus its current
+                                // state, since sighted players get that from color alone (green
+                                // fill for found, yellow for the pending selection start).
+                                val cellDescription = when {
+                                    isFound -> "Letter $letter, found"
+                                    isSelected -> "Letter $letter, selected"
+                                    else -> "Letter $letter"
+                                }
 
                                 Box(
                                     modifier = Modifier
@@ -139,7 +149,8 @@ fun WordSearchScreen(
                                                 else -> Color(0xFFEEEEEE)
                                             }
                                         )
-                                        .clickable(enabled = !s.solved) { game.tapCell(pos) },
+                                        .clickable(enabled = !s.solved) { game.tapCell(pos) }
+                                        .semantics { contentDescription = cellDescription },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(letter.toString())

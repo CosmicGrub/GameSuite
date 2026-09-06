@@ -29,6 +29,15 @@ data class TileGameState(
     val pending: List<PendingPlacement> = emptyList(),
     val consecutivePasses: Int = 0,
     val lastAction: String = "",
+    /**
+     * Word(s) formed by the most recently *committed* play (submitMove already
+     * dictionary-checks every word before it's ever applied to the board, so
+     * anything landing here is guaranteed valid — see submitMove). Exists purely
+     * so the UI can offer a "tap to confirm this is a real word" affordance for
+     * an opponent's obscure-looking play; it is not a scoring or challenge
+     * mechanic. Left untouched by pass()/swapTiles() since no word was formed.
+     */
+    val lastPlayedWords: List<String> = emptyList(),
     val matchOver: Boolean = false
 )
 
@@ -166,6 +175,7 @@ class TileGame : GameModule {
             pending = emptyList(),
             consecutivePasses = 0,
             lastAction = "${player.displayName} played ${words.joinToString(", ") { it.text }} for $gained points",
+            lastPlayedWords = words.map { it.text }.distinct(),
             matchOver = matchOver
         )
 

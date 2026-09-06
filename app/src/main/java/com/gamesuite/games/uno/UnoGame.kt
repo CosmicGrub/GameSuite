@@ -2,6 +2,7 @@ package com.gamesuite.games.uno
 
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
+import com.gamesuite.settings.CpuDifficulty
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -50,6 +51,11 @@ class UnoGame : GameModule {
     /** Set before startMatch() to pick house rules / team play. Defaults to classic rules. */
     var rules: UnoRules = UnoRules()
 
+    /** Set before startMatch() (mirrors `rules`) — defaults to MEDIUM, same as AppSettings'
+     *  own default. This is the fix for the audited finding that UNO's bot was the one CPU
+     *  opponent in the suite that ignored the app-wide "Default CPU difficulty" setting. */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
     val state = mutableStateOf<UnoState?>(null)
 
     private lateinit var context: GameContext
@@ -57,14 +63,20 @@ class UnoGame : GameModule {
     private var drawPile: MutableList<UnoCard> = mutableListOf()
 
     // ---- Networked play bookkeeping ----
-    private val isNetworked: Boolean get() = context.activeMode == PlayMode.LOCAL_AD_HOC
+    // PlayMode.ONLINE is included here (and was NOT before this fix) — supportedModes has
+    // always advertised ONLINE and the class KDoc always claimed "works unmodified over
+    // OnlineTransport", but this getter and init()'s listener registration below only ever
+    // matched LOCAL_AD_HOC, so tapping "Play UNO (online)" silently ran two independent,
+    // un-networked single-player games that never saw each other's moves.
+    private val isNetworked: Boolean
+        get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
     private val isHost: Boolean get() = context.localPlayerIndex == 0
     private var stateVersion = 0
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
         this.context = context
-        if (context.activeMode == PlayMode.LOCAL_AD_HOC) {
+        if (isNetworked) {
             context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
             if (!isHost) {
                 // Covers the startup race where this device's listener registers after
@@ -413,8 +425,15 @@ class UnoGame : GameModule {
         val newHand = player.hand + drawn
         updatedPlayers[playerIndex] = player.copy(hand = newHand, calledUno = false)
 
+        // Official UNO: playing a card you just drew is always the player's OPTION, never
+        // mandatory (see UnoRules.forcePlayDrawnCard's KDoc) — so the turn stays on this
+        // player whenever the drawn card is actually playable, regardless of the house rule,
+        // giving them a real chance to act on it. What the flag controls is whether they may
+        // explicitly DECLINE without playing it: true leaves no such escape (they must
+        // eventually play the only legal card they have, same as before this pass); false
+        // additionally lets the UI offer keepDrawnCard() to end the turn without spending it.
         val stillPlayable = isLegalPlay(drawn, s)
-        val advanceTurn = !(rules.forcePlayDrawnCard && stillPlayable)
+        val advanceTurn = !stillPlayable
 
         commitState(
             s.copy(
@@ -422,6 +441,28 @@ class UnoGame : GameModule {
                 currentPlayerIndex = if (advanceTurn) advanceIndex(playerIndex, s.direction, s.players.size) else playerIndex,
                 drawPileSize = drawPile.size,
                 lastAction = "${player.displayName} drew a card"
+            ),
+            awaitingDrawDecision = !advanceTurn
+        )
+    }
+
+    /** Declines to play a card just drawn that was legal to play — only valid when the house
+     *  rule doesn't force it (rules.forcePlayDrawnCard == false). Ends the turn exactly like
+     *  playing a card would, without spending it. See UnoState.awaitingDrawDecision. */
+    fun keepDrawnCard(playerIndex: Int) {
+        if (isNetworked && !isHost) {
+            sendIntent(UnoIntentPayload.KeepDrawnCard(playerIndex))
+            return
+        }
+        if (rules.forcePlayDrawnCard) return
+        val s = state.value ?: return
+        if (s.roundOver || s.matchOver || s.awaitingColorChoice || s.awaitingChallenge) return
+        if (playerIndex != s.currentPlayerIndex || !s.awaitingDrawDecision) return
+
+        commitState(
+            s.copy(
+                currentPlayerIndex = advanceIndex(playerIndex, s.direction, s.players.size),
+                lastAction = "${s.players[playerIndex].displayName} kept the drawn card"
             )
         )
     }
@@ -486,7 +527,7 @@ class UnoGame : GameModule {
         val bot = s.players[botIndex]
         if (!bot.isBot) return
 
-        val move = UnoBot.chooseMove(bot.hand, s, rules)
+        val move = UnoBot.chooseMove(bot.hand, s, rules, difficulty)
         if (move != null) {
             playCard(botIndex, move)
             if (state.value?.players?.get(botIndex)?.hand?.size == 1) {
@@ -494,11 +535,15 @@ class UnoGame : GameModule {
             }
         } else {
             drawCard(botIndex)
-            // rules.forcePlayDrawnCard: when the drawn card is immediately playable, drawCard()
-            // deliberately leaves currentPlayerIndex on this bot instead of advancing the turn.
-            // That's an unchanged Int, so the UI's LaunchedEffect (keyed on currentPlayerIndex
-            // among other state fields) won't recompose/re-fire to call us again — drive the
-            // bot's forced follow-up play ourselves so its turn actually completes.
+            // Whenever the drawn card turns out to be playable, drawCard() deliberately leaves
+            // currentPlayerIndex on this bot instead of advancing the turn (see its own KDoc —
+            // this holds regardless of rules.forcePlayDrawnCard, which only changes whether a
+            // HUMAN gets to explicitly decline via keepDrawnCard()). That's an unchanged Int, so
+            // the UI's LaunchedEffect (keyed on currentPlayerIndex among other state fields)
+            // won't recompose/re-fire to call us again — drive the bot's follow-up decision
+            // ourselves so its turn actually completes. Bots always play the drawn card when it's
+            // their only legal option (chooseMove has nothing else to pick from by construction),
+            // never invoking keepDrawnCard() themselves.
             val after = state.value
             if (after != null && !after.roundOver && !after.matchOver && after.currentPlayerIndex == botIndex) {
                 playBotTurn()
@@ -509,19 +554,59 @@ class UnoGame : GameModule {
     // ---- Networked play internals ----
 
     /** Every mutation funnels through here instead of a bare `state.value =` — the one
-     *  place that also broadcasts the result when this device is the networked host. */
-    private fun commitState(newState: UnoState) {
-        state.value = newState
+     *  place that also broadcasts the result when this device is the networked host.
+     *  [awaitingDrawDecision] defaults to false so every caller except drawCard()'s own
+     *  single-draw branch gets it reset for free without needing to remember to do so
+     *  on every individual `s.copy(...)` call site. */
+    private fun commitState(newState: UnoState, awaitingDrawDecision: Boolean = false) {
+        val finalState = newState.copy(awaitingDrawDecision = awaitingDrawDecision)
+        state.value = finalState
         if (isNetworked && isHost) {
             stateVersion++
-            broadcastState(newState, toPlayerId = null)
+            broadcastState(finalState, toPlayerId = null)
         }
     }
 
     private fun broadcastState(s: UnoState, toPlayerId: String?) {
-        val message: UnoNetMessage = UnoNetMessage.StateSync(stateVersion, s)
+        if (toPlayerId != null) {
+            sendStateTo(toPlayerId, s)
+            return
+        }
+        // Broadcast to everyone except the host itself — the host's own `state.value` was
+        // already set directly by commitState() above, and every recipient gets a copy
+        // redacted specifically for them (see sendStateTo/redactHandsExcept): full hand
+        // contents are never sent to a peer for a seat that isn't theirs. This is the fix
+        // for the audited "every device receives every other player's real cards, not just
+        // counts" finding — before this pass, one identical fully-visible UnoState was sent
+        // to all peers, so a modified client could trivially read everyone's hand.
+        val hostId = context.players[0].playerId
+        context.players.forEach { recipient ->
+            if (recipient.playerId != hostId) sendStateTo(recipient.playerId, s)
+        }
+    }
+
+    private fun sendStateTo(recipientPlayerId: String, s: UnoState) {
+        val redacted = redactHandsExcept(s, keepPlayerId = recipientPlayerId)
+        val message: UnoNetMessage = UnoNetMessage.StateSync(stateVersion, redacted)
         val payload = Json.encodeToString(message).toByteArray(Charsets.UTF_8)
-        context.transport.send(fromPlayerId = context.players[0].playerId, toPlayerId = toPlayerId, payload = payload)
+        context.transport.send(fromPlayerId = context.players[0].playerId, toPlayerId = recipientPlayerId, payload = payload)
+    }
+
+    /** Replaces every hand except [keepPlayerId]'s with same-length face-down placeholder
+     *  cards, so a device that stores this StateSync as its own `state.value` (see
+     *  applyRemoteState) never holds another seat's real cards — only its own hand and
+     *  everyone else's hand SIZE (still real, via List.size — every place the UI renders an
+     *  opponent's hand, e.g. OpponentHandFan, already only reads the count) are visible. The
+     *  placeholder's own color/rank are never displayed for a redacted seat, so their exact
+     *  values don't matter beyond being a valid, clearly-sentinel UnoCard (instanceId -1). */
+    private fun redactHandsExcept(s: UnoState, keepPlayerId: String): UnoState {
+        val placeholder = UnoCard(UnoColor.WILD, UnoRank.WILD, instanceId = -1)
+        return s.copy(
+            players = s.players.map { p ->
+                if (p.playerId == keepPlayerId) p
+                else p.copy(hand = List(p.hand.size) { placeholder })
+            }
+        )
     }
 
     private fun sendIntent(intent: UnoIntentPayload) {
@@ -555,12 +640,37 @@ class UnoGame : GameModule {
                 if (isHost) state.value?.let { broadcastState(it, toPlayerId = fromPlayerId) }
             }
             is UnoNetMessage.Intent -> {
-                if (isHost) applyIntent(message.intent)
+                if (isHost) applyIntent(fromPlayerId, message.intent)
             }
         }
     }
 
-    private fun applyIntent(intent: UnoIntentPayload) {
+    private fun applyIntent(fromPlayerId: String, intent: UnoIntentPayload) {
+        val s = state.value ?: return
+        // Which seat this intent claims to act for. ChooseColor/ResolveChallenge carry no
+        // client-declared index at all — both always act on whichever seat the host's own
+        // state says is currently awaiting that exact input, so there's nothing for a sender
+        // to lie about there; validate against that seat instead.
+        val actingIndex = when (intent) {
+            is UnoIntentPayload.PlayCard -> intent.playerIndex
+            is UnoIntentPayload.JumpIn -> intent.playerIndex
+            is UnoIntentPayload.DrawCard -> intent.playerIndex
+            is UnoIntentPayload.CallUno -> intent.playerIndex
+            is UnoIntentPayload.KeepDrawnCard -> intent.playerIndex
+            is UnoIntentPayload.CatchUnoFailure -> intent.accuserIndex
+            is UnoIntentPayload.ChooseColor -> s.currentPlayerIndex
+            is UnoIntentPayload.ResolveChallenge -> s.currentPlayerIndex
+        }
+        if (context.players.getOrNull(actingIndex)?.playerId != fromPlayerId) {
+            // MultiplayerTransport's contract guarantees fromPlayerId is the real sender,
+            // never derived from anything the sender claims (see its own KDoc) — a mismatch
+            // here means a client is trying to act for a seat that isn't theirs. Silently
+            // drop rather than trust a client-declared index. This is the fix for the audited
+            // "any connected player can play/draw/challenge on behalf of any other seat"
+            // finding — before this pass, applyIntent dispatched purely on the sender-supplied
+            // fields with no cross-check against who actually sent the message.
+            return
+        }
         when (intent) {
             is UnoIntentPayload.PlayCard -> findCardInHand(intent.playerIndex, intent.cardInstanceId)?.let { playCard(intent.playerIndex, it) }
             is UnoIntentPayload.ChooseColor -> chooseColor(intent.color)
@@ -569,6 +679,7 @@ class UnoGame : GameModule {
             is UnoIntentPayload.DrawCard -> drawCard(intent.playerIndex)
             is UnoIntentPayload.CallUno -> callUno(intent.playerIndex)
             is UnoIntentPayload.CatchUnoFailure -> catchUnoFailure(intent.accuserIndex, intent.targetIndex)
+            is UnoIntentPayload.KeepDrawnCard -> keepDrawnCard(intent.playerIndex)
         }
     }
 

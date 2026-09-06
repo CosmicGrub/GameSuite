@@ -109,15 +109,37 @@ class WordSearchGame : GameModule {
     }
 
     override fun startMatch() {
-        state.value = generatePuzzle(tierParams())
+        startMatch(seed = null)
     }
 
-    private fun generatePuzzle(params: TierParams): WordSearchState {
+    /**
+     * Actual puzzle-generation entry point — [startMatch] (the no-arg [GameModule] override) is
+     * just this with `seed = null`. Exposed separately so a future "Daily Puzzle" mode can read
+     * today's date at its own call site (this class has no business knowing about calendars) and
+     * derive a stable seed from it: the same [seed] plus the same [difficulty] tier always
+     * reproduces the same grid, since [generatePuzzle] threads that seed through every random
+     * decision it makes about *where* words go. [playAgain] deliberately keeps calling the no-arg
+     * [startMatch], so "New Puzzle" during a daily challenge still hands back a fresh, unseeded
+     * board rather than looping the same one.
+     *
+     * Note for whoever wires up daily puzzles: word *choice* isn't seeded yet.
+     * [WordDictionary.randomWordsOfLength] shuffles its candidate pool with the global unseeded
+     * Random internally, so two runs of the same seed currently produce identical placement
+     * geometry and filler letters but can still surface different actual words. Making that
+     * deterministic too means threading a Random through WordDictionary, which is out of this
+     * change's scope.
+     */
+    fun startMatch(seed: Long?) {
+        state.value = generatePuzzle(tierParams(), seed)
+    }
+
+    private fun generatePuzzle(params: TierParams, seed: Long? = null): WordSearchState {
+        val rng: Random = if (seed != null) Random(seed) else Random.Default
         val gridSize = params.gridSize
         val grid = Array(gridSize) { CharArray(gridSize) { ' ' } }
         val placed = mutableListOf<PlacedWord>()
 
-        val candidateLengths = (4..minOf(params.maxLength, gridSize)).shuffled()
+        val candidateLengths = (4..minOf(params.maxLength, gridSize)).shuffled(rng)
         var attempts = 0
         while (placed.size < params.wordCount && attempts < 500) {
             attempts++
@@ -130,9 +152,9 @@ class WordSearchGame : GameModule {
                 excluding = placed.map { it.word.lowercase() }.toSet()
             ).firstOrNull() ?: continue
 
-            val (dr, dc) = params.directions.random()
-            val startRow = Random.nextInt(gridSize)
-            val startCol = Random.nextInt(gridSize)
+            val (dr, dc) = params.directions.random(rng)
+            val startRow = rng.nextInt(gridSize)
+            val startCol = rng.nextInt(gridSize)
             val cells = (0 until word.length).map { i -> GridPos(startRow + dr * i, startCol + dc * i) }
 
             if (cells.any { it.row !in 0 until gridSize || it.col !in 0 until gridSize }) continue
@@ -146,7 +168,7 @@ class WordSearchGame : GameModule {
         }
 
         for (r in 0 until gridSize) for (c in 0 until gridSize) {
-            if (grid[r][c] == ' ') grid[r][c] = ('A'..'Z').random()
+            if (grid[r][c] == ' ') grid[r][c] = ('A'..'Z').random(rng)
         }
 
         return WordSearchState(

@@ -35,7 +35,15 @@ data class CrosswordState(
     val solvedEntryIds: Set<String>,
     val selectedEntryId: String? = null,
     /** True once every entry in THIS puzzle is solved — not the whole session, see CrosswordGame.matchOver. */
-    val matchOver: Boolean = false
+    val matchOver: Boolean = false,
+    /**
+     * Per-entry hints revealed so far this puzzle, keyed by entry id — the
+     * hint economy (see [CrosswordGame.revealNextLetter]) caps how many
+     * letters of a given entry can be revealed for free, so the UI needs to
+     * know how many of THIS entry's letters were hint-revealed rather than
+     * guessed, independent of [solvedEntryIds].
+     */
+    val hintsUsedByEntry: Map<String, Int> = emptyMap()
 )
 
 /**
@@ -55,6 +63,15 @@ data class CrosswordState(
  * [puzzlesSolved]. [generate] is a single bounded pass over a small pool
  * (<= ~30 candidates) with no retry loop, so it stays cheap enough to run
  * directly on the UI thread from startMatch(), same as before this pass.
+ *
+ * Variety pass: [generate] used to always seed the puzzle with the single
+ * longest word in the theme's pool, so any theme with one clear longest word
+ * (true of MEDIUM and HARD) produced the identical anchor word every time —
+ * see [pickSeed], which now randomizes among the top few longest candidates.
+ * That same seed choice also feeds [recentSeedWords], a small in-memory
+ * rolling history (no persistence — it's session-only, same spirit as
+ * [puzzlesSolved]) so back-to-back "New Puzzle" taps don't keep re-anchoring
+ * on the same word.
  */
 class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     override val gameId = "crossword"
@@ -75,11 +92,25 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-puzzle. */
     val matchOver = mutableStateOf(false)
 
+    /**
+     * Hint uses left for the CURRENT puzzle — resets to [MAX_HINTS_PER_PUZZLE]
+     * on every [startMatch] (including "New Puzzle"). See [revealNextLetter].
+     */
+    val hintsRemaining = mutableStateOf(MAX_HINTS_PER_PUZZLE)
+
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
+
+    /**
+     * Last few seed words used (most recent last), across "New Puzzle" taps
+     * this session — excluded from [pickSeed]'s candidate pool so the anchor
+     * word doesn't keep repeating. In-memory only, cleared on [init] like
+     * [puzzlesSolved]; see [SEED_HISTORY_SIZE].
+     */
+    private val recentSeedWords = ArrayDeque<String>()
 
     private val clueBankByDifficulty: Map<CpuDifficulty, List<CrosswordClueBank.Entry>> = mapOf(
         CpuDifficulty.EASY to CrosswordClueBank.easyEverydayTheme,
@@ -91,6 +122,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        recentSeedWords.clear()
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -100,6 +132,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     override fun startMatch() {
         val pool = (clueBankByDifficulty[difficulty] ?: CrosswordClueBank.gamesAndTechTheme).shuffled()
         val (grid, entries) = generate(pool)
+        hintsRemaining.value = MAX_HINTS_PER_PUZZLE
         state.value = CrosswordState(
             grid = grid,
             entries = entries,
@@ -164,21 +197,36 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     }
 
     /**
-     * Hint: reveals the first letter of every unsolved entry without marking
-     * the entry itself as solved. A no-op once the current puzzle is complete.
+     * Hint economy: revealing every unsolved entry's first letter for free
+     * made the hint trivially spammable (one tap disclosed the whole board's
+     * starting letters at no cost). Replaced with a per-entry hint that
+     * reveals one more letter of the currently-*selected* entry — reusing
+     * [CrosswordState.selectedEntryId], the same selection AnswerDialog is
+     * built from, rather than adding new selection UI — and costs a hint use
+     * against [MAX_HINTS_PER_PUZZLE], visible in the UI as a shrinking
+     * "Hint (n left)" affordance. A no-op with no selected entry, an already
+     * fully-revealed entry, an already-solved entry, a completed puzzle, or
+     * an exhausted hint budget.
      */
-    fun revealFirstLetters() {
+    fun revealNextLetter() {
         val s = state.value ?: return
         if (s.matchOver) return
+        if (hintsRemaining.value <= 0) return
+        val entryId = s.selectedEntryId ?: return
+        if (entryId in s.solvedEntryIds) return
+        val entry = s.entries.firstOrNull { it.id == entryId } ?: return
 
         val newGrid = s.grid.map { it.toMutableList() }
-        for (entry in s.entries) {
-            if (entry.id in s.solvedEntryIds) continue
-            val pos = entry.cells.first()
-            newGrid[pos.row][pos.col] = newGrid[pos.row][pos.col].copy(revealed = true)
-        }
+        val nextIndex = entry.cells.indexOfFirst { pos -> !newGrid[pos.row][pos.col].revealed }
+        if (nextIndex < 0) return // entry already fully revealed
+        val pos = entry.cells[nextIndex]
+        newGrid[pos.row][pos.col] = newGrid[pos.row][pos.col].copy(revealed = true)
 
-        state.value = s.copy(grid = newGrid)
+        hintsRemaining.value -= 1
+        state.value = s.copy(
+            grid = newGrid,
+            hintsUsedByEntry = s.hintsUsedByEntry + (entryId to ((s.hintsUsedByEntry[entryId] ?: 0) + 1))
+        )
     }
 
     /** Called from the puzzle-complete panel's "New Puzzle" button — keeps the running tally. */
@@ -207,8 +255,9 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         val sorted = pool.sortedByDescending { it.word.length }
         var nextId = 0
 
-        // Seed with the longest word, centered horizontally through the middle row.
-        val seed = sorted.firstOrNull() ?: return emptyGrid() to emptyList()
+        // Seed word, centered horizontally through the middle row. See
+        // pickSeed() for why this is no longer always sorted.first().
+        val seed = pickSeed(sorted) ?: return emptyGrid() to emptyList()
         val seedRow = gridSize / 2
         val seedCol = (gridSize - seed.word.length) / 2
         if (seedCol < 0) return emptyGrid() to emptyList()
@@ -218,7 +267,8 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
             CrosswordEntry("e${nextId++}", seed.word, seed.clue, Direction.ACROSS, CrosswordPos(seedRow, seedCol), 0)
         )
 
-        for (candidate in sorted.drop(1)) {
+        for (candidate in sorted) {
+            if (candidate === seed) continue
             val placement = findIntersection(letterGrid, candidate.word) ?: continue
             placeWord(letterGrid, candidate.word, placement.start.row, placement.start.col, placement.direction)
             placedEntries.add(
@@ -229,6 +279,30 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         val numbered = assignNumbers(placedEntries)
         val cellGrid = buildCellGrid(letterGrid, numbered)
         return cellGrid to numbered
+    }
+
+    /**
+     * Picks the anchor word [generate] seeds the grid with. Always taking the
+     * single longest word in the pool made the anchor identical on every
+     * "New Puzzle" tap for any theme with one clear longest word (true of the
+     * MEDIUM and HARD clue banks) — instead this picks randomly among the
+     * longest word and any others within [SEED_LENGTH_TOLERANCE] letters of
+     * it, so the puzzle still opens on a long, well-connecting word but
+     * varies which one. That candidate pool is further filtered against
+     * [recentSeedWords] (the last [SEED_HISTORY_SIZE] anchors used this
+     * session) to avoid immediately repeating — falling back to allowing a
+     * repeat only when every top candidate is already in that history (e.g.
+     * a theme whose top tier is smaller than the history window).
+     */
+    private fun pickSeed(sorted: List<CrosswordClueBank.Entry>): CrosswordClueBank.Entry? {
+        val longest = sorted.firstOrNull() ?: return null
+        val topCandidates = sorted.takeWhile { longest.word.length - it.word.length <= SEED_LENGTH_TOLERANCE }
+        val unseen = topCandidates.filterNot { it.word in recentSeedWords }
+        val chosen = unseen.ifEmpty { topCandidates }.random()
+
+        recentSeedWords.addLast(chosen.word)
+        while (recentSeedWords.size > SEED_HISTORY_SIZE) recentSeedWords.removeFirst()
+        return chosen
     }
 
     private data class Placement(val start: CrosswordPos, val direction: Direction)
@@ -292,4 +366,15 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
 
     private fun emptyGrid(): List<List<CrosswordCell>> =
         (0 until gridSize).map { (0 until gridSize).map { CrosswordCell(letter = null) } }
+
+    companion object {
+        /** How many letters shorter than the longest word still counts as a valid seed candidate. */
+        private const val SEED_LENGTH_TOLERANCE = 2
+
+        /** How many past seed words [pickSeed] avoids repeating. */
+        private const val SEED_HISTORY_SIZE = 5
+
+        /** Total per-entry hint reveals allowed per puzzle — see [revealNextLetter]. */
+        const val MAX_HINTS_PER_PUZZLE = 3
+    }
 }
