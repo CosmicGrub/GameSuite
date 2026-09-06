@@ -1,7 +1,7 @@
 #pragma once
 // ---------------------------------------------------------------------------
-// Board configuration for the Hosyond 4.0" ESP32 Display Module (ILI9341,
-// 240x320, resistive touch, acrylic case).
+// Board configuration for the Hosyond 4.0" ESP32 Display Module (ST7796S,
+// 320x480, resistive touch via XPT2046, acrylic case).
 // ---------------------------------------------------------------------------
 // This file only holds constants that vary by BOARD, not by GAME -- the
 // actual TFT_eSPI pin wiring lives in UserSetup/User_Setup.h (see this
@@ -11,26 +11,21 @@
 // specific to the physical board: the ESP32-32E chip identity, and how the
 // panel is oriented/sized once TFT_eSPI has it working.
 //
-// PROVENANCE OF THE PIN MAPPING (see User_Setup.h): this board's chip
-// (ESP32-32E + ILI9341 240x320 + resistive touch) is confirmed compatible
-// with the open-source NerdMiner_v2 project. That project's actual, shipped,
-// working firmware for the electrically-identical "CYD" ESP32-2432S028R
-// board (same ESP32-32E-family chip, same ILI9341 driver, same 240x320
-// panel, same resistive touch -- the ONLY difference from your board is a
-// bigger 4.0" physical panel glued to the same electronics) uses the exact
-// pin numbers this project defaults to. That's a real, working reference,
-// not a guess -- but it's still a cross-reference from a different-sized
-// panel in the same product family, not a datasheet for your exact unit, so
-// verify against the troubleshooting section in README.md if anything
-// doesn't light up.
+// PROVENANCE: every hardware fact this project uses (this file's geometry,
+// User_Setup.h's pins) is now confirmed against this exact board's own PCB
+// silkscreen and its real vendor documentation (lcdwiki's E32R40T/E32N40T
+// product), cross-checked by live hardware testing -- not guessed from a
+// similar-looking reference board. See ../HARDWARE.md for the full reference
+// (pinout table, how each value was found, gotchas) if you're starting a new
+// project on this same board.
 
 // ---- Panel geometry ----
-// TFT_eSPI's rotation values for ILI9341: 0/2 are portrait (240x320),
-// 1/3 are landscape (320x240). Landscape reads more naturally for a 3x3
-// touch grid and is what almost every ILI9341 module ships oriented for.
+// This board's real panel/driver is ST7796S (320x480 native) -- 0/2 are
+// portrait (320x480), 1/3 are landscape (480x320). Landscape reads more
+// naturally for a 3x3 touch grid.
 #define SCREEN_ROTATION 1
-#define SCREEN_WIDTH  320
-#define SCREEN_HEIGHT 240
+#define SCREEN_WIDTH  480
+#define SCREEN_HEIGHT 320
 
 // ---- Touch calibration ----
 // XPT2046 resistive touch panels vary unit-to-unit (manufacturing tolerance
@@ -44,3 +39,12 @@
 #define CALIBRATION_NAMESPACE "tictactoe"
 #define CALIBRATION_KEY "tftcal"
 #define FORCE_RECALIBRATE_HOLD_MS 1500
+
+// ---- Arcade shell ----
+// This firmware boots to a home menu (MenuScreen.h/.cpp) rather than
+// straight into one game -- the same "OS + launcher" shape the README's
+// "What's next" section already called for, just built now instead of left
+// as a future step. One entry point, add a game by adding one more line
+// below plus a GameLogic/Display pair, same as this project has always
+// intended.
+#define ARCADE_TITLE "GameSuite Arcade"

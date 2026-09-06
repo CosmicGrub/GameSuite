@@ -1,5 +1,5 @@
-// TFT_eSPI configuration for the Hosyond 4.0" ESP32 Display Module (ILI9341,
-// 240x320, resistive touch).
+// TFT_eSPI configuration for the Hosyond 4.0" ESP32 Display Module (ST7796S,
+// 320x480, resistive touch via a shared-bus XPT2046).
 //
 // HOW TO USE THIS FILE: copy it into your TFT_eSPI library folder, replacing
 // the file already there, at:
@@ -11,51 +11,59 @@
 // way to do this, and what to do if you have OTHER TFT_eSPI-based sketches
 // for a different board that would conflict with this file.
 //
-// WHERE THESE PIN NUMBERS COME FROM (read this before assuming a wrong pin is
-// a mistake on my part rather than something to verify against your exact
-// board): this board (ESP32-32E chip + ILI9341 240x320 driver + resistive
-// touch) is confirmed compatible with the open-source NerdMiner_v2 project.
-// That project's real, shipped, working firmware for the "CYD" ESP32-2432S028R
-// board -- electrically the same design family, just a smaller 2.8" panel on
-// the same electronics -- uses exactly the pin numbers below (its
-// platformio.ini, `[env:ESP32-2432S028R]`). That's a genuine working
-// reference, not a guess. It is still a cross-reference from a same-family,
-// different-panel-size board, not your exact unit's datasheet, so if the
-// screen stays blank or touch doesn't track correctly, see README.md's
-// troubleshooting section before assuming the game code itself is at fault.
+// WHERE THESE VALUES COME FROM: every value in this file is now CONFIRMED --
+// either read directly off this exact board's own PCB silkscreen ("ESP32-32E
+// 320x480 Resistance Touch"), taken from that board's real vendor
+// documentation once correctly identified (lcdwiki's E32R40T/E32N40T
+// product), or verified by live testing on the physical unit. None of it is
+// a cross-reference guess anymore -- earlier revisions of this file guessed
+// from a similar-but-different reference board (NerdMiner_v2's "CYD"
+// ESP32-2432S028R) and got several things wrong (reset pin, backlight
+// pin+polarity, display driver/resolution, touch bus wiring); see the
+// per-value comments below and ../HARDWARE.md for the full history of what
+// was wrong and how each fix was found. Reading that file first will save
+// you from re-deriving any of this for a future project on the same board.
 
 #define USER_SETUP_ID 100
 
 // ---- Display driver ----
-// ILI9341_2_DRIVER (not the plain ILI9341_DRIVER) is what NerdMiner uses for
-// this exact board family -- a small number of ILI9341-chip panels from
-// certain factories need this alternate init sequence TFT_eSPI ships to
-// handle that variation. If colors look inverted or wrong once this is
-// working, comment this out and uncomment the line below instead.
-#define ILI9341_2_DRIVER
-// #define ILI9341_DRIVER
+// CONFIRMED (ground truth, not inference): the physical board's own PCB
+// silkscreen reads "ESP32-32E 320x480 Resistance Touch" -- a live-hardware
+// photo led to searching for that exact text, which turned up lcdwiki's
+// E32R40T/E32N40T product page and its documented pinout. That page had
+// actually been fetched once before, earlier in this project, and set aside
+// as "a different Hosyond product" -- that dismissal was the real mistake:
+// it was the right reference all along, just discounted based on an
+// unverified spec sheet instead of the board itself. Its documented pinout
+// exactly matches every value this project already confirmed by direct
+// hardware testing (backlight GPIO27, reset tied to EN) and supplies the
+// one thing testing alone couldn't easily reach: the real touch wiring below.
+#define ST7796_DRIVER
 
-#define TFT_WIDTH  240
-#define TFT_HEIGHT 320
+#define TFT_WIDTH  320
+#define TFT_HEIGHT 480
 
 // ---- SPI pins (TFT) ----
+// All confirmed against lcdwiki's E32R40T/E32N40T documentation.
 #define TFT_MOSI 13
-#define TFT_MISO -1   // not connected on this board family -- the display is write-only from the MCU's side
+#define TFT_MISO 12   // shared with the touch controller's MISO below -- see the touch section
 #define TFT_SCLK 14
 #define TFT_CS   15
 #define TFT_DC    2
-#define TFT_RST  12   // NOT tied to EN on this board family (unlike some similar-looking boards) -- a real, confirmed quirk
-#define TFT_BL   21
+#define TFT_RST  -1   // ties to EN (shared reset circuit), not a distinct GPIO -- confirmed by lcdwiki, matching this project's own earlier hardware-tested fix
+#define TFT_BL   27   // confirmed by BOTH lcdwiki's documented pinout AND this project's own one-GPIO-at-a-time hardware probe (diagnostics/BacklightSweep/) -- independent agreement
 #define TFT_BACKLIGHT_ON HIGH
 
 // ---- Resistive touch (XPT2046) ----
-// A separate physical SPI bus from the display on this board family (not
-// shared) -- confirmed by the same NerdMiner reference above.
+// CORRECTED (lcdwiki documentation, not the NerdMiner/CYD cross-reference):
+// touch is NOT on a separate physical SPI bus on this board -- it shares the
+// display's own CLK (14) and MOSI (13), and needs the display's MISO (12,
+// which the old config left at -1 as "not connected"). Only TOUCH_CS is
+// genuinely separate. This is exactly why the live touch probe found nothing
+// on GPIO 25/32/39 (diagnostics/TouchProbe/): those pins were never
+// connected to anything at all.
 #define TOUCH_CS   33
-#define TOUCH_CLK  25
-#define TOUCH_MOSI 32
-#define TOUCH_MISO 39
-#define TOUCH_IRQ  36 // TFT_eSPI's getTouch() works without wiring/using this, but it's here for completeness
+#define TOUCH_IRQ  36
 
 // ---- Fonts ----
 // The handful of built-in fonts this project actually uses (setTextSize()
