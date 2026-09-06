@@ -29,3 +29,8 @@ void hidePlayAgainButton(TFT_eSPI &tft, const Layout &layout);
 // TFT_eSPI's getTouch) falls inside that element.
 bool hitTestCell(const Layout &layout, int16_t touchX, int16_t touchY, uint8_t &outCell);
 bool hitTestPlayAgainButton(const Layout &layout, int16_t touchX, int16_t touchY);
+
+// A small "back to arcade menu" button drawn as part of the status bar (see
+// drawStatus) -- always present during a round, not just after it ends, so a
+// player isn't stuck in a game to see the menu again.
+bool hitTestHomeButton(const Layout &layout, int16_t touchX, int16_t touchY);

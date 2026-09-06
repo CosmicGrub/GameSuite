@@ -15,6 +15,17 @@ static const uint16_t COLOR_STATUS_TEXT = TFT_WHITE;
 static const uint16_t COLOR_BUTTON_BG = TFT_DARKGREEN;
 static const uint16_t COLOR_BUTTON_TEXT = TFT_WHITE;
 
+// Fixed-size "back to menu" button in the status bar's left corner -- sized
+// off the status bar's own height (via drawStatus's layout param) rather
+// than a magic screen-relative position, so it stays put if statusH ever
+// changes.
+static const int16_t HOME_BTN_SIZE = 30;
+static const int16_t HOME_BTN_MARGIN = 2;
+
+static int16_t homeButtonTop(const Layout &layout) {
+    return layout.statusY + (layout.statusH - HOME_BTN_SIZE) / 2;
+}
+
 Layout computeLayout() {
     Layout l;
     l.statusY = 0;
@@ -56,10 +67,24 @@ void drawStaticChrome(TFT_eSPI &tft, const Layout &layout) {
 
 void drawStatus(TFT_eSPI &tft, const Layout &layout, const char *text) {
     tft.fillRect(0, layout.statusY, SCREEN_WIDTH, layout.statusH, COLOR_STATUS_BG);
+
+    // The home button is drawn as part of every status-bar repaint (rather
+    // than once at round start) because drawStatus's own fillRect above
+    // would otherwise erase it on the very next status update.
+    int16_t by = homeButtonTop(layout);
+    tft.drawRoundRect(HOME_BTN_MARGIN, by, HOME_BTN_SIZE, HOME_BTN_SIZE, 4, TFT_WHITE);
+    tft.setTextColor(TFT_WHITE, COLOR_STATUS_BG);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(1);
+    tft.drawString("<", HOME_BTN_MARGIN + HOME_BTN_SIZE / 2, by + HOME_BTN_SIZE / 2);
+
+    // Status text is centered in the remaining width to the right of the
+    // home button, not the full screen width, so it never overlaps it.
+    int16_t textAreaX0 = HOME_BTN_MARGIN * 2 + HOME_BTN_SIZE;
     tft.setTextColor(COLOR_STATUS_TEXT, COLOR_STATUS_BG);
     tft.setTextDatum(MC_DATUM); // middle-center anchor
     tft.setTextSize(2);
-    tft.drawString(text, SCREEN_WIDTH / 2, layout.statusY + layout.statusH / 2);
+    tft.drawString(text, textAreaX0 + (SCREEN_WIDTH - textAreaX0) / 2, layout.statusY + layout.statusH / 2);
 }
 
 void drawCell(TFT_eSPI &tft, const Layout &layout, uint8_t cellIndex, uint8_t value) {
@@ -127,4 +152,10 @@ bool hitTestCell(const Layout &layout, int16_t touchX, int16_t touchY, uint8_t &
 bool hitTestPlayAgainButton(const Layout &layout, int16_t touchX, int16_t touchY) {
     return touchX >= layout.buttonX && touchX < layout.buttonX + layout.buttonW &&
            touchY >= layout.buttonY && touchY < layout.buttonY + layout.buttonH;
+}
+
+bool hitTestHomeButton(const Layout &layout, int16_t touchX, int16_t touchY) {
+    int16_t by = homeButtonTop(layout);
+    return touchX >= 0 && touchX < HOME_BTN_MARGIN + HOME_BTN_SIZE &&
+           touchY >= by && touchY < by + HOME_BTN_SIZE;
 }

@@ -15,6 +15,7 @@
 // to the board -- see this folder's README.md for how to build/run it.
 #include "../TicTacToeESP32/GameLogic.h"
 #include "../TicTacToeESP32/Display.h"
+#include "../TicTacToeESP32/MenuScreen.h"
 #include "../TicTacToeESP32/Config.h"
 
 static char glyph(uint8_t v) {
@@ -286,7 +287,59 @@ static void touchHitTestChecks() {
     checkLayout("1px right of the button is not a hit", !hitTestPlayAgainButton(l, l.buttonX + l.buttonW, bcy));
     checkLayout("1px below the button is not a hit", !hitTestPlayAgainButton(l, bcx, l.buttonY + l.buttonH));
 
+    // The in-game "back to menu" button (Display.cpp) -- its own footprint
+    // must be a hit, and a point just outside the same button on the touch
+    // side that matters most (dead center of the game grid, where a real
+    // finger spends most of its time) must not be.
+    checkLayout("home button's own center is a hit", hitTestHomeButton(l, 15, l.statusY + l.statusH / 2));
+    checkLayout("home button does not swallow taps in the middle of the status bar",
+                !hitTestHomeButton(l, SCREEN_WIDTH / 2, l.statusY + l.statusH / 2));
+    checkLayout("home button does not swallow taps inside the game grid",
+                !hitTestHomeButton(l, l.gridX + 10, l.gridY + 10));
+
     printf("Layout checks run: %d, failed: %d\n\n", layoutChecksRun, layoutChecksFailed);
+}
+
+// ---------------------------------------------------------------------------
+// 5) Arcade home menu: MenuScreen.cpp's own pure touch math, checked the same
+//    way as Display.cpp's above -- every tile's center resolves to that
+//    tile's index, the gaps between tiles resolve to nothing, and neither
+//    the title bar nor space below the last tile is mistaken for one.
+// ---------------------------------------------------------------------------
+static void menuHitTestChecks() {
+    printf("=== Arcade menu touch-hitting checks (MenuScreen.cpp) ===\n");
+    const uint8_t GAME_COUNT = 3; // mirrors ArcadeOS.ino's real MENU_GAME_COUNT
+    MenuLayout ml = computeMenuLayout(GAME_COUNT);
+
+    printf("  menu layout: title h=%d, first tile y=%d, tile %dx%d, gap=%d\n",
+           ml.titleH, ml.tileY, ml.tileW, ml.tileH, ml.tileGap);
+
+    bool allTilesOk = true;
+    for (uint8_t i = 0; i < GAME_COUNT; i++) {
+        int16_t cx = ml.tileX + ml.tileW / 2;
+        int16_t cy = ml.tileY + i * (ml.tileH + ml.tileGap) + ml.tileH / 2;
+        uint8_t hit;
+        bool ok = hitTestMenuTile(ml, GAME_COUNT, cx, cy, hit) && hit == i;
+        if (!ok) {
+            allTilesOk = false;
+            printf("    tile %d center (%d,%d) resolved to hit=%d\n", i, cx, cy, hit);
+        }
+    }
+    checkLayout("every tile's own center taps that same tile index", allTilesOk);
+
+    uint8_t discard;
+    // The gap between tile 0 and tile 1 must not resolve to either.
+    int16_t gapY = ml.tileY + ml.tileH + ml.tileGap / 2;
+    checkLayout("the gap between tiles is not a hit", !hitTestMenuTile(ml, GAME_COUNT, ml.tileX + 10, gapY, discard));
+    checkLayout("the title bar is not a hit", !hitTestMenuTile(ml, GAME_COUNT, SCREEN_WIDTH / 2, ml.titleY + ml.titleH / 2, discard));
+    checkLayout("1px left of a tile is not a hit", !hitTestMenuTile(ml, GAME_COUNT, ml.tileX - 1, ml.tileY + ml.tileH / 2, discard));
+    checkLayout("1px right of a tile is not a hit", !hitTestMenuTile(ml, GAME_COUNT, ml.tileX + ml.tileW, ml.tileY + ml.tileH / 2, discard));
+    // A touch below the very last tile (as if the menu had fewer games than
+    // this layout has room for) must not resolve to a phantom tile.
+    int16_t belowLastTileY = ml.tileY + GAME_COUNT * (ml.tileH + ml.tileGap) + 20;
+    checkLayout("space below the last tile is not a hit", !hitTestMenuTile(ml, GAME_COUNT, ml.tileX + 10, belowLastTileY, discard));
+
+    printf("\n");
 }
 
 int main() {
@@ -301,6 +354,7 @@ int main() {
     printf("Winning-line checks: %ld, mismatches: %ld\n\n", lineChecked, lineFailed);
 
     touchHitTestChecks();
+    menuHitTestChecks();
 
     bool allGood = (humanWins == 0) && (checksFailed == 0) && (lineFailed == 0) && (layoutChecksFailed == 0);
     printf("=== OVERALL: %s ===\n", allGood ? "ALL PLAYTEST CHECKS PASSED" : "FAILURES FOUND -- SEE ABOVE");
