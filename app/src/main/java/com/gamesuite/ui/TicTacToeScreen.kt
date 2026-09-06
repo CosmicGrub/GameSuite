@@ -48,12 +48,19 @@ import kotlinx.coroutines.delay
  * another round. The CPU's difficulty is pre-set from Settings' own
  * "Default CPU difficulty" (`settingsViewModel`) — the first game in this
  * suite to actually honor that setting rather than just storing it.
+ *
+ * Variants pass (README item 13s) added [misere]: TicTacToeGame has no
+ * per-launch config channel besides GameContext, so a separate
+ * "tic-tac-toe-misere" route reuses this exact composable with the flag set
+ * to true — see MainActivity's NavHost. Defaults to false so the existing
+ * "tic-tac-toe" route (both pass-and-play and vs-CPU) is unaffected.
  */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun TicTacToeScreen(
     sessionManager: GameSessionManager,
     settingsViewModel: SettingsViewModel,
+    misere: Boolean = false,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
@@ -66,6 +73,7 @@ fun TicTacToeScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
+        game.misere = misere
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -121,6 +129,12 @@ fun TicTacToeScreen(
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
+                if (misere) {
+                    Text(
+                        "Misere mode: completing a line loses!",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     when {
@@ -169,12 +183,21 @@ fun TicTacToeScreen(
                     }
 
                     if (roundOver) {
+                        // currentPlayer is still whoever just moved — cellClicked()
+                        // returns before flipping it — so on a completed line it
+                        // names the mover: the winner in standard rules, the loser
+                        // in misere (see TicTacToeGame's KDoc on the variant).
+                        val moverName = if (currentPlayer == 1) p1Name else p2Name
+                        val moverIsLocalPlayer = vsCpu && currentPlayer == 1
                         RoundOverPanel(
                             resultText = when {
                                 winningLine == null -> "It's a draw!"
-                                vsCpu && currentPlayer == 1 -> "You win!"
+                                misere && moverIsLocalPlayer -> "You made a line - you lose!"
+                                misere && vsCpu -> "CPU made a line - you win!"
+                                misere -> "$moverName made a line and loses!"
+                                moverIsLocalPlayer -> "You win!"
                                 vsCpu -> "CPU wins!"
-                                else -> "${if (currentPlayer == 1) p1Name else p2Name} wins!"
+                                else -> "$moverName wins!"
                             },
                             onPlayAgain = game::playAgain,
                             onBackToMenu = game::leaveSession
