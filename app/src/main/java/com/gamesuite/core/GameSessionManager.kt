@@ -26,6 +26,12 @@ class GameSessionManager : ViewModel() {
     private val _lastResult = MutableStateFlow<GameResult?>(null)
     val lastResult: StateFlow<GameResult?> = _lastResult.asStateFlow()
 
+    /** Emitted once per finished match, alongside [lastResult] — a stats/history layer
+     *  observes this instead of re-deriving "which player is the local one" itself. See
+     *  [MatchOutcome]'s KDoc for why this lives on the shell rather than in each game. */
+    private val _lastMatchOutcome = MutableStateFlow<MatchOutcome?>(null)
+    val lastMatchOutcome: StateFlow<MatchOutcome?> = _lastMatchOutcome.asStateFlow()
+
     /**
      * The GameModule instance backing the currently displayed game screen,
      * if any. The shell only ever tracks GameContext (players/transport/
@@ -95,9 +101,33 @@ class GameSessionManager : ViewModel() {
 
     /** Called by the active game's screen when it's finished, or on a "quit" action. */
     fun endActiveGame(result: GameResult) {
-        _activeContext.value?.transport?.disconnect()
+        val ctx = _activeContext.value
+        val module = activeModule
+        if (ctx != null && module != null && !result.wasAborted) {
+            _lastMatchOutcome.value = MatchOutcome(
+                gameId = module.gameId,
+                gameDisplayName = module.displayName,
+                result = result,
+                localOutcome = localOutcomeFor(ctx, result)
+            )
+        }
+        ctx?.transport?.disconnect()
         _lastResult.value = result
         _activeContext.value = null
+    }
+
+    /** Resolves [result] to this device's own win/loss/draw — null for a spectator
+     *  (localPlayerIndex == -1) or a result with nothing to score. */
+    private fun localOutcomeFor(ctx: GameContext, result: GameResult): LocalOutcome? {
+        val localPlayer = ctx.players.getOrNull(ctx.localPlayerIndex) ?: return null
+        if (result.scores.isEmpty()) return null
+        val myScore = result.scores.firstOrNull { it.playerId == localPlayer.playerId } ?: return null
+        val anyoneWon = result.scores.any { it.isWinner }
+        return when {
+            myScore.isWinner -> LocalOutcome.WIN
+            !anyoneWon -> LocalOutcome.DRAW
+            else -> LocalOutcome.LOSS
+        }
     }
 
     private fun createTransport(mode: PlayMode): MultiplayerTransport {

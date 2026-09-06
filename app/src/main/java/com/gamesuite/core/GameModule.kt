@@ -77,3 +77,20 @@ data class PlayerScore(
     val score: Int,
     val isWinner: Boolean
 )
+
+/** How the LOCAL device's own player fared in a finished match — null when that can't be
+ *  attributed to a single outcome (a spectator, localPlayerIndex == -1, or an unscored
+ *  result). Computed once by GameSessionManager (which already has both GameContext and
+ *  GameResult at the moment a match ends) so a stats layer never needs game-specific rules
+ *  or its own copy of "who am I in this match" logic. */
+enum class LocalOutcome { WIN, LOSS, DRAW }
+
+/** A finished match's result, already resolved to this device's own outcome — the shell's
+ *  hand-off from [GameSessionManager] to a stats/history layer. Kept in `core` (not `stats`)
+ *  so the stats package depends on core, never the other way around. */
+data class MatchOutcome(
+    val gameId: String,
+    val gameDisplayName: String,
+    val result: GameResult,
+    val localOutcome: LocalOutcome?
+)
