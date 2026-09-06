@@ -83,3 +83,22 @@ bool hitTestCheckersPlayAgainButton(const CheckersLayout &layout, int16_t touchX
 // drawCheckersStatus) -- always present during a round, matching Display.h's
 // hitTestHomeButton for Tic-Tac-Toe.
 bool hitTestCheckersHomeButton(const CheckersLayout &layout, int16_t touchX, int16_t touchY);
+
+// Animates `piece` sliding from (fromRow,fromCol) to (toRow,toCol) instead of
+// vanishing from the source and instantly appearing at the destination.
+// `board` supplies everything else on screen during the slide (every square
+// OTHER than the two endpoints, which this function always draws empty for
+// the duration of the animation, regardless of what board.at() reports for
+// them) -- so this works whether called:
+//   - BEFORE mutating the board for a human move (source still occupied,
+//     destination already empty), passing board.at(fromRow,fromCol) as
+//     `piece`; or
+//   - AFTER CheckersBoard::playAi() has already applied the AI's whole turn
+//     (source already empty, destination already occupied), passing
+//     board.at(toRow,toCol) as `piece` and CheckersBoard::lastAiMove()'s
+//     result as the row/col arguments.
+// Either way, call drawCheckersBoard() once more after this returns to show
+// the real, final state (captures, promotion, kinging) -- this function only
+// animates the slide itself and never modifies `board`.
+void animateCheckersMove(TFT_eSPI &tft, const CheckersLayout &layout, const CheckersBoard &board,
+                          uint8_t fromRow, uint8_t fromCol, uint8_t toRow, uint8_t toCol, CheckersPiece piece);

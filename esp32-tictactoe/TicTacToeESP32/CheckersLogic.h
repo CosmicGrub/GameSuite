@@ -108,6 +108,20 @@ public:
     // the AI's turn, or the round is already decided.
     void playAi();
 
+    // The overall (first hop's source) -> (last hop's destination) of the
+    // most recently completed playAi() call -- lets a caller animate the
+    // piece sliding from where it started to where it ended, even though
+    // playAi() itself already applied every hop of a multi-jump chain
+    // internally before returning. This is an overall start/end, not a
+    // per-hop trace: a multi-jump that zigzags across directions will
+    // animate as one straight slide rather than visiting each intermediate
+    // landing square -- a deliberate simplification, not a bug. Undefined
+    // (zeroed) until the first playAi() call.
+    void lastAiMove(uint8_t &outFromRow, uint8_t &outFromCol, uint8_t &outToRow, uint8_t &outToCol) const {
+        outFromRow = lastAiFromRow; outFromCol = lastAiFromCol;
+        outToRow = lastAiToRow; outToCol = lastAiToCol;
+    }
+
     // ---- Test/setup hooks -----------------------------------------------
     // Everything below exists so native_test/checkers_playtest.cpp can build
     // hand-crafted mid-game positions (a forced multi-jump, a king capture,
@@ -142,6 +156,8 @@ private:
     bool humanTurn = true;
     bool hasForcedContinuation = false;
     uint8_t forcedRow = 0, forcedCol = 0;
+    // See lastAiMove()'s comment -- written only by playAi().
+    uint8_t lastAiFromRow = 0, lastAiFromCol = 0, lastAiToRow = 0, lastAiToCol = 0;
 
     // Appends every legal one-hop move for `humanSide` to out[] (capacity
     // CHECKERS_MAX_MOVES) and returns how many were written. Already

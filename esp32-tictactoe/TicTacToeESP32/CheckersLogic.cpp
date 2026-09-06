@@ -477,9 +477,17 @@ CheckersMove CheckersBoard::findBestAiMove() const {
 void CheckersBoard::playAi() {
     if (humanTurn) return;
     if (result() != CheckersResult::IN_PROGRESS) return;
+    bool firstHop = true;
     do {
         CheckersMove m = findBestAiMove();
         if (m.fromRow == 255) break; // defensive: result() above should already rule this out
+        if (firstHop) {
+            lastAiFromRow = m.fromRow;
+            lastAiFromCol = m.fromCol;
+            firstHop = false;
+        }
+        lastAiToRow = m.toRow;
+        lastAiToCol = m.toCol;
         applyMove(m);
     } while (!humanTurn && result() == CheckersResult::IN_PROGRESS);
 }

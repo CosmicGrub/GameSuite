@@ -284,6 +284,10 @@ void loop() {
     if (appState == AppState::CHECKERS && checkersAiMovePending && millis() >= checkersAiMoveDueAt) {
         checkersAiMovePending = false;
         checkersBoard.playAi(); // plays the AI's whole turn, every hop of a forced chain included
+        uint8_t aiFromRow, aiFromCol, aiToRow, aiToCol;
+        checkersBoard.lastAiMove(aiFromRow, aiFromCol, aiToRow, aiToCol);
+        animateCheckersMove(tft, checkersLayout, checkersBoard, aiFromRow, aiFromCol, aiToRow, aiToCol,
+                             checkersBoard.at(aiToRow, aiToCol)); // board is already post-move -- see animateCheckersMove's header comment
         drawCheckersBoard(tft, checkersLayout, checkersBoard);
         checkForCheckersRoundEnd();
     }
@@ -469,6 +473,23 @@ void afterUnoStateChange() {
     }
 }
 
+// Highlights `row,col` as the current checkers selection, plus every square
+// it can actually move/jump to -- so the player sees not just "this piece is
+// selected" but "here's exactly where it's allowed to go", which the game
+// didn't do before (CheckersDisplay.h's legalDestinationsFrom() existed for
+// exactly this from the start, just was never actually wired up). Used both
+// when a piece is first selected and at each hop of a forced multi-jump.
+void highlightCheckersSelection(uint8_t row, uint8_t col) {
+    drawCheckersSquareHighlight(tft, checkersLayout, row, col, checkersBoard.at(row, col), true);
+
+    uint8_t destRows[CHECKERS_MAX_MOVES], destCols[CHECKERS_MAX_MOVES];
+    uint8_t destCount = checkersBoard.legalDestinationsFrom(row, col, destRows, destCols);
+    for (uint8_t i = 0; i < destCount; i++) {
+        drawCheckersSquareHighlight(tft, checkersLayout, destRows[i], destCols[i],
+                                     checkersBoard.at(destRows[i], destCols[i]), true);
+    }
+}
+
 void handleTouch() {
     // TFT_eSPI's own getTouch() reads the XPT2046 over the same/adjacent SPI bus
     // (see UserSetup/User_Setup.h) and applies the calibration data already
@@ -571,15 +592,17 @@ void handleTouch() {
                 checkersSelRow = row;
                 checkersSelCol = col;
                 checkersHaveSelection = true;
-                drawCheckersSquareHighlight(tft, checkersLayout, row, col, checkersBoard.at(row, col), true);
+                highlightCheckersSelection(row, col);
             }
             return;
         }
 
         if (checkersBoard.isLegalMove(checkersSelRow, checkersSelCol, row, col)) {
             uint8_t fromRow = checkersSelRow, fromCol = checkersSelCol;
+            CheckersPiece movingPiece = checkersBoard.at(fromRow, fromCol); // captured BEFORE playHuman() mutates the board -- see animateCheckersMove's header comment
+            animateCheckersMove(tft, checkersLayout, checkersBoard, fromRow, fromCol, row, col, movingPiece);
             checkersBoard.playHuman(fromRow, fromCol, row, col);
-            drawCheckersBoard(tft, checkersLayout, checkersBoard); // simplest correct redraw -- cheap on this small board, same tradeoff Tic-Tac-Toe's grid makes
+            drawCheckersBoard(tft, checkersLayout, checkersBoard); // final correct redraw -- catches up captures/promotion/kinging the slide itself doesn't know about
 
             uint8_t contRow, contCol;
             if (checkersBoard.inForcedContinuation(contRow, contCol)) {
@@ -587,7 +610,7 @@ void handleTouch() {
                 // its landing square) instead of handing off to the AI.
                 checkersSelRow = contRow;
                 checkersSelCol = contCol;
-                drawCheckersSquareHighlight(tft, checkersLayout, contRow, contCol, checkersBoard.at(contRow, contCol), true);
+                highlightCheckersSelection(contRow, contCol);
                 return;
             }
 

@@ -12,3 +12,13 @@
 // NotoSansBold15.h/36.h font-array headers (which use PROGMEM directly,
 // without going through the real TFT_eSPI.h) compile unchanged natively.
 #define PROGMEM
+
+// Real timing stand-ins for code that paces itself against wall-clock time
+// (e.g. CheckersDisplay.cpp's animateCheckersMove() frame pacing) -- native_
+// test doesn't care about real elapsed time, only that the code path runs
+// without hanging, so millis() always reads 0 and delay() is a no-op. Safe:
+// nothing in this project loops UNTIL a time condition is met using these:
+// animateCheckersMove()'s loop is bounded by a fixed step count regardless
+// of what millis()/delay() do.
+inline unsigned long millis() { return 0; }
+inline void delay(unsigned long) {}
