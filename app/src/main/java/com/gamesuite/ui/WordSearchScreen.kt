@@ -46,7 +46,11 @@ fun WordSearchScreen(
     sessionManager: GameSessionManager,
     game: WordSearchGame,
     settingsViewModel: SettingsViewModel,
-    onMatchEnded: () -> Unit
+    onMatchEnded: () -> Unit,
+    /** Non-null pins today's puzzle for every player — see WordSearchGame.startMatch(seed)'s
+     *  KDoc. Computed by the caller (e.g. a "Daily Challenge" menu entry) from today's date;
+     *  this screen has no calendar knowledge of its own. */
+    dailySeed: Long? = null
 ) {
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
@@ -62,7 +66,7 @@ fun WordSearchScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        game.startMatch(dailySeed)
     }
 
     val s = state ?: return

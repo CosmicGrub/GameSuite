@@ -66,7 +66,12 @@ fun SlidingPuzzleScreen(
     sessionManager: GameSessionManager,
     game: SlidingPuzzleGame,
     settingsViewModel: SettingsViewModel,
-    onMatchEnded: () -> Unit
+    onMatchEnded: () -> Unit,
+    /** Non-null pins today's scramble for every player — see
+     *  SlidingPuzzleGame.startMatch(dailySeed)'s KDoc. Computed by the caller (e.g. a
+     *  "Daily Challenge" menu entry) from today's date; this screen has no calendar
+     *  knowledge of its own. */
+    dailySeed: Long? = null
 ) {
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
@@ -84,7 +89,7 @@ fun SlidingPuzzleScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        game.startMatch(dailySeed)
     }
 
     val s = state ?: return
