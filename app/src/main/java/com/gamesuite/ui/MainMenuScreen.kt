@@ -154,6 +154,14 @@ fun MainMenuScreen(
             Text("Play UNO (nearby multiplayer)")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Same reasoning as the Nearby button above — the online lobby's roster
+        // isn't known until Host/Join finishes, so no launchGame() call here either.
+        Button(onClick = { onNavigateToGame("online-entry") }) {
+            Text("Play UNO (online)")
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(onClick = {

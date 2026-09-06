@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gamesuite.transport.LocalPassAndPlayTransport
 import com.gamesuite.transport.MultiplayerTransport
 import com.gamesuite.transport.NearbyConnectionsTransport
+import com.gamesuite.transport.OnlineTransport
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +41,9 @@ class GameSessionManager : ViewModel() {
      * writers — nothing else in the shell should touch this.
      */
     var pendingNearbyTransport: NearbyConnectionsTransport? = null
+
+    /** Same role as [pendingNearbyTransport], for the Online lobby screens (roadmap item 12). */
+    var pendingOnlineTransport: OnlineTransport? = null
 
     /** Called by the shell (MainActivity) when a game screen's GameModule becomes active; pass null when leaving it. */
     fun setActiveModule(module: GameModule?) {
@@ -101,9 +105,18 @@ class GameSessionManager : ViewModel() {
             PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
             PlayMode.SINGLE_PLAYER_VS_BOT -> LocalPassAndPlayTransport()
 
-            // DualScreen, LocalAdHoc, Online transports get added here as
-            // they're built (roadmap steps 5-7) — every game already works
-            // with them automatically once added, no game code changes.
+            // PlayMode.ONLINE never reaches this branch in practice: like LOCAL_AD_HOC
+            // (Nearby), matchmaking/room-join must finish *before* a GameContext can
+            // exist, so the Online lobby screens always call the transport-overload
+            // launchGame() below directly with an already-connected OnlineTransport,
+            // the same way NearbyHostLobbyScreen/NearbyJoinLobbyScreen do. This branch
+            // is unreachable dead code for ONLINE, not a real fallback — kept explicit
+            // (rather than folded into the `else`) so it reads as a deliberate non-path,
+            // not an oversight.
+            PlayMode.ONLINE -> LocalPassAndPlayTransport()
+
+            // DualScreen transport gets added here as it's built — every game already
+            // works with it automatically once added, no game code changes.
             else -> LocalPassAndPlayTransport()
         }
     }

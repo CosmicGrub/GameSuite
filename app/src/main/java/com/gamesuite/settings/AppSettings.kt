@@ -48,5 +48,14 @@ data class AppSettings(
      * the same settings later, since the min/max it's interpolated between
      * is computed fresh per-device, not baked in here.
      */
-    val cardSizePreference: Float = 0.4f
+    val cardSizePreference: Float = 0.4f,
+    /**
+     * A `ws://` or `wss://` URL for [com.gamesuite.transport.OnlineTransport]'s relay
+     * server (roadmap item 12) — see server/README.md. Empty means "not configured";
+     * the Online lobby screens block Host/Join until this is set, same spirit as
+     * Nearby's radio-enabled gate. Deliberately just a string, not validated here —
+     * a malformed URL simply fails to connect, surfaced via OnlineTransport's own
+     * connectionError, no need to duplicate that validation in two places.
+     */
+    val onlineServerUrl: String = ""
 )

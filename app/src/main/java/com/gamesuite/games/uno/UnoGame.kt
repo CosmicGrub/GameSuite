@@ -40,7 +40,11 @@ class UnoGame : GameModule {
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
         PlayMode.SINGLE_PLAYER_VS_BOT,
-        PlayMode.LOCAL_AD_HOC
+        PlayMode.LOCAL_AD_HOC,
+        // Roadmap item 12: the same host-authoritative UnoNetMessage flow already
+        // proven over Nearby (LOCAL_AD_HOC) works unmodified over OnlineTransport —
+        // both are just MultiplayerTransport, which is all this class ever talks to.
+        PlayMode.ONLINE
     )
 
     /** Set before startMatch() to pick house rules / team play. Defaults to classic rules. */

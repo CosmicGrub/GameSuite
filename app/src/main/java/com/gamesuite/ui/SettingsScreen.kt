@@ -137,6 +137,32 @@ fun SettingsScreen(
         Spacer(Modifier.height(8.dp))
         DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
 
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Online multiplayer")
+        Text(
+            "A ws:// or wss:// address for the relay server UNO's online mode connects " +
+                "through — see server/README.md. Leave blank and Online play stays disabled.",
+            style = MaterialTheme.typography.labelSmall
+        )
+        Spacer(Modifier.height(8.dp))
+        var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
+        OutlinedTextField(
+            value = serverUrlDraft,
+            onValueChange = { serverUrlDraft = it },
+            label = { Text("Online server") },
+            placeholder = { Text("ws://192.168.1.23:8080") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) }) {
+            Text("Save server address")
+        }
+
         Spacer(Modifier.height(32.dp))
         OutlinedButton(onClick = viewModel::resetAll) {
             Text("Reset all settings")

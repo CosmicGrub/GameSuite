@@ -37,6 +37,7 @@ class SettingsRepository(private val context: Context) {
         val COLORBLIND_MODE = booleanPreferencesKey("colorblind_mode")
         val DEFAULT_CPU_DIFFICULTY = stringPreferencesKey("default_cpu_difficulty")
         val CARD_SIZE_PREFERENCE = floatPreferencesKey("card_size_preference")
+        val ONLINE_SERVER_URL = stringPreferencesKey("online_server_url")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { prefs ->
@@ -54,7 +55,8 @@ class SettingsRepository(private val context: Context) {
             defaultCpuDifficulty = prefs[Keys.DEFAULT_CPU_DIFFICULTY]
                 ?.let { runCatching { CpuDifficulty.valueOf(it) }.getOrNull() }
                 ?: CpuDifficulty.MEDIUM,
-            cardSizePreference = prefs[Keys.CARD_SIZE_PREFERENCE] ?: 0.4f
+            cardSizePreference = prefs[Keys.CARD_SIZE_PREFERENCE] ?: 0.4f,
+            onlineServerUrl = prefs[Keys.ONLINE_SERVER_URL] ?: ""
         )
     }
 
@@ -70,6 +72,7 @@ class SettingsRepository(private val context: Context) {
         edit { it[Keys.DEFAULT_CPU_DIFFICULTY] = difficulty.name }
     suspend fun setCardSizePreference(preference: Float) =
         edit { it[Keys.CARD_SIZE_PREFERENCE] = preference.coerceIn(0f, 1f) }
+    suspend fun setOnlineServerUrl(url: String) = edit { it[Keys.ONLINE_SERVER_URL] = url.trim() }
 
     suspend fun resetAll() = edit { it.clear() }
 

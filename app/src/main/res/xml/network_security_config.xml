@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release/default network security config for roadmap item 12's OnlineTransport:
+  cleartext (plain ws://) traffic is NOT permitted here — real deployments must
+  use wss:// (TLS), which server/README.md's deployment section (Render/Fly/
+  Railway/your own VPS) already produces. See app/src/debug/res/xml/ for the
+  debug-only override that permits plain ws:// for same-Wi-Fi local testing —
+  Gradle picks that one up automatically for debug builds, this file for
+  everything else, so nothing here weakens a real release build.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

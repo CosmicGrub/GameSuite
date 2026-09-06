@@ -37,6 +37,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.setDefaultCpuDifficulty(difficulty) }
     fun setCardSizePreference(preference: Float) =
         viewModelScope.launch { repository.setCardSizePreference(preference) }
+    fun setOnlineServerUrl(url: String) = viewModelScope.launch { repository.setOnlineServerUrl(url) }
 
     fun resetAll() = viewModelScope.launch { repository.resetAll() }
 }

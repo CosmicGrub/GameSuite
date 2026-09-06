@@ -45,6 +45,9 @@ import com.gamesuite.ui.MancalaScreen
 import com.gamesuite.ui.NearbyEntryScreen
 import com.gamesuite.ui.NearbyHostLobbyScreen
 import com.gamesuite.ui.NearbyJoinLobbyScreen
+import com.gamesuite.ui.OnlineEntryScreen
+import com.gamesuite.ui.OnlineHostLobbyScreen
+import com.gamesuite.ui.OnlineJoinLobbyScreen
 import com.gamesuite.ui.SettingsScreen
 import com.gamesuite.ui.SlidingPuzzleScreen
 import com.gamesuite.ui.SolitaireScreen
@@ -142,6 +145,35 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("nearby-join-lobby") {
                             NearbyJoinLobbyScreen(
+                                sessionManager = sessionManager,
+                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                onBack = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("online-entry") {
+                            OnlineEntryScreen(
+                                sessionManager = sessionManager,
+                                settingsViewModel = settingsViewModel,
+                                onNavigateToHostLobby = { navController.navigate("online-host-lobby") },
+                                onNavigateToJoinLobby = { navController.navigate("online-join-lobby") },
+                                onNavigateToSettings = { navController.navigate("settings") },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("online-host-lobby") {
+                            // Hardcoded to UNO for this pass — the lobby itself is generic
+                            // (see OnlineHostLobbyScreen's KDoc), just not yet exposed for
+                            // any other ONLINE-capable game.
+                            OnlineHostLobbyScreen(
+                                sessionManager = sessionManager,
+                                gameRoute = "uno",
+                                gameDisplayName = "UNO",
+                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                onBack = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("online-join-lobby") {
+                            OnlineJoinLobbyScreen(
                                 sessionManager = sessionManager,
                                 onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
                                 onBack = { navController.popBackStack("menu", inclusive = false) }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-build-only override of app/src/main/res/xml/network_security_config.xml.
+  Permits plain ws:// (cleartext) traffic for OnlineTransport's same-Wi-Fi local
+  testing (server/README.md), which Android blocks by default since API 28
+  otherwise — confirmed on-device (an emulator run against ws://10.0.2.2:8080
+  failed with "CLEARTEXT communication ... not permitted by network security
+  policy" before this file existed). Gradle's resource merging applies this
+  file only to debug builds; a release build falls back to the main config
+  above, which stays cleartext-disabled. Real internet-wide deployment must
+  use wss:// regardless of build type — this override is purely for local dev.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
