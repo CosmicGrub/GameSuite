@@ -7,6 +7,11 @@
          actually executes on-device; the legacy entries only matter in theory for
          a hypothetical API 26-30 device. See docs/DEVICE_SPECIFIC_PLAN.md §2. -->
 
+    <!-- INTERNET: normal (non-runtime) permission, needed for OnlineTransport (roadmap item
+         12) to reach the relay server over WebSocket — every other permission on this page
+         is Nearby-specific ad-hoc/local multiplayer, unrelated to this one. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Legacy Bluetooth — required only up to API 30, not a runtime/dangerous permission. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />

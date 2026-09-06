@@ -59,6 +59,10 @@ dependencies {
     // Nearby Connections — ad-hoc local multiplayer (Wi-Fi Direct/Bluetooth, no internet).
     // NOT the deprecated Nearby Messages API (com.google.android.gms.nearby.messages).
     implementation("com.google.android.gms:play-services-nearby:18.7.0")
+    // OnlineTransport (roadmap item 12) — WebSocket client to server/'s relay. minSdk 26
+    // predates android.net.http.HttpEngine/java.net.http (API 34+), so a small, well-
+    // established library is the honest choice here rather than hand-rolling raw sockets.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")

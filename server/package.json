@@ -1,0 +1,16 @@
+{
+  "name": "gamesuite-relay-server",
+  "version": "1.0.0",
+  "description": "Minimal WebSocket room relay for GameSuite's OnlineTransport (roadmap item 12). Not a game server — it never inspects or validates game payloads, only rooms and forwards bytes between the players in them, exactly like MultiplayerTransport's own send()/onMessageReceived contract on the Android side. All game rules stay host-authoritative on-device, same as the existing Nearby transport.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node smoke-test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

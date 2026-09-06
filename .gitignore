@@ -21,3 +21,8 @@ local.properties
 *.hprof
 .navigation/
 captures/
+
+# Node (server/)
+node_modules/
+server/server.log
+server/package-lock.json
