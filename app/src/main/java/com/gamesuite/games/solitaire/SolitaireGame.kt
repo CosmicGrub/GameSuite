@@ -43,6 +43,20 @@ data class SolitaireState(
         SelectionSource.Waste -> waste.lastOrNull()
         is SelectionSource.Tableau -> tableau[source.index].faceUp.lastOrNull()
     }
+
+    /**
+     * The standard "auto-complete available" check every commercial Klondike
+     * implementation uses: once no card is face-down anywhere (every
+     * [TableauColumn.faceDown] is empty *and* the stock is exhausted, since
+     * an undrawn stock card is face-down too), the deal is a mathematically
+     * forced win — every remaining card can always be walked to its
+     * foundation using nothing but legal single-card moves, because tableau
+     * columns still have room to act as buffers for whatever isn't
+     * immediately playable. This property only says a win is *reachable*,
+     * not that [SolitaireGame.autoCompleteStep]'s simple heuristic is
+     * guaranteed to find the whole path — see that KDoc.
+     */
+    val autoCompleteAvailable: Boolean get() = !won && stock.isEmpty() && tableau.all { it.faceDown.isEmpty() }
 }
 
 /**
@@ -84,6 +98,32 @@ class SolitaireGame : GameModule {
 
     val state = mutableStateOf<SolitaireState?>(null)
 
+    /**
+     * Bounded undo history — a snapshot of [state] taken immediately before
+     * each mutating move (draw/recycle the stock, or move a card to a
+     * tableau column or foundation), oldest dropped once [MAX_UNDO] is
+     * exceeded. Selecting/deselecting a card doesn't push a snapshot: those
+     * taps don't change the board, so there'd be nothing meaningful to undo
+     * back to, and letting Undo skip over them is exactly what a player
+     * expects "undo my last move" to do. Cleared on every fresh deal (see
+     * [startMatch]) so undo never reaches back into a previous deal.
+     */
+    private val history = ArrayDeque<SolitaireState>()
+
+    /** True once [history] holds at least one snapshot — drives the Undo button's enabled state in SolitaireScreen, same reactive-flag pattern as [gamesWon]/[matchOver]. */
+    val canUndo = mutableStateOf(false)
+
+    /**
+     * True while [autoCompleteStep] is being driven, one step at a time, by
+     * SolitaireScreen's LaunchedEffect (see that composable — same
+     * keyed-on-state-plus-delay shape as MancalaScreen's CPU-turn effect).
+     * Every tap handler below no-ops while this is true so a stray tap
+     * mid-auto-complete can't race a scheduled step or push a confusing
+     * manual move into the middle of it; flips back to false the moment
+     * [autoCompleteStep] runs out of moves it can find or the deal is won.
+     */
+    val isAutoCompleting = mutableStateOf(false)
+
     /** Session tally of solved deals — survives "New Game", reset only by init() (a fresh visit to this screen). */
     val gamesWon = mutableStateOf(0)
 
@@ -104,6 +144,9 @@ class SolitaireGame : GameModule {
     }
 
     override fun startMatch() {
+        history.clear()
+        canUndo.value = false
+        isAutoCompleting.value = false
         state.value = deal()
     }
 
@@ -148,20 +191,24 @@ class SolitaireGame : GameModule {
      */
     fun tapStock() {
         val s = state.value ?: return
-        if (s.won) return
+        if (s.won || isAutoCompleting.value) return
         state.value = when {
             s.stock.isNotEmpty() -> {
+                recordHistory(s)
                 val card = s.stock.last()
                 s.copy(stock = s.stock.dropLast(1), waste = s.waste + card, selected = null, lastAction = "Drew ${card.label}")
             }
-            s.waste.isNotEmpty() -> s.copy(stock = s.waste.reversed(), waste = emptyList(), selected = null, lastAction = "Recycled waste into stock")
+            s.waste.isNotEmpty() -> {
+                recordHistory(s)
+                s.copy(stock = s.waste.reversed(), waste = emptyList(), selected = null, lastAction = "Recycled waste into stock")
+            }
             else -> s.copy(lastAction = "Stock is empty")
         }
     }
 
     fun tapWaste() {
         val s = state.value ?: return
-        if (s.won) return
+        if (s.won || isAutoCompleting.value) return
         if (s.selected == SelectionSource.Waste) {
             state.value = s.copy(selected = null, lastAction = "Deselected")
             return
@@ -185,7 +232,7 @@ class SolitaireGame : GameModule {
      */
     fun tapTableau(index: Int) {
         val s = state.value ?: return
-        if (s.won) return
+        if (s.won || isAutoCompleting.value) return
         val selected = s.selected
 
         if (selected is SelectionSource.Tableau && selected.index == index) {
@@ -198,6 +245,7 @@ class SolitaireGame : GameModule {
         if (selected != null) {
             val movingCard = s.cardAt(selected)
             if (movingCard != null && canPlaceOnTableau(movingCard, destTop)) {
+                recordHistory(s)
                 state.value = applyMoveToTableau(s, selected, index, movingCard)
                 return
             }
@@ -212,7 +260,7 @@ class SolitaireGame : GameModule {
 
     fun tapFoundation(suit: Suit) {
         val s = state.value ?: return
-        if (s.won) return
+        if (s.won || isAutoCompleting.value) return
         val selected = s.selected
         if (selected == null) {
             state.value = s.copy(lastAction = "Select a card first")
@@ -223,6 +271,7 @@ class SolitaireGame : GameModule {
             state.value = s.copy(lastAction = "Can't place ${movingCard.label} there")
             return
         }
+        recordHistory(s)
         val next = applyMoveToFoundation(s, selected, suit, movingCard)
         if (next.won) gamesWon.value += 1
         state.value = next
@@ -324,5 +373,151 @@ class SolitaireGame : GameModule {
             ) else emptyList()
         )
         endMatch(result)
+    }
+
+    /**
+     * Snapshots [s] onto [history] right before a mutating move overwrites
+     * [state], so [undo] has something to restore. Keeps at most
+     * [MAX_UNDO] entries — the oldest is dropped once full — matching the
+     * task's "3-5 step history" sizing rather than growing unbounded across
+     * a long deal.
+     */
+    private fun recordHistory(s: SolitaireState) {
+        history.addLast(s)
+        if (history.size > MAX_UNDO) history.removeFirst()
+        canUndo.value = true
+    }
+
+    /**
+     * Pops the most recent pre-move snapshot off [history] (if any) and
+     * makes it the current state. The popped snapshot isn't pushed back
+     * anywhere, so calling this repeatedly walks further back through the
+     * last few moves, one at a time, same as any standard undo stack.
+     * No-ops when there's nothing to undo (including before a deal exists),
+     * so wiring the Undo button straight to this call is always safe.
+     */
+    fun undo() {
+        if (isAutoCompleting.value) return
+        val previous = history.removeLastOrNull() ?: return
+        state.value = previous
+        canUndo.value = history.isNotEmpty()
+    }
+
+    /** Called from the "Auto-complete" button — only starts if [SolitaireState.autoCompleteAvailable] actually holds; SolitaireScreen's LaunchedEffect takes it from here, calling [autoCompleteStep] on a delay until it stops. */
+    fun startAutoComplete() {
+        val s = state.value ?: return
+        if (!s.autoCompleteAvailable) return
+        isAutoCompleting.value = true
+    }
+
+    /**
+     * Plays exactly one auto-complete move, then returns — SolitaireScreen's
+     * LaunchedEffect calls this again after a short delay for as long as
+     * [isAutoCompleting] stays true, which is what turns a rapid burst of
+     * single-card moves into a readable, one-card-at-a-time animation
+     * instead of the whole deal resolving in one frame.
+     *
+     * Each move it plays is one of the two move types [tapTableau]/
+     * [tapFoundation] already make — [applyMoveToFoundation] or
+     * [applyMoveToTableau] — snapshotted onto [history] via [recordHistory]
+     * exactly like a manual move, so Undo (once auto-complete finishes or is
+     * interrupted) walks back through the last few auto-played steps one at
+     * a time the same way it walks back through manual ones; auto-complete
+     * gets no separate undo mechanism of its own.
+     *
+     * Priority per step: (1) any waste or tableau top card that can go
+     * straight to its foundation — see [findFoundationMove]; (2) failing
+     * that, a single tableau-to-tableau relocation that immediately exposes
+     * a foundation-ready card underneath it — see
+     * [findUnblockingTableauMove]. That second case is a deliberately
+     * one-level-deep look-ahead, not a general solver: [SolitaireState.autoCompleteAvailable]
+     * guarantees a full solution always exists, but this simple heuristic
+     * can still run out of moves a few cards short of it on a deal that
+     * needs a blocking card moved out of the way *twice* before anything
+     * underneath is playable. When that happens this just stops (flips
+     * [isAutoCompleting] back off) and hands the rest back to the player —
+     * an honest simplification in the same spirit as this file's
+     * single-card-move-only scope, not a bug.
+     */
+    fun autoCompleteStep() {
+        if (!isAutoCompleting.value) return
+        val s = state.value
+        if (s == null || s.won) {
+            isAutoCompleting.value = false
+            return
+        }
+
+        val foundationMove = findFoundationMove(s)
+        if (foundationMove != null) {
+            val (source, suit, card) = foundationMove
+            recordHistory(s)
+            val next = applyMoveToFoundation(s, source, suit, card)
+            if (next.won) {
+                gamesWon.value += 1
+                isAutoCompleting.value = false
+            }
+            state.value = next
+            return
+        }
+
+        val bufferMove = findUnblockingTableauMove(s)
+        if (bufferMove != null) {
+            val (source, destIndex) = bufferMove
+            val card = s.cardAt(source)
+            if (card != null) {
+                recordHistory(s)
+                state.value = applyMoveToTableau(s, source, destIndex, card)
+                return
+            }
+        }
+
+        // Nothing this heuristic knows how to do is left — see this function's KDoc.
+        isAutoCompleting.value = false
+    }
+
+    /** First card auto-complete finds that can go straight to its foundation right now — waste before tableau, left-to-right, same "read order" priority [tapTableau]/[tapWaste] already imply. */
+    private fun findFoundationMove(s: SolitaireState): Triple<SelectionSource, Suit, Card>? {
+        val wasteTop = s.waste.lastOrNull()
+        if (wasteTop != null && canPlaceOnFoundation(wasteTop, wasteTop.suit, s.foundations)) {
+            return Triple(SelectionSource.Waste, wasteTop.suit, wasteTop)
+        }
+        s.tableau.forEachIndexed { i, col ->
+            val top = col.faceUp.lastOrNull()
+            if (top != null && canPlaceOnFoundation(top, top.suit, s.foundations)) {
+                return Triple(SelectionSource.Tableau(i), top.suit, top)
+            }
+        }
+        return null
+    }
+
+    /**
+     * A single tableau-to-tableau move that's *known* to help: moving some
+     * column's top card onto another column's top card, where the card it
+     * uncovers underneath is immediately foundation-ready. Deliberately
+     * ignores moving a card onto an empty column — with no lookahead to
+     * prove that's useful too, it's just as likely to shuffle a King back
+     * and forth between empty columns forever as it is to help, and this
+     * function's whole job is to only ever propose moves that provably make
+     * progress (see [autoCompleteStep]'s KDoc on why that keeps this safe
+     * without an iteration cap).
+     */
+    private fun findUnblockingTableauMove(s: SolitaireState): Pair<SelectionSource, Int>? {
+        s.tableau.forEachIndexed { srcIndex, srcCol ->
+            val top = srcCol.faceUp.lastOrNull() ?: return@forEachIndexed
+            val exposedBeneath = srcCol.faceUp.getOrNull(srcCol.faceUp.lastIndex - 1) ?: return@forEachIndexed
+            if (!canPlaceOnFoundation(exposedBeneath, exposedBeneath.suit, s.foundations)) return@forEachIndexed
+            s.tableau.forEachIndexed { destIndex, destCol ->
+                val destTop = destCol.faceUp.lastOrNull()
+                if (destIndex != srcIndex && destTop != null && canPlaceOnTableau(top, destTop)) {
+                    return SelectionSource.Tableau(srcIndex) to destIndex
+                }
+            }
+        }
+        return null
+    }
+
+    private companion object {
+        /** How many moves back [undo] can reach — see [history]'s KDoc. */
+        const val MAX_UNDO = 5
     }
 }

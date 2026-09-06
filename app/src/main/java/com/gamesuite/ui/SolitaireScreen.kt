@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +36,7 @@ import com.gamesuite.games.cards.Suit
 import com.gamesuite.games.solitaire.SelectionSource
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.solitaire.TableauColumn
+import kotlinx.coroutines.delay
 
 /**
  * Renders SolitaireGame's state reactively — same split as every other game
@@ -67,6 +70,23 @@ fun SolitaireScreen(
         }
         game.startMatch()
         sounds.playShuffle()
+    }
+
+    val autoCompleting = game.isAutoCompleting.value
+
+    // Drives SolitaireGame.autoCompleteStep() one card at a time instead of
+    // resolving the whole deal in a single frame — same "keyed on state,
+    // delay, then take the next automated step" shape as MancalaScreen's
+    // CPU-turn LaunchedEffect. Also keyed on `autoCompleting` itself (not
+    // just `state`) because tapping the Auto-complete button flips that flag
+    // without changing `state`, and this effect has to (re)start right then,
+    // not wait for a state change that already happened.
+    LaunchedEffect(state, autoCompleting) {
+        if (!autoCompleting) return@LaunchedEffect
+        val s = state ?: return@LaunchedEffect
+        if (s.won) return@LaunchedEffect
+        delay(400)
+        game.autoCompleteStep()
     }
 
     val s = state ?: return
@@ -152,6 +172,7 @@ fun SolitaireScreen(
                         s.tableau.forEachIndexed { index, column ->
                             TableauColumnView(
                                 column = column,
+                                index = index,
                                 isSelected = s.selected == SelectionSource.Tableau(index),
                                 width = cardWidth,
                                 height = cardHeight,
@@ -164,7 +185,18 @@ fun SolitaireScreen(
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = game::undo, enabled = game.canUndo.value && !autoCompleting) { Text("Undo") }
+                        OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                        // Only offered once SolitaireState.autoCompleteAvailable holds — see
+                        // SolitaireGame's KDoc on why that check (no card face-down anywhere)
+                        // guarantees the rest of the deal is winnable.
+                        if (s.autoCompleteAvailable) {
+                            Button(onClick = game::startAutoComplete, enabled = !autoCompleting) {
+                                Text(if (autoCompleting) "Auto-completing…" else "Auto-complete")
+                            }
+                        }
+                    }
                 }
 
                 if (s.won) {
@@ -190,10 +222,16 @@ private fun StockPileView(hasCards: Boolean, width: Dp, height: Dp, onClick: () 
     }
 }
 
+/** "Seven of Spades" style label for TalkBack — Card.label ("7♠"/rank.label+suit.symbol) is a visual-only shorthand, not something a screen reader should read character-by-character. Rank/Suit enum names (SEVEN, SPADES, ...) already spell the words out, so no separate name table is needed. */
+private fun Card.accessibleLabel(): String =
+    "${rank.name.lowercase().replaceFirstChar { it.uppercase() }} of ${suit.name.lowercase().replaceFirstChar { it.uppercase() }}"
+
 @Composable
 private fun WastePileView(card: Card?, isSelected: Boolean, width: Dp, height: Dp, onClick: () -> Unit) {
+    val description = if (card != null) "${card.accessibleLabel()}, waste pile" else "Empty waste pile"
     Box(
         modifier = Modifier
+            .semantics { contentDescription = description }
             .clickable(onClick = onClick)
             .then(if (isSelected) Modifier.border(3.dp, Color(0xFFFFC107), RoundedCornerShape(10.dp)) else Modifier)
     ) {
@@ -208,7 +246,12 @@ private fun WastePileView(card: Card?, isSelected: Boolean, width: Dp, height: D
 @Composable
 private fun FoundationPileView(suit: Suit, cards: List<Card>, width: Dp, height: Dp, onClick: () -> Unit) {
     val top = cards.lastOrNull()
-    Box(modifier = Modifier.clickable(onClick = onClick)) {
+    val description = if (top != null) "${top.accessibleLabel()}, foundation pile" else "Empty foundation, ${suit.name.lowercase()}"
+    Box(
+        modifier = Modifier
+            .semantics { contentDescription = description }
+            .clickable(onClick = onClick)
+    ) {
         if (top != null) {
             PlayingCardView(card = top.toVisual(), width = width, height = height)
         } else {
@@ -224,23 +267,30 @@ private fun FoundationPileView(suit: Suit, cards: List<Card>, width: Dp, height:
 
 /** A column's own single tap target, cascading every card (hidden or shown) with a vertical offset — a Compose "solitaire fan" down a column instead of FannedHand's horizontal one. */
 @Composable
-private fun TableauColumnView(column: TableauColumn, isSelected: Boolean, width: Dp, height: Dp, onClick: () -> Unit) {
+private fun TableauColumnView(column: TableauColumn, index: Int, isSelected: Boolean, width: Dp, height: Dp, onClick: () -> Unit) {
     val overlap = height * 0.28f
     val cards: List<Pair<Card, Boolean>> = column.faceDown.map { it to true } + column.faceUp.map { it to false }
     val totalHeight = if (cards.isEmpty()) height else height + overlap * (cards.size - 1)
+    val columnLabel = "tableau column ${index + 1}"
 
     Box(
         modifier = Modifier
             .width(width)
             .height(totalHeight)
             .clickable(onClick = onClick)
+            .then(if (cards.isEmpty()) Modifier.semantics { contentDescription = "Empty, $columnLabel" } else Modifier)
     ) {
         if (cards.isEmpty()) {
             EmptyPileSlot(width = width, height = height, symbol = "")
         } else {
             cards.forEachIndexed { i, (card, faceDown) ->
                 val isTopCard = i == cards.lastIndex
-                Box(modifier = Modifier.offset(y = overlap * i)) {
+                val cardDescription = if (faceDown) "Face-down card, $columnLabel" else "${card.accessibleLabel()}, $columnLabel"
+                Box(
+                    modifier = Modifier
+                        .offset(y = overlap * i)
+                        .semantics { contentDescription = cardDescription }
+                ) {
                     PlayingCardView(
                         card = card.toVisual(faceDown = faceDown),
                         width = width,
