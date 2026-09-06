@@ -259,5 +259,35 @@ fun MainMenuScreen(
         }) {
             Text("Air Hockey (vs CPU)")
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Card games")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(onClick = {
+            sessionManager.launchGame(
+                mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                localPlayerIndex = 0
+            )
+            onNavigateToGame("solitaire")
+        }) {
+            Text("Solitaire")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Puzzles")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(onClick = {
+            sessionManager.launchGame(
+                mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                localPlayerIndex = 0
+            )
+            onNavigateToGame("sliding-puzzle")
+        }) {
+            Text("Sliding Puzzle")
+        }
     }
 }

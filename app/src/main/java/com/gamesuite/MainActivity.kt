@@ -30,6 +30,8 @@ import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.mancala.MancalaGame
+import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
+import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.uno.UnoGame
 import com.gamesuite.games.wordgames.crossword.CrosswordGame
 import com.gamesuite.games.wordgames.tiles.TileGame
@@ -44,6 +46,8 @@ import com.gamesuite.ui.NearbyEntryScreen
 import com.gamesuite.ui.NearbyHostLobbyScreen
 import com.gamesuite.ui.NearbyJoinLobbyScreen
 import com.gamesuite.ui.SettingsScreen
+import com.gamesuite.ui.SlidingPuzzleScreen
+import com.gamesuite.ui.SolitaireScreen
 import com.gamesuite.ui.TicTacToeScreen
 import com.gamesuite.ui.TileGameScreen
 import com.gamesuite.ui.UnoScreen
@@ -150,6 +154,16 @@ class MainActivity : ComponentActivity() {
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
+                        composable("tic-tac-toe-misere") {
+                            // Same GameModule/screen as "tic-tac-toe" — misere = true is the only
+                            // difference (roadmap item 13c). See TicTacToeScreen's KDoc.
+                            TicTacToeScreen(
+                                sessionManager = sessionManager,
+                                settingsViewModel = settingsViewModel,
+                                misere = true,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
                         composable("uno") {
                             val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
                             UnoScreen(
@@ -189,6 +203,7 @@ class MainActivity : ComponentActivity() {
                             CrosswordScreen(
                                 sessionManager = sessionManager,
                                 game = crosswordGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
@@ -224,6 +239,23 @@ class MainActivity : ComponentActivity() {
                             AirHockeyScreen(
                                 sessionManager = sessionManager,
                                 game = airHockeyGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("solitaire") {
+                            val solitaireGame = rememberActiveModule(sessionManager) { SolitaireGame() }
+                            SolitaireScreen(
+                                sessionManager = sessionManager,
+                                game = solitaireGame,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("sliding-puzzle") {
+                            val slidingPuzzleGame = rememberActiveModule(sessionManager) { SlidingPuzzleGame() }
+                            SlidingPuzzleScreen(
+                                sessionManager = sessionManager,
+                                game = slidingPuzzleGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
