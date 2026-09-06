@@ -2,6 +2,7 @@ package com.gamesuite.ui
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +20,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -26,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.mancala.MancalaGame
+import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
 
@@ -53,18 +57,21 @@ fun MancalaScreen(
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
-        game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
+        game.setOnMatchEnd { result ->
+            sessionManager.endActiveGame(result)
+            onMatchEnded()
+        }
         game.startMatch()
     }
 
-    // Keyed on the whole state object (not just currentPlayerIndex/matchOver) so this
+    // Keyed on the whole state object (not just currentPlayerIndex/roundOver) so this
     // relaunches on every move, including a bonus/extra turn where the mover keeps
     // possession of currentPlayerIndex — sow() always changes pits/lastAction, so a new
     // MancalaState is never equal to the previous one even when currentPlayerIndex repeats.
     LaunchedEffect(state) {
         val s = state ?: return@LaunchedEffect
         val ctx = context ?: return@LaunchedEffect
-        if (s.matchOver) return@LaunchedEffect
+        if (s.roundOver) return@LaunchedEffect
         if (ctx.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
             delay(700)
             game.playBotTurn()
@@ -74,16 +81,28 @@ fun MancalaScreen(
     val s = state ?: return
     val ctx = context ?: return
 
-    if (s.matchOver) {
+    if (s.roundOver) {
         val winner = ctx.players.firstOrNull { it.playerId == s.winnerPlayerId }
+        val p1Name = ctx.players.getOrNull(0)?.displayName ?: "Player 1"
+        val p2Name = ctx.players.getOrNull(1)?.displayName ?: "Player 2"
+        val scoreP1 by game.scoreP1
+        val scoreP2 by game.scoreP2
+        val draws by game.draws
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(if (winner != null) "${winner.displayName} wins!" else "It's a tie!", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "$p1Name: $scoreP1 · $p2Name: $scoreP2" + if (draws > 0) " · Draws: $draws" else "",
+                style = MaterialTheme.typography.labelLarge
+            )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onMatchEnded) { Text("Back to menu") }
+            Button(onClick = game::playAgain) { Text("Play Again") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
         }
         return
     }
@@ -94,6 +113,13 @@ fun MancalaScreen(
     // isHumanTurn additionally blocks the human from tapping while a bot is thinking,
     // preserving vs-bot behavior without needing to know which side "the human" is.
     val isHumanTurn = ctx.players.getOrNull(s.currentPlayerIndex)?.isBot != true
+
+    // Capture preview: outline whichever of the current human player's legal pits would
+    // land the last stone in an empty pit of theirs. Reuses MancalaGame.captureCandidates,
+    // which is itself just a read-only call into the exact legalMoves()/simulateSow() pair
+    // the HARD bot's minimax search already relies on -- purely visual, recomputed fresh
+    // each recomposition, never touches sow()'s real state.
+    val captureCandidates = if (isHumanTurn) game.captureCandidates(s.currentPlayerIndex) else emptySet()
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -121,14 +147,21 @@ fun MancalaScreen(
             val storeHeight = 140.dp * scaleFactor
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                StoreView(count = s.pits[13], width = storeWidth, height = storeHeight)
+                StoreView(count = s.pits[13], ownerLabel = "Opponent", width = storeWidth, height = storeHeight)
                 Column(modifier = Modifier.weight(1f)) {
                     Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                        // Opponent's row runs right-to-left visually (12 downTo 7), but their
+                        // pit numbering should still count up from 1 starting at the pit
+                        // farthest from their store -- pit 7 -- matching how the player's own
+                        // row (below) numbers from the pit farthest from their store (0).
                         (12 downTo 7).forEach { pit ->
                             PitView(
                                 count = s.pits[pit],
                                 enabled = isHumanTurn && s.currentPlayerIndex == 1 && s.pits[pit] > 0,
+                                highlightCapture = pit in captureCandidates,
                                 size = pitSize,
+                                ownerLabel = "Opponent",
+                                pitNumber = pit - 6,
                                 onClick = {
                                     game.sow(1, pit)
                                     sounds.playTap()
@@ -143,7 +176,10 @@ fun MancalaScreen(
                             PitView(
                                 count = s.pits[pit],
                                 enabled = isHumanTurn && s.currentPlayerIndex == 0 && s.pits[pit] > 0,
+                                highlightCapture = pit in captureCandidates,
                                 size = pitSize,
+                                ownerLabel = "Your",
+                                pitNumber = pit + 1,
                                 onClick = {
                                     game.sow(0, pit)
                                     sounds.playTap()
@@ -153,17 +189,29 @@ fun MancalaScreen(
                         }
                     }
                 }
-                StoreView(count = s.pits[6], width = storeWidth, height = storeHeight)
+                StoreView(count = s.pits[6], ownerLabel = "Your", width = storeWidth, height = storeHeight)
             }
         }
     }
 }
 
 @Composable
-private fun PitView(count: Int, enabled: Boolean, size: Dp = 52.dp, onClick: () -> Unit) {
+private fun PitView(
+    count: Int,
+    enabled: Boolean,
+    ownerLabel: String,
+    pitNumber: Int,
+    highlightCapture: Boolean = false,
+    size: Dp = 52.dp,
+    onClick: () -> Unit
+) {
+    // Settings -> Accessibility -> Reduced Motion (see settings/LocalReducedMotion.kt) --
+    // same technique FannedHand.kt already uses: swap the spring for snap() so the capture
+    // shrink/settle still happens, just without the motion.
+    val reducedMotion = LocalReducedMotion.current
     val scale by animateFloatAsState(
         targetValue = if (count > 0) 1f else 0.85f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        animationSpec = if (reducedMotion) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "pitScale"
     )
     Box(
@@ -173,8 +221,16 @@ private fun PitView(count: Int, enabled: Boolean, size: Dp = 52.dp, onClick: () 
             .scale(scale)
             .clip(CircleShape)
             .background(if (enabled) Color(0xFFD7CCC8) else Color(0xFFEFEBE9))
-            .border(1.dp, Color(0xFF8D6E63), CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
+            .border(
+                if (highlightCapture) 3.dp else 1.dp,
+                if (highlightCapture) Color(0xFFFFC107) else Color(0xFF8D6E63),
+                CircleShape
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            // Screen-reader announcement mirrors the visible layout (owner side + this pit's
+            // position within that side, farthest-from-store first) plus the live stone count,
+            // since a TalkBack user can't see which pit their finger landed on otherwise.
+            .semantics { contentDescription = "$ownerLabel pit $pitNumber, ${stoneCountLabel(count)}" },
         contentAlignment = Alignment.Center
     ) {
         Text(count.toString(), fontWeight = FontWeight.Bold)
@@ -182,15 +238,19 @@ private fun PitView(count: Int, enabled: Boolean, size: Dp = 52.dp, onClick: () 
 }
 
 @Composable
-private fun StoreView(count: Int, width: Dp = 48.dp, height: Dp = 140.dp) {
+private fun StoreView(count: Int, ownerLabel: String, width: Dp = 48.dp, height: Dp = 140.dp) {
     Box(
         modifier = Modifier
             .padding(8.dp)
             .size(width = width, height = height)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF6D4C41)),
+            .background(Color(0xFF6D4C41))
+            .semantics { contentDescription = "$ownerLabel store, ${stoneCountLabel(count)}" },
         contentAlignment = Alignment.Center
     ) {
         Text(count.toString(), color = Color.White, fontWeight = FontWeight.Bold)
     }
 }
+
+/** "1 stone" vs "4 stones" -- the pit/store semantics text reads naturally either way. */
+private fun stoneCountLabel(count: Int): String = if (count == 1) "1 stone" else "$count stones"

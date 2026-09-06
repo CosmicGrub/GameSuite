@@ -22,6 +22,21 @@ import kotlin.random.Random
  * scoring in [cellClicked], the minimax terminal scoring in [minimax], and
  * the MEDIUM/EASY heuristic's win-seeking in [heuristicMove]. The board
  * stays a fixed 3x3 (WIN_LINES unchanged) — only the win/loss meaning flips.
+ *
+ * A second, independent variant added alongside it: [wild]. Standard rules
+ * bake "player 1 always places X, player 2 always places O" into the board
+ * itself — a cell's stored value doubles as both "who played here" and
+ * "what symbol is shown". Wild Tic-Tac-Toe breaks that: each mover picks
+ * either symbol on their turn (see [selectedSymbol]/[chooseSymbol] for the
+ * human, [availableSymbols] for the bot), so a cell's content stops
+ * identifying its owner. [findWinningLine] already only compares cell
+ * *content*, never player identity, so it needed no change at all — the
+ * pieces that assumed content-equals-mover do: [cellClicked] now reads the
+ * placed symbol from [selectedSymbol] instead of [currentPlayer], and
+ * [minimax]'s terminal scoring keys off turn order (who *moved*) rather
+ * than the symbol a line is made of, since under [wild] those two can
+ * disagree. [misere] and [wild] compose freely — see [heuristicMove] and
+ * [minimax] for how the two flags combine.
  */
 class TicTacToeGame : GameModule {
     override val gameId = "tic-tac-toe"
@@ -58,6 +73,19 @@ class TicTacToeGame : GameModule {
     /** Pre-set by the UI (see TicTacToeScreen's `misere` param) before startMatch(). Reverse-win rules: false = standard. */
     var misere: Boolean = false
 
+    /** Pre-set by the UI (see TicTacToeScreen's `wild` param) before startMatch(). Each mover picks X or O per turn: false = standard (symbol fixed per player). */
+    var wild: Boolean = false
+
+    /**
+     * Which symbol (1=X, 2=O) the next [cellClicked] call will place, under
+     * [wild] — meaningless under standard rules, where the symbol is always
+     * [currentPlayer]'s own number. Defaults to X at the start of every turn;
+     * the UI shows a toggle so the human can switch it before tapping a cell,
+     * and [playBotTurn] sets it itself so bot and human moves share the same
+     * [cellClicked] path regardless of who's placing.
+     */
+    val selectedSymbol = mutableStateOf(1)
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -68,6 +96,7 @@ class TicTacToeGame : GameModule {
         this.context = context
         board.value = IntArray(9)
         currentPlayer.value = 1
+        selectedSymbol.value = 1
         startingPlayer = 1
         roundOver.value = false
         winningLine.value = null
@@ -122,6 +151,17 @@ class TicTacToeGame : GameModule {
         winningLine.value = null
         roundOver.value = false
         currentPlayer.value = startingPlayer
+        selectedSymbol.value = 1
+    }
+
+    /**
+     * Called from the UI's X/O toggle under [wild], before the player taps a
+     * cell — see [selectedSymbol]. No-op under standard rules since the UI
+     * doesn't show the toggle then, but harmless either way since standard
+     * [cellClicked] never reads [selectedSymbol].
+     */
+    fun chooseSymbol(symbol: Int) {
+        selectedSymbol.value = symbol
     }
 
     /** Call this from the UI when a cell is tapped. */
@@ -129,7 +169,10 @@ class TicTacToeGame : GameModule {
         if (roundOver.value || matchOver.value || board.value[index] != 0) return
 
         val newBoard = board.value.copyOf()
-        newBoard[index] = currentPlayer.value
+        // Standard: the cell records the mover's own fixed symbol. Wild: the
+        // mover chose a symbol independently of who they are — see the
+        // class KDoc's [wild] paragraph — so it comes from [selectedSymbol].
+        newBoard[index] = if (wild) selectedSymbol.value else currentPlayer.value
         board.value = newBoard
 
         val line = findWinningLine(newBoard)
@@ -139,6 +182,8 @@ class TicTacToeGame : GameModule {
             // Misere: completing a line LOSES, so the point goes to whoever
             // didn't complete it — currentPlayer.value is still the mover here,
             // cellClicked() returns before it ever flips to the other player.
+            // Wild doesn't change any of this: it only changes which symbol
+            // ends up in the cell, never who gets credit/blame for placing it.
             val loserIsMover = misere
             val scorerIsP1 = if (loserIsMover) currentPlayer.value != 1 else currentPlayer.value == 1
             if (scorerIsP1) scoreP1.value += 1 else scoreP2.value += 1
@@ -152,6 +197,7 @@ class TicTacToeGame : GameModule {
         }
 
         currentPlayer.value = if (currentPlayer.value == 1) 2 else 1
+        selectedSymbol.value = 1
     }
 
     /**
@@ -165,8 +211,11 @@ class TicTacToeGame : GameModule {
         val botIndex = currentPlayer.value - 1
         if (context.players.getOrNull(botIndex)?.isBot != true) return
 
-        val move = chooseBotMove(board.value) ?: return
-        cellClicked(move)
+        val (cell, symbol) = chooseBotMove(board.value) ?: return
+        // Route through the same [selectedSymbol] the human's toggle writes
+        // to, so cellClicked() doesn't need a bot-specific placement path.
+        selectedSymbol.value = symbol
+        cellClicked(cell)
     }
 
     /**
@@ -178,15 +227,32 @@ class TicTacToeGame : GameModule {
      * exhaustive, so it's beatable with a deliberate fork. EASY mostly
      * moves at random, only reaching for the heuristic move a third of the
      * time, so it still occasionally blocks/wins but loses far more often —
-     * a real skill ladder rather than three re-skins of the same bot.
+     * a real skill ladder rather than three re-skins of the same bot. Every
+     * tier now returns a (cell, symbol) pair rather than just a cell, since
+     * under [wild] the bot has to decide both — see [availableSymbols].
      */
-    private fun chooseBotMove(b: IntArray): Int? = when (difficulty) {
+    private fun chooseBotMove(b: IntArray): Pair<Int, Int>? = when (difficulty) {
         CpuDifficulty.HARD -> minimaxBestMove(b, currentPlayer.value)
         CpuDifficulty.MEDIUM -> heuristicMove(b)
         CpuDifficulty.EASY -> if (Random.nextFloat() < 0.35f) heuristicMove(b) else randomMove(b)
     }
 
-    private fun randomMove(b: IntArray): Int? = b.indices.filter { b[it] == 0 }.randomOrNull()
+    /**
+     * Symbols `mover` may legally place this turn: only their own player
+     * number under standard rules (a fixed X-or-O assignment baked into the
+     * board), or either symbol under [wild]. Every search/heuristic function
+     * below branches over this instead of assuming "symbol == mover", which
+     * is what lets one code path serve both rule sets.
+     */
+    private fun availableSymbols(mover: Int): List<Int> = if (wild) listOf(1, 2) else listOf(mover)
+
+    private fun randomMove(b: IntArray): Pair<Int, Int>? {
+        val cell = b.indices.filter { b[it] == 0 }.randomOrNull() ?: return null
+        // EASY doesn't strategize even in standard rules, so under [wild] its
+        // symbol choice is just as arbitrary as its cell choice.
+        val symbol = if (wild) listOf(1, 2).random() else currentPlayer.value
+        return cell to symbol
+    }
 
     /**
      * Win if possible, else block the opponent's win, else prefer center,
@@ -194,18 +260,33 @@ class TicTacToeGame : GameModule {
      * be actively self-destructive (the bot would race to complete its own
      * line, which loses), so that case is delegated to [misereHeuristicMove]
      * instead — see its KDoc.
+     *
+     * Under [wild] the "block" step disappears: [findWinningLine]/[winningMove]
+     * only look at cell *content*, never at who placed it, so a line with two
+     * matching cells and an empty third is already a winning move for
+     * whichever symbol matches it — there's no separate "opponent's threat"
+     * to block, because the mover can simply take that win for themselves
+     * with the matching symbol. So the win-check loops over both symbols
+     * first; only standard rules (where the bot's and opponent's symbols are
+     * genuinely fixed and distinct) still need an explicit block step.
      */
-    private fun heuristicMove(b: IntArray): Int? {
+    private fun heuristicMove(b: IntArray): Pair<Int, Int>? {
         val bot = currentPlayer.value
         val opponent = if (bot == 1) 2 else 1
+        val symbols = availableSymbols(bot)
 
-        if (misere) return misereHeuristicMove(b, bot, opponent)
+        if (misere) return misereHeuristicMove(b, bot, opponent, symbols)
 
-        winningMove(b, bot)?.let { return it }
-        winningMove(b, opponent)?.let { return it }
+        for (symbol in symbols) {
+            winningMove(b, symbol)?.let { return it to symbol }
+        }
+        if (!wild) {
+            winningMove(b, opponent)?.let { return it to bot }
+        }
 
         val preferredOrder = listOf(4, 0, 2, 6, 8, 1, 3, 5, 7)
-        return preferredOrder.firstOrNull { b[it] == 0 }
+        val cell = preferredOrder.firstOrNull { b[it] == 0 } ?: return null
+        return cell to symbols.first()
     }
 
     /**
@@ -217,73 +298,114 @@ class TicTacToeGame : GameModule {
      * replies of their own, nudging them toward eventually being the one
      * forced to complete a line. It's a proxy for real lookahead, not exact
      * play — HARD's minimax is what actually solves misere optimally.
+     *
+     * Generalized over `symbols` (see [availableSymbols]) so [wild] composes
+     * with [misere] for free: a "move" is now a (cell, symbol) pair, and
+     * "self-losing" means that specific pair would complete a line, not just
+     * the cell in isolation — under [wild] the same cell can be safe with one
+     * symbol and self-losing with the other.
      */
-    private fun misereHeuristicMove(b: IntArray, bot: Int, opponent: Int): Int? {
+    private fun misereHeuristicMove(b: IntArray, bot: Int, opponent: Int, symbols: List<Int>): Pair<Int, Int>? {
         val empty = b.indices.filter { b[it] == 0 }
-        val selfLosingMoves = completingMoves(b, bot).toSet()
-        val safeMoves = empty.filter { it !in selfLosingMoves }
-        // If every remaining cell would complete a line, a loss this round is
-        // unavoidable — fall back to considering all of them.
-        val candidates = safeMoves.ifEmpty { empty }
+        val allMoves = empty.flatMap { cell -> symbols.map { symbol -> cell to symbol } }
+        val selfLosing = allMoves.filter { (cell, symbol) -> cell in completingMoves(b, symbol) }.toSet()
+        // If every legal (cell, symbol) pair would complete a line, a loss
+        // this round is unavoidable — fall back to considering all of them.
+        val candidates = (allMoves - selfLosing).ifEmpty { allMoves }
 
         val preferredOrder = listOf(4, 0, 2, 6, 8, 1, 3, 5, 7)
-        return candidates.minByOrNull { move ->
+        return candidates.minByOrNull { (cell, symbol) ->
             val next = b.copyOf()
-            next[move] = bot
-            val opponentSelfLosing = completingMoves(next, opponent).toSet()
-            val opponentSafeCount = next.indices.count { next[it] == 0 && it !in opponentSelfLosing }
+            next[cell] = symbol
+            val opponentSymbols = availableSymbols(opponent)
+            val opponentMoves = next.indices.filter { next[it] == 0 }.flatMap { c -> opponentSymbols.map { c to it } }
+            val opponentSafeCount = opponentMoves.count { (oc, os) -> oc !in completingMoves(next, os) }
             // Primary key: fewer safe replies left for the opponent is better.
             // Tie-break with the same positional preference used elsewhere.
-            opponentSafeCount * 10 + preferredOrder.indexOf(move)
+            opponentSafeCount * 10 + preferredOrder.indexOf(cell)
         }
     }
 
     /**
-     * Full minimax over the (tiny — at most 9! ≈ 362,880 nodes, in practice
-     * far fewer once winning lines end the search early) game tree. No
-     * alpha-beta pruning needed at this size; added complexity wouldn't be
-     * worth it for a 3x3 board. Depth is factored into the score so the bot
-     * prefers a *faster* win and a *slower* loss when several lines lead to
-     * the same outcome, matching how a skilled human actually plays rather
-     * than winning "eventually" in a way that looks careless.
+     * Full minimax over the game tree — standard tic-tac-toe is tiny enough
+     * (at most 9! ≈ 362,880 nodes) that no pruning was needed. [wild] changes
+     * that: the mover now also picks a symbol per move, doubling the
+     * branching factor at every ply (worst case on the order of 2^9 × 9!
+     * nodes), so alpha-beta pruning earns its keep here — it's guaranteed to
+     * return the exact same result as unpruned minimax, just by skipping
+     * subtrees a rational opponent would never allow to be reached. Depth is
+     * factored into the score so the bot prefers a *faster* win and a
+     * *slower* loss when several lines lead to the same outcome, matching
+     * how a skilled human actually plays rather than winning "eventually" in
+     * a way that looks careless.
      */
-    private fun minimaxBestMove(b: IntArray, player: Int): Int? {
+    private fun minimaxBestMove(b: IntArray, player: Int): Pair<Int, Int>? {
         val opponent = if (player == 1) 2 else 1
         var bestScore = Int.MIN_VALUE
-        var bestMove: Int? = null
+        var bestMove: Pair<Int, Int>? = null
         for (i in b.indices) {
             if (b[i] != 0) continue
-            val next = b.copyOf()
-            next[i] = player
-            val score = minimax(next, depth = 1, isMaximizing = false, maximizer = player, minimizer = opponent)
-            if (score > bestScore) {
-                bestScore = score
-                bestMove = i
+            for (symbol in availableSymbols(player)) {
+                val next = b.copyOf()
+                next[i] = symbol
+                val score = minimax(next, depth = 1, isMaximizing = false, maximizer = player, minimizer = opponent)
+                if (score > bestScore) {
+                    bestScore = score
+                    bestMove = i to symbol
+                }
             }
         }
         return bestMove
     }
 
-    private fun minimax(b: IntArray, depth: Int, isMaximizing: Boolean, maximizer: Int, minimizer: Int): Int {
-        findWinningLine(b)?.let { line ->
-            val winner = b[line[0]]
+    private fun minimax(
+        b: IntArray,
+        depth: Int,
+        isMaximizing: Boolean,
+        maximizer: Int,
+        minimizer: Int,
+        alpha: Int = Int.MIN_VALUE,
+        beta: Int = Int.MAX_VALUE
+    ): Int {
+        findWinningLine(b)?.let {
+            // Standard/misere alike used to read the winner off the line's
+            // cell content (b[line[0]]), which worked because content and
+            // mover were the same number. Under [wild] they can differ, so
+            // this instead derives who *moved* last from turn order: this
+            // call's isMaximizing already flipped past whoever just played,
+            // so the last mover is the other side.
+            val lastMover = if (isMaximizing) minimizer else maximizer
             // Standard: completing the line wins for whoever completed it.
             // Misere: completing the line LOSES for whoever completed it —
             // same depth-preference (faster win / slower loss), just with
             // which side "winning the game" maps to flipped.
-            val goodForMaximizer = if (misere) winner != maximizer else winner == maximizer
+            val goodForMaximizer = if (misere) lastMover != maximizer else lastMover == maximizer
             return if (goodForMaximizer) 10 - depth else depth - 10
         }
         if (isBoardFull(b)) return 0
 
         val player = if (isMaximizing) maximizer else minimizer
         var best = if (isMaximizing) Int.MIN_VALUE else Int.MAX_VALUE
-        for (i in b.indices) {
+        var a = alpha
+        var bt = beta
+        outer@ for (i in b.indices) {
             if (b[i] != 0) continue
-            val next = b.copyOf()
-            next[i] = player
-            val score = minimax(next, depth + 1, !isMaximizing, maximizer, minimizer)
-            best = if (isMaximizing) maxOf(best, score) else minOf(best, score)
+            for (symbol in availableSymbols(player)) {
+                val next = b.copyOf()
+                next[i] = symbol
+                val score = minimax(next, depth + 1, !isMaximizing, maximizer, minimizer, a, bt)
+                if (isMaximizing) {
+                    best = maxOf(best, score)
+                    a = maxOf(a, best)
+                } else {
+                    best = minOf(best, score)
+                    bt = minOf(bt, best)
+                }
+                // Alpha-beta cutoff: the side above us in the tree already has
+                // a better option elsewhere, so it will never let play reach
+                // this branch — no need to keep exploring it.
+                if (bt <= a) break@outer
+            }
         }
         return best
     }

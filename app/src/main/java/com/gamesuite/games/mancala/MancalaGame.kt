@@ -20,9 +20,24 @@ data class MancalaState(
     val pits: List<Int>,
     val currentPlayerIndex: Int,
     val lastAction: String,
-    val matchOver: Boolean = false,
+    /**
+     * True once the current game has ended (one side's pits are all empty)
+     * -- distinct from [MancalaGame.matchOver], which only flips once the
+     * whole session ends (the player leaves via the round-over panel's
+     * "Back to Menu" rather than "Play Again").
+     */
+    val roundOver: Boolean = false,
     val winnerPlayerId: String? = null
 )
+
+/**
+ * Pure result of a hypothetical sow, used both by the HARD bot's minimax
+ * search ([MancalaGame.simulateSow]) and by [MancalaGame.captureCandidates]'s
+ * capture preview. [landingCursor] is the pit the last stone landed in --
+ * exposing it lets a caller recognize a capture (see captureCandidates'
+ * KDoc) without re-deriving the sow loop's own cursor math.
+ */
+private data class SowResult(val pits: List<Int>, val extraTurn: Boolean, val landingCursor: Int)
 
 class MancalaGame : GameModule {
     override val gameId = "mancala"
@@ -37,6 +52,19 @@ class MancalaGame : GameModule {
 
     val state = mutableStateOf<MancalaState?>(null)
 
+    /**
+     * Running session score across games -- mirrors TicTacToeGame's
+     * scoreP1/scoreP2/draws (see its KDoc): a running score is what gives
+     * repeated Mancala play a reason to continue past a single game, the
+     * same way Play Again does for Tic-Tac-Toe.
+     */
+    val scoreP1 = mutableStateOf(0)
+    val scoreP2 = mutableStateOf(0)
+    val draws = mutableStateOf(0)
+
+    /** True only once the whole session ends (user leaves via the round-over panel), not per-game. */
+    val matchOver = mutableStateOf(false)
+
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
@@ -50,6 +78,10 @@ class MancalaGame : GameModule {
 
     override fun init(context: GameContext) {
         this.context = context
+        matchOver.value = false
+        scoreP1.value = 0
+        scoreP2.value = 0
+        draws.value = 0
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -67,13 +99,42 @@ class MancalaGame : GameModule {
     override fun resume() {}
 
     override fun endMatch(result: GameResult) {
-        state.value = state.value?.copy(matchOver = true)
+        matchOver.value = true
         onMatchEnd?.invoke(result)
+    }
+
+    /**
+     * Called from the round-over panel's "Back to Menu" button -- ends the
+     * whole session (not just the current game), reporting the cumulative
+     * score. Mirrors TicTacToeGame.leaveSession().
+     */
+    fun leaveSession() {
+        if (matchOver.value) return
+        val scores = mutableListOf<PlayerScore>()
+        context.players.getOrNull(0)?.let {
+            scores += PlayerScore(playerId = it.playerId, score = scoreP1.value, isWinner = scoreP1.value > scoreP2.value)
+        }
+        context.players.getOrNull(1)?.let {
+            scores += PlayerScore(playerId = it.playerId, score = scoreP2.value, isWinner = scoreP2.value > scoreP1.value)
+        }
+        endMatch(GameResult(scores = scores))
+    }
+
+    /**
+     * Called from the round-over panel's "Play Again" button -- keeps the
+     * running score and deals a fresh board within the same session. Reuses
+     * [startMatch] itself rather than duplicating its setup, since "a new
+     * game" and "the first game of the match" are the same operation.
+     * Mirrors TicTacToeGame.playAgain().
+     */
+    fun playAgain() {
+        if (matchOver.value) return
+        startMatch()
     }
 
     fun sow(playerIndex: Int, pitIndex: Int) {
         val s = state.value ?: return
-        if (s.matchOver || playerIndex != s.currentPlayerIndex) return
+        if (s.roundOver || playerIndex != s.currentPlayerIndex) return
 
         val ownPits = if (playerIndex == 0) player0Pits else player1Pits
         val ownStore = if (playerIndex == 0) player0Store else player1Store
@@ -112,13 +173,13 @@ class MancalaGame : GameModule {
 
         val player0Empty = player0Pits.all { pits[it] == 0 }
         val player1Empty = player1Pits.all { pits[it] == 0 }
-        var matchOver = false
+        var roundOver = false
         var winnerId: String? = null
 
         if (player0Empty || player1Empty) {
             if (player0Empty) { for (i in player1Pits) { pits[player1Store] += pits[i]; pits[i] = 0 } }
             if (player1Empty) { for (i in player0Pits) { pits[player0Store] += pits[i]; pits[i] = 0 } }
-            matchOver = true
+            roundOver = true
             winnerId = when {
                 pits[player0Store] > pits[player1Store] -> context.players.getOrNull(0)?.playerId
                 pits[player1Store] > pits[player0Store] -> context.players.getOrNull(1)?.playerId
@@ -126,23 +187,27 @@ class MancalaGame : GameModule {
             }
         }
 
-        val nextPlayer = if (extraTurn && !matchOver) playerIndex else (playerIndex + 1) % 2
+        val nextPlayer = if (extraTurn && !roundOver) playerIndex else (playerIndex + 1) % 2
         val player = context.players[playerIndex]
 
         state.value = s.copy(
             pits = pits,
             currentPlayerIndex = nextPlayer,
             lastAction = "${player.displayName} sowed from pit ${pitIndex + 1}$captureMsg",
-            matchOver = matchOver,
+            roundOver = roundOver,
             winnerPlayerId = winnerId
         )
 
-        if (matchOver) {
-            val scores = context.players.mapIndexed { i, p ->
-                val store = if (i == 0) pits[player0Store] else pits[player1Store]
-                PlayerScore(playerId = p.playerId, score = store, isWinner = p.playerId == winnerId)
+        // Tally into the running session score (see scoreP1/scoreP2/draws' KDoc) rather
+        // than ending the match here -- a game ending only ends the current round; the
+        // whole session only ends via leaveSession(), so Play Again can deal a fresh
+        // board without disconnecting the transport or losing the running score.
+        if (roundOver) {
+            when {
+                winnerId != null && winnerId == context.players.getOrNull(0)?.playerId -> scoreP1.value += 1
+                winnerId != null && winnerId == context.players.getOrNull(1)?.playerId -> scoreP2.value += 1
+                else -> draws.value += 1
             }
-            endMatch(GameResult(scores = scores))
         }
     }
 
@@ -158,7 +223,7 @@ class MancalaGame : GameModule {
      */
     fun playBotTurn() {
         val s = state.value ?: return
-        if (s.matchOver) return
+        if (s.roundOver) return
         val botIndex = s.currentPlayerIndex
         if (context.players.getOrNull(botIndex)?.isBot != true) return
 
@@ -190,7 +255,7 @@ class MancalaGame : GameModule {
     private fun isTerminal(pits: List<Int>): Boolean =
         player0Pits.all { pits[it] == 0 } || player1Pits.all { pits[it] == 0 }
 
-    /** Same end-of-game sweep as sow()'s matchOver branch, applied to a hypothetical board. */
+    /** Same end-of-game sweep as sow()'s roundOver branch, applied to a hypothetical board. */
     private fun finalScoreFor(pits: List<Int>, maximizer: Int): Int {
         val p = pits.toMutableList()
         if (player0Pits.all { p[it] == 0 }) { for (i in player1Pits) { p[player1Store] += p[i]; p[i] = 0 } }
@@ -201,7 +266,7 @@ class MancalaGame : GameModule {
     }
 
     /** A pure copy of sow()'s rules — same capture/extra-turn logic, no Compose state touched. */
-    private fun simulateSow(pits: List<Int>, playerIndex: Int, pitIndex: Int): Pair<List<Int>, Boolean> {
+    private fun simulateSow(pits: List<Int>, playerIndex: Int, pitIndex: Int): SowResult {
         val ownPits = if (playerIndex == 0) player0Pits else player1Pits
         val ownStore = if (playerIndex == 0) player0Store else player1Store
         val opponentStore = if (playerIndex == 0) player1Store else player0Store
@@ -229,7 +294,29 @@ class MancalaGame : GameModule {
         } else if (cursor == ownStore) {
             extraTurn = true
         }
-        return p to extraTurn
+        return SowResult(p, extraTurn, cursor)
+    }
+
+    /**
+     * Read-only helper for MancalaScreen's capture-preview highlighting:
+     * which of [playerIndex]'s currently legal pits would land the last
+     * stone in an empty pit of theirs (a capture). Reuses the exact same
+     * [legalMoves]/[simulateSow] pair the HARD bot's minimax search already
+     * relies on, so this preview can never drift from the real capture rule
+     * in [sow] -- it only ever reads the board via simulateSow's pure copy,
+     * never touching [state]. A capture always zeroes both the landing pit
+     * and its opposite pit (see sow()'s capture branch); landing in a
+     * non-empty own pit or the store never reads back as zero, so checking
+     * the landing pit alone is enough to recognize one, without needing to
+     * separately inspect the opposite pit here.
+     */
+    fun captureCandidates(playerIndex: Int): Set<Int> {
+        val s = state.value ?: return emptySet()
+        val ownPits = if (playerIndex == 0) player0Pits else player1Pits
+        return legalMoves(s.pits, playerIndex).filter { pit ->
+            val result = simulateSow(s.pits, playerIndex, pit)
+            result.landingCursor in ownPits && result.pits[result.landingCursor] == 0
+        }.toSet()
     }
 
     private fun minimax(pits: List<Int>, playerIndex: Int, depth: Int, maximizer: Int, alpha: Int, beta: Int): Int {

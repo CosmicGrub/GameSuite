@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,13 +59,16 @@ fun DominoesScreen(
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
-        game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
+        game.setOnMatchEnd { result ->
+            sessionManager.endActiveGame(result)
+            onMatchEnded()
+        }
         game.startMatch()
     }
 
-    LaunchedEffect(state?.currentPlayerIndex, state?.matchOver) {
+    LaunchedEffect(state?.currentPlayerIndex, state?.handOver) {
         val s = state ?: return@LaunchedEffect
-        if (s.matchOver) return@LaunchedEffect
+        if (s.handOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
             delay(800)
             game.playBotTurn()
@@ -71,17 +76,25 @@ fun DominoesScreen(
     }
 
     val s = state ?: return
+    val sessionScores by game.sessionScores
 
-    if (s.matchOver) {
+    if (s.handOver) {
         val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId }
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("${winner?.displayName ?: "Nobody"} wins!", style = MaterialTheme.typography.headlineSmall)
+            Text("${winner?.displayName ?: "Nobody"} wins the hand!", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                s.players.joinToString(" · ") { "${it.displayName}: ${sessionScores[it.playerId] ?: 0}" },
+                style = MaterialTheme.typography.labelLarge
+            )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onMatchEnded) { Text("Back to menu") }
+            Button(onClick = game::playAgain) { Text("Play Again") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
         }
         return
     }
@@ -141,8 +154,19 @@ fun DominoesScreen(
 
         if (s.chain.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Left end: ${s.leftEnd}", style = MaterialTheme.typography.labelMedium)
-                Text("Right end: ${s.rightEnd}", style = MaterialTheme.typography.labelMedium)
+                // Sighted players read the exposed pip value off the end tile's own pips;
+                // a screen-reader user has no such visual, so each label spells out which
+                // end it is and the value a domino must match to play there.
+                Text(
+                    "Left end: ${s.leftEnd}",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.semantics { contentDescription = "Left end, exposed pip value ${s.leftEnd}" }
+                )
+                Text(
+                    "Right end: ${s.rightEnd}",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.semantics { contentDescription = "Right end, exposed pip value ${s.rightEnd}" }
+                )
             }
         }
 
@@ -150,19 +174,29 @@ fun DominoesScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (selectedDomino != null && s.chain.isNotEmpty()) {
-                Button(enabled = isMyTurn, onClick = {
-                    selectedDomino?.let {
-                        game.playDomino(activePlayerIndex, it, attachToLeft = true)
+                val domino = selectedDomino!!
+                // Each end has its own pip value, so a domino that legally matches the
+                // left end may not match the right end (or vice versa) -- same check
+                // playDomino() itself uses internally, just narrowed to one specific
+                // end per button instead of "matches either end" (see `playable` below,
+                // which is the "either end" version used for the hand list). Without
+                // this, an illegal button stayed enabled, silently no-opped inside
+                // DominoGame, and still fired the success sound/haptic/deselect.
+                val matchesLeft = domino.a == s.leftEnd || domino.b == s.leftEnd
+                val matchesRight = domino.a == s.rightEnd || domino.b == s.rightEnd
+                Button(enabled = isMyTurn && matchesLeft, onClick = {
+                    if (matchesLeft) {
+                        game.playDomino(activePlayerIndex, domino, attachToLeft = true)
                         sounds.playTap(); haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        selectedDomino = null
                     }
-                    selectedDomino = null
                 }) { Text("Play on Left") }
-                Button(enabled = isMyTurn, onClick = {
-                    selectedDomino?.let {
-                        game.playDomino(activePlayerIndex, it, attachToLeft = false)
+                Button(enabled = isMyTurn && matchesRight, onClick = {
+                    if (matchesRight) {
+                        game.playDomino(activePlayerIndex, domino, attachToLeft = false)
                         sounds.playTap(); haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        selectedDomino = null
                     }
-                    selectedDomino = null
                 }) { Text("Play on Right") }
             }
             OutlinedButton(
@@ -197,6 +231,13 @@ fun DominoesScreen(
                                 sounds.playTap(); haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 selectedDomino = null
                             }
+                        }
+                        // Hand tiles are otherwise just two bare numbers separated by a divider
+                        // bar -- nothing a screen reader can read as "domino" or "playable" on
+                        // its own, so spell out both pip values and legality explicitly.
+                        .semantics {
+                            contentDescription = "Domino ${domino.a} dash ${domino.b}, " +
+                                if (playable) "playable" else "not playable"
                         }
                 ) {
                     DominoTileView(top = domino.a, bottom = domino.b, horizontal = false, dimmed = !playable)
