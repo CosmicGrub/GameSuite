@@ -23,6 +23,10 @@ object TileBot {
     /** See the HARD branch of [attachMove] for why this is bounded rather than "every anchor". */
     private const val HARD_ANCHOR_BUDGET = 40
 
+    /** See [highestValueWordFromRack] for why this bounds total dictionary lookups rather
+     *  than exhausting every blank-letter combination for every rack permutation. */
+    private const val HARD_OPENING_WORD_BUDGET = 20_000
+
     data class PendingPlacementSpec(val row: Int, val col: Int, val tile: RackTile, val letter: Char)
 
     /**
@@ -174,13 +178,25 @@ object TileBot {
      * HARD's opening: every valid word the rack can form, then the one worth the
      * most in raw tile value. Same bounded permutation space as the others — the
      * only difference is it doesn't stop at the first hit.
+     *
+     * Bounded like the HARD branch of [attachMove] and for the same reason: this
+     * runs synchronously on the UI thread from the bot-turn LaunchedEffect, once
+     * per match on the very first bot turn. A rack holding both of the bag's
+     * blanks fans out to up to 26*26=676 letter combinations per permutation, and
+     * with ~13.7k rack permutations across lengths 2..7, that's up to ~9.3M
+     * dictionary lookups for a single opening move — a multi-second freeze or an
+     * ANR. HARD_OPENING_WORD_BUDGET caps the total number of lookups so the worst
+     * case can no longer stall the UI thread, while a blank-free rack (the common
+     * case, at most ~13.7k lookups) still gets examined in full.
      */
     private fun highestValueWordFromRack(rack: List<RackTile>): String? {
         var best: String? = null
         var bestValue = -1
-        for (len in 2..rack.size) {
+        var lookups = 0
+        outer@ for (len in 2..rack.size) {
             for (perm in permutations(rack, len)) {
                 for (letters in blankLetterCombinations(perm)) {
+                    if (lookups++ >= HARD_OPENING_WORD_BUDGET) break@outer
                     val word = letters.joinToString("")
                     if (!WordDictionary.isValidWord(word)) continue
                     val value = perm.sumOf { TileBag.valueOf(it) }
