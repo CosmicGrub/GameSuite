@@ -17,10 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.wordgames.crossword.CrosswordGame
+import com.gamesuite.settings.SettingsViewModel
 
 /**
  * Floor on grid cell size. Below this, stretching every cell to fit
@@ -43,19 +45,26 @@ private val COMFORTABLE_CELL_SIZE = 32.dp
 fun CrosswordScreen(
     sessionManager: GameSessionManager,
     game: CrosswordGame,
+    settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
     val state by game.state
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
-        game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
+        game.setOnMatchEnd { result ->
+            sessionManager.endActiveGame(result)
+            onMatchEnded()
+        }
         game.startMatch()
     }
 
     val s = state ?: return
+    val puzzlesSolved = game.puzzlesSolved.value
 
     // Deliberately NOT using FoldAwareTwoPane's secondary slot (unlike
     // Uno/Dominoes/Word Tiles) — those games' `secondary` pane is a small,
@@ -78,6 +87,15 @@ fun CrosswordScreen(
         modifier = Modifier.fillMaxSize(),
         primary = {
             Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                Text(
+                    "Puzzles solved: $puzzlesSolved",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    "Difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     "${s.solvedEntryIds.size}/${s.entries.size} solved",
                     style = MaterialTheme.typography.titleMedium
@@ -171,7 +189,14 @@ fun CrosswordScreen(
 
                 if (s.matchOver) {
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = onMatchEnded) { Text("Back to menu") }
+                    Text("Puzzle solved!")
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = game::playAgain) { Text("New Puzzle") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                } else {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = game::revealFirstLetters) { Text("Hint") }
                 }
             }
         }

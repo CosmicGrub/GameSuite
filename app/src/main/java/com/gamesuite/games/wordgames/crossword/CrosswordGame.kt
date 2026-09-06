@@ -2,6 +2,7 @@ package com.gamesuite.games.wordgames.crossword
 
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
+import com.gamesuite.settings.CpuDifficulty
 
 enum class Direction { ACROSS, DOWN }
 
@@ -33,6 +34,7 @@ data class CrosswordState(
     val entries: List<CrosswordEntry>,
     val solvedEntryIds: Set<String>,
     val selectedEntryId: String? = null,
+    /** True once every entry in THIS puzzle is solved — not the whole session, see CrosswordGame.matchOver. */
     val matchOver: Boolean = false
 )
 
@@ -43,6 +45,16 @@ data class CrosswordState(
  * the first valid intersection found with an already-placed word. Input is
  * per-clue (tap a clue, type the whole answer) rather than per-cell — a
  * deliberate simplification for touch input; see games/wordgames/crossword.
+ *
+ * Upgrade pass (README item 9l): mirrors Hangman's session shape (see
+ * HangmanGame's KDoc) since both are solo word puzzles with no opponent to
+ * make smarter/dumber — [difficulty] instead picks which CrosswordClueBank
+ * theme the puzzle is drawn from, and solving one puzzle no longer ends the
+ * whole match: it surfaces a "New Puzzle"/"Back to Menu" choice ([playAgain]
+ * / [leaveSession]) so a session can cover several puzzles, tallied in
+ * [puzzlesSolved]. [generate] is a single bounded pass over a small pool
+ * (<= ~30 candidates) with no retry loop, so it stays cheap enough to run
+ * directly on the UI thread from startMatch(), same as before this pass.
  */
 class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     override val gameId = "crossword"
@@ -57,11 +69,28 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
 
     val state = mutableStateOf<CrosswordState?>(null)
 
+    /** Running tally of fully-solved puzzles across the session (survives "New Puzzle"). */
+    val puzzlesSolved = mutableStateOf(0)
+
+    /** True only once the whole session ends (user leaves via "Back to Menu"), not per-puzzle. */
+    val matchOver = mutableStateOf(false)
+
+    /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
+    private val clueBankByDifficulty: Map<CpuDifficulty, List<CrosswordClueBank.Entry>> = mapOf(
+        CpuDifficulty.EASY to CrosswordClueBank.easyEverydayTheme,
+        CpuDifficulty.MEDIUM to CrosswordClueBank.gamesAndTechTheme,
+        CpuDifficulty.HARD to CrosswordClueBank.generalKnowledgeTheme
+    )
+
     override fun init(context: GameContext) {
         this.context = context
+        puzzlesSolved.value = 0
+        matchOver.value = false
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -69,7 +98,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     }
 
     override fun startMatch() {
-        val pool = CrosswordClueBank.gamesAndTechTheme.shuffled()
+        val pool = (clueBankByDifficulty[difficulty] ?: CrosswordClueBank.gamesAndTechTheme).shuffled()
         val (grid, entries) = generate(pool)
         state.value = CrosswordState(
             grid = grid,
@@ -82,7 +111,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     override fun resume() {}
 
     override fun endMatch(result: GameResult) {
-        state.value = state.value?.copy(matchOver = true)
+        matchOver.value = true
         onMatchEnd?.invoke(result)
     }
 
@@ -124,14 +153,50 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
             matchOver = allSolved
         )
 
+        // Solving a puzzle only tallies it and surfaces the New Puzzle/Back to
+        // Menu choice — it does NOT end the match. Only leaveSession() does
+        // that, same split as Hangman's per-round win/loss vs. session end.
         if (allSolved) {
-            val player = context.players.getOrNull(context.localPlayerIndex)
-            endMatch(GameResult(scores = listOfNotNull(player?.let {
-                PlayerScore(playerId = it.playerId, score = solved.size, isWinner = true)
-            })))
+            puzzlesSolved.value += 1
         }
 
         return true
+    }
+
+    /**
+     * Hint: reveals the first letter of every unsolved entry without marking
+     * the entry itself as solved. A no-op once the current puzzle is complete.
+     */
+    fun revealFirstLetters() {
+        val s = state.value ?: return
+        if (s.matchOver) return
+
+        val newGrid = s.grid.map { it.toMutableList() }
+        for (entry in s.entries) {
+            if (entry.id in s.solvedEntryIds) continue
+            val pos = entry.cells.first()
+            newGrid[pos.row][pos.col] = newGrid[pos.row][pos.col].copy(revealed = true)
+        }
+
+        state.value = s.copy(grid = newGrid)
+    }
+
+    /** Called from the puzzle-complete panel's "New Puzzle" button — keeps the running tally. */
+    fun playAgain() {
+        if (matchOver.value) return
+        startMatch()
+    }
+
+    /** Called from the puzzle-complete panel's "Back to Menu" button — ends the whole session. */
+    fun leaveSession() {
+        if (matchOver.value) return
+        val player = context.players.getOrNull(context.localPlayerIndex)
+        val result = GameResult(
+            scores = listOfNotNull(player?.let {
+                PlayerScore(playerId = it.playerId, score = puzzlesSolved.value, isWinner = puzzlesSolved.value > 0)
+            })
+        )
+        endMatch(result)
     }
 
     // ---- Generation ----
