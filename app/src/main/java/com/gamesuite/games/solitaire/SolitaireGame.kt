@@ -230,14 +230,29 @@ class SolitaireGame : GameModule {
 
     // ---- pure rule helpers — no Compose state touched, easy to hand-trace/unit-test ----
 
+    /**
+     * Rank.value (games/cards/Card.kt) is the shared *high-Ace* ranking used
+     * by trick-taking/poker comparisons (TWO=2 ... KING=13, ACE=14) — it is
+     * NOT the low-Ace sequencing Klondike tableau/foundation runs need
+     * (A,2,3,...,K). Reusing it directly here was the game-breaking bug:
+     * once an Ace (value 14) landed on a foundation, `top.value + 1` (15)
+     * never matched any Rank, permanently capping every foundation at one
+     * card and making the win condition unreachable in every deal; the same
+     * high-Ace value also let a King illegally stack onto an exposed Ace
+     * (13 == 14 - 1) while blocking the legal Ace-onto-Two tableau move
+     * (14 != 2 - 1). This local mapping treats Ace as low (1) for both
+     * checks below, matching real Klondike sequencing.
+     */
+    private fun lowAceValue(rank: Rank): Int = if (rank == Rank.ACE) 1 else rank.value
+
     private fun canPlaceOnTableau(card: Card, destTop: Card?): Boolean =
         if (destTop == null) card.rank == Rank.KING
-        else card.rank.value == destTop.rank.value - 1 && card.suit.isRed != destTop.suit.isRed
+        else lowAceValue(card.rank) == lowAceValue(destTop.rank) - 1 && card.suit.isRed != destTop.suit.isRed
 
     private fun canPlaceOnFoundation(card: Card, suit: Suit, foundations: Map<Suit, List<Card>>): Boolean {
         if (card.suit != suit) return false
         val top = foundations[suit]?.lastOrNull()
-        return if (top == null) card.rank == Rank.ACE else card.rank.value == top.rank.value + 1
+        return if (top == null) card.rank == Rank.ACE else lowAceValue(card.rank) == lowAceValue(top.rank) + 1
     }
 
     /**

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
+import com.gamesuite.settings.CpuDifficulty
 import kotlin.random.Random
 
 data class GridPos(val row: Int, val col: Int)
@@ -22,7 +23,8 @@ data class WordSearchState(
     val foundWords: Set<Int>,
     /** First tap of the current selection, or null if none pending. */
     val selectionStart: GridPos? = null,
-    val matchOver: Boolean = false
+    /** This puzzle is solved (every word found) — distinct from [WordSearchGame.matchOver], which only becomes true once the whole session ends via leaveSession(). */
+    val solved: Boolean = false
 ) {
     val allFound: Boolean get() = foundWords.size == placedWords.size
 }
@@ -32,11 +34,25 @@ data class WordSearchState(
  * each along a random direction (8-way, including diagonals and reversed),
  * fill remaining cells with noise letters. Tap a start cell then an end
  * cell in a straight line to claim a word.
+ *
+ * Research pass (README item 9k) added: a real difficulty ladder — like
+ * Hangman/Crossword/Sliding Puzzle, this is a solo puzzle with no opponent,
+ * so the honest lever is puzzle generation, not a bot. EASY is a smaller
+ * grid, fewer/shorter words, and *no reversed or diagonal placements* —
+ * every word reads left-to-right or top-to-bottom, which is the single
+ * biggest felt difference in a word search (scanning is far easier when you
+ * never have to read backwards or on a diagonal). MEDIUM reproduces the
+ * original single-tier generator byte-for-byte (12x12, 8 words, lengths
+ * 4..9, all 8 directions). HARD is a larger grid with more, longer words,
+ * still using every direction. Selected from Settings' "Default CPU
+ * difficulty" the same way the other passes in this series are.
+ *
+ * Also added a session tally ([puzzlesSolved]) and New Puzzle/Back to Menu
+ * flow, matching the Hangman pattern: solving a puzzle no longer calls
+ * [endMatch] directly (it used to, ending the whole visit to this screen
+ * the instant the last word was found) — only [leaveSession] does that now.
  */
-class WordSearchGame(
-    private val gridSize: Int = 12,
-    private val wordCount: Int = 8
-) : GameModule {
+class WordSearchGame : GameModule {
     override val gameId = "word-search"
     override val displayName = "Word Search"
     override val category = GameCategory.WORD
@@ -48,17 +64,39 @@ class WordSearchGame(
     )
 
     val state = mutableStateOf<WordSearchState?>(null)
+    val puzzlesSolved = mutableStateOf(0)
+
+    /** True only once the whole session ends (user leaves via "Back to Menu"), not per-puzzle. */
+    val matchOver = mutableStateOf(false)
+
+    /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
+    var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
-    private val directions = listOf(
+    /** All 8 directions — unchanged from the original single-tier generator; MEDIUM and HARD both use this. */
+    private val allDirections = listOf(
         0 to 1, 0 to -1, 1 to 0, -1 to 0,
         1 to 1, 1 to -1, -1 to 1, -1 to -1
     )
 
+    /** Forward-only (left-to-right, top-to-bottom): no reversed or diagonal placements — EASY's actual difficulty lever. */
+    private val forwardOnlyDirections = listOf(0 to 1, 1 to 0)
+
+    private data class TierParams(val gridSize: Int, val wordCount: Int, val maxLength: Int, val directions: List<Pair<Int, Int>>)
+
+    /** MEDIUM reproduces the original generator's numbers exactly (12x12, 8 words, lengths 4..9, all 8 directions). */
+    private fun tierParams(): TierParams = when (difficulty) {
+        CpuDifficulty.EASY -> TierParams(gridSize = 8, wordCount = 6, maxLength = 6, directions = forwardOnlyDirections)
+        CpuDifficulty.MEDIUM -> TierParams(gridSize = 12, wordCount = 8, maxLength = 9, directions = allDirections)
+        CpuDifficulty.HARD -> TierParams(gridSize = 15, wordCount = 10, maxLength = 12, directions = allDirections)
+    }
+
     override fun init(context: GameContext) {
         this.context = context
+        puzzlesSolved.value = 0
+        matchOver.value = false
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -71,12 +109,17 @@ class WordSearchGame(
     }
 
     override fun startMatch() {
+        state.value = generatePuzzle(tierParams())
+    }
+
+    private fun generatePuzzle(params: TierParams): WordSearchState {
+        val gridSize = params.gridSize
         val grid = Array(gridSize) { CharArray(gridSize) { ' ' } }
         val placed = mutableListOf<PlacedWord>()
 
-        val candidateLengths = (4..minOf(gridSize, 9)).shuffled()
+        val candidateLengths = (4..minOf(params.maxLength, gridSize)).shuffled()
         var attempts = 0
-        while (placed.size < wordCount && attempts < 500) {
+        while (placed.size < params.wordCount && attempts < 500) {
             attempts++
             val length = candidateLengths[attempts % candidateLengths.size]
             // WordDictionary's pool is lowercase (see WordDictionary.kt); placed words are
@@ -87,7 +130,7 @@ class WordSearchGame(
                 excluding = placed.map { it.word.lowercase() }.toSet()
             ).firstOrNull() ?: continue
 
-            val (dr, dc) = directions.random()
+            val (dr, dc) = params.directions.random()
             val startRow = Random.nextInt(gridSize)
             val startCol = Random.nextInt(gridSize)
             val cells = (0 until word.length).map { i -> GridPos(startRow + dr * i, startCol + dc * i) }
@@ -106,7 +149,7 @@ class WordSearchGame(
             if (grid[r][c] == ' ') grid[r][c] = ('A'..'Z').random()
         }
 
-        state.value = WordSearchState(
+        return WordSearchState(
             grid = grid.map { it.toList() },
             placedWords = placed,
             foundWords = emptySet()
@@ -117,14 +160,14 @@ class WordSearchGame(
     override fun resume() {}
 
     override fun endMatch(result: GameResult) {
-        state.value = state.value?.copy(matchOver = true)
+        matchOver.value = true
         onMatchEnd?.invoke(result)
     }
 
     /** Call on every cell tap. First tap sets selectionStart; second tap attempts to claim a word. */
     fun tapCell(pos: GridPos) {
         val s = state.value ?: return
-        if (s.matchOver) return
+        if (s.solved) return
 
         val start = s.selectionStart
         if (start == null) {
@@ -151,19 +194,31 @@ class WordSearchGame(
         if (match != null) {
             val newFound = s.foundWords + match.id
             val allDone = newFound.size == s.placedWords.size
-            state.value = s.copy(foundWords = newFound, selectionStart = null, matchOver = allDone)
-            if (allDone) {
-                // Word Search has no turn/attribution tracking (any player can tap any word
-                // in pass-and-play), so it's a shared board: every player in the match gets
-                // the same completion score instead of only context.localPlayerIndex.
-                val scores = context.players.map { p ->
-                    PlayerScore(playerId = p.playerId, score = newFound.size, isWinner = true)
-                }
-                endMatch(GameResult(scores = scores))
-            }
+            state.value = s.copy(foundWords = newFound, selectionStart = null, solved = allDone)
+            if (allDone) puzzlesSolved.value += 1
         } else {
             state.value = s.copy(selectionStart = null)
         }
+    }
+
+    /** Called from the solved panel's "New Puzzle" button — keeps the running tally, generates a fresh board. */
+    fun playAgain() {
+        if (matchOver.value) return
+        startMatch()
+    }
+
+    /**
+     * Called from the solved panel's (or in-progress screen's) "Back to Menu" button — ends
+     * the whole session. Word Search has no turn/attribution tracking (any player can tap
+     * any word in pass-and-play), so every player in the match gets the same tally-based
+     * score, same shared-board convention the original single-puzzle endMatch() call used.
+     */
+    fun leaveSession() {
+        if (matchOver.value) return
+        val scores = context.players.map { p ->
+            PlayerScore(playerId = p.playerId, score = puzzlesSolved.value, isWinner = puzzlesSolved.value > 0)
+        }
+        endMatch(GameResult(scores = scores))
     }
 
     private fun cellsBetween(a: GridPos, b: GridPos): List<GridPos>? {

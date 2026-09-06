@@ -195,6 +195,7 @@ class MainActivity : ComponentActivity() {
                             WordSearchScreen(
                                 sessionManager = sessionManager,
                                 game = wordSearchGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
