@@ -8,6 +8,20 @@ static const uint16_t COLOR_TILE_BG     = TFT_DARKGREEN;
 static const uint16_t COLOR_TILE_TEXT   = TFT_WHITE;
 static const uint16_t COLOR_TILE_SOON_BG   = TFT_DARKGREY;
 static const uint16_t COLOR_TILE_SOON_TEXT = TFT_WHITE;
+static const uint16_t COLOR_SLEEP_BG       = TFT_DARKGREY;
+
+// Fixed-size "Sleep" button in the title bar's top-right corner.
+static const int16_t SLEEP_BTN_W = 70;
+static const int16_t SLEEP_BTN_H = 30;
+static const int16_t SLEEP_BTN_MARGIN = 4;
+
+static int16_t sleepButtonX() {
+    return SCREEN_WIDTH - SLEEP_BTN_MARGIN - SLEEP_BTN_W;
+}
+
+static int16_t sleepButtonY(const MenuLayout &l) {
+    return l.titleY + (l.titleH - SLEEP_BTN_H) / 2;
+}
 
 MenuLayout computeMenuLayout(uint8_t gameCount) {
     MenuLayout l;
@@ -33,6 +47,16 @@ void drawMenuChrome(TFT_eSPI &tft, const MenuLayout &layout) {
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
     tft.drawString(ARCADE_TITLE, SCREEN_WIDTH / 2, layout.titleY + layout.titleH / 2);
+
+    // "Sleep" button, top-right of the title bar -- see MenuScreen.h for why
+    // this exists and why it's menu-only.
+    int16_t sx = sleepButtonX(), sy = sleepButtonY(layout);
+    tft.fillRoundRect(sx, sy, SLEEP_BTN_W, SLEEP_BTN_H, 6, COLOR_SLEEP_BG);
+    tft.drawRoundRect(sx, sy, SLEEP_BTN_W, SLEEP_BTN_H, 6, TFT_WHITE);
+    tft.setTextColor(TFT_WHITE, COLOR_SLEEP_BG);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(1);
+    tft.drawString("Sleep", sx + SLEEP_BTN_W / 2, sy + SLEEP_BTN_H / 2);
 }
 
 void drawMenuTile(TFT_eSPI &tft, const MenuLayout &layout, uint8_t index, const char *label, bool enabled) {
@@ -68,4 +92,10 @@ bool hitTestMenuTile(const MenuLayout &layout, uint8_t gameCount, int16_t touchX
         }
     }
     return false; // landed in a gap between tiles, or below the last one
+}
+
+bool hitTestSleepButton(const MenuLayout &layout, int16_t touchX, int16_t touchY) {
+    int16_t sx = sleepButtonX(), sy = sleepButtonY(layout);
+    return touchX >= sx && touchX < sx + SLEEP_BTN_W &&
+           touchY >= sy && touchY < sy + SLEEP_BTN_H;
 }

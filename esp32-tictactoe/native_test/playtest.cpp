@@ -15,6 +15,7 @@
 // to the board -- see this folder's README.md for how to build/run it.
 #include "../TicTacToeESP32/GameLogic.h"
 #include "../TicTacToeESP32/Display.h"
+#include "../TicTacToeESP32/Chrome.h"
 #include "../TicTacToeESP32/MenuScreen.h"
 #include "../TicTacToeESP32/Config.h"
 
@@ -287,15 +288,16 @@ static void touchHitTestChecks() {
     checkLayout("1px right of the button is not a hit", !hitTestPlayAgainButton(l, l.buttonX + l.buttonW, bcy));
     checkLayout("1px below the button is not a hit", !hitTestPlayAgainButton(l, bcx, l.buttonY + l.buttonH));
 
-    // The in-game "back to menu" button (Display.cpp) -- its own footprint
-    // must be a hit, and a point just outside the same button on the touch
-    // side that matters most (dead center of the game grid, where a real
-    // finger spends most of its time) must not be.
-    checkLayout("home button's own center is a hit", hitTestHomeButton(l, 15, l.statusY + l.statusH / 2));
-    checkLayout("home button does not swallow taps in the middle of the status bar",
-                !hitTestHomeButton(l, SCREEN_WIDTH / 2, l.statusY + l.statusH / 2));
-    checkLayout("home button does not swallow taps inside the game grid",
-                !hitTestHomeButton(l, l.gridX + 10, l.gridY + 10));
+    // The shared "back to menu" Home button (Chrome.h/.cpp, used by every
+    // game, not just Tic-Tac-Toe) -- its own footprint must be a hit, and a
+    // point just outside it on the touch side that matters most (dead center
+    // of the game grid, where a real finger spends most of its time) must
+    // not be. Fixed geometry, no Layout param needed.
+    checkLayout("chrome home button's own center is a hit", hitTestChromeHome(15, l.statusY + l.statusH / 2));
+    checkLayout("chrome home button does not swallow taps in the middle of the status bar",
+                !hitTestChromeHome(SCREEN_WIDTH / 2, l.statusY + l.statusH / 2));
+    checkLayout("chrome home button does not swallow taps inside the game grid",
+                !hitTestChromeHome(l.gridX + 10, l.gridY + 10));
 
     printf("Layout checks run: %d, failed: %d\n\n", layoutChecksRun, layoutChecksFailed);
 }
@@ -338,6 +340,15 @@ static void menuHitTestChecks() {
     // this layout has room for) must not resolve to a phantom tile.
     int16_t belowLastTileY = ml.tileY + GAME_COUNT * (ml.tileH + ml.tileGap) + 20;
     checkLayout("space below the last tile is not a hit", !hitTestMenuTile(ml, GAME_COUNT, ml.tileX + 10, belowLastTileY, discard));
+
+    // The "Sleep" button in the title bar's top-right corner -- its own
+    // footprint is a hit, and it must not be confused with the title text's
+    // own area (center of the title bar) or the tile list below it.
+    checkLayout("sleep button's own center is a hit", hitTestSleepButton(ml, SCREEN_WIDTH - 4 - 35, ml.titleY + ml.titleH / 2));
+    checkLayout("sleep button does not swallow taps at the title bar's center",
+                !hitTestSleepButton(ml, SCREEN_WIDTH / 2, ml.titleY + ml.titleH / 2));
+    checkLayout("sleep button does not swallow taps in the tile list",
+                !hitTestSleepButton(ml, ml.tileX + 10, ml.tileY + 10));
 
     printf("\n");
 }

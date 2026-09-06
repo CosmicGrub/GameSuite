@@ -32,3 +32,12 @@ void drawMenuTile(TFT_eSPI &tft, const MenuLayout &layout, uint8_t index, const 
 // computed for -- including a disabled one, since ArcadeOS.ino (not this
 // module) decides whether a disabled tile's tap does anything.
 bool hitTestMenuTile(const MenuLayout &layout, uint8_t gameCount, int16_t touchX, int16_t touchY, uint8_t &outIndex);
+
+// A "Sleep" button in the top-right of the title bar (drawn automatically as
+// part of drawMenuChrome, no separate draw call needed) -- this board only
+// has BOOT and RESET buttons, neither meant for putting the device to sleep,
+// so this is the only way to do it deliberately. Offered ONLY from the home
+// menu, never mid-game, so it can't be triggered by an accidental tap while
+// actually playing -- ArcadeOS.ino is responsible for the actual sleep/wake
+// behavior (ESP32-specific, not something this pure-rendering module does).
+bool hitTestSleepButton(const MenuLayout &layout, int16_t touchX, int16_t touchY);

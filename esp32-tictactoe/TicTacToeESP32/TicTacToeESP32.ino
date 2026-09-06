@@ -21,9 +21,11 @@
 
 #include <TFT_eSPI.h>
 #include <Preferences.h>
+#include <esp_sleep.h>
 #include "Config.h"
 #include "GameLogic.h"
 #include "Display.h"
+#include "Chrome.h"
 #include "MenuScreen.h"
 
 TFT_eSPI tft = TFT_eSPI();
@@ -70,6 +72,7 @@ void startNewRound();
 void refreshStatusText();
 void handleTouch();
 void checkForRoundEnd();
+void enterLightSleep();
 
 void enterMenu() {
     appState = AppState::MENU;
@@ -79,6 +82,60 @@ void enterMenu() {
         drawMenuTile(tft, menuLayout, i, MENU_GAMES[i].label, MENU_GAMES[i].enabled);
     }
     Serial.println("[ArcadeOS] at home menu");
+}
+
+// Puts the ESP32 into light sleep (NOT deep sleep) with the touch
+// controller's own IRQ line as the wake source -- this board has only BOOT
+// and RESET buttons, neither meant for this, so a touch anywhere on the
+// screen is the only "intuitive, no physical button" way to wake it back up.
+// Light sleep (unlike deep sleep) keeps RAM powered and simply pauses/resumes
+// right where execution left off -- no reboot, no re-running setup(), no
+// lost arcade state -- and the display panel itself isn't reset either (only
+// its backlight is switched off here), so the menu is still sitting in the
+// panel's own memory and doesn't need redrawing on wake, though enterMenu()
+// is still called afterward as a cheap defensive redraw.
+//
+// Not testable by native_test: esp_light_sleep_start()/EXT0 wakeup are
+// ESP32-specific hardware calls with nothing to stub on a desktop compiler --
+// same category as real touch calibration or real SPI timing, only the
+// physical board can confirm this actually works.
+void enterLightSleep() {
+    Serial.println("[ArcadeOS] entering light sleep -- touch the screen to wake");
+    Serial.flush(); // make sure the message actually gets out over USB-serial before sleeping
+
+    // ext0 wakeup is LEVEL-triggered, not edge-triggered: it wakes for as
+    // long as the pin reads the target level, not just on the transition to
+    // it. The finger that just tapped "Sleep" is still physically down at
+    // this point -- without waiting here first, esp_light_sleep_start()
+    // below would see IRQ already LOW and return almost immediately,
+    // making sleep look like it never actually happened (a rapid
+    // sleep/wake flicker instead of the screen actually going dark).
+    uint16_t tx, ty;
+    while (tft.getTouch(&tx, &ty)) delay(10);
+
+    digitalWrite(TFT_BL, LOW); // backlight off (active-HIGH, confirmed -- see UserSetup/User_Setup.h)
+
+    // TOUCH_IRQ (defined in User_Setup.h, visible here via <TFT_eSPI.h>) is
+    // the XPT2046's PENIRQ line -- it idles HIGH and is pulled LOW by the
+    // touch controller itself whenever the panel is physically pressed,
+    // independent of any SPI polling, which is exactly what makes it usable
+    // as a wake source while the CPU is asleep and not polling anything.
+    pinMode(TOUCH_IRQ, INPUT);
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)TOUCH_IRQ, 0); // wake when it goes LOW
+    esp_light_sleep_start(); // blocks here until the wake source fires
+
+    // Execution resumes right here once woken -- everything above (globals,
+    // the call stack) is exactly as it was before sleeping.
+    digitalWrite(TFT_BL, HIGH);
+    Serial.println("[ArcadeOS] woke from light sleep");
+
+    // The same physical touch that just woke the device is still down at
+    // this point -- wait for it to actually release before treating any
+    // touch as a real tap, otherwise this one touch could immediately also
+    // register as a menu-tile tap underneath it the instant loop() resumes.
+    while (tft.getTouch(&tx, &ty)) delay(10);
+
+    enterMenu(); // cheap defensive redraw; sleep can only ever be entered from the menu
 }
 
 void enterTicTacToe() {
@@ -145,9 +202,9 @@ void checkForRoundEnd() {
     drawWinningLine(tft, layout, line);
 
     switch (r) {
-        case RoundResult::HUMAN_WINS: drawStatus(tft, layout, "You win!"); break;
-        case RoundResult::AI_WINS:    drawStatus(tft, layout, "ESP32 wins!"); break;
-        case RoundResult::DRAW:       drawStatus(tft, layout, "Draw!"); break;
+        case RoundResult::HUMAN_WINS: drawChromeBar(tft, "You win!"); break;
+        case RoundResult::AI_WINS:    drawChromeBar(tft, "ESP32 wins!"); break;
+        case RoundResult::DRAW:       drawChromeBar(tft, "Draw!"); break;
         default: break;
     }
     drawPlayAgainButton(tft, layout);
@@ -163,7 +220,7 @@ void startNewRound() {
 }
 
 void refreshStatusText() {
-    drawStatus(tft, layout, board.isHumanTurn() ? "Your turn (X)" : "ESP32 thinking...");
+    drawChromeBar(tft, board.isHumanTurn() ? "Your turn (X)" : "ESP32 thinking...");
 }
 
 void handleTouch() {
@@ -184,6 +241,10 @@ void handleTouch() {
     wasTouched = true;
 
     if (appState == AppState::MENU) {
+        if (hitTestSleepButton(menuLayout, tx, ty)) {
+            enterLightSleep();
+            return;
+        }
         uint8_t idx;
         if (!hitTestMenuTile(menuLayout, MENU_GAME_COUNT, tx, ty, idx)) return;
         if (!MENU_GAMES[idx].enabled) return; // "coming soon" tile -- silently inert, same as any other illegal tap in this project
@@ -191,12 +252,15 @@ void handleTouch() {
         return;
     }
 
-    // appState == TICTACTOE from here on.
-    if (hitTestHomeButton(layout, tx, ty)) {
+    // From here on, appState is some game -- the shared Home button (part of
+    // every game's chrome bar, see Chrome.h) is checked once, up front, so
+    // no per-game branch below needs its own copy of this check.
+    if (hitTestChromeHome(tx, ty)) {
         enterMenu();
         return;
     }
 
+    // appState == TICTACTOE from here on.
     if (roundOver) {
         if (hitTestPlayAgainButton(layout, tx, ty)) {
             startNewRound();

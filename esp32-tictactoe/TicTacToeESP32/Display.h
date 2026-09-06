@@ -17,8 +17,12 @@ struct Layout {
 // SCREEN_WIDTH/SCREEN_HEIGHT there must match tft.setRotation()'s result.
 Layout computeLayout();
 
+// NOTE: the status bar + Home button used to be drawn/hit-tested here
+// (drawStatus/hitTestHomeButton). Both moved to Chrome.h/.cpp so every game
+// shares one implementation instead of each reimplementing its own -- call
+// drawChromeBar(tft, text) in place of the old drawStatus(tft, layout, text).
+
 void drawStaticChrome(TFT_eSPI &tft, const Layout &layout);
-void drawStatus(TFT_eSPI &tft, const Layout &layout, const char *text);
 void drawCell(TFT_eSPI &tft, const Layout &layout, uint8_t cellIndex, uint8_t value);
 void drawWinningLine(TFT_eSPI &tft, const Layout &layout, const int8_t line[3]);
 void drawPlayAgainButton(TFT_eSPI &tft, const Layout &layout);
@@ -29,8 +33,3 @@ void hidePlayAgainButton(TFT_eSPI &tft, const Layout &layout);
 // TFT_eSPI's getTouch) falls inside that element.
 bool hitTestCell(const Layout &layout, int16_t touchX, int16_t touchY, uint8_t &outCell);
 bool hitTestPlayAgainButton(const Layout &layout, int16_t touchX, int16_t touchY);
-
-// A small "back to arcade menu" button drawn as part of the status bar (see
-// drawStatus) -- always present during a round, not just after it ends, so a
-// player isn't stuck in a game to see the menu again.
-bool hitTestHomeButton(const Layout &layout, int16_t touchX, int16_t touchY);
