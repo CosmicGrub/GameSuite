@@ -32,6 +32,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    var showResetConfirmation by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -164,10 +165,34 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(32.dp))
-        OutlinedButton(onClick = viewModel::resetAll) {
+        OutlinedButton(onClick = { showResetConfirmation = true }) {
             Text("Reset all settings")
         }
         Spacer(Modifier.height(24.dp))
+    }
+
+    // resetAll() wipes every setting on this screen (theme, sound, accessibility,
+    // card size, difficulty, server address) in one shot with no undo — confirm
+    // before calling it rather than firing straight off the button tap.
+    if (showResetConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmation = false },
+            title = { Text("Reset all settings?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showResetConfirmation = false
+                    viewModel.resetAll()
+                }) {
+                    Text("Reset")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

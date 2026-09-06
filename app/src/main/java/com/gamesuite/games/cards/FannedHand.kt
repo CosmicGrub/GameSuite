@@ -2,6 +2,7 @@ package com.gamesuite.games.cards
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -17,8 +18,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gamesuite.settings.LocalReducedMotion
 import kotlin.math.absoluteValue
 
 /**
@@ -29,6 +33,11 @@ import kotlin.math.absoluteValue
  * without a deliberate drag.
  *
  * enabled=false (not this player's turn) disables both drag and tap.
+ *
+ * [descriptionOf], when supplied, gives each rendered card a screen-reader
+ * contentDescription (e.g. "Red Seven") at the render call site — optional and
+ * defaulting to null so existing/future callers that don't supply one keep
+ * today's no-semantics behavior.
  */
 @Composable
 fun <T> FannedHand(
@@ -40,9 +49,18 @@ fun <T> FannedHand(
     cardWidth: Dp = 64.dp,
     cardHeight: Dp = 92.dp,
     playThreshold: Dp = 60.dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Per-card screen-reader identity (e.g. "Red Seven", "Wild Draw Four") — this
+    // whole app had zero screen-reader semantics before this pass, so this stays
+    // an optional trailing parameter defaulting to no description, meaning no
+    // contentDescription is added and today's silent behavior is unchanged for
+    // any caller that doesn't supply one.
+    descriptionOf: ((T) -> String)? = null
 ) {
     val haptics = LocalHapticFeedback.current
+    // Settings -> Accessibility -> Reduced Motion (see settings/LocalReducedMotion.kt) — the
+    // audited finding that this toggle was stored but consumed nowhere in the app.
+    val reducedMotion = LocalReducedMotion.current
     // Scaled here, once, before any of the size-dependent math below — see
     // CardScale.kt's KDoc for why this must not also happen inside
     // PlayingCardView itself (this component's own overlap/fan-width/offset
@@ -87,7 +105,7 @@ fun <T> FannedHand(
 
                 val animatedOffsetY by animateFloatAsState(
                     targetValue = if (isDragging) dragOffsetY else 0f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    animationSpec = if (reducedMotion) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                     label = "cardLift"
                 )
 
@@ -128,7 +146,8 @@ fun <T> FannedHand(
                         rotationDeg = rotationDeg,
                         width = scaledCardWidth,
                         height = scaledCardHeight,
-                        onTap = if (enabled) { { onPlay(item) } } else null
+                        onTap = if (enabled) { { onPlay(item) } } else null,
+                        description = descriptionOf?.invoke(item)
                     )
                 }
             }
@@ -142,10 +161,17 @@ private fun RotatedCard(
     rotationDeg: Float,
     width: Dp,
     height: Dp,
-    onTap: (() -> Unit)?
+    onTap: (() -> Unit)?,
+    description: String? = null
 ) {
     Box(
         modifier = Modifier
+            .then(
+                // Wraps the same tappable element onTap is attached to below, so a
+                // TalkBack user gets one spoken identity per card ("Red Seven") —
+                // PlayingCardView itself draws no semantics of its own to collide with.
+                if (description != null) Modifier.semantics { contentDescription = description } else Modifier
+            )
             .then(
                 if (onTap != null) Modifier.pointerInput(visual.id) {
                     detectTapGestures(onTap = { onTap() })

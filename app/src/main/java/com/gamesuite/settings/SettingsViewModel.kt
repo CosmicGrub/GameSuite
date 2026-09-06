@@ -38,6 +38,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setCardSizePreference(preference: Float) =
         viewModelScope.launch { repository.setCardSizePreference(preference) }
     fun setOnlineServerUrl(url: String) = viewModelScope.launch { repository.setOnlineServerUrl(url) }
+    fun setHasSeenOnboarding(seen: Boolean) = viewModelScope.launch { repository.setHasSeenOnboarding(seen) }
 
     fun resetAll() = viewModelScope.launch { repository.resetAll() }
 }

@@ -57,5 +57,8 @@ data class AppSettings(
      * a malformed URL simply fails to connect, surfaced via OnlineTransport's own
      * connectionError, no need to duplicate that validation in two places.
      */
-    val onlineServerUrl: String = ""
+    val onlineServerUrl: String = "",
+    /** True once the player has dismissed the main menu's first-run welcome banner — see
+     *  MainMenuScreen's OnboardingBanner. Not shown again after that, on this device. */
+    val hasSeenOnboarding: Boolean = false
 )
