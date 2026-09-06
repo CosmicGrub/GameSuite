@@ -1,7 +1,6 @@
 package com.gamesuite.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +18,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.airhockey.AirHockeyGame
@@ -37,6 +37,16 @@ import com.gamesuite.settings.SettingsViewModel
  * AirHockeyGame's `cpuSpeedFor`/`chooseCpuTargetX` KDoc — read here from
  * Settings' "Default CPU difficulty" the same way Tic-Tac-Toe and Hangman
  * already do.
+ *
+ * Local pass-and-play pass added a second drag zone for the top half, live
+ * at the same time as the bottom one — two fingers on the table
+ * simultaneously, one per player. `detectDragGestures` only tracks a single
+ * pointer's stream (and consumes it), so a second independent
+ * `pointerInput { detectDragGestures { ... } }` on the same Canvas can't
+ * reliably co-exist with it; both zones are instead driven from one
+ * `awaitPointerEventScope` loop below that walks *every* pointer change in
+ * each `PointerEvent` and routes it by which half of the canvas it's in —
+ * Compose's documented way to handle multiple simultaneous pointers.
  */
 @Composable
 fun AirHockeyScreen(
@@ -51,6 +61,10 @@ fun AirHockeyScreen(
     val haptics = LocalHapticFeedback.current
     val state by game.state
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+    // Drives both the header/instruction copy below and which half-drags route to the top
+    // paddle (see the Canvas's pointerInput) — see AirHockeyGame's topPaddleIsBot for the
+    // matching game-logic side of this same mode check.
+    val isPassAndPlay = context?.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -92,7 +106,9 @@ fun AirHockeyScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                if (state.winnerIsPlayer) "You win! ${state.playerScore}-${state.cpuScore}" else "CPU wins ${state.cpuScore}-${state.playerScore}",
+                if (isPassAndPlay) {
+                    if (state.winnerIsPlayer) "Player 1 wins! ${state.playerScore}-${state.cpuScore}" else "Player 2 wins! ${state.cpuScore}-${state.playerScore}"
+                } else if (state.winnerIsPlayer) "You win! ${state.playerScore}-${state.cpuScore}" else "CPU wins ${state.cpuScore}-${state.playerScore}",
                 style = MaterialTheme.typography.headlineSmall
             )
             Spacer(Modifier.height(16.dp))
@@ -110,13 +126,19 @@ fun AirHockeyScreen(
         primary = {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 Text(
-                    "You ${state.playerScore} — ${state.cpuScore} CPU (first to ${AirHockeyGame.WIN_SCORE})",
+                    if (isPassAndPlay) {
+                        "Player 1: ${state.playerScore} — ${state.cpuScore} : Player 2 (first to ${AirHockeyGame.WIN_SCORE})"
+                    } else {
+                        "You ${state.playerScore} — ${state.cpuScore} CPU (first to ${AirHockeyGame.WIN_SCORE})"
+                    },
                     style = MaterialTheme.typography.titleMedium
                 )
-                Text(
-                    "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    style = MaterialTheme.typography.labelSmall
-                )
+                if (!isPassAndPlay) {
+                    Text(
+                        "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
 
                 // Locked to a square aspect ratio: the physics in AirHockeyGame works in normalized 0f..1f
@@ -130,12 +152,29 @@ fun AirHockeyScreen(
                         .fillMaxWidth()
                         .weight(1f, fill = false)
                         .aspectRatio(1f)
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, _ ->
-                                change.consume()
-                                val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                                val ny = (change.position.y / size.height).coerceIn(0f, 1f)
-                                game.movePlayerPaddle(nx, ny)
+                        // See this file's top-level KDoc for why both drag zones share one
+                        // awaitPointerEventScope loop rather than two separate pointerInput
+                        // blocks: every active pointer is routed every event, so a bottom-half
+                        // finger and a top-half finger both move their own paddle at once. Not
+                        // in pass-and-play, every pointer still goes to the player paddle
+                        // regardless of which half it's in, unchanged from the old
+                        // detectDragGestures behavior this replaces.
+                        .pointerInput(isPassAndPlay) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    for (change in event.changes) {
+                                        if (!change.pressed) continue
+                                        change.consume()
+                                        val nx = (change.position.x / size.width).coerceIn(0f, 1f)
+                                        val ny = (change.position.y / size.height).coerceIn(0f, 1f)
+                                        if (isPassAndPlay && ny < 0.5f) {
+                                            game.moveTopPaddle(nx, ny)
+                                        } else {
+                                            game.movePlayerPaddle(nx, ny)
+                                        }
+                                    }
+                                }
                             }
                         }
                 ) {
@@ -161,7 +200,14 @@ fun AirHockeyScreen(
                 }
 
                 Spacer(Modifier.height(8.dp))
-                Text("Drag in the bottom half to move your paddle", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    if (isPassAndPlay) {
+                        "Player 1: drag the bottom half — Player 2: drag the top half"
+                    } else {
+                        "Drag in the bottom half to move your paddle"
+                    },
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
     )
