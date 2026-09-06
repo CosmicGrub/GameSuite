@@ -17,9 +17,16 @@ GameSuite's own architecture uses everywhere) as new C++ written for Arduino.
 **Verified**: this exact code compiles cleanly (0 errors, 0 warnings) against
 the `esp32:esp32` Arduino core using `arduino-cli`, targeting the "ESP32 Dev
 Module" board — 318KB flash (24% of the default partition) and 22KB RAM (6%)
-used. I don't have the physical board, so I can't confirm it *runs*
-correctly on real hardware — you'll need to flash it and tell me what
-happens, especially for the pin/wiring question below.
+used. On top of that, [native_test/](native_test/) compiles and runs the
+real, unmodified rules engine and touch hit-testing math on a desktop
+(against no-op stand-ins for the ESP32/display-only parts) — an exhaustive
+search of every possible game confirms the AI is genuinely unbeatable (0
+human wins across 569 games), and every pixel in the touch grid resolves to
+the correct cell with no gaps or overlaps. What none of that can confirm is
+actual pixel rendering, real touch calibration, or your board's specific
+pin wiring — only physical hardware can. I don't have the physical board, so
+you'll need to flash it and tell me what happens, especially for the
+pin/wiring question below.
 
 ## Hardware
 
