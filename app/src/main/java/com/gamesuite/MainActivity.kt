@@ -11,7 +11,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -19,12 +21,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.foldable.rememberFoldState
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.cards.LocalCardScale
 import com.gamesuite.games.cards.rememberCardScaleMultiplier
+import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.stats.StatsViewModel
 import com.gamesuite.theme.AppTheme
 import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.dominoes.DominoGame
@@ -51,8 +56,10 @@ import com.gamesuite.ui.OnlineJoinLobbyScreen
 import com.gamesuite.ui.SettingsScreen
 import com.gamesuite.ui.SlidingPuzzleScreen
 import com.gamesuite.ui.SolitaireScreen
+import com.gamesuite.ui.StatsScreen
 import com.gamesuite.ui.TicTacToeScreen
 import com.gamesuite.ui.TileGameScreen
+import com.gamesuite.ui.UnoHouseRulesScreen
 import com.gamesuite.ui.UnoScreen
 import com.gamesuite.ui.WordSearchScreen
 
@@ -66,6 +73,7 @@ class MainActivity : ComponentActivity() {
 
     private val sessionManager: GameSessionManager by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
+    private val statsViewModel: StatsViewModel by viewModels()
 
     // GameModule's contract (init/startMatch/pause/resume/endMatch) says the
     // shell "only calls these lifecycle methods" — pause()/resume() need to
@@ -99,27 +107,56 @@ class MainActivity : ComponentActivity() {
                 CardSounds.soundEnabled = settings.soundEnabled
             }
 
+            // Persists every finished match into StatsRepository — the shell-level hand-off
+            // that fixes the audited "every game computes a correct result, nothing keeps it"
+            // finding. GameSessionManager already resolved which game and which local
+            // win/loss/draw this was (see MatchOutcome's KDoc); this is the one place that
+            // result gets written down instead of discarded with the GameContext.
+            val lastMatchOutcome by sessionManager.lastMatchOutcome.collectAsStateWithLifecycle()
+            LaunchedEffect(lastMatchOutcome) {
+                lastMatchOutcome?.let { statsViewModel.recordMatch(it) }
+            }
+
             AppTheme(
                 themeMode = settings.themeMode,
                 dynamicColor = settings.dynamicColor,
-                namedTheme = settings.namedTheme
+                namedTheme = settings.namedTheme,
+                textScale = settings.textScale
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     val cardScale = rememberCardScaleMultiplier(settings.cardSizePreference)
+                    // Handoff-only state for the House Rules picker (uno-house-rules -> uno-custom),
+                    // mirroring how "uno-teams" already passes a fixed custom UnoRules inline — kept
+                    // here rather than on GameSessionManager so the shell's core package still never
+                    // needs to know about a specific game's rule types (see GameModule's own KDoc).
+                    var pendingUnoRules by remember { mutableStateOf<com.gamesuite.games.uno.UnoRules?>(null) }
 
-                    CompositionLocalProvider(LocalFoldState provides foldState, LocalCardScale provides cardScale) {
+                    CompositionLocalProvider(
+                        LocalFoldState provides foldState,
+                        LocalCardScale provides cardScale,
+                        LocalReducedMotion provides settings.reducedMotion
+                    ) {
                     NavHost(navController = navController, startDestination = "menu") {
                         composable("menu") {
                             MainMenuScreen(
                                 sessionManager = sessionManager,
+                                settingsViewModel = settingsViewModel,
+                                statsViewModel = statsViewModel,
                                 onNavigateToGame = { route -> navController.navigate(route) },
-                                onNavigateToSettings = { navController.navigate("settings") }
+                                onNavigateToSettings = { navController.navigate("settings") },
+                                onNavigateToStats = { navController.navigate("stats") }
                             )
                         }
                         composable("settings") {
                             SettingsScreen(
                                 viewModel = settingsViewModel,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("stats") {
+                            StatsScreen(
+                                viewModel = statsViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -196,11 +233,23 @@ class MainActivity : ComponentActivity() {
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
+                        composable("tic-tac-toe-wild") {
+                            // Same GameModule/screen as "tic-tac-toe" — wild = true is the only
+                            // difference. Each mover chooses X or O; the win-check reads the
+                            // symbol occupying a cell rather than who placed it.
+                            TicTacToeScreen(
+                                sessionManager = sessionManager,
+                                settingsViewModel = settingsViewModel,
+                                wild = true,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
                         composable("uno") {
                             val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
                             UnoScreen(
                                 sessionManager = sessionManager,
                                 game = unoGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
@@ -209,8 +258,37 @@ class MainActivity : ComponentActivity() {
                             UnoScreen(
                                 sessionManager = sessionManager,
                                 game = unoGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 initialRules = com.gamesuite.games.uno.UnoRules(teamPlay = true)
+                            )
+                        }
+                        composable("uno-house-rules") {
+                            UnoHouseRulesScreen(
+                                onStart = { rules, players ->
+                                    pendingUnoRules = rules
+                                    sessionManager.launchGame(
+                                        mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                                        players = players,
+                                        localPlayerIndex = 0
+                                    )
+                                    navController.navigate("uno-custom") { popUpTo("menu") }
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("uno-custom") {
+                            // Only ever reached right after uno-house-rules just set pendingUnoRules,
+                            // so there's no staleness risk from a plain "Play UNO" button reusing an
+                            // old value — those buttons navigate to "uno"/"uno-teams" instead, which
+                            // never read this field.
+                            val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
+                            UnoScreen(
+                                sessionManager = sessionManager,
+                                game = unoGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                initialRules = pendingUnoRules ?: com.gamesuite.games.uno.UnoRules()
                             )
                         }
                         composable("hangman") {
