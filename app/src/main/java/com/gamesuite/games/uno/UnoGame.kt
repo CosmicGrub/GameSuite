@@ -85,6 +85,33 @@ class UnoGame : GameModule {
                 // happened before anything here could hear it.
                 sendToHost(UnoNetMessage.RequestState)
             }
+            // Fires after a network blip the transport recovered from on its own (see
+            // MultiplayerTransport.onReconnected's KDoc / OnlineTransport's retry logic) — a
+            // guest may have missed broadcasts while disconnected, so ask again exactly like
+            // startup does; the host instead proactively re-broadcasts, since some guest's
+            // connection to the RELAY may have stayed up the whole time even though the HOST's
+            // own connection was the one that dropped, in which case no guest would ever think
+            // to ask.
+            context.transport.onReconnected {
+                if (isHost) {
+                    state.value?.let { broadcastState(it, toPlayerId = null) }
+                } else {
+                    sendToHost(UnoNetMessage.RequestState)
+                }
+            }
+            // Previously a dead hook (the audited "onPlayerJoined/onPlayerLeft implemented by
+            // every transport but consumed by no game" finding) — surfacing a permanent
+            // departure into the status line the UI already renders (s.lastAction) is enough to
+            // make a vanished opponent visible without a new UI element. Host-only: a guest's
+            // own local reaction here would just be overwritten by the host's next real
+            // StateSync anyway, since commitState() is what actually re-broadcasts to everyone.
+            if (isHost) {
+                context.transport.onPlayerLeft { playerId ->
+                    val s = state.value ?: return@onPlayerLeft
+                    val name = s.players.firstOrNull { it.playerId == playerId }?.displayName ?: playerId
+                    commitState(s.copy(lastAction = "$name disconnected"))
+                }
+            }
         }
     }
 

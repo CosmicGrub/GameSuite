@@ -309,6 +309,18 @@ class MainActivity : ComponentActivity() {
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
+                        composable("word-search-daily") {
+                            // Same GameModule/screen as "word-search" — a today's-date seed is
+                            // the only difference, so every player gets the identical puzzle.
+                            val wordSearchGame = rememberActiveModule(sessionManager) { WordSearchGame() }
+                            WordSearchScreen(
+                                sessionManager = sessionManager,
+                                game = wordSearchGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
                         composable("crossword") {
                             val crosswordGame = rememberActiveModule(sessionManager) { CrosswordGame() }
                             CrosswordScreen(
@@ -369,6 +381,18 @@ class MainActivity : ComponentActivity() {
                                 game = slidingPuzzleGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("sliding-puzzle-daily") {
+                            // Same GameModule/screen as "sliding-puzzle" — a today's-date seed is
+                            // the only difference, so every player gets the identical scramble.
+                            val slidingPuzzleGame = rememberActiveModule(sessionManager) { SlidingPuzzleGame() }
+                            SlidingPuzzleScreen(
+                                sessionManager = sessionManager,
+                                game = slidingPuzzleGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
                     }

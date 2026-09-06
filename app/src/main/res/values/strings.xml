@@ -1,3 +1,65 @@
 <resources>
     <string name="app_name">GameSuite</string>
+
+    <!--
+      Localization starter pass: MainMenuScreen — the first screen every player sees — is fully
+      extracted here as the reference pattern (stringResource(R.string.x) instead of a raw Kotlin
+      literal), with a real second locale (values-es/strings.xml) to prove resource switching
+      actually works end-to-end, not just that a strings.xml file exists. The other ~190 Text()
+      call sites across the 11 game screens and Settings/Stats are NOT yet extracted — see
+      README.md's Depth/localization notes for the honest scope of what remains. Extracting the
+      rest follows this exact same mechanical pattern per screen; there is no infrastructure
+      blocker left, only the repetitive work of doing it screen by screen.
+    -->
+
+    <!-- Top bar -->
+    <string name="menu_my_stats">📊 My Stats</string>
+    <string name="menu_settings">⚙ Settings</string>
+
+    <!-- First-run onboarding banner -->
+    <string name="onboarding_title">Welcome to GameSuite</string>
+    <string name="onboarding_body">Tap any game below to jump straight in — each has its own controls (drag cards to play them, tap tiles to move them). Check Settings for CPU difficulty, card size, and accessibility options, and My Stats to track your record once you\'ve played a few matches.</string>
+    <string name="onboarding_dismiss">Got it</string>
+
+    <!-- Continue playing row -->
+    <string name="menu_continue_playing">Continue playing</string>
+
+    <!-- Section titles -->
+    <string name="section_daily_challenge">Daily challenge</string>
+    <string name="section_board_games">Board games</string>
+    <string name="section_cards">Cards</string>
+    <string name="section_word_games">Word games</string>
+    <string name="section_arcade_puzzles">Arcade &amp; puzzles</string>
+
+    <!-- Daily challenge -->
+    <string name="game_word_search_daily">Word Search — today\'s puzzle</string>
+    <string name="game_sliding_puzzle_daily">Sliding Puzzle — today\'s scramble</string>
+
+    <!-- Board games -->
+    <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
+    <string name="game_tictactoe_pass_play">Tic-Tac-Toe (pass &amp; play)</string>
+    <string name="game_tictactoe_misere">Tic-Tac-Toe (Misère vs CPU)</string>
+    <string name="game_tictactoe_wild">Tic-Tac-Toe (Wild vs CPU)</string>
+    <string name="game_dominoes_vs_cpu">Dominoes (vs CPU)</string>
+    <string name="game_mancala_vs_cpu">Mancala (vs CPU)</string>
+
+    <!-- Cards -->
+    <string name="game_uno_vs_cpu">UNO (vs 2 CPU bots)</string>
+    <string name="game_uno_pass_play">UNO (4-player pass &amp; play)</string>
+    <string name="game_uno_teams">UNO (2v2 teams)</string>
+    <string name="game_uno_house_rules">UNO (house rules)</string>
+    <string name="game_uno_nearby">UNO (nearby multiplayer)</string>
+    <string name="game_uno_online">UNO (online)</string>
+    <string name="game_solitaire">Solitaire</string>
+
+    <!-- Word games -->
+    <string name="game_hangman">Hangman</string>
+    <string name="game_word_search">Word Search</string>
+    <string name="game_crossword">Crossword</string>
+    <string name="game_word_tiles_vs_cpu">Word Tiles (vs CPU)</string>
+
+    <!-- Arcade & puzzles -->
+    <string name="game_air_hockey_vs_cpu">Air Hockey (vs CPU)</string>
+    <string name="game_air_hockey_pass_play">Air Hockey (pass &amp; play)</string>
+    <string name="game_sliding_puzzle">Sliding Puzzle</string>
 </resources>

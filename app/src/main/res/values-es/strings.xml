@@ -1,0 +1,50 @@
+<resources>
+    <!-- Spanish translation of MainMenuScreen's extracted strings (see values/strings.xml's
+         comment) — this file's presence is what actually proves the localization pipeline
+         works end-to-end: an app-language switch to Spanish (device language, or
+         Android 13+'s per-app language setting) shows every string below, not just the
+         default. app_name is intentionally NOT overridden — a product name typically stays
+         untranslated. -->
+
+    <string name="menu_my_stats">📊 Mis estadísticas</string>
+    <string name="menu_settings">⚙ Ajustes</string>
+
+    <string name="onboarding_title">Bienvenido a GameSuite</string>
+    <string name="onboarding_body">Toca cualquier juego para empezar — cada uno tiene sus propios controles (arrastra las cartas para jugarlas, toca las fichas para moverlas). Consulta Ajustes para la dificultad de la IA, el tamaño de las cartas y las opciones de accesibilidad, y Mis estadísticas para ver tu historial después de jugar algunas partidas.</string>
+    <string name="onboarding_dismiss">Entendido</string>
+
+    <string name="menu_continue_playing">Continuar jugando</string>
+
+    <string name="section_daily_challenge">Reto diario</string>
+    <string name="section_board_games">Juegos de mesa</string>
+    <string name="section_cards">Cartas</string>
+    <string name="section_word_games">Juegos de palabras</string>
+    <string name="section_arcade_puzzles">Arcade y rompecabezas</string>
+
+    <string name="game_word_search_daily">Sopa de letras — el reto de hoy</string>
+    <string name="game_sliding_puzzle_daily">Puzle deslizante — el reto de hoy</string>
+
+    <string name="game_tictactoe_vs_cpu">Tres en raya (contra la CPU)</string>
+    <string name="game_tictactoe_pass_play">Tres en raya (pasar y jugar)</string>
+    <string name="game_tictactoe_misere">Tres en raya (Misère, contra la CPU)</string>
+    <string name="game_tictactoe_wild">Tres en raya (Salvaje, contra la CPU)</string>
+    <string name="game_dominoes_vs_cpu">Dominó (contra la CPU)</string>
+    <string name="game_mancala_vs_cpu">Mancala (contra la CPU)</string>
+
+    <string name="game_uno_vs_cpu">UNO (contra 2 bots)</string>
+    <string name="game_uno_pass_play">UNO (4 jugadores, pasar y jugar)</string>
+    <string name="game_uno_teams">UNO (2 contra 2, por equipos)</string>
+    <string name="game_uno_house_rules">UNO (reglas de la casa)</string>
+    <string name="game_uno_nearby">UNO (multijugador cercano)</string>
+    <string name="game_uno_online">UNO (en línea)</string>
+    <string name="game_solitaire">Solitario</string>
+
+    <string name="game_hangman">Ahorcado</string>
+    <string name="game_word_search">Sopa de letras</string>
+    <string name="game_crossword">Crucigrama</string>
+    <string name="game_word_tiles_vs_cpu">Fichas de palabras (contra la CPU)</string>
+
+    <string name="game_air_hockey_vs_cpu">Hockey de aire (contra la CPU)</string>
+    <string name="game_air_hockey_pass_play">Hockey de aire (pasar y jugar)</string>
+    <string name="game_sliding_puzzle">Puzle deslizante</string>
+</resources>

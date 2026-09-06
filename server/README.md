@@ -60,9 +60,39 @@ that service's `wss://` URL pasted into Settings — no code changes.
 
 See the comment block at the top of `index.js` for the exact JSON message
 shapes (`host`/`join`/`message`/`leave` client→server,
-`hosted`/`joined`/`playerJoined`/`playerLeft`/`message`/`error`
-server→client). `OnlineTransport.kt`'s KDoc cross-references this same
-protocol from the client side.
+`hosted`/`joined`/`reconnected`/`playerJoined`/`playerDisconnected`/
+`playerReconnected`/`playerLeft`/`message`/`error` server→client).
+`OnlineTransport.kt`'s KDoc cross-references this same protocol from the
+client side.
+
+### Reconnect
+
+A dropped connection (network blip, backgrounded app — anything that isn't
+an explicit `leave`) doesn't immediately vacate its seat: the relay holds it
+open for 30 seconds (`RECONNECT_GRACE_MS`, overridable via
+`RECONNECT_GRACE_MS_OVERRIDE` for tests), telling the rest of the room
+`playerDisconnected` rather than `playerLeft`. A `join` with the same room
+code and playerId within that window is treated as a resume — the sender
+gets `reconnected` (the existing roster, like `joined`) instead of an
+"already in this room" error, and the rest of the room gets
+`playerReconnected`. `OnlineTransport.kt` implements the client half:
+`handleUnexpectedDisconnect` retries with backoff (five attempts over
+~23 seconds) before giving up and surfacing `connectionError`, and a
+successful resume fires `MultiplayerTransport.onReconnected` so the game
+layer re-requests full state (see `UnoGame.init()`) exactly like a fresh
+join does — anything broadcast while disconnected was missed.
+
+### Spectator
+
+`join` with `"spectator":true` gets a read-only seat: it never counts
+against `MAX_PLAYERS_PER_ROOM`, never appears in the roster a `GameModule`
+builds its player list from, but does receive every broadcast — the same
+per-recipient hand-redaction any non-owned real seat already gets (see
+UNO's `redactHandsExcept`) applies automatically, since a spectator is never
+a real seat to exempt from redaction. `OnlineTransport.joinRoom(...,
+spectator = true)` is the client-side entry point; no lobby-screen "Watch"
+button exists yet — that's the remaining piece to actually expose this to a
+player, not a server or transport limitation.
 
 ## Hardening
 

@@ -13,7 +13,7 @@ which matters for the dual-screen requirement.
 
 ## Status
 
-**v1.0.0**, plus two follow-up passes on top. This is a working Android
+**v1.0.0**, plus three follow-up passes on top. This is a working Android
 Studio / Gradle project, not a skeleton — 13 games shipped and each verified
 on-device at least once (Tab S9 and/or Z Fold 5): Tic-Tac-Toe (plus Misère
 and Wild variants), UNO, Hangman, Word Search, Crossword, Word Tiles,
@@ -30,7 +30,22 @@ across the relay server, UNO, Word Tiles, Dominoes, Mancala, Solitaire, and
 Settings plus a new JVM unit-test suite, and
 [Depth, accessibility, and gameplay pass](#depth-accessibility-and-gameplay-pass)
 for the persistent stats layer, the menu redesign, screen-reader semantics
-across every game, and a set of targeted gameplay additions.
+across every game, and a set of targeted gameplay additions, and
+[Online reconnect, spectator mode, daily challenge, and store readiness](#online-reconnect-spectator-mode-daily-challenge-and-store-readiness)
+for the newest pass.
+
+**Monetization: none, by design.** GameSuite has no ads SDK, no in-app
+purchases, and no account system anywhere in the codebase — this is a
+deliberate, stated decision, not an unmade one. See
+[PRIVACY_POLICY.md](PRIVACY_POLICY.md) for exactly what data the app and its
+optional online relay do and don't touch.
+
+**Store readiness**, tracked honestly rather than silently: a privacy
+policy now exists (linked above) and the app has a real LICENSE. Still
+missing before a real store listing: a custom launcher icon (the project
+still uses Android Studio's default template icon) and store assets
+(screenshots, a feature graphic) — both are asset-creation work, not code,
+and are the next concrete step toward a listing.
 
 ## Building and running
 
@@ -1123,6 +1138,77 @@ no breaking change to its one call site.
 - Replaced Crossword's "reveal every entry's first letter for free" hint with
   a per-entry hint (reveal one more letter of the selected clue), capped at 3
   uses per puzzle.
+
+## Online reconnect, spectator mode, daily challenge, and store readiness
+
+A third follow-up pass, focused on the online-multiplayer reliability gap
+and the remaining roadmap items from the audit: reconnect/resume, a
+Daily Challenge menu, store-readiness documentation, and a localization
+starter.
+
+### Reconnect & Resume (`server/index.js`, `transport/OnlineTransport.kt`, `transport/MultiplayerTransport.kt`, `games/uno/UnoGame.kt`)
+- The relay now holds a dropped connection's seat open for 30 seconds
+  (`RECONNECT_GRACE_MS`) instead of immediately treating it as a departure —
+  other room members are told `playerDisconnected`, not `playerLeft`. A
+  `join` with the same room code and playerId within that window is treated
+  as a resume (`reconnected`, with the existing roster) rather than
+  rejected as a duplicate; past the window, or an explicit `leave`, the seat
+  actually vacates.
+- `OnlineTransport` implements the client half: an unexpected disconnect
+  triggers five retry attempts with backoff (~23 seconds total, under the
+  relay's grace window) before surfacing `connectionError`. A successful
+  resume fires a new `MultiplayerTransport.onReconnected` hook (default
+  no-op; only `OnlineTransport` implements it — Nearby has no reconnect
+  story yet, a known remaining gap) so the game layer re-requests full
+  state exactly like a fresh join does, since broadcasts may have been
+  missed while disconnected.
+- `UnoGame` wires this: a guest re-requests state on reconnect; the host
+  proactively re-broadcasts (covers the case where a guest's own connection
+  to the relay never dropped, only the host's did, so no guest would ever
+  think to ask). Also wired the previously-dead
+  `MultiplayerTransport.onPlayerLeft` hook into the host's status line
+  (`s.lastAction`), so a permanently-departed opponent is now visible.
+- `smoke-test.js` gained coverage for the full reconnect lifecycle
+  (disconnect → reconnect within the grace window → the seat actually
+  vacating once the window expires), using an overridable grace period
+  (`RECONNECT_GRACE_MS_OVERRIDE`) so the test suite doesn't need to wait 30
+  real seconds — 25 checks total, all passing.
+
+### Spectator mode — server groundwork (`server/index.js`, `transport/OnlineTransport.kt`)
+- `join` with `"spectator":true` gets a read-only seat: excluded from
+  `MAX_PLAYERS_PER_ROOM` and from the roster a `GameModule` builds its
+  player list from, but included in every broadcast — a spectator's client
+  renders the live game exactly like any non-owned seat already does,
+  through the same per-recipient hand redaction UNO already applies.
+  `OnlineTransport.joinRoom(..., spectator = true)` is the client entry
+  point. **Not yet wired to any UI** — no lobby-screen "Watch" button exists;
+  that's the one remaining piece, not a server or transport limitation.
+
+### Daily Challenge (`ui/MainMenuScreen.kt`, `MainActivity.kt`)
+- Wired the daily-seed groundwork from the previous pass into two real menu
+  entries: "Word Search — today's puzzle" and "Sliding Puzzle — today's
+  scramble," each deriving a stable seed from `LocalDate.now().toEpochDay()`
+  at the navigation call site (per those games' own KDocs, the games
+  themselves never touch a clock/calendar API).
+
+### Store readiness (`PRIVACY_POLICY.md`, `README.md`)
+- Added a privacy policy accurately describing what GameSuite does and
+  doesn't collect (nothing analytics/ads/account-related; local-only
+  settings and stats; an honest description of what the optional
+  self-hosted online relay does and doesn't see).
+- Stated the monetization stance explicitly: none, by design — not a
+  silent gap. Still missing before a real store listing: a custom launcher
+  icon and store assets (screenshots, feature graphic) — asset-creation
+  work, not code.
+
+### Localization starter (`res/values/strings.xml`, `res/values-es/strings.xml`, `ui/MainMenuScreen.kt`)
+- `MainMenuScreen` — the first screen every player sees — is now fully
+  extracted to string resources, with a real Spanish translation
+  (`values-es/strings.xml`) proving the pipeline actually switches locales,
+  not just that a strings.xml file exists. The other ~190 `Text()` call
+  sites across the 11 game screens and Settings/Stats are **not** yet
+  extracted; there's no infrastructure blocker left, only the repetitive
+  work of applying this same pattern screen by screen.
 
 ## Design notes worth remembering
 

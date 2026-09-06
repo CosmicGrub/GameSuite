@@ -8,9 +8,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
@@ -29,6 +31,11 @@ import com.gamesuite.stats.StatsViewModel
  * grouped into a titled card instead of one undifferentiated scroll. Every individual
  * button's launch behavior is unchanged from before this pass — only the layout and the
  * two new entry points (Continue, My Stats) are new.
+ *
+ * Every visible string on this screen is now a string resource (see res/values/strings.xml
+ * and res/values-es/strings.xml) — the localization infrastructure starter pass. This is the
+ * ONE screen fully extracted as the reference pattern; the other game screens/Settings/Stats
+ * are not yet (see README.md).
  */
 @Composable
 fun MainMenuScreen(
@@ -167,13 +174,13 @@ fun MainMenuScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("GameSuite", style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
             Row {
                 TextButton(onClick = onNavigateToStats) {
-                    Text("📊 My Stats", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.menu_my_stats), style = MaterialTheme.typography.labelLarge)
                 }
                 TextButton(onClick = onNavigateToSettings) {
-                    Text("⚙ Settings", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.menu_settings), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -189,7 +196,7 @@ fun MainMenuScreen(
             .sortedByDescending { it.lastPlayedEpochMillis }
             .take(3)
         if (recentlyPlayed.isNotEmpty()) {
-            Text("Continue playing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.menu_continue_playing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -210,9 +217,34 @@ fun MainMenuScreen(
             Spacer(Modifier.height(24.dp))
         }
 
-        GameSection(title = "Board games") {
-            GameButton("Tic-Tac-Toe (vs CPU)") { primaryLaunch.getValue("tic-tac-toe").invoke() }
-            GameButton("Tic-Tac-Toe (pass & play)") {
+        // Seeded from today's date at the call site (see WordSearchGame.startMatch(seed) /
+        // SlidingPuzzleGame.startMatch(dailySeed)'s KDocs) so every player gets the same
+        // puzzle today — the audited "single highest-leverage replayability feature this
+        // genre is missing" pitch.
+        GameSection(title = stringResource(R.string.section_daily_challenge)) {
+            GameButton(stringResource(R.string.game_word_search_daily)) {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("word-search-daily")
+            }
+            GameButton(stringResource(R.string.game_sliding_puzzle_daily)) {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("sliding-puzzle-daily")
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        GameSection(title = stringResource(R.string.section_board_games)) {
+            GameButton(stringResource(R.string.game_tictactoe_vs_cpu)) { primaryLaunch.getValue("tic-tac-toe").invoke() }
+            GameButton(stringResource(R.string.game_tictactoe_pass_play)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
                     players = listOf(
@@ -223,7 +255,7 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("tic-tac-toe")
             }
-            GameButton("Tic-Tac-Toe (Misère vs CPU)") {
+            GameButton(stringResource(R.string.game_tictactoe_misere)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_PLAYER_VS_BOT,
                     players = listOf(
@@ -234,7 +266,7 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("tic-tac-toe-misere")
             }
-            GameButton("Tic-Tac-Toe (Wild vs CPU)") {
+            GameButton(stringResource(R.string.game_tictactoe_wild)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_PLAYER_VS_BOT,
                     players = listOf(
@@ -245,15 +277,15 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("tic-tac-toe-wild")
             }
-            GameButton("Dominoes (vs CPU)") { primaryLaunch.getValue("dominoes").invoke() }
-            GameButton("Mancala (vs CPU)") { primaryLaunch.getValue("mancala").invoke() }
+            GameButton(stringResource(R.string.game_dominoes_vs_cpu)) { primaryLaunch.getValue("dominoes").invoke() }
+            GameButton(stringResource(R.string.game_mancala_vs_cpu)) { primaryLaunch.getValue("mancala").invoke() }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        GameSection(title = "Cards") {
-            GameButton("UNO (vs 2 CPU bots)") { primaryLaunch.getValue("uno").invoke() }
-            GameButton("UNO (4-player pass & play)") {
+        GameSection(title = stringResource(R.string.section_cards)) {
+            GameButton(stringResource(R.string.game_uno_vs_cpu)) { primaryLaunch.getValue("uno").invoke() }
+            GameButton(stringResource(R.string.game_uno_pass_play)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
                     players = listOf(
@@ -266,7 +298,7 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("uno")
             }
-            GameButton("UNO (2v2 teams)") {
+            GameButton(stringResource(R.string.game_uno_teams)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
                     players = listOf(
@@ -281,28 +313,28 @@ fun MainMenuScreen(
             }
             // No launchGame() call here — the house-rules picker screen decides the ruleset
             // AND the player roster itself, then launches the game from there.
-            GameButton("UNO (house rules)") { onNavigateToGame("uno-house-rules") }
+            GameButton(stringResource(R.string.game_uno_house_rules)) { onNavigateToGame("uno-house-rules") }
             // No launchGame() call here either — Nearby/Online's roster isn't known until
             // the lobby finishes connecting, unlike every other button on this screen.
-            GameButton("UNO (nearby multiplayer)") { onNavigateToGame("nearby-entry") }
-            GameButton("UNO (online)") { onNavigateToGame("online-entry") }
-            GameButton("Solitaire") { primaryLaunch.getValue("solitaire").invoke() }
+            GameButton(stringResource(R.string.game_uno_nearby)) { onNavigateToGame("nearby-entry") }
+            GameButton(stringResource(R.string.game_uno_online)) { onNavigateToGame("online-entry") }
+            GameButton(stringResource(R.string.game_solitaire)) { primaryLaunch.getValue("solitaire").invoke() }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        GameSection(title = "Word games") {
-            GameButton("Hangman") { primaryLaunch.getValue("hangman").invoke() }
-            GameButton("Word Search") { primaryLaunch.getValue("word-search").invoke() }
-            GameButton("Crossword") { primaryLaunch.getValue("crossword").invoke() }
-            GameButton("Word Tiles (vs CPU)") { primaryLaunch.getValue("word-tiles").invoke() }
+        GameSection(title = stringResource(R.string.section_word_games)) {
+            GameButton(stringResource(R.string.game_hangman)) { primaryLaunch.getValue("hangman").invoke() }
+            GameButton(stringResource(R.string.game_word_search)) { primaryLaunch.getValue("word-search").invoke() }
+            GameButton(stringResource(R.string.game_crossword)) { primaryLaunch.getValue("crossword").invoke() }
+            GameButton(stringResource(R.string.game_word_tiles_vs_cpu)) { primaryLaunch.getValue("word-tiles").invoke() }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        GameSection(title = "Arcade & puzzles") {
-            GameButton("Air Hockey (vs CPU)") { primaryLaunch.getValue("air-hockey").invoke() }
-            GameButton("Air Hockey (pass & play)") {
+        GameSection(title = stringResource(R.string.section_arcade_puzzles)) {
+            GameButton(stringResource(R.string.game_air_hockey_vs_cpu)) { primaryLaunch.getValue("air-hockey").invoke() }
+            GameButton(stringResource(R.string.game_air_hockey_pass_play)) {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
                     players = listOf(
@@ -313,7 +345,7 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("air-hockey")
             }
-            GameButton("Sliding Puzzle") { primaryLaunch.getValue("sliding-puzzle").invoke() }
+            GameButton(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -351,18 +383,12 @@ private fun GameButton(label: String, onClick: () -> Unit) {
 private fun OnboardingBanner(onDismiss: () -> Unit) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Welcome to GameSuite", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text(
-                "Tap any game below to jump straight in — each has its own controls (drag " +
-                    "cards to play them, tap tiles to move them). Check Settings for CPU " +
-                    "difficulty, card size, and accessibility options, and My Stats to track " +
-                    "your record once you've played a few matches.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text(stringResource(R.string.onboarding_body), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Got it") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.onboarding_dismiss)) }
             }
         }
     }

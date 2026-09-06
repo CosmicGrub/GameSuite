@@ -65,7 +65,7 @@ function waitForServer(timeoutMs = 5000) {
 async function main() {
   const child = spawn(process.execPath, ['index.js'], {
     cwd: __dirname,
-    env: { ...process.env, PORT: String(TEST_PORT) },
+    env: { ...process.env, PORT: String(TEST_PORT), RECONNECT_GRACE_MS_OVERRIDE: '500' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let childOutput = ''
@@ -212,8 +212,12 @@ async function main() {
     )
 
     // firstRoom now has zero members (reA re-hosted away, reC re-joined away) — it must have been deleted.
-    reB.ws.close()
+    // An explicit "leave" (matching what OnlineTransport.disconnect() actually sends before
+    // closing) skips the reconnect grace period, same as re-host/re-join above — a bare
+    // ws.close() with no "leave" first is covered separately below (the unexpected-drop path).
+    reB.ws.send(JSON.stringify({ type: 'leave' }))
     await wait(150)
+    reB.ws.close()
     const lateJoiner = connect()
     await opened(lateJoiner.ws)
     lateJoiner.ws.send(JSON.stringify({ type: 'join', roomCode: firstRoom, playerId: 'late' }))
@@ -225,10 +229,89 @@ async function main() {
     lateJoiner.ws.close()
     reA.ws.close(); reC.ws.close(); reD.ws.close()
 
+    // Explicit "leave" (see the comment above) so this exercises the deliberate-departure path,
+    // not the reconnect grace period exercised separately below.
+    guest.send(JSON.stringify({ type: 'leave' }))
+    await wait(150)
     guest.close()
     await wait(200)
     const left = hostMsgs.find((m) => m.type === 'playerLeft')
     check('host notified when guest disconnects', !!left && left.playerId === 'p2')
+
+    // --- reconnect: a dropped connection's seat is held open, not immediately vacated ---
+    const rgA = connect() // host
+    const rgB = connect() // the one whose connection will drop and come back
+    await opened(rgA.ws)
+    await opened(rgB.ws)
+    rgA.ws.send(JSON.stringify({ type: 'host', playerId: 'rgA' }))
+    await wait(150)
+    const graceRoom = rgA.messages.find((m) => m.type === 'hosted').roomCode
+    rgB.ws.send(JSON.stringify({ type: 'join', roomCode: graceRoom, playerId: 'rgB' }))
+    await wait(150)
+    rgA.messages.length = 0
+    rgB.ws.terminate() // simulate a dropped connection, NOT a clean {"type":"leave"}
+    await wait(150)
+    check(
+      'a dropped connection is announced as playerDisconnected, not playerLeft',
+      rgA.messages.some((m) => m.type === 'playerDisconnected' && m.playerId === 'rgB') &&
+        !rgA.messages.some((m) => m.type === 'playerLeft' && m.playerId === 'rgB'),
+    )
+
+    const rgBAgain = connect()
+    await opened(rgBAgain.ws)
+    rgA.messages.length = 0
+    rgBAgain.ws.send(JSON.stringify({ type: 'join', roomCode: graceRoom, playerId: 'rgB' }))
+    await wait(150)
+    check(
+      'reconnecting within the grace period gets "reconnected" with the existing roster',
+      rgBAgain.messages.some((m) => m.type === 'reconnected' && m.roomCode === graceRoom && m.players.some((p) => p.playerId === 'rgA')),
+    )
+    check(
+      'the other member is told playerReconnected, not a fresh playerJoined',
+      rgA.messages.some((m) => m.type === 'playerReconnected' && m.playerId === 'rgB') &&
+        !rgA.messages.some((m) => m.type === 'playerJoined' && m.playerId === 'rgB'),
+    )
+
+    // --- reconnect: past the grace period, the seat actually vacates ---
+    rgA.messages.length = 0
+    rgBAgain.ws.terminate()
+    await wait(150) // still within the (RECONNECT_GRACE_MS_OVERRIDE=500ms) grace window
+    check('no playerLeft yet, still inside the grace window', !rgA.messages.some((m) => m.type === 'playerLeft' && m.playerId === 'rgB'))
+    await wait(600) // now past the 500ms override
+    check('playerLeft fires once the grace period actually expires', rgA.messages.some((m) => m.type === 'playerLeft' && m.playerId === 'rgB'))
+    rgA.ws.close()
+
+    // --- spectator: read-only seat, excluded from the game roster, included in broadcasts ---
+    const specHost = connect()
+    const specPlayer = connect()
+    const spectator = connect()
+    await opened(specHost.ws)
+    await opened(specPlayer.ws)
+    await opened(spectator.ws)
+    specHost.ws.send(JSON.stringify({ type: 'host', playerId: 'specHost' }))
+    await wait(150)
+    const specRoom = specHost.messages.find((m) => m.type === 'hosted').roomCode
+    specPlayer.ws.send(JSON.stringify({ type: 'join', roomCode: specRoom, playerId: 'specPlayer' }))
+    await wait(150)
+    spectator.ws.send(JSON.stringify({ type: 'join', roomCode: specRoom, playerId: 'spec1', spectator: true }))
+    await wait(150)
+    const specJoined = spectator.messages.find((m) => m.type === 'joined')
+    check(
+      'a spectator is excluded from the game-relevant roster it receives',
+      !!specJoined && !specJoined.players.some((p) => p.playerId === 'spec1'),
+    )
+    check(
+      "a spectator joining doesn't broadcast playerJoined to real seats (silent, read-only entry)",
+      !specHost.messages.some((m) => m.type === 'playerJoined' && m.playerId === 'spec1'),
+    )
+    const specPayload = Buffer.from('spectator sees this').toString('base64')
+    specHost.ws.send(JSON.stringify({ type: 'message', toPlayerId: null, payloadBase64: specPayload }))
+    await wait(200)
+    check(
+      'a spectator receives the same broadcasts real seats do',
+      spectator.messages.some((m) => m.type === 'message' && m.payloadBase64 === specPayload),
+    )
+    specHost.ws.close(); specPlayer.ws.close(); spectator.ws.close()
 
     // Wrong room code
     const stray = new WebSocket(WS_URL)

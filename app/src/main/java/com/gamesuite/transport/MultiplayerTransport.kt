@@ -29,4 +29,18 @@ interface MultiplayerTransport {
 
     fun onPlayerJoined(listener: (playerId: String) -> Unit)
     fun onPlayerLeft(listener: (playerId: String) -> Unit)
+
+    /**
+     * Fired when this transport re-establishes a previously-live connection (e.g. after a
+     * network blip) WITHOUT a fresh join/host handshake — the game should treat this exactly
+     * like the startup "ask the host for current state" case (see UnoGame.init()'s
+     * RequestState send) since messages may have been missed while disconnected.
+     *
+     * Default no-op: only [OnlineTransport] currently has a reconnect story (the relay holds a
+     * dropped seat open for a grace period — see server/index.js's header comment).
+     * [LocalPassAndPlayTransport] has nothing to reconnect to, and [NearbyConnectionsTransport]
+     * doesn't yet implement a reconnect path (a real gap noted in the audit, out of scope for
+     * this pass) — both simply never call this listener.
+     */
+    fun onReconnected(listener: () -> Unit) {}
 }
