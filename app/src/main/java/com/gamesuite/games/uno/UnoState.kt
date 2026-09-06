@@ -43,7 +43,13 @@ data class UnoState(
     val winningTeamId: Int? = null,
     /** Cumulative match score per playerId, official UNO plays to 500. */
     val cumulativeScores: Map<String, Int> = emptyMap(),
-    val roundNumber: Int = 1
+    val roundNumber: Int = 1,
+    /** True right after the current player drew a card that's legal to play, until they either
+     *  play it or (when rules.forcePlayDrawnCard is false) explicitly keep it — see
+     *  UnoGame.drawCard()/keepDrawnCard(). Lets the UI offer a "Keep card" action distinct from a
+     *  normal turn start. Always reset to false by UnoGame.commitState() except drawCard()'s own
+     *  call, so no other mutation needs to remember to clear it. */
+    val awaitingDrawDecision: Boolean = false
 ) {
     val topCard: UnoCard get() = discardPile.last()
 }

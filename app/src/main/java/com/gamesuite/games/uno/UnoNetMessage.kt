@@ -71,4 +71,9 @@ sealed class UnoIntentPayload {
 
     @Serializable
     data class CatchUnoFailure(val accuserIndex: Int, val targetIndex: Int) : UnoIntentPayload()
+
+    /** Declines to play a card just drawn that was legal to play (only valid when
+     *  rules.forcePlayDrawnCard is false) — see UnoGame.keepDrawnCard(). */
+    @Serializable
+    data class KeepDrawnCard(val playerIndex: Int) : UnoIntentPayload()
 }

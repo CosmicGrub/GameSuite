@@ -13,8 +13,11 @@ data class UnoRules(
     val sevenZero: Boolean = false,
     /** Any player holding an exact match (color+rank) of the top card may jump in out of turn. */
     val jumpIn: Boolean = false,
-    /** Must-play-if-able: if you drew a playable card, you must play it immediately instead of choosing to keep it. */
-    val forcePlayDrawnCard: Boolean = true,
+    /** Must-play-if-able: if you drew a playable card, you must play it immediately instead of choosing to keep it.
+     *  Defaults to false to match this class's own "classic = every flag false" contract above — official
+     *  Mattel/UNO rules make playing a drawn playable card the player's OPTION, never mandatory. See
+     *  UnoGame.drawCard()/keepDrawnCard() for how the optional case is actually offered to the player. */
+    val forcePlayDrawnCard: Boolean = false,
     /** Team play: players are grouped by PlayerInfo.teamId; a team wins when any of its members plays their last card. */
     val teamPlay: Boolean = false
 )
