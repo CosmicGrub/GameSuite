@@ -12,6 +12,20 @@
          is Nearby-specific ad-hoc/local multiplayer, unrelated to this one. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- VIBRATE: normal (non-runtime) permission, required by haptics/Haptics.kt's
+         performHaptic() (Vibrator.vibrate()), which every game screen calls via
+         rememberHaptics() for haptic-signature feedback (captures, wins, checks,
+         etc.). Confirmed missing and confirmed load-bearing via a real on-device
+         instrumented test failure — android.os.Vibrator.vibrate() throws a real
+         uncaught SecurityException without this declared, which would have
+         crashed the app on every single haptic across every game the first time
+         a real device (not just an emulator, which is often more permissive)
+         ran it. See Haptics.kt's own defensive try/catch around vibrate() for
+         the second half of this fix — this permission is necessary but the
+         try/catch is what makes a future regression here non-fatal instead of
+         crashing again. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Legacy Bluetooth — required only up to API 30, not a runtime/dangerous permission. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
