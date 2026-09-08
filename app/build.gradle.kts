@@ -75,6 +75,11 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // Real device rotation (setOrientationLeft/Right/Natural) + hardware-level
+    // navigation (pressBack, findObject) for the orientation/navigation E2E
+    // sweep -- Compose's own test rule can drive clicks via the semantics
+    // tree, but actual sensor-level rotation needs UiAutomator underneath it.
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
