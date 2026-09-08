@@ -33,3 +33,11 @@ esp32-tictactoe/native_test/*.obj
 esp32-tictactoe/native_test/*.pdb
 esp32-tictactoe/native_test/*.ilk
 esp32-tictactoe/native_test/playtest
+app/*.txt
+
+# Local Claude Code project config -- machine-specific, not shared project state
+.claude/
+
+# Playwright/ffmpeg demo-capture tooling and its generated stills/video output
+# (scratch work for producing marketing/demo material, not app source)
+_showcase/

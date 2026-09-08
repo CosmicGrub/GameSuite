@@ -47,6 +47,23 @@ still uses Android Studio's default template icon) and store assets
 (screenshots, a feature graphic) — both are asset-creation work, not code,
 and are the next concrete step toward a listing.
 
+**Also available**: a standalone hardware version of part of this project
+exists as a physical ESP32-based arcade cabinet — see
+[esp32-tictactoe/](esp32-tictactoe/) for a from-scratch C++ port (Tic-Tac-Toe,
+Checkers, Chess, and UNO so far) sharing this project's game-logic-and-AI
+design, running on a real touchscreen microcontroller with no Android or
+JVM involved.
+
+**Platform status, tracked honestly**: Android ([app/](app/)) and the ESP32
+cabinet ([esp32-tictactoe/](esp32-tictactoe/)) are the two platforms that
+actually exist in this repository today, both current and both verified
+on real hardware. **iOS and a PC/desktop build do not exist yet** — no code,
+no branch, nothing has been built for either — despite that being a stated
+goal for this project. This line stays here, updated honestly, until that
+changes; when either platform starts, it gets its own top-level directory
+(or fork, if the codebase ends up separate enough to warrant one) linked
+from this section, on the same pattern as the ESP32 entry above.
+
 ## Building and running
 
 1. Clone the repo:
