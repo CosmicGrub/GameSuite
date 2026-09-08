@@ -24,8 +24,10 @@ GameSuite's own architecture uses everywhere) as new C++ written for Arduino.
 
 **Verified**: this exact code compiles cleanly (0 errors, 0 warnings) against
 the `esp32:esp32` Arduino core using `arduino-cli`, targeting the "ESP32 Dev
-Module" board — 318KB flash (24% of the default partition) and 22KB RAM (6%)
-used. On top of that, [native_test/](native_test/) compiles and runs the
+Module" board — 394KB flash (30% of the default partition) and 23KB RAM (7%)
+used. (Measured 2026-09-06, after Checkers/Chess/UNO were added — re-measure
+again once Solitaire/Mahjong land, since each adds meaningfully to both
+figures.) On top of that, [native_test/](native_test/) compiles and runs the
 real, unmodified rules engine and touch hit-testing math on a desktop
 (against no-op stand-ins for the ESP32/display-only parts) — an exhaustive
 search of every possible game confirms the AI is genuinely unbeatable (0
@@ -166,17 +168,19 @@ exact project) describe the wrong variant.
 
 ## What's next
 
-This project is intentionally scoped to one game as a first proof-of-concept
-for the display/touch/input pipeline, per how we agreed to approach this.
-Once this is confirmed working on your actual board, the same
-GameLogic/Display split makes adding another simple game (Mancala and
-Dominoes are the next-best fits — small state, no big dictionary) mostly a
-matter of writing a new GameLogic.h/.cpp pair and a new Display.h/.cpp pair,
-then a small menu screen to choose between them, reusing this same
-project's touch-calibration and main-loop structure.
+Tic-Tac-Toe was the first proof-of-concept for the display/touch/input
+pipeline; Checkers, Chess, and UNO have since shipped on top of the same
+GameLogic/Display split and the home menu that came with it — see
+`MENU_GAMES` near the top of `TicTacToeESP32.ino`, where each entry's
+`enabled` flag reflects what's actually built and reachable from the menu
+today, not just planned. Mancala and Dominoes are the next-best fits (small
+state, no big dictionary) — currently present in that same array as
+`false` — and follow the same pattern: a new GameLogic.h/.cpp pair, a new
+Display.h/.cpp pair, then flipping the menu entry to `true`.
 
 Not attempted here, and not realistic on this hardware without much more
-work: UNO/Solitaire (many cards to render), Air Hockey (real-time physics +
-simultaneous multi-touch), and the dictionary-backed word games (Word
-Search/Crossword/Word Tiles rely on a 3.6MB word list — this ESP32-32E
-variant has no PSRAM and only 4MB of flash total).
+work: Solitaire (many cards and a larger tableau to render than UNO's
+hand-plus-discard-pile), Air Hockey (real-time physics + simultaneous
+multi-touch), and the dictionary-backed word games (Word Search/Crossword/
+Word Tiles rely on a 3.6MB word list — this ESP32-32E variant has no PSRAM
+and only 4MB of flash total).

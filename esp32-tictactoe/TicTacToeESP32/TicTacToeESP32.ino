@@ -284,17 +284,32 @@ void loop() {
     if (appState == AppState::CHECKERS && checkersAiMovePending && millis() >= checkersAiMoveDueAt) {
         checkersAiMovePending = false;
         checkersBoard.playAi(); // plays the AI's whole turn, every hop of a forced chain included
-        uint8_t aiFromRow, aiFromCol, aiToRow, aiToCol;
-        checkersBoard.lastAiMove(aiFromRow, aiFromCol, aiToRow, aiToCol);
-        animateCheckersMove(tft, checkersLayout, checkersBoard, aiFromRow, aiFromCol, aiToRow, aiToCol,
-                             checkersBoard.at(aiToRow, aiToCol)); // board is already post-move -- see animateCheckersMove's header comment
+
+        // Walk the whole chain's own per-hop trace (see CheckersLogic.h) into
+        // plain arrays animateCheckersMove() can take -- this is what lets a
+        // real multi-jump chain animate each hop as its own timeline segment
+        // instead of one straight slide with every capture already invisible.
+        uint8_t hopCount = checkersBoard.lastAiHopCount();
+        uint8_t waypointRows[CHECKERS_MAX_CHAIN_HOPS + 1], waypointCols[CHECKERS_MAX_CHAIN_HOPS + 1];
+        CheckersPiece capturedPieces[CHECKERS_MAX_CHAIN_HOPS];
+        for (uint8_t i = 0; i <= hopCount; i++) {
+            waypointRows[i] = checkersBoard.lastAiWaypointRow(i);
+            waypointCols[i] = checkersBoard.lastAiWaypointCol(i);
+        }
+        for (uint8_t i = 0; i < hopCount; i++) {
+            capturedPieces[i] = checkersBoard.lastAiHopCapturedPiece(i);
+        }
+        animateCheckersMove(tft, checkersLayout, checkersBoard, waypointRows, waypointCols, capturedPieces, hopCount,
+                             checkersBoard.at(waypointRows[hopCount], waypointCols[hopCount])); // board is already post-move -- see animateCheckersMove's header comment
         drawCheckersBoard(tft, checkersLayout, checkersBoard);
         checkForCheckersRoundEnd();
     }
 
     if (appState == AppState::CHESS && chessAiMovePending && millis() >= chessAiMoveDueAt) {
         chessAiMovePending = false;
+        ChessBoard chessBoardBeforeMove = chessBoard; // snapshot BEFORE playAi() below mutates -- see animateChessMove's header comment
         chessBoard.playAi();
+        animateChessMove(tft, chessLayout, chessBoard, chessBoardBeforeMove);
         drawChessBoard(tft, chessLayout, chessBoard, chessSelectedSquare); // chessSelectedSquare is already -1 (cleared before the AI was scheduled)
         checkForChessRoundEnd();
     }
@@ -600,7 +615,19 @@ void handleTouch() {
         if (checkersBoard.isLegalMove(checkersSelRow, checkersSelCol, row, col)) {
             uint8_t fromRow = checkersSelRow, fromCol = checkersSelCol;
             CheckersPiece movingPiece = checkersBoard.at(fromRow, fromCol); // captured BEFORE playHuman() mutates the board -- see animateCheckersMove's header comment
-            animateCheckersMove(tft, checkersLayout, checkersBoard, fromRow, fromCol, row, col, movingPiece);
+
+            // A human plays exactly one hop per tap, so this is always a
+            // single-segment "chain" -- see animateCheckersMove()'s header
+            // comment. If this hop is a jump, its capture square's piece
+            // must likewise be read now, before playHuman() below mutates it.
+            uint8_t waypointRows[2] = { fromRow, row };
+            uint8_t waypointCols[2] = { fromCol, col };
+            CheckersPiece capturedPieces[1] = { CheckersPiece::EMPTY };
+            uint8_t midRow, midCol;
+            if (checkersJumpMidpoint(fromRow, fromCol, row, col, midRow, midCol)) {
+                capturedPieces[0] = checkersBoard.at(midRow, midCol);
+            }
+            animateCheckersMove(tft, checkersLayout, checkersBoard, waypointRows, waypointCols, capturedPieces, 1, movingPiece);
             checkersBoard.playHuman(fromRow, fromCol, row, col);
             drawCheckersBoard(tft, checkersLayout, checkersBoard); // final correct redraw -- catches up captures/promotion/kinging the slide itself doesn't know about
 
@@ -659,14 +686,24 @@ void handleTouch() {
             if (chessBoard.legalDestinations(sq, dests) > 0) chessSelectedSquare = sq;
         } else if (sq == (uint8_t)chessSelectedSquare) {
             chessSelectedSquare = -1; // tapping the selected piece again deselects it
-        } else if (chessBoard.playHuman((uint8_t)chessSelectedSquare, sq)) {
-            chessSelectedSquare = -1;
-            moved = true;
         } else {
-            // Tapped another of your own pieces (reselect) or an illegal
-            // square (drop the selection) -- either way, no rules knowledge
-            // needed here since legalDestinations() decides which it was.
-            chessSelectedSquare = (chessBoard.legalDestinations(sq, dests) > 0) ? (int8_t)sq : -1;
+            // Snapshot BEFORE playHuman() below might mutate the board --
+            // see animateChessMove()'s header comment for why it needs a
+            // pre-move copy (a captured piece's own identity, castling's
+            // rook included, is otherwise already gone by the time this
+            // animates).
+            ChessBoard chessBoardBeforeMove = chessBoard;
+            if (chessBoard.playHuman((uint8_t)chessSelectedSquare, sq)) {
+                chessSelectedSquare = -1;
+                moved = true;
+                animateChessMove(tft, chessLayout, chessBoard, chessBoardBeforeMove);
+            } else {
+                // Tapped another of your own pieces (reselect) or an illegal
+                // square (drop the selection) -- either way, no rules
+                // knowledge needed here since legalDestinations() decides
+                // which it was.
+                chessSelectedSquare = (chessBoard.legalDestinations(sq, dests) > 0) ? (int8_t)sq : -1;
+            }
         }
 
         drawChessBoard(tft, chessLayout, chessBoard, chessSelectedSquare);

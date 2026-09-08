@@ -93,3 +93,58 @@ void hideChessPlayAgainButton(TFT_eSPI &tft, const ChessLayout &layout);
 // it is never itself trusted as a legality decision.
 bool hitTestSquare(const ChessLayout &layout, int16_t touchX, int16_t touchY, uint8_t &outRow, uint8_t &outCol);
 bool hitTestChessPlayAgainButton(const ChessLayout &layout, int16_t touchX, int16_t touchY);
+
+// Animates the piece(s) of the move `board` most recently played (its own
+// lastMove()) instead of vanishing/appearing instantly, the same "slide
+// instead of teleport" pattern CheckersDisplay.h's animateCheckersMove()
+// already established -- see that function's header comment for the
+// original single-piece version this generalizes.
+//
+// Two real wrinkles beyond what Checkers needed, both handled by reading
+// straight off `board`'s own move-metadata rather than anything geometric:
+//   - Castling moves TWO pieces in one turn. When board.lastMoveWasCastle()
+//     reports one, this slides the rook alongside the king instead of just
+//     the king -- unlike Checkers, where a single hop only ever moves one
+//     piece even on a capturing jump.
+//   - An en-passant capture's victim is NOT the geometric midpoint of the
+//     capturing pawn's diagonal move the way a checkers jump's captured
+//     piece always is (see CheckersDisplay.h's checkersJumpMidpoint()) --
+//     it sits beside the destination square, on a rank an interpolated
+//     position would never visit. board.lastMoveWasEnPassant() reports that
+//     square explicitly, so this needs no geometric derivation at all.
+// A captured piece either way (an ordinary capture landing right on the
+// destination square, or an en-passant capture on its own separate square)
+// stays visible for the whole slide and is erased only once it finishes --
+// the same "stays until the capture actually lands" feel
+// animateCheckersMove() gives its own jump captures.
+//
+// `board` must already be the POST-move position -- this project's two
+// chess move-application call sites (playHuman() and playAi()) both mutate
+// synchronously in one call with no per-hop stepping stone the way
+// Checkers' human path has, so there is only this one calling convention
+// here, unlike animateCheckersMove()'s two. `beforeBoard` is a plain value
+// snapshot of the SAME board taken by the caller immediately before that
+// call (ChessBoard is a small, cheap-to-copy value type -- the same
+// copy-a-whole-board idiom its own minimax search in ChessLogic.cpp already
+// relies on throughout) -- the only thing this function ever reads from it
+// is a captured piece's own identity, which is already gone from `board` by
+// the time this runs (mirroring exactly why animateCheckersMove() needs an
+// explicit per-hop captured-piece snapshot rather than reading it live).
+//
+// Every square a chess move can affect other than the animated one(s) is
+// read straight from `board` and rendered as a fresh, complete redraw EVERY
+// FRAME, rather than Checkers' selectively-erased-exact-bounding-box trick
+// -- deliberately different, not an oversight: that trick specifically
+// relies on a checkers jump always crossing squares of one single fixed
+// color (dark squares only, diagonal-only movement), so one solid-color
+// fillRect always erases correctly. A chess piece can cross squares of BOTH
+// checkerboard colors over any number of squares (a queen sweeping the
+// board, say), so there is no single always-correct erase color -- redrawing
+// the whole board fresh each frame sidesteps that instead of trying to
+// track which squares' real colors a moving glyph's bounding box currently
+// overlaps.
+//
+// Call drawChessBoard() once more after this returns to show the real,
+// final state (highlights included) -- this function only animates the
+// slide itself and never modifies `board`.
+void animateChessMove(TFT_eSPI &tft, const ChessLayout &layout, const ChessBoard &board, const ChessBoard &beforeBoard);

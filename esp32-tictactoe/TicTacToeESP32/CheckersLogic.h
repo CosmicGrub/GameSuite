@@ -29,6 +29,16 @@ enum class CheckersResult : uint8_t { IN_PROGRESS, HUMAN_WINS, AI_WINS };
 // lists live on the stack with no dynamic allocation anywhere in this file.
 static const uint8_t CHECKERS_MAX_MOVES = 48;
 
+// A generous fixed upper bound on how many hops a single forced multi-jump
+// chain can ever contain -- each hop must capture a DIFFERENT enemy piece
+// still on the board (a jumped square is empty afterward, so it can never be
+// jumped again this same chain), and either side starts with at most 12
+// pieces, so 12 is not just generous but exact. Sized this way, same
+// reasoning as CHECKERS_MAX_MOVES above, so the per-hop trace below
+// (lastAiWaypointRow()/lastAiWaypointCol()/lastAiHopCapturedPiece()) lives on
+// CheckersBoard itself with no dynamic allocation.
+static const uint8_t CHECKERS_MAX_CHAIN_HOPS = 12;
+
 // One "hop": either a single non-capturing step, or a single jump that is
 // one link of a (possibly multi-jump) capture sequence. A whole human turn
 // is played by calling CheckersBoard::playHuman() once per hop -- again for
@@ -109,18 +119,53 @@ public:
     void playAi();
 
     // The overall (first hop's source) -> (last hop's destination) of the
-    // most recently completed playAi() call -- lets a caller animate the
-    // piece sliding from where it started to where it ended, even though
-    // playAi() itself already applied every hop of a multi-jump chain
-    // internally before returning. This is an overall start/end, not a
-    // per-hop trace: a multi-jump that zigzags across directions will
-    // animate as one straight slide rather than visiting each intermediate
-    // landing square -- a deliberate simplification, not a bug. Undefined
-    // (zeroed) until the first playAi() call.
+    // most recently completed playAi() call -- a convenience for a caller
+    // that only cares where the turn started and ended, not the hops in
+    // between (e.g. deciding which squares to re-highlight). Undefined
+    // (zeroed) until the first playAi() call. See lastAiHopCount() below for
+    // the FULL per-hop trace this is just the two ends of -- animation
+    // should use that instead of this whenever a multi-jump chain is
+    // possible, since collapsing the chain to a single straight start->end
+    // slide is exactly what used to make a real multi-jump chain's
+    // intermediate captures render wrong (see CheckersDisplay.h's
+    // animateCheckersMove()).
     void lastAiMove(uint8_t &outFromRow, uint8_t &outFromCol, uint8_t &outToRow, uint8_t &outToCol) const {
         outFromRow = lastAiFromRow; outFromCol = lastAiFromCol;
         outToRow = lastAiToRow; outToCol = lastAiToCol;
     }
+
+    // How many hops made up the most recently completed playAi() call --
+    // always >= 1 once any AI turn has been played (a single non-capturing
+    // move is one hop too), 0 before the first playAi() call. A forced
+    // multi-jump chain is bounded by the opponent's total piece count (at
+    // most CHECKERS_MAX_CHAIN_HOPS, since each hop must capture a distinct
+    // piece that was still on the board).
+    uint8_t lastAiHopCount() const { return lastAiHopCountValue; }
+
+    // Waypoint `i` (0..lastAiHopCount(), inclusive) of that same turn:
+    // waypoint 0 is where the moving piece started (== lastAiMove()'s
+    // fromRow/fromCol), waypoint lastAiHopCount() is its final landing
+    // square (== lastAiMove()'s toRow/toCol), and any waypoint strictly in
+    // between is one hop's own landing square along the chain -- so hop `i`
+    // (0-based, 0..lastAiHopCount()-1) runs from waypoint `i` to waypoint
+    // `i+1`. This is the per-hop trace lastAiMove() collapses away; a caller
+    // animating the move should walk it hop by hop instead of sliding
+    // straight from waypoint 0 to the last one (see CheckersDisplay.h's
+    // animateCheckersMove()).
+    uint8_t lastAiWaypointRow(uint8_t i) const { return lastAiWaypointRows[i]; }
+    uint8_t lastAiWaypointCol(uint8_t i) const { return lastAiWaypointCols[i]; }
+
+    // The piece that hop `i` (0..lastAiHopCount()-1) captured, exactly as it
+    // stood immediately before that hop removed it from the board --
+    // CheckersPiece::EMPTY for a non-capturing hop (only possible when
+    // lastAiHopCount() == 1, since a forced continuation only ever continues
+    // after an actual capture). This has to be captured at the moment each
+    // hop is actually applied, inside playAi() below, and remembered here --
+    // by the time ANY caller gets to animate hop `i`, playAi() has already
+    // applied every hop of the WHOLE chain (this one included), so
+    // board.at() of hop `i`'s own capture square reads EMPTY regardless of
+    // which hop an animation is currently showing.
+    CheckersPiece lastAiHopCapturedPiece(uint8_t i) const { return lastAiHopCapturedPieces[i]; }
 
     // ---- Test/setup hooks -----------------------------------------------
     // Everything below exists so native_test/checkers_playtest.cpp can build
@@ -158,6 +203,14 @@ private:
     uint8_t forcedRow = 0, forcedCol = 0;
     // See lastAiMove()'s comment -- written only by playAi().
     uint8_t lastAiFromRow = 0, lastAiFromCol = 0, lastAiToRow = 0, lastAiToCol = 0;
+    // See lastAiHopCount()/lastAiWaypointRow()/lastAiWaypointCol()/
+    // lastAiHopCapturedPiece()'s comments -- written only by playAi(), one
+    // entry per hop, BEFORE that hop's own applyMove() call mutates the
+    // board out from under lastAiHopCapturedPieces[i]'s snapshot.
+    uint8_t lastAiHopCountValue = 0;
+    uint8_t lastAiWaypointRows[CHECKERS_MAX_CHAIN_HOPS + 1] = {0};
+    uint8_t lastAiWaypointCols[CHECKERS_MAX_CHAIN_HOPS + 1] = {0};
+    CheckersPiece lastAiHopCapturedPieces[CHECKERS_MAX_CHAIN_HOPS] = {CheckersPiece::EMPTY};
 
     // Appends every legal one-hop move for `humanSide` to out[] (capacity
     // CHECKERS_MAX_MOVES) and returns how many were written. Already

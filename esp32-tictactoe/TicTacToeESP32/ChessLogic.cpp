@@ -16,17 +16,34 @@
 // attacked square, all squares between king and rook empty); en passant;
 // checkmate and stalemate detection.
 //
-// NOT IMPLEMENTED (deliberately, first version): threefold repetition, the
-// 50-move rule, and insufficient-material draws (K vs K, K+minor vs K,
-// etc.) are ALL out of scope. Practically, this means a game that reduces to
-// a bare-kings (or similarly drawn-dead) endgame will sit at IN_PROGRESS
-// forever -- neither side can ever checkmate or stalemate the other with
-// insufficient material, and nothing here calls it a draw. This is a real,
-// known gap, not an oversight discovered later: chess_playtest.cpp's random
-// self-play caps the number of moves it will play and treats hitting that
-// cap as an accepted outcome rather than a failure, specifically because of
-// this gap -- see that file's comment for the same point made where it
-// actually bites.
+// DRAW DETECTION: stalemate, insufficient material, and the 50-move
+// (no-progress) rule are all implemented (see result() below). Insufficient
+// material is deliberately limited to endings that are drawn IN PRINCIPLE --
+// checkmate is literally impossible, not just impractical -- rather than a
+// general "is this drawn with best play" solver: K vs K, K+(one lone minor
+// piece) vs K, and same-colored-bishop-only endings (K+B vs K+B where both
+// remaining bishops sit on the same square color, since neither bishop can
+// ever contest the other's color complex) -- see isInsufficientMaterial()
+// below for the exact rule. The 50-move rule counts consecutive half-moves
+// since the last pawn move or capture (halfmoveClock in ChessLogic.h,
+// maintained in applyMove() below) and resolves to a draw once it reaches
+// 100 (50 full moves).
+//
+// NOT IMPLEMENTED (deliberately): threefold repetition remains out of
+// scope. Detecting it needs a running history of every prior position (or
+// at minimum a hash per position) so a recurrence can be recognized, and
+// this engine keeps no such history -- ChessBoard only ever holds the
+// CURRENT position, and the search below works by copying that single
+// struct wholesale (see the "Chess's real state..." comment on ChessBoard's
+// private search helpers in ChessLogic.h), so adding repetition tracking
+// would mean threading a growing history through every one of those copies,
+// not just adding one more field the way the 50-move counter above did.
+// That's real, separable work, not a quick addition, so it's left as the
+// one remaining gap here. Practically, this means a game that repeats the
+// same position three times without ever tripping insufficient-material or
+// the 50-move rule still sits at IN_PROGRESS -- possible in principle, but
+// now the rare case rather than the common one in random self-play; see
+// chess_playtest.cpp's random self-play section for the actual numbers.
 //
 // Pawn promotion always auto-promotes to a queen. There is no
 // underpromotion path anywhere in this engine (playHuman() only ever
@@ -100,6 +117,9 @@ void ChessBoard::reset() {
     castleWK = castleWQ = castleBK = castleBQ = true;
     epSquare = -1;
     lastFrom = lastTo = -1;
+    lastCastleRookFrom = lastCastleRookTo = -1;
+    lastEnPassantCapturedSquare = -1;
+    halfmoveClock = 0;
 }
 
 // Pseudo-legal moves for `color`: every move that piece's normal movement
@@ -334,12 +354,24 @@ void ChessBoard::applyMove(const Move &m) {
     ChessPiece moving = board[m.from];
     uint8_t color = moving.color;
 
+    // Captured here means "captured by this move," read BEFORE any square
+    // gets overwritten below -- a normal capture lands directly on m.to (so
+    // it's occupied by an enemy piece right now), while en passant's capture
+    // is flagged separately since its victim sits beside m.to, not on it
+    // (see the comment right below).
+    bool isCapture = m.enPassant || board[m.to].type != CP_NONE;
+
     // En passant's captured pawn sits beside the mover, not on the
     // destination square -- that's exactly why the destination is empty
-    // even though this is a capture.
+    // even though this is a capture. Recorded for lastMoveWasEnPassant()
+    // before the square is cleared, so a caller animating this move can
+    // find it later without re-deriving it (it isn't the geometric midpoint
+    // of anything -- see that function's comment).
+    lastEnPassantCapturedSquare = -1;
     if (m.enPassant) {
         uint8_t capturedSq = makeSquare(sqRow(m.from), sqCol(m.to));
         board[capturedSq] = ChessPiece{ CP_NONE, CC_NONE };
+        lastEnPassantCapturedSquare = (int8_t)capturedSq;
     }
 
     board[m.to] = moving;
@@ -347,17 +379,25 @@ void ChessBoard::applyMove(const Move &m) {
     if (m.promo != CP_NONE) board[m.to].type = m.promo;
 
     // Castling: the king's own move was just applied above via the generic
-    // from/to copy; relocate the matching rook to complete it.
+    // from/to copy; relocate the matching rook to complete it. Recorded for
+    // lastMoveWasCastle() -- reusing these exact values rather than having
+    // that accessor re-derive them from color/direction, so the two can
+    // never disagree about which rook actually moved.
+    lastCastleRookFrom = lastCastleRookTo = -1;
     if (m.castle == 1) {
         uint8_t rookFrom = (color == CC_WHITE) ? 7 : 63;
         uint8_t rookTo   = (color == CC_WHITE) ? 5 : 61;
         board[rookTo] = board[rookFrom];
         board[rookFrom] = ChessPiece{ CP_NONE, CC_NONE };
+        lastCastleRookFrom = (int8_t)rookFrom;
+        lastCastleRookTo = (int8_t)rookTo;
     } else if (m.castle == -1) {
         uint8_t rookFrom = (color == CC_WHITE) ? 0 : 56;
         uint8_t rookTo   = (color == CC_WHITE) ? 3 : 59;
         board[rookTo] = board[rookFrom];
         board[rookFrom] = ChessPiece{ CP_NONE, CC_NONE };
+        lastCastleRookFrom = (int8_t)rookFrom;
+        lastCastleRookTo = (int8_t)rookTo;
     }
 
     if (moving.type == CP_KING) {
@@ -381,16 +421,71 @@ void ChessBoard::applyMove(const Move &m) {
         }
     }
 
+    // 50-move (no-progress) rule bookkeeping: a pawn move or a capture
+    // resets the clock (either is "progress" toward eventually forcing a
+    // result), anything else -- including castling and quiet king/piece
+    // moves -- just increments it. Checked here, the one place every move of
+    // every kind already funnels through, rather than duplicated at each
+    // call site; see result() for where this actually resolves to a draw.
+    if (moving.type == CP_PAWN || isCapture) halfmoveClock = 0;
+    else halfmoveClock++;
+
     lastFrom = m.from;
     lastTo = m.to;
     sideToMove = opponent(color);
+}
+
+// Insufficient material: a position where checkmate is IMPOSSIBLE for either
+// side no matter how play continues, because neither side retains enough
+// force to construct one. Deliberately limited to the well-known endings
+// that are drawn IN PRINCIPLE -- K vs K, K+(one lone knight or bishop) vs K,
+// and same-colored-bishop-only endings (K+B vs K+B where both bishops sit on
+// the same square color, since same-colored bishops can never contest each
+// other's color complex) -- rather than a general "is this drawn with best
+// play" solver. Anything with a pawn, a rook, a queen, or more than one
+// minor piece on the stronger side is left as sufficient material even in
+// endings that are drawn in PRACTICE (K+B+N vs K, say, or opposite-colored
+// bishops with no other pieces) -- this only catches endings where a mate is
+// flatly impossible to construct, matching exactly the four cases named in
+// this feature's own scope.
+bool ChessBoard::isInsufficientMaterial() const {
+    uint8_t whiteCount = 0, blackCount = 0;
+    uint8_t whiteType = CP_NONE, blackType = CP_NONE;
+    uint8_t whiteSquare = 0, blackSquare = 0;
+    for (uint8_t sq = 0; sq < 64; sq++) {
+        ChessPiece p = board[sq];
+        if (p.type == CP_NONE || p.type == CP_KING) continue;
+        if (p.color == CC_WHITE) { whiteCount++; whiteType = p.type; whiteSquare = sq; }
+        else                     { blackCount++; blackType = p.type; blackSquare = sq; }
+    }
+
+    if (whiteCount == 0 && blackCount == 0) return true; // K vs K
+
+    if (blackCount == 0 && whiteCount == 1 && (whiteType == CP_KNIGHT || whiteType == CP_BISHOP)) return true; // K+N/B vs K
+    if (whiteCount == 0 && blackCount == 1 && (blackType == CP_KNIGHT || blackType == CP_BISHOP)) return true; // K vs K+N/B
+
+    if (whiteCount == 1 && blackCount == 1 && whiteType == CP_BISHOP && blackType == CP_BISHOP) {
+        bool whiteLight = (bool)((sqRow(whiteSquare) + sqCol(whiteSquare)) & 1);
+        bool blackLight = (bool)((sqRow(blackSquare) + sqCol(blackSquare)) & 1);
+        if (whiteLight == blackLight) return true; // K+B vs K+B, same-colored bishops
+    }
+
+    return false;
 }
 
 ChessRoundResult ChessBoard::result() const {
     Move moves[218];
     bool inCheckNow;
     uint8_t n = legalMovesAndCheck(moves, inCheckNow);
-    if (n > 0) return ChessRoundResult::IN_PROGRESS;
+    if (n > 0) {
+        // Both draw checks below only apply while the game would otherwise
+        // still be going -- a side with no legal moves is checkmated or
+        // stalemated regardless of material or move-count, handled further
+        // down.
+        if (isInsufficientMaterial()) return ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL;
+        if (halfmoveClock >= 100) return ChessRoundResult::DRAW_FIFTY_MOVE_RULE;
+        return ChessRoundResult::IN_PROGRESS;
+    }
     if (!inCheckNow) return ChessRoundResult::DRAW_STALEMATE;
     // sideToMove has no legal moves and is in check -- checkmated.
     return (sideToMove == CC_WHITE) ? ChessRoundResult::AI_WINS : ChessRoundResult::HUMAN_WINS;
@@ -448,6 +543,9 @@ void ChessBoard::setupEmpty() {
     castleWK = castleWQ = castleBK = castleBQ = false;
     epSquare = -1;
     lastFrom = lastTo = -1;
+    lastCastleRookFrom = lastCastleRookTo = -1;
+    lastEnPassantCapturedSquare = -1;
+    halfmoveClock = 0;
 }
 
 void ChessBoard::setPiece(uint8_t square, uint8_t type, uint8_t color) {

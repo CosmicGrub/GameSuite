@@ -478,16 +478,32 @@ void CheckersBoard::playAi() {
     if (humanTurn) return;
     if (result() != CheckersResult::IN_PROGRESS) return;
     bool firstHop = true;
+    lastAiHopCountValue = 0;
     do {
         CheckersMove m = findBestAiMove();
         if (m.fromRow == 255) break; // defensive: result() above should already rule this out
         if (firstHop) {
             lastAiFromRow = m.fromRow;
             lastAiFromCol = m.fromCol;
+            lastAiWaypointRows[0] = m.fromRow;
+            lastAiWaypointCols[0] = m.fromCol;
             firstHop = false;
         }
         lastAiToRow = m.toRow;
         lastAiToCol = m.toCol;
+
+        // Snapshot this hop's own landing waypoint and captured piece (if
+        // any) BEFORE applyMove() below mutates the board -- see
+        // lastAiHopCapturedPiece()'s comment for why this can't be recovered
+        // afterward (the whole chain, this hop included, will have already
+        // been applied by the time any caller gets to animate it).
+        if (lastAiHopCountValue < CHECKERS_MAX_CHAIN_HOPS) {
+            lastAiWaypointRows[lastAiHopCountValue + 1] = m.toRow;
+            lastAiWaypointCols[lastAiHopCountValue + 1] = m.toCol;
+            lastAiHopCapturedPieces[lastAiHopCountValue] = m.isCapture ? board[m.capRow][m.capCol] : CheckersPiece::EMPTY;
+            lastAiHopCountValue++;
+        }
+
         applyMove(m);
     } while (!humanTurn && result() == CheckersResult::IN_PROGRESS);
 }

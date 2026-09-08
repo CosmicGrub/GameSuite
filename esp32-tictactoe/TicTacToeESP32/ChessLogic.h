@@ -31,13 +31,15 @@ struct ChessPiece {
     uint8_t color; // ChessColor -- CC_NONE whenever type == CP_NONE
 };
 
-// Only one draw type is detected in this first version: stalemate. Threefold
-// repetition, the 50-move rule, and insufficient-material draws are ALL out
-// of scope for this version (see ChessLogic.cpp's top comment for why) --
-// DRAW_STALEMATE is named specifically rather than a generic DRAW so that
-// omission stays visible at every call site instead of reading as "draws are
-// handled."
-enum class ChessRoundResult : uint8_t { IN_PROGRESS, HUMAN_WINS, AI_WINS, DRAW_STALEMATE };
+// Draw detection covers stalemate, insufficient material, and the 50-move
+// (no-progress) rule -- see ChessLogic.cpp's top comment and
+// isInsufficientMaterial() for exactly what each catches. Threefold
+// repetition remains out of scope (it needs a running position history this
+// engine doesn't keep -- see the same top comment). Each draw cause gets its
+// own specifically-named enum variant rather than a generic DRAW so that any
+// draw type NOT yet detected stays visible at every call site instead of
+// silently reading as "draws are handled."
+enum class ChessRoundResult : uint8_t { IN_PROGRESS, HUMAN_WINS, AI_WINS, DRAW_STALEMATE, DRAW_INSUFFICIENT_MATERIAL, DRAW_FIFTY_MOVE_RULE };
 
 // Human always plays White and moves first, matching this project's "human
 // goes first" convention from Tic-Tac-Toe; the AI always plays Black.
@@ -94,6 +96,37 @@ public:
     // winningLine().
     void lastMove(int8_t &outFrom, int8_t &outTo) const { outFrom = lastFrom; outTo = lastTo; }
 
+    // True exactly when the most recently played move was a castle, in which
+    // case it writes the ROOK's own (from, to) squares -- the king's own
+    // (from, to) are already lastMove() above, since castling is requested
+    // and reported as the king's own two-square move (see playHuman()'s
+    // comment). A caller animating the move needs this because castling
+    // relocates TWO pieces in one turn, not one -- see
+    // ChessDisplay.h/animateChessMove(). False (params left unwritten) for
+    // every other move, including before any move has been played.
+    bool lastMoveWasCastle(uint8_t &outRookFrom, uint8_t &outRookTo) const {
+        if (lastCastleRookFrom < 0) return false;
+        outRookFrom = (uint8_t)lastCastleRookFrom;
+        outRookTo = (uint8_t)lastCastleRookTo;
+        return true;
+    }
+
+    // True exactly when the most recently played move captured en passant,
+    // in which case it writes the captured pawn's own square -- which is NOT
+    // lastMove()'s `to` square (en passant's victim sits beside the capturing
+    // pawn's landing square, on the SAME rank it started from -- see
+    // applyMove() in the .cpp) and so can't be derived geometrically the way
+    // a checkers jump's capture square can (see CheckersDisplay.h's
+    // checkersJumpMidpoint() for that contrast). A caller animating the move
+    // needs this explicit square rather than an interpolated one -- see
+    // ChessDisplay.h/animateChessMove(). False (param left unwritten) for
+    // every other move, including before any move has been played.
+    bool lastMoveWasEnPassant(uint8_t &outCapturedSquare) const {
+        if (lastEnPassantCapturedSquare < 0) return false;
+        outCapturedSquare = (uint8_t)lastEnPassantCapturedSquare;
+        return true;
+    }
+
     // ---- Test/verification seam (not part of the on-device UI flow) ----
     // playHuman()/playAi() are deliberately restricted to "whichever side
     // they say they are" -- exactly right for the real UI, but native_test's
@@ -143,6 +176,19 @@ private:
     bool castleWK = true, castleWQ = true, castleBK = true, castleBQ = true;
     int8_t epSquare = -1;   // en-passant target square, -1 if none currently available
     int8_t lastFrom = -1, lastTo = -1;
+    // See lastMoveWasCastle()/lastMoveWasEnPassant()'s comments -- written
+    // only by applyMove(), reusing the exact same rook-square/captured-square
+    // values it already computes for the move itself so these can never
+    // disagree with what applyMove() actually did. -1 (not that kind of
+    // move) unless the move just played was a castle / en passant capture,
+    // respectively.
+    int8_t lastCastleRookFrom = -1, lastCastleRookTo = -1;
+    int8_t lastEnPassantCapturedSquare = -1;
+    // 50-move (no-progress) rule bookkeeping: consecutive half-moves since
+    // the last pawn move or capture -- reset to 0 on either, incremented
+    // otherwise, entirely inside applyMove(). Reaching 100 (50 full moves)
+    // resolves to DRAW_FIFTY_MOVE_RULE in result(); see ChessLogic.cpp.
+    uint8_t halfmoveClock = 0;
 
     // Internal move representation -- deliberately never exposed publicly:
     // every external caller only ever needs a plain (from, to) pair (auto-
@@ -172,6 +218,10 @@ private:
     uint8_t legalMovesAndCheck(Move out[218], bool &outInCheck) const;
     bool isSquareAttacked(uint8_t square, uint8_t byColor) const;
     uint8_t kingSquare(uint8_t color) const;
+    // True when neither side retains enough force to construct a checkmate
+    // no matter how play continues -- see ChessLogic.cpp for exactly which
+    // endings this catches.
+    bool isInsufficientMaterial() const;
     void applyMove(const Move &m);
     // `board` is passed explicitly (rather than reading `this->board`) so
     // this stays a plain, side-effect-free sort helper -- it never needs to

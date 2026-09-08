@@ -94,9 +94,34 @@ void drawWinningLine(TFT_eSPI &tft, const Layout &layout, const int8_t line[3]) 
     int16_t x0, y0, x2, y2;
     cellCenter(layout, line[0], x0, y0);
     cellCenter(layout, line[2], x2, y2);
-    for (int8_t t = -2; t <= 2; t++) {
-        tft.drawLine(x0, y0 + t, x2, y2 + t, COLOR_WIN);
-        tft.drawLine(x0 + t, y0, x2 + t, y2, COLOR_WIN);
+
+    // Draw-on animation (animation/physics pitch): grow the line from the
+    // first winning cell's center to the last winning cell's center instead
+    // of painting the full line in one shot. The board underneath is already
+    // final/static by the time this runs, so there's nothing to erase --
+    // each frame just redraws the segment a little longer than the frame
+    // before, reusing the exact fixed-frame-budget manual loop
+    // CheckersDisplay.cpp's animateCheckersMove() uses for its piece slide
+    // (a millis()-timed per-frame budget, delay()-padded so fast SPI writes
+    // don't make the whole thing flash by in a few milliseconds).
+    static const uint16_t DURATION_MS = 180;
+    static const uint16_t TARGET_FRAME_MS = 20; // ~50fps target, same budget animateCheckersMove() uses
+    uint16_t steps = DURATION_MS / TARGET_FRAME_MS;
+
+    for (uint16_t i = 1; i <= steps; i++) {
+        unsigned long frameStart = millis();
+
+        float t = (float)i / (float)steps;
+        int16_t cx = x0 + (int16_t)((x2 - x0) * t);
+        int16_t cy = y0 + (int16_t)((y2 - y0) * t);
+
+        for (int8_t d = -2; d <= 2; d++) {
+            tft.drawLine(x0, y0 + d, cx, cy + d, COLOR_WIN);
+            tft.drawLine(x0 + d, y0, cx + d, cy, COLOR_WIN);
+        }
+
+        unsigned long elapsed = millis() - frameStart;
+        if (elapsed < TARGET_FRAME_MS) delay(TARGET_FRAME_MS - elapsed);
     }
 }
 

@@ -26,7 +26,10 @@ void drawCheckersStatus(TFT_eSPI &tft, const CheckersLayout &layout, const char 
 // Draws every one of the 64 squares (checkerboard coloring plus whatever
 // piece, if any, currently sits there) fresh -- cheap enough to call after
 // every hop instead of tracking exactly which squares changed, same
-// simplicity tradeoff Tic-Tac-Toe's own small grid makes.
+// simplicity tradeoff Tic-Tac-Toe's own small grid makes. Also redraws the
+// small per-side captured-piece tray in the board's idle side margins (see
+// drawCheckersCapturedTray() in the .cpp), so every existing call site picks
+// it up automatically.
 void drawCheckersBoard(TFT_eSPI &tft, const CheckersLayout &layout, const CheckersBoard &board);
 
 // Redraws just one square (its checkerboard base color, then its piece if
@@ -84,21 +87,58 @@ bool hitTestCheckersPlayAgainButton(const CheckersLayout &layout, int16_t touchX
 // hitTestHomeButton for Tic-Tac-Toe.
 bool hitTestCheckersHomeButton(const CheckersLayout &layout, int16_t touchX, int16_t touchY);
 
-// Animates `piece` sliding from (fromRow,fromCol) to (toRow,toCol) instead of
-// vanishing from the source and instantly appearing at the destination.
+// Derives a checkers jump's own capture square the same way this file's
+// implementation does internally, exposed so a caller (see the .ino's human
+// move handling) can snapshot a hop's captured piece from the board BEFORE
+// mutating it, without duplicating this arithmetic at the call site. Returns
+// false (outMidRow/outMidCol unwritten) when fromRow/toRow aren't a 2-row
+// diagonal apart -- i.e. this hop isn't a jump at all. Checkers' own capture
+// square is always this exact geometric midpoint, unlike chess en passant
+// (see ChessDisplay.h/animateChessMove()), so no per-hop override is needed.
+bool checkersJumpMidpoint(uint8_t fromRow, uint8_t fromCol, uint8_t toRow, uint8_t toCol,
+                           uint8_t &outMidRow, uint8_t &outMidCol);
+
+// Animates `piece` sliding through an ordered chain of one or more hops
+// instead of vanishing from its start square and instantly appearing at its
+// end. waypointRows[i]/waypointCols[i] for i in 0..hopCount (inclusive, so
+// hopCount+1 entries) are the squares the piece visits in order: waypoint 0
+// is where it starts, waypoint hopCount is where it ends up, and hop `i`
+// (0..hopCount-1) is the timeline segment sliding from waypoint i to
+// waypoint i+1. hopCount == 1 is an ordinary single move or single jump --
+// exactly what this function used to accept directly as a lone
+// fromRow/fromCol/toRow/toCol pair -- and hopCount > 1 is a forced
+// multi-jump chain, each hop animated as its own segment in turn, its own
+// captured piece (if any) erased the instant that hop's own slide finishes
+// rather than all at once up front.
+//
+// capturedPieces[i] (0..hopCount-1) is the piece hop i's own jump captured,
+// exactly as it stood immediately before that hop removed it -- pass
+// CheckersPiece::EMPTY for a non-capturing hop (only possible when
+// hopCount == 1: a forced continuation only ever continues after an actual
+// capture). This can't be derived from `board` inside this function: by the
+// time ANY caller gets here, every hop up to and including the one currently
+// animating may already be mutated into the board (see the AI bullet
+// below), so the capture square would read EMPTY regardless of which hop is
+// on screen. checkersJumpMidpoint() above locates each hop's own capture
+// square (always the exact geometric midpoint for checkers) for a caller
+// that needs to read it from a not-yet-mutated board itself.
+//
 // `board` supplies everything else on screen during the slide (every square
-// OTHER than the two endpoints, which this function always draws empty for
-// the duration of the animation, regardless of what board.at() reports for
-// them) -- so this works whether called:
-//   - BEFORE mutating the board for a human move (source still occupied,
-//     destination already empty), passing board.at(fromRow,fromCol) as
-//     `piece`; or
-//   - AFTER CheckersBoard::playAi() has already applied the AI's whole turn
-//     (source already empty, destination already occupied), passing
-//     board.at(toRow,toCol) as `piece` and CheckersBoard::lastAiMove()'s
-//     result as the row/col arguments.
+// other than the waypoints and the current hop's own capture square, which
+// this function always draws empty/correct for itself) -- so this works
+// whether called:
+//   - BEFORE mutating the board for a human move (hopCount always 1: a
+//     human plays one hop per tap, so there's only ever the one segment),
+//     passing board.at(waypointRows[0], waypointCols[0]) as `piece`; or
+//   - AFTER CheckersBoard::playAi() has already applied the AI's whole turn,
+//     every hop included (every waypoint square already reflects the FINAL
+//     state), passing board.at(waypointRows[hopCount], waypointCols[hopCount])
+//     as `piece`, CheckersBoard::lastAiWaypointRow()/lastAiWaypointCol() as
+//     the waypoint arrays, and CheckersBoard::lastAiHopCapturedPiece() as
+//     capturedPieces.
 // Either way, call drawCheckersBoard() once more after this returns to show
-// the real, final state (captures, promotion, kinging) -- this function only
-// animates the slide itself and never modifies `board`.
+// the real, final state (promotion/kinging in particular) -- this function
+// only animates the slide itself and never modifies `board`.
 void animateCheckersMove(TFT_eSPI &tft, const CheckersLayout &layout, const CheckersBoard &board,
-                          uint8_t fromRow, uint8_t fromCol, uint8_t toRow, uint8_t toCol, CheckersPiece piece);
+                          const uint8_t waypointRows[], const uint8_t waypointCols[],
+                          const CheckersPiece capturedPieces[], uint8_t hopCount, CheckersPiece piece);

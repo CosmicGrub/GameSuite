@@ -31,12 +31,16 @@
 //      piece, and actually resolves its own queen being attacked profitably
 //      -- concretely testing the "doesn't hang pieces for free" bar this
 //      project's task set for a genuine, non-random opponent.
+//   4b) Targeted insufficient-material and 50-move-rule positions, built the
+//      same "direct via setupEmpty()/setPiece()" way as section 2 -- see
+//      insufficientMaterialTests() and fiftyMoveRuleTests() below.
 //   5) A many-hundred-game random-vs-random self-play simulation checking
 //      for crashes, illegal states (wrong side to move, wrong king count,
 //      material ever increasing), and non-termination within a generous
-//      move cap -- see that section for why hitting the cap is treated as
-//      an accepted outcome, not a failure, given this engine's documented
-//      scope (no insufficient-material/repetition/50-move draws).
+//      move cap -- see that section for the current cap-out rate now that
+//      insufficient-material and 50-move draws are both detected (threefold
+//      repetition remains this engine's one documented, out-of-scope gap --
+//      see ChessLogic.cpp's top comment).
 
 #include <cstdio>
 #include <cstdlib>
@@ -404,6 +408,161 @@ static void checkCheckmateStalemateTests() {
     printf("Checks run: %d, failed: %d\n\n", checksRun, checksFailed);
 }
 
+// ---------------------------------------------------------------------------
+// 2b) Insufficient-material draw detection -- the four specific endings this
+//     feature covers (K vs K, K+minor vs K either side, same-colored bishops
+//     each side), plus negative cases confirming endings that CAN still be
+//     forced (opposite-colored bishops, an extra pawn) are correctly left as
+//     sufficient material.
+// ---------------------------------------------------------------------------
+static void insufficientMaterialTests() {
+    printf("=== Insufficient-material draw detection ===\n");
+
+    // Bare kings.
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setSideToMove(CC_WHITE);
+        check("K vs K is an insufficient-material draw", b.result() == ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    // King + lone knight vs bare king.
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('b', 1), CP_KNIGHT, CC_WHITE);
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setSideToMove(CC_WHITE);
+        check("K+N vs K is an insufficient-material draw", b.result() == ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    // King + lone bishop vs bare king.
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('c', 1), CP_BISHOP, CC_WHITE);
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setSideToMove(CC_WHITE);
+        check("K+B vs K is an insufficient-material draw", b.result() == ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    // Same-colored bishops on each side -- neither can ever contest the
+    // other's color complex, so mate is impossible however play continues.
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('c', 1), CP_BISHOP, CC_WHITE); // c1 is a dark square
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setPiece(S('f', 8), CP_BISHOP, CC_BLACK); // f8 is also a dark square
+        b.setSideToMove(CC_WHITE);
+        check("K+B vs K+B with same-colored bishops is an insufficient-material draw",
+              b.result() == ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    // Opposite-colored bishops CAN still be part of a forced mate -- must
+    // NOT be flagged as a draw.
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('c', 1), CP_BISHOP, CC_WHITE); // dark square
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setPiece(S('c', 8), CP_BISHOP, CC_BLACK); // c8 is a light square
+        b.setSideToMove(CC_WHITE);
+        check("K+B vs K+B with opposite-colored bishops is NOT an insufficient-material draw",
+              b.result() != ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    // A lone extra pawn is enough sufficient material on its own -- must NOT
+    // be flagged as a draw (it can promote into real material).
+    {
+        ChessBoard b;
+        b.setupEmpty();
+        b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+        b.setPiece(S('a', 2), CP_PAWN, CC_WHITE);
+        b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+        b.setSideToMove(CC_WHITE);
+        check("K+P vs K is NOT an insufficient-material draw", b.result() != ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL);
+    }
+
+    printf("Checks run: %d, failed: %d\n\n", checksRun, checksFailed);
+}
+
+// ---------------------------------------------------------------------------
+// 2c) 50-move (no-progress) rule -- confirms the half-move counter both
+//     reaches the 100-half-move threshold correctly AND actually resets on a
+//     pawn move, using nothing but real playMove() calls (no direct
+//     halfmoveClock test seam exists, on purpose -- see ChessLogic.h) so
+//     this exercises the exact bookkeeping applyMove() does for real games.
+// ---------------------------------------------------------------------------
+// Toggles a king between its home square and one step forward -- pure
+// "pass the move" filler that's always legal in the simple king+rook setups
+// below, deliberately touching neither a pawn nor a capture so the
+// half-move counter climbs freely.
+struct KingShuffleState { bool whiteOnHome = true, blackOnHome = true; };
+static bool shuffleOnePly(ChessBoard &b, KingShuffleState &st, bool whiteToMove) {
+    bool ok;
+    if (whiteToMove) {
+        ok = st.whiteOnHome ? b.playMove(S('e', 1), S('e', 2)) : b.playMove(S('e', 2), S('e', 1));
+        if (ok) st.whiteOnHome = !st.whiteOnHome;
+    } else {
+        ok = st.blackOnHome ? b.playMove(S('e', 8), S('e', 7)) : b.playMove(S('e', 7), S('e', 8));
+        if (ok) st.blackOnHome = !st.blackOnHome;
+    }
+    return ok;
+}
+static bool shuffleManyPlies(ChessBoard &b, KingShuffleState &st, bool &whiteNext, int count) {
+    for (int i = 0; i < count; i++) {
+        if (!shuffleOnePly(b, st, whiteNext)) return false;
+        whiteNext = !whiteNext;
+    }
+    return true;
+}
+
+static void fiftyMoveRuleTests() {
+    printf("=== 50-move (no-progress) rule ===\n");
+
+    ChessBoard b;
+    b.setupEmpty();
+    b.setPiece(S('e', 1), CP_KING, CC_WHITE);
+    b.setPiece(S('a', 1), CP_ROOK, CC_WHITE);
+    b.setPiece(S('h', 2), CP_PAWN, CC_WHITE); // spare pawn, used below to prove the counter resets
+    b.setPiece(S('e', 8), CP_KING, CC_BLACK);
+    b.setPiece(S('a', 8), CP_ROOK, CC_BLACK);
+    b.setCastlingRights(false, false, false, false);
+    b.setSideToMove(CC_WHITE);
+
+    KingShuffleState st;
+    bool whiteNext = true;
+
+    bool ok50 = shuffleManyPlies(b, st, whiteNext, 50);
+    check("50 half-moves of pure king shuffling all accepted", ok50);
+    check("still in progress at 50 non-progress half-moves", b.result() == ChessRoundResult::IN_PROGRESS);
+
+    // whiteNext is true here (50 half-moves in, White to move) -- push the
+    // spare pawn, which should reset the counter to 0.
+    bool pushOk = whiteNext && b.playMove(S('h', 2), S('h', 3));
+    check("pawn push accepted on White's turn, resetting the counter", pushOk);
+    whiteNext = false;
+
+    bool ok99 = shuffleManyPlies(b, st, whiteNext, 99);
+    check("99 more half-moves accepted after the reset", ok99);
+    check("still in progress 99 half-moves after the reset (would have drawn long ago without it)",
+          b.result() == ChessRoundResult::IN_PROGRESS);
+
+    bool ok1 = shuffleManyPlies(b, st, whiteNext, 1);
+    check("one more half-move accepted, completing 100 since the reset", ok1);
+    check("50-move rule fires a draw at exactly 100 half-moves since the last pawn move or capture",
+          b.result() == ChessRoundResult::DRAW_FIFTY_MOVE_RULE);
+
+    printf("Checks run: %d, failed: %d\n\n", checksRun, checksFailed);
+}
+
 static void pinTest() {
     printf("=== Pin enforcement ===\n");
     ChessBoard b;
@@ -494,13 +653,14 @@ static void aiSanityTests() {
 //    rules engine's robustness under heavy, unpredictable use), checking
 //    for crashes, illegal states, and non-termination.
 //
-// A move cap per game is REQUIRED, not just a safety margin: this engine
-// does not detect insufficient-material draws (see ChessLogic.cpp's top
-// comment), so a game that randomly trades down to bare kings (or another
-// dead-drawn material balance) can never reach checkmate or stalemate and
-// would otherwise loop forever. Hitting the cap is therefore an ACCEPTED,
-// expected outcome here, not a failure -- it is specifically what that
-// documented scope gap looks like when it's actually exercised.
+// A move cap per game is STILL kept, even though insufficient-material and
+// 50-move draws are now both detected: threefold repetition remains this
+// engine's one documented, out-of-scope gap (see ChessLogic.cpp's top
+// comment), so a game that happens to repeat the same position three times
+// without ever tripping the other two draw rules could in principle still
+// run forever. Hitting the cap is possible, not a failure -- but it should
+// now be rare rather than the norm, which is exactly the "new cap-out rate"
+// this section reports.
 // ---------------------------------------------------------------------------
 static void randomSelfPlayTest() {
     printf("=== Random-vs-random self-play (crash/illegal-state/non-termination check) ===\n");
@@ -508,7 +668,7 @@ static void randomSelfPlayTest() {
     const int MOVE_CAP = 300; // half-moves
 
     std::mt19937 rng(12345); // fixed seed -- reproducible test runs
-    long checkmates = 0, stalemates = 0, cappedGames = 0;
+    long checkmates = 0, stalemates = 0, insufficientMaterialDraws = 0, fiftyMoveDraws = 0, cappedGames = 0;
     long totalPlies = 0;
     long minPlies = MOVE_CAP + 1, maxPlies = 0;
     int invariantFailures = 0;
@@ -520,8 +680,12 @@ static void randomSelfPlayTest() {
         for (; ply < MOVE_CAP; ply++) {
             ChessRoundResult r = b.result();
             if (r != ChessRoundResult::IN_PROGRESS) {
-                if (r == ChessRoundResult::DRAW_STALEMATE) stalemates++;
-                else checkmates++;
+                switch (r) {
+                    case ChessRoundResult::DRAW_STALEMATE: stalemates++; break;
+                    case ChessRoundResult::DRAW_INSUFFICIENT_MATERIAL: insufficientMaterialDraws++; break;
+                    case ChessRoundResult::DRAW_FIFTY_MOVE_RULE: fiftyMoveDraws++; break;
+                    default: checkmates++; break; // HUMAN_WINS or AI_WINS
+                }
                 break;
             }
 
@@ -566,14 +730,18 @@ static void randomSelfPlayTest() {
         if (ply > maxPlies) maxPlies = ply;
     }
 
+    long totalDraws = stalemates + insufficientMaterialDraws + fiftyMoveDraws;
     printf("  Games played: %d\n", GAMES);
-    printf("  Checkmates: %ld, Stalemates: %ld, Hit move cap (%d) without a result: %ld\n",
-           checkmates, stalemates, MOVE_CAP, cappedGames);
+    printf("  Decisive (checkmate): %ld\n", checkmates);
+    printf("  Draws: %ld total -- stalemate: %ld, insufficient material: %ld, 50-move rule: %ld\n",
+           totalDraws, stalemates, insufficientMaterialDraws, fiftyMoveDraws);
+    printf("  Hit move cap (%d) without a result: %ld\n", MOVE_CAP, cappedGames);
     printf("  Plies per game -- min: %ld, max: %ld, average: %.1f\n",
            minPlies, maxPlies, (double)totalPlies / GAMES);
-    printf("  (Games hitting the move cap are expected, not bugs -- see this function's\n");
-    printf("   top comment: insufficient-material draws are out of scope, so a random\n");
-    printf("   game that trades down to a dead-drawn material balance runs forever.)\n");
+    printf("  (A game hitting the move cap is now the rare case, not the norm -- see this\n");
+    printf("   function's top comment: threefold repetition remains this engine's one\n");
+    printf("   documented, out-of-scope draw rule, now that insufficient-material and\n");
+    printf("   50-move draws are both detected.)\n");
 
     check("no crashes, illegal states, or move-generation contradictions across all games", invariantFailures == 0);
     printf("Checks run: %d, failed: %d\n\n", checksRun, checksFailed);
@@ -737,6 +905,8 @@ int main() {
     enPassantTests();
     promotionTests();
     checkCheckmateStalemateTests();
+    insufficientMaterialTests();
+    fiftyMoveRuleTests();
     pinTest();
     foolsMateTest();
     aiSanityTests();
