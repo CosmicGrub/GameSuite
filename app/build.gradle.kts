@@ -13,8 +13,8 @@ android {
         applicationId = "com.gamesuite"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.0.0"
+        versionCode = 7
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
