@@ -39,6 +39,22 @@ enum class GameCategory { BOARD, CARD, ARCADE, PUZZLE, WORD, OTHER }
 
 enum class PlayMode {
     SINGLE_DEVICE_PASS_AND_PLAY,
+    /**
+     * Intentionally-abandoned design: true dual-screen play via a second,
+     * independently-launched Activity (Android's `androidx.window.embedding`
+     * / ActivityEmbedding). Zero real call sites — no [GameModule] declares
+     * this in [GameModule.supportedModes] and nothing constructs a
+     * [GameContext] with it. GameSuite's existing single-Activity
+     * `FoldAwareLayout`/`FoldState` hinge split already covers the real
+     * fold/dual-screen requirement (UNO/Word Tiles/Dominoes today); adopting
+     * ActivityEmbedding on top would be a step backward to cross-Activity
+     * state sync for no new capability. See
+     * docs/DEVICE_SPECIFIC_PLAN.md §1 ("True dual-screen / activity-
+     * embedding — Verdict: Do not build. Skip permanently for this
+     * codebase, not just 'later.'") for the full reasoning. Left in the
+     * enum rather than deleted so that verdict — and the name a future
+     * reader would otherwise reach for — stays discoverable here.
+     */
     DUAL_SCREEN,
     LOCAL_AD_HOC,
     ONLINE,

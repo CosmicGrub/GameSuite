@@ -15,6 +15,9 @@ data class PlacedWord(
     val cells: List<GridPos>
 )
 
+/** Result of a successful [WordSearchGame.attemptSelection] — see that function's KDoc for why [orderedCells] can differ from [word]'s own [PlacedWord.cells] order. */
+data class SelectionResult(val word: PlacedWord, val orderedCells: List<GridPos>)
+
 data class WordSearchState(
     val grid: List<List<Char>>,
     val placedWords: List<PlacedWord>,
@@ -72,6 +75,16 @@ class WordSearchGame : GameModule {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * Quick-win structural hook: grid size was previously locked 1:1 to [difficulty] via
+     * [tierParams] (EASY=8, MEDIUM=12, HARD=15), with no way to ask for a different board size
+     * independent of the difficulty tier's word-count/length/direction knobs. Set this before
+     * startMatch() to pin the grid dimension directly; leave null (the default) for the original
+     * behavior where grid size is fully determined by difficulty. No UI control reads/writes this
+     * yet — this is the parameter a future explicit "grid size" picker would set.
+     */
+    var gridSizeOverride: Int? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -86,11 +99,19 @@ class WordSearchGame : GameModule {
 
     private data class TierParams(val gridSize: Int, val wordCount: Int, val maxLength: Int, val directions: List<Pair<Int, Int>>)
 
-    /** MEDIUM reproduces the original generator's numbers exactly (12x12, 8 words, lengths 4..9, all 8 directions). */
-    private fun tierParams(): TierParams = when (difficulty) {
-        CpuDifficulty.EASY -> TierParams(gridSize = 8, wordCount = 6, maxLength = 6, directions = forwardOnlyDirections)
-        CpuDifficulty.MEDIUM -> TierParams(gridSize = 12, wordCount = 8, maxLength = 9, directions = allDirections)
-        CpuDifficulty.HARD -> TierParams(gridSize = 15, wordCount = 10, maxLength = 12, directions = allDirections)
+    /**
+     * MEDIUM reproduces the original generator's numbers exactly (12x12, 8 words, lengths 4..9,
+     * all 8 directions). [gridSizeOverride], when set, replaces just the [TierParams.gridSize]
+     * this returns — word count/length/direction stay difficulty-driven either way; only the
+     * board dimension becomes independently selectable.
+     */
+    private fun tierParams(): TierParams {
+        val base = when (difficulty) {
+            CpuDifficulty.EASY -> TierParams(gridSize = 8, wordCount = 6, maxLength = 6, directions = forwardOnlyDirections)
+            CpuDifficulty.MEDIUM -> TierParams(gridSize = 12, wordCount = 8, maxLength = 9, directions = allDirections)
+            CpuDifficulty.HARD -> TierParams(gridSize = 15, wordCount = 10, maxLength = 12, directions = allDirections)
+        }
+        return gridSizeOverride?.let { base.copy(gridSize = it) } ?: base
     }
 
     override fun init(context: GameContext) {
@@ -186,26 +207,44 @@ class WordSearchGame : GameModule {
         onMatchEnd?.invoke(result)
     }
 
-    /** Call on every cell tap. First tap sets selectionStart; second tap attempts to claim a word. */
-    fun tapCell(pos: GridPos) {
+    /**
+     * Marks [pos] as the pending drag-selection anchor (or clears it when null) — the UI calls
+     * this on drag-start so [WordSearchState.selectionStart] still drives the start-cell
+     * highlight while the live trace itself is tracked as raw pixels on the UI side (this class
+     * has no notion of pixels/canvas geometry). Superseded the old two-discrete-taps flow (see
+     * [attemptSelection]'s KDoc) as part of the drag-to-select pass.
+     */
+    fun setSelectionStart(pos: GridPos?) {
         val s = state.value ?: return
         if (s.solved) return
+        state.value = s.copy(selectionStart = pos)
+    }
 
-        val start = s.selectionStart
-        if (start == null) {
-            state.value = s.copy(selectionStart = pos)
-            return
+    /**
+     * The drag-based replacement for the old two-tap [GridPos]-then-[GridPos] flow: called once,
+     * on drag-release, with the drag's start and (nearest-cell-snapped) end position. Returns the
+     * matched [PlacedWord] plus the straight line of cells from [start] to [end] IN THAT ORDER
+     * (i.e. the actual direction the player dragged, which may be the reverse of how the word is
+     * stored in [PlacedWord.cells]) — the UI uses that ordering to stagger the found-cell pulse
+     * along the direction the player actually traced, not the word's canonical storage order.
+     * Returns null on a miss (no straight line, or no unclaimed word matches it), leaving
+     * [WordSearchState.foundWords] untouched so the UI can play a distinct miss animation instead
+     * of a silent reset.
+     */
+    fun attemptSelection(start: GridPos, end: GridPos): SelectionResult? {
+        val s = state.value ?: return null
+        if (s.solved) {
+            return null
         }
-
-        if (start == pos) {
+        if (start == end) {
             state.value = s.copy(selectionStart = null)
-            return
+            return null
         }
 
-        val lineCells = cellsBetween(start, pos)
+        val lineCells = cellsBetween(start, end)
         if (lineCells == null) {
-            state.value = s.copy(selectionStart = pos) // restart selection from the new tap
-            return
+            state.value = s.copy(selectionStart = null)
+            return null
         }
 
         val match = s.placedWords.firstOrNull { placed ->
@@ -213,14 +252,16 @@ class WordSearchGame : GameModule {
                 (placed.cells == lineCells || placed.cells == lineCells.reversed())
         }
 
-        if (match != null) {
-            val newFound = s.foundWords + match.id
-            val allDone = newFound.size == s.placedWords.size
-            state.value = s.copy(foundWords = newFound, selectionStart = null, solved = allDone)
-            if (allDone) puzzlesSolved.value += 1
-        } else {
+        if (match == null) {
             state.value = s.copy(selectionStart = null)
+            return null
         }
+
+        val newFound = s.foundWords + match.id
+        val allDone = newFound.size == s.placedWords.size
+        state.value = s.copy(foundWords = newFound, selectionStart = null, solved = allDone)
+        if (allDone) puzzlesSolved.value += 1
+        return SelectionResult(match, lineCells)
     }
 
     /** Called from the solved panel's "New Puzzle" button — keeps the running tally, generates a fresh board. */

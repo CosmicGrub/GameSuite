@@ -1,7 +1,9 @@
 package com.gamesuite.games.hangman
 
+import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
+import com.gamesuite.games.wordgames.WordDictionary
 import com.gamesuite.settings.CpuDifficulty
 
 data class HangmanState(
@@ -69,7 +71,12 @@ class HangmanGame : GameModule {
      */
     private val recentWords = ArrayDeque<String>()
 
-    private val wordBank: Map<CpuDifficulty, List<String>> = mapOf(
+    /**
+     * Small hand-picked "flavor" words per tier — kept (not replaced) so the pool still reads as
+     * curated rather than a raw dictionary dump, and as a working fallback if [loadDictionary]
+     * hasn't run yet (e.g. a preview/test context).
+     */
+    private val curatedWords: Map<CpuDifficulty, List<String>> = mapOf(
         CpuDifficulty.EASY to listOf(
             "APPLE", "HOUSE", "TIGER", "BEACH", "CHAIR", "SMILE", "TABLE", "MUSIC",
             "WATER", "HAPPY", "ROBOT", "PLANT", "TRAIN", "CANDY", "STORM"
@@ -86,6 +93,17 @@ class HangmanGame : GameModule {
         )
     )
 
+    /**
+     * Word lengths sampled from [WordDictionary] for each tier, picked to sit in the same rough
+     * range as that tier's own [curatedWords] so the dictionary additions read as the same
+     * difficulty as the words they're mixed in with, not a random jump in obscurity.
+     */
+    private val dictionaryLengthsByDifficulty: Map<CpuDifficulty, IntRange> = mapOf(
+        CpuDifficulty.EASY to 4..5,
+        CpuDifficulty.MEDIUM to 6..8,
+        CpuDifficulty.HARD to 9..11
+    )
+
     override fun init(context: GameContext) {
         this.context = context
         wins.value = 0
@@ -98,9 +116,37 @@ class HangmanGame : GameModule {
         onMatchEnd = listener
     }
 
+    /** Call once, from the UI, before startMatch() — loads the shared dictionary asset that [wordPoolFor] samples from. */
+    fun loadDictionary(androidContext: Context) {
+        WordDictionary.ensureLoaded(androidContext)
+    }
+
+    /**
+     * Builds this round's candidate pool for [tier]: [curatedWords] plus a broader sample from
+     * the shared offline dictionary (see WordDictionary) at lengths typical for the tier. The raw
+     * dictionary has no frequency/curation signal — obscure and everyday words look identical to
+     * it — so this doesn't pipe it straight through; it just widens each ~15-word tier to roughly
+     * 40-60 words so "New Word" stops cycling the same short list, while [curatedWords] still
+     * anchors each tier with words known to read well in this format. If [loadDictionary] hasn't
+     * run yet, [WordDictionary.wordsOfLength] returns empty lists rather than throwing, so this
+     * degrades gracefully to [curatedWords] alone instead of crashing.
+     */
+    private fun wordPoolFor(tier: CpuDifficulty): List<String> {
+        val curated = curatedWords.getValue(tier)
+        val lengths = dictionaryLengthsByDifficulty.getValue(tier)
+        val sampled = lengths.flatMap { length ->
+            WordDictionary.wordsOfLength(length)
+                .filter { it.all(Char::isLetter) } // dictionary asset can include hyphenated/apostrophe entries; hangman assumes plain letters
+                .shuffled()
+                .take(DICTIONARY_WORDS_PER_LENGTH)
+                .map { it.uppercase() }
+        }
+        return (curated + sampled).distinct()
+    }
+
     override fun startMatch() {
         state.value = HangmanState(
-            word = pickWord(wordBank[difficulty] ?: wordBank.getValue(CpuDifficulty.MEDIUM)),
+            word = pickWord(wordPoolFor(difficulty)),
             guessedLetters = emptySet(),
             wrongGuesses = 0,
             maxWrongGuesses = 6
@@ -172,5 +218,8 @@ class HangmanGame : GameModule {
     companion object {
         /** How many past words [pickWord] avoids repeating. */
         private const val WORD_HISTORY_SIZE = 5
+
+        /** How many dictionary words [wordPoolFor] samples per length, per tier — see its KDoc for the 40-60-per-tier target this feeds into. */
+        private const val DICTIONARY_WORDS_PER_LENGTH = 15
     }
 }

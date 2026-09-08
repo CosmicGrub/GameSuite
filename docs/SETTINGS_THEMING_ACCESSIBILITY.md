@@ -62,7 +62,7 @@ This is the key architectural question: **UNO's red/yellow/green/blue must stay 
 | **Classic** | The default: clean Material 3 light palette (or dynamic color from wallpaper if enabled), neutral surfaces, standard felt-green table accents. |
 | **High Contrast** | WCAG AAA-oriented palette — near-black text on near-white (or near-white on near-black in dark), thick borders, no low-contrast pastels; designed for low-vision players. |
 | **Dark** | True dark Material 3 scheme, dark surfaces with elevated-surface tonal steps, reduced brightness for night play — distinct from "System follows dark" so a user can pin it regardless of OS setting. |
-| **Midnight Arcade** | A moody neon/glow palette (deep navy-black chrome, electric cyan/magenta accents) explicitly aimed at Air Hockey's arcade aesthetic — echoes the "neon/glow" visual-theme convention that's near-universal in the air-hockey app genre — while still tinting chrome across all 9 games. |
+| **Midnight Arcade** | **Retargeted** (roadmap-audit item D2) from the neon/glow concept originally sketched here — that concept was never implemented, and the GameSuite ESP32 hardware arcade cabinet (`esp32-tictactoe/`) meanwhile shipped its own proven, already-tuned dark palette, so this theme now ports that palette verbatim instead of inventing a second one: a cool charcoal/slate base, a teal accent for "you," and a warm amber accent for the opponent/AI, applied across chrome in all games — see `theme/Color.kt`'s `MidnightArcadeScheme` for the exact ported values and `esp32-tictactoe/TicTacToeESP32/Theme.h` for the source of truth. This also ties the app and the cabinet to one shared visual identity, which the neon/glow concept never did. |
 | **Felt Table** | A warm wood-and-felt palette (deep green/burgundy felt accents, warm brown chrome) evoking a physical game table — ties UNO/Dominoes/Mancala's tabletop-game identity into the app's visual language. |
 
 Classic, High Contrast, and Dark are the load-bearing three (cover the accessibility and baseline-taste requirements); Midnight Arcade and Felt Table are the "couple of fun options", each reinforcing the app's dual identity (arcade game + tabletop games).
@@ -132,7 +132,7 @@ Classic, High Contrast, and Dark are the load-bearing three (cover the accessibi
 ### 9. Air Hockey
 - **CPU difficulty**: Easy/Medium/Hard/Insane via three levers — reaction delay, max paddle speed cap, and prediction-error noise.
 - **Puck/table speed**: an *explicit* speed slider independent of AI difficulty — the accessibility-guideline-recommended "adjustable game speed" control (Celeste Assist-Mode pattern), should be first-class, not folded into difficulty.
-- **Table/paddle/puck visual theme**: classic-arcade vs. neon/glow skins — pairs naturally with the "Midnight Arcade" app theme.
+- **Table/paddle/puck visual theme**: classic-arcade vs. neon/glow skins — a per-game skin choice, independent of the app-wide "Midnight Arcade" theme (§2), which no longer carries a neon/glow look now that it ports the ESP32 cabinet's charcoal/teal/amber palette instead.
 - **Win score**: first-to-7 vs first-to-10 vs untimed practice mode.
 - **Paddle size**: an enlarged-paddle option, doing double duty as both a genre-standard "forgiveness" setting and an accessibility accommodation.
 

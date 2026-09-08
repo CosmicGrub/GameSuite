@@ -32,9 +32,12 @@ class SettingsRepository(private val context: Context) {
         val NAMED_THEME = stringPreferencesKey("named_theme")
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val MUSIC_ENABLED = booleanPreferencesKey("music_enabled")
         val TEXT_SCALE = floatPreferencesKey("text_scale")
         val REDUCED_MOTION = booleanPreferencesKey("reduced_motion")
         val COLORBLIND_MODE = booleanPreferencesKey("colorblind_mode")
+        val CARD_3D_ENABLED = booleanPreferencesKey("card_3d_enabled")
+        val ENHANCED_ANIMATIONS_ENABLED = booleanPreferencesKey("enhanced_animations_enabled")
         val DEFAULT_CPU_DIFFICULTY = stringPreferencesKey("default_cpu_difficulty")
         val CARD_SIZE_PREFERENCE = floatPreferencesKey("card_size_preference")
         val ONLINE_SERVER_URL = stringPreferencesKey("online_server_url")
@@ -50,9 +53,12 @@ class SettingsRepository(private val context: Context) {
                 ?: NamedTheme.CLASSIC,
             soundEnabled = prefs[Keys.SOUND_ENABLED] ?: true,
             hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
+            musicEnabled = prefs[Keys.MUSIC_ENABLED] ?: true,
             textScale = prefs[Keys.TEXT_SCALE] ?: 1.0f,
             reducedMotion = prefs[Keys.REDUCED_MOTION] ?: false,
             colorblindMode = prefs[Keys.COLORBLIND_MODE] ?: false,
+            card3DEnabled = prefs[Keys.CARD_3D_ENABLED] ?: false,
+            enhancedAnimationsEnabled = prefs[Keys.ENHANCED_ANIMATIONS_ENABLED] ?: true,
             defaultCpuDifficulty = prefs[Keys.DEFAULT_CPU_DIFFICULTY]
                 ?.let { runCatching { CpuDifficulty.valueOf(it) }.getOrNull() }
                 ?: CpuDifficulty.MEDIUM,
@@ -67,9 +73,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun setNamedTheme(theme: NamedTheme) = edit { it[Keys.NAMED_THEME] = theme.name }
     suspend fun setSoundEnabled(enabled: Boolean) = edit { it[Keys.SOUND_ENABLED] = enabled }
     suspend fun setHapticsEnabled(enabled: Boolean) = edit { it[Keys.HAPTICS_ENABLED] = enabled }
+    suspend fun setMusicEnabled(enabled: Boolean) = edit { it[Keys.MUSIC_ENABLED] = enabled }
     suspend fun setTextScale(scale: Float) = edit { it[Keys.TEXT_SCALE] = scale }
     suspend fun setReducedMotion(enabled: Boolean) = edit { it[Keys.REDUCED_MOTION] = enabled }
     suspend fun setColorblindMode(enabled: Boolean) = edit { it[Keys.COLORBLIND_MODE] = enabled }
+    suspend fun setCard3DEnabled(enabled: Boolean) = edit { it[Keys.CARD_3D_ENABLED] = enabled }
+    suspend fun setEnhancedAnimationsEnabled(enabled: Boolean) = edit { it[Keys.ENHANCED_ANIMATIONS_ENABLED] = enabled }
     suspend fun setDefaultCpuDifficulty(difficulty: CpuDifficulty) =
         edit { it[Keys.DEFAULT_CPU_DIFFICULTY] = difficulty.name }
     suspend fun setCardSizePreference(preference: Float) =

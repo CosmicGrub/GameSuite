@@ -108,4 +108,98 @@ class SolitaireGameTest {
         assertEquals(listOf(aceOfSpades), result.tableau[0].faceUp)
         assertEquals(listOf(kingOfHearts), result.waste)
     }
+
+    // ---- draw-1 vs draw-3 (games/solitaire/SolitairePrefsStore.kt's persisted preference) ----
+
+    private fun stockOf(vararg cards: Card): List<Card> = cards.toList()
+
+    @Test
+    fun `tapStock draws exactly one card by default`() {
+        val game = newGame()
+        game.state.value = SolitaireState(
+            tableau = emptyTableau(),
+            stock = stockOf(
+                Card(Rank.TWO, Suit.CLUBS, id = 0),
+                Card(Rank.THREE, Suit.CLUBS, id = 1),
+                Card(Rank.FOUR, Suit.CLUBS, id = 2)
+            ),
+            waste = emptyList(),
+            foundations = emptyFoundations()
+        )
+
+        game.tapStock()
+
+        val result = game.state.value!!
+        assertEquals(listOf(Card(Rank.FOUR, Suit.CLUBS, id = 2)), result.waste)
+        assertEquals(2, result.stock.size)
+    }
+
+    @Test
+    fun `tapStock draws up to three cards when drawThree is on`() {
+        val game = newGame()
+        game.drawThree = true
+        val two = Card(Rank.TWO, Suit.CLUBS, id = 0)
+        val three = Card(Rank.THREE, Suit.CLUBS, id = 1)
+        val four = Card(Rank.FOUR, Suit.CLUBS, id = 2)
+        val five = Card(Rank.FIVE, Suit.CLUBS, id = 3)
+        game.state.value = SolitaireState(
+            tableau = emptyTableau(),
+            stock = stockOf(two, three, four, five),
+            waste = emptyList(),
+            foundations = emptyFoundations()
+        )
+
+        game.tapStock()
+
+        val result = game.state.value!!
+        // Moved in stock order, so the waste's last (only playable) card is
+        // still the most-recently-drawn one, exactly as under draw-1.
+        assertEquals(listOf(three, four, five), result.waste)
+        assertEquals(listOf(two), result.stock)
+    }
+
+    @Test
+    fun `tapStock with drawThree on moves only what's left when the stock has fewer than three`() {
+        val game = newGame()
+        game.drawThree = true
+        val two = Card(Rank.TWO, Suit.CLUBS, id = 0)
+        val three = Card(Rank.THREE, Suit.CLUBS, id = 1)
+        game.state.value = SolitaireState(
+            tableau = emptyTableau(),
+            stock = stockOf(two, three),
+            waste = emptyList(),
+            foundations = emptyFoundations()
+        )
+
+        game.tapStock()
+
+        val result = game.state.value!!
+        assertEquals(listOf(two, three), result.waste)
+        assertEquals(emptyList<Card>(), result.stock)
+    }
+
+    @Test
+    fun `only the top of the waste is playable even with drawThree on`() {
+        val game = newGame()
+        game.drawThree = true
+        val ace = Card(Rank.ACE, Suit.HEARTS, id = 0)
+        val two = Card(Rank.TWO, Suit.CLUBS, id = 1)
+        val three = Card(Rank.THREE, Suit.CLUBS, id = 2)
+        game.state.value = SolitaireState(
+            tableau = emptyTableau(),
+            stock = stockOf(two, three, ace),
+            waste = emptyList(),
+            foundations = emptyFoundations()
+        )
+
+        game.tapStock()
+        game.tapWaste()
+        game.tapFoundation(Suit.HEARTS)
+
+        val result = game.state.value!!
+        // Only the Ace (the last of the three drawn cards) ever became
+        // selectable/playable -- the Two and Three stay in the waste beneath it.
+        assertEquals(listOf(ace), result.foundations[Suit.HEARTS])
+        assertEquals(listOf(two, three), result.waste)
+    }
 }

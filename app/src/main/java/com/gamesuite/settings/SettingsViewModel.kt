@@ -30,9 +30,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setNamedTheme(theme: NamedTheme) = viewModelScope.launch { repository.setNamedTheme(theme) }
     fun setSoundEnabled(enabled: Boolean) = viewModelScope.launch { repository.setSoundEnabled(enabled) }
     fun setHapticsEnabled(enabled: Boolean) = viewModelScope.launch { repository.setHapticsEnabled(enabled) }
+    fun setMusicEnabled(enabled: Boolean) = viewModelScope.launch { repository.setMusicEnabled(enabled) }
     fun setTextScale(scale: Float) = viewModelScope.launch { repository.setTextScale(scale) }
     fun setReducedMotion(enabled: Boolean) = viewModelScope.launch { repository.setReducedMotion(enabled) }
     fun setColorblindMode(enabled: Boolean) = viewModelScope.launch { repository.setColorblindMode(enabled) }
+    fun setCard3DEnabled(enabled: Boolean) = viewModelScope.launch { repository.setCard3DEnabled(enabled) }
+    fun setEnhancedAnimationsEnabled(enabled: Boolean) = viewModelScope.launch { repository.setEnhancedAnimationsEnabled(enabled) }
     fun setDefaultCpuDifficulty(difficulty: CpuDifficulty) =
         viewModelScope.launch { repository.setDefaultCpuDifficulty(difficulty) }
     fun setCardSizePreference(preference: Float) =

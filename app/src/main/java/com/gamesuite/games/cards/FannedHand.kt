@@ -1,5 +1,6 @@
 package com.gamesuite.games.cards
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -15,15 +16,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gamesuite.settings.LocalHapticsEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import kotlin.math.absoluteValue
+import kotlinx.coroutines.delay
 
 /**
  * Renders a hand of cards as a natural overlapping fan (like holding real
@@ -55,12 +62,34 @@ fun <T> FannedHand(
     // an optional trailing parameter defaulting to no description, meaning no
     // contentDescription is added and today's silent behavior is unchanged for
     // any caller that doesn't supply one.
-    descriptionOf: ((T) -> String)? = null
+    descriptionOf: ((T) -> String)? = null,
+    // Fired the instant a card is actually played (drag-past-threshold release,
+    // or a tap), just BEFORE onPlay itself — with the card's real on-screen
+    // root position and current rotation, so the caller can fly a "ghost" of it
+    // to wherever it actually belongs (a discard pile, a foundation pile, ...).
+    // FannedHand has no idea what that target is or even that one exists — this
+    // callback is the entire hook, keeping the actual fly-to-target animation
+    // (and its target position) a per-screen concern; every current AND future
+    // caller of this shared component decides its own destination rather than
+    // this file guessing "the" one true target. Optional and defaulted to null
+    // so a caller that doesn't care keeps today's plain-disappear behavior.
+    onCardAboutToPlay: ((T, CardVisual, Offset, Float) -> Unit)? = null,
+    // Change this key (e.g. to the round number) to replay a staggered "just
+    // dealt" entrance on every card currently in [items] — each card pops in
+    // (scale 0.3->1, fade in) ~45ms after the previous one, settling at its
+    // real fan-slot position (no separate flight/position math needed, since
+    // the card already renders there). null (default) means no entrance ever
+    // plays, so every existing caller is unaffected. See UnoScreen.kt for the
+    // first consumer (initial deal / new round).
+    dealTrigger: Any? = null
 ) {
     val haptics = LocalHapticFeedback.current
     // Settings -> Accessibility -> Reduced Motion (see settings/LocalReducedMotion.kt) — the
     // audited finding that this toggle was stored but consumed nowhere in the app.
     val reducedMotion = LocalReducedMotion.current
+    // Settings -> Accessibility -> Haptics (see settings/LocalHapticsEnabled.kt)
+    // -- the audited finding that this toggle was stored but consumed nowhere.
+    val hapticsEnabled = LocalHapticsEnabled.current
     // Scaled here, once, before any of the size-dependent math below — see
     // CardScale.kt's KDoc for why this must not also happen inside
     // PlayingCardView itself (this component's own overlap/fan-width/offset
@@ -102,6 +131,26 @@ fun <T> FannedHand(
                 var dragOffsetY by remember(idOf(item)) { mutableFloatStateOf(0f) }
                 var isDragging by remember(idOf(item)) { mutableStateOf(false) }
                 var pastThreshold by remember(idOf(item)) { mutableStateOf(false) }
+                // This card's real, live on-screen position (root coordinates,
+                // already accounting for the fan's own scroll offset) — kept
+                // current via onGloballyPositioned below so onCardAboutToPlay
+                // always reports where the card actually is at the moment it's
+                // played, not a value computed from fan-layout math that would
+                // need to separately account for scroll position, drag offset,
+                // and lift arc all agreeing with what's really on screen.
+                var cardRootPosition by remember(idOf(item)) { mutableStateOf(Offset.Zero) }
+
+                // Staggered deal-in entrance -- see dealTrigger's own KDoc above.
+                // Starts at 1f (fully settled, no animation) so a card added
+                // OUTSIDE a deal (an ordinary draw) never gets caught mid-pop.
+                val dealProgress = remember(idOf(item)) { Animatable(1f) }
+                LaunchedEffect(dealTrigger) {
+                    if (dealTrigger == null) return@LaunchedEffect
+                    if (reducedMotion) { dealProgress.snapTo(1f); return@LaunchedEffect }
+                    dealProgress.snapTo(0f)
+                    delay(index * 45L)
+                    dealProgress.animateTo(1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                }
 
                 val animatedOffsetY by animateFloatAsState(
                     targetValue = if (isDragging) dragOffsetY else 0f,
@@ -109,9 +158,20 @@ fun <T> FannedHand(
                     label = "cardLift"
                 )
 
+                fun play() {
+                    onCardAboutToPlay?.invoke(item, visualOf(item), cardRootPosition, rotationDeg)
+                    onPlay(item)
+                }
+
                 Box(
                     modifier = Modifier
                         .offset(x = overlap * index, y = liftForArc.dp + animatedOffsetY.dp)
+                        .graphicsLayer {
+                            scaleX = 0.3f + 0.7f * dealProgress.value
+                            scaleY = 0.3f + 0.7f * dealProgress.value
+                            alpha = dealProgress.value.coerceIn(0f, 1f)
+                        }
+                        .onGloballyPositioned { cardRootPosition = it.positionInRoot() }
                         .pointerInput(enabled, idOf(item)) {
                             if (!enabled) return@pointerInput
                             detectDragGestures(
@@ -120,7 +180,7 @@ fun <T> FannedHand(
                                     change.consume()
                                     dragOffsetY = (dragOffsetY + dragAmount.y / density).coerceAtMost(0f)
                                     val nowPast = -dragOffsetY > playThreshold.value
-                                    if (nowPast && !pastThreshold) {
+                                    if (nowPast && !pastThreshold && hapticsEnabled) {
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                     pastThreshold = nowPast
@@ -128,7 +188,7 @@ fun <T> FannedHand(
                                 onDragEnd = {
                                     isDragging = false
                                     if (pastThreshold) {
-                                        onPlay(item)
+                                        play()
                                     }
                                     dragOffsetY = 0f
                                     pastThreshold = false
@@ -146,7 +206,7 @@ fun <T> FannedHand(
                         rotationDeg = rotationDeg,
                         width = scaledCardWidth,
                         height = scaledCardHeight,
-                        onTap = if (enabled) { { onPlay(item) } } else null,
+                        onTap = if (enabled) { { play() } } else null,
                         description = descriptionOf?.invoke(item)
                     )
                 }

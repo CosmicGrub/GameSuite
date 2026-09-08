@@ -23,6 +23,10 @@
 
     <!-- Continue playing row -->
     <string name="menu_continue_playing">Continue playing</string>
+    <!-- Long-press menu on a Continue-playing tile -->
+    <string name="continue_menu_continue">Continue</string>
+    <string name="continue_menu_restart">Restart</string>
+    <string name="continue_menu_delete">Delete from this list</string>
 
     <!-- Section titles -->
     <string name="section_daily_challenge">Daily challenge</string>
@@ -42,6 +46,8 @@
     <string name="game_tictactoe_wild">Tic-Tac-Toe (Wild vs CPU)</string>
     <string name="game_dominoes_vs_cpu">Dominoes (vs CPU)</string>
     <string name="game_mancala_vs_cpu">Mancala (vs CPU)</string>
+    <string name="game_checkers_vs_cpu">Checkers (vs CPU)</string>
+    <string name="game_chess_vs_cpu">Chess (vs CPU)</string>
 
     <!-- Cards -->
     <string name="game_uno_vs_cpu">UNO (vs 2 CPU bots)</string>

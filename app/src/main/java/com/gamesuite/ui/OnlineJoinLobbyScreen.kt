@@ -2,6 +2,8 @@ package com.gamesuite.ui
 
 import android.os.Build
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -69,8 +71,14 @@ fun OnlineJoinLobbyScreen(
         }
     }
 
+    // verticalScroll: see NearbyEntryScreen's KDoc comment on the same fix — also
+    // ensures the room-code text field stays reachable above the IME instead of being
+    // pinned under a keyboard that has nowhere else to push a non-scrolling layout.
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

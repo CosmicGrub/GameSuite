@@ -27,11 +27,18 @@ import com.gamesuite.foldable.rememberFoldState
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.cards.LocalCardScale
 import com.gamesuite.games.cards.rememberCardScaleMultiplier
+import com.gamesuite.settings.LocalCard3DMode
+import com.gamesuite.settings.LocalColorblindMode
+import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalHapticsEnabled
+import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.stats.StatsViewModel
 import com.gamesuite.theme.AppTheme
 import com.gamesuite.games.airhockey.AirHockeyGame
+import com.gamesuite.games.checkers.CheckersGame
+import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.mancala.MancalaGame
@@ -42,6 +49,8 @@ import com.gamesuite.games.wordgames.crossword.CrosswordGame
 import com.gamesuite.games.wordgames.tiles.TileGame
 import com.gamesuite.games.wordgames.wordsearch.WordSearchGame
 import com.gamesuite.ui.AirHockeyScreen
+import com.gamesuite.ui.CheckersScreen
+import com.gamesuite.ui.ChessScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.HangmanScreen
@@ -135,7 +144,12 @@ class MainActivity : ComponentActivity() {
                     CompositionLocalProvider(
                         LocalFoldState provides foldState,
                         LocalCardScale provides cardScale,
-                        LocalReducedMotion provides settings.reducedMotion
+                        LocalReducedMotion provides settings.reducedMotion,
+                        LocalCard3DMode provides settings.card3DEnabled,
+                        LocalHapticsEnabled provides settings.hapticsEnabled,
+                        LocalMusicEnabled provides settings.musicEnabled,
+                        LocalColorblindMode provides settings.colorblindMode,
+                        LocalEnhancedAnimations provides settings.enhancedAnimationsEnabled
                     ) {
                     NavHost(navController = navController, startDestination = "menu") {
                         composable("menu") {
@@ -344,6 +358,24 @@ class MainActivity : ComponentActivity() {
                             DominoesScreen(
                                 sessionManager = sessionManager,
                                 game = dominoGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("checkers") {
+                            val checkersGame = rememberActiveModule(sessionManager) { CheckersGame() }
+                            CheckersScreen(
+                                sessionManager = sessionManager,
+                                game = checkersGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("chess") {
+                            val chessGame = rememberActiveModule(sessionManager) { ChessGame() }
+                            ChessScreen(
+                                sessionManager = sessionManager,
+                                game = chessGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )

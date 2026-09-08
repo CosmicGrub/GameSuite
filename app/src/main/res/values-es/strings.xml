@@ -14,6 +14,9 @@
     <string name="onboarding_dismiss">Entendido</string>
 
     <string name="menu_continue_playing">Continuar jugando</string>
+    <string name="continue_menu_continue">Continuar</string>
+    <string name="continue_menu_restart">Reiniciar</string>
+    <string name="continue_menu_delete">Eliminar de esta lista</string>
 
     <string name="section_daily_challenge">Reto diario</string>
     <string name="section_board_games">Juegos de mesa</string>
@@ -30,6 +33,8 @@
     <string name="game_tictactoe_wild">Tres en raya (Salvaje, contra la CPU)</string>
     <string name="game_dominoes_vs_cpu">Dominó (contra la CPU)</string>
     <string name="game_mancala_vs_cpu">Mancala (contra la CPU)</string>
+    <string name="game_checkers_vs_cpu">Damas (contra la CPU)</string>
+    <string name="game_chess_vs_cpu">Ajedrez (contra la CPU)</string>
 
     <string name="game_uno_vs_cpu">UNO (contra 2 bots)</string>
     <string name="game_uno_pass_play">UNO (4 jugadores, pasar y jugar)</string>

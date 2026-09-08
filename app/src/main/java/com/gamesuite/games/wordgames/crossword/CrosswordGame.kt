@@ -89,14 +89,31 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     /** Running tally of fully-solved puzzles across the session (survives "New Puzzle"). */
     val puzzlesSolved = mutableStateOf(0)
 
+    /**
+     * Cells revealed by the most recent correct [submitAnswer] — a one-shot signal the UI reads
+     * to flash/pulse those cells instead of recoloring them instantly, then clears via
+     * [clearJustSolved] once that flash animation finishes playing. Not persisted or read
+     * anywhere else; a wrong guess or a hint reveal (see [revealNextLetter]) never touches this.
+     */
+    val justSolvedCells = mutableStateOf<Set<CrosswordPos>>(emptySet())
+
+    /**
+     * The single cell revealed by the most recent [revealNextLetter] hint — the same one-shot
+     * signal shape as [justSolvedCells], but kept as its own field rather than folded into it so
+     * the UI can tell "earned" (a correct submit) apart from "given" (a hint) and pulse each with
+     * its own distinct color, which the game currently has no way to communicate at all. Cleared
+     * via [clearJustHinted] once the UI's pulse animation finishes playing.
+     */
+    val justHintedCells = mutableStateOf<Set<CrosswordPos>>(emptySet())
+
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-puzzle. */
     val matchOver = mutableStateOf(false)
 
     /**
-     * Hint uses left for the CURRENT puzzle — resets to [MAX_HINTS_PER_PUZZLE]
+     * Hint uses left for the CURRENT puzzle — resets to [maxHintsForDifficulty]
      * on every [startMatch] (including "New Puzzle"). See [revealNextLetter].
      */
-    val hintsRemaining = mutableStateOf(MAX_HINTS_PER_PUZZLE)
+    val hintsRemaining = mutableStateOf(DEFAULT_MAX_HINTS)
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
@@ -118,11 +135,28 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         CpuDifficulty.HARD to CrosswordClueBank.generalKnowledgeTheme
     )
 
+    /**
+     * Quick-win: the hint budget used to be one flat value ([DEFAULT_MAX_HINTS]) for every
+     * difficulty, despite HARD's theme (see [clueBankByDifficulty]) producing longer, less
+     * everyday answers than EASY's. Mirrors how [difficulty] already selects the clue bank and
+     * (in WordSearchGame/HangmanGame) the puzzle-generation tier — more hints on EASY, fewer on
+     * HARD, same shrinking-budget UX (CrosswordScreen's "Hint (n left)") either way.
+     */
+    private val maxHintsByDifficulty: Map<CpuDifficulty, Int> = mapOf(
+        CpuDifficulty.EASY to 5,
+        CpuDifficulty.MEDIUM to 3,
+        CpuDifficulty.HARD to 2
+    )
+
+    private fun maxHintsForDifficulty(): Int = maxHintsByDifficulty[difficulty] ?: DEFAULT_MAX_HINTS
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
         recentSeedWords.clear()
+        justSolvedCells.value = emptySet()
+        justHintedCells.value = emptySet()
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -132,7 +166,9 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
     override fun startMatch() {
         val pool = (clueBankByDifficulty[difficulty] ?: CrosswordClueBank.gamesAndTechTheme).shuffled()
         val (grid, entries) = generate(pool)
-        hintsRemaining.value = MAX_HINTS_PER_PUZZLE
+        hintsRemaining.value = maxHintsForDifficulty()
+        justSolvedCells.value = emptySet()
+        justHintedCells.value = emptySet()
         state.value = CrosswordState(
             grid = grid,
             entries = entries,
@@ -186,6 +222,11 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
             matchOver = allSolved
         )
 
+        // Signals CrosswordScreen to flash/pulse just these cells instead of an instant
+        // recolor — see [justSolvedCells]'s KDoc. Cleared back to empty via [clearJustSolved]
+        // once the UI's flash animation finishes.
+        justSolvedCells.value = entry.cells.toSet()
+
         // Solving a puzzle only tallies it and surfaces the New Puzzle/Back to
         // Menu choice — it does NOT end the match. Only leaveSession() does
         // that, same split as Hangman's per-round win/loss vs. session end.
@@ -196,6 +237,11 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         return true
     }
 
+    /** Called by the UI once the solved-cell flash animation (see [justSolvedCells]) finishes playing. */
+    fun clearJustSolved() {
+        justSolvedCells.value = emptySet()
+    }
+
     /**
      * Hint economy: revealing every unsolved entry's first letter for free
      * made the hint trivially spammable (one tap disclosed the whole board's
@@ -203,7 +249,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
      * reveals one more letter of the currently-*selected* entry — reusing
      * [CrosswordState.selectedEntryId], the same selection AnswerDialog is
      * built from, rather than adding new selection UI — and costs a hint use
-     * against [MAX_HINTS_PER_PUZZLE], visible in the UI as a shrinking
+     * against [maxHintsForDifficulty]'s per-puzzle budget, visible in the UI as a shrinking
      * "Hint (n left)" affordance. A no-op with no selected entry, an already
      * fully-revealed entry, an already-solved entry, a completed puzzle, or
      * an exhausted hint budget.
@@ -227,6 +273,12 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
             grid = newGrid,
             hintsUsedByEntry = s.hintsUsedByEntry + (entryId to ((s.hintsUsedByEntry[entryId] ?: 0) + 1))
         )
+        justHintedCells.value = setOf(pos)
+    }
+
+    /** Called by the UI once the hint-cell pulse animation (see [justHintedCells]) finishes playing. */
+    fun clearJustHinted() {
+        justHintedCells.value = emptySet()
     }
 
     /** Called from the puzzle-complete panel's "New Puzzle" button — keeps the running tally. */
@@ -374,7 +426,11 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         /** How many past seed words [pickSeed] avoids repeating. */
         private const val SEED_HISTORY_SIZE = 5
 
-        /** Total per-entry hint reveals allowed per puzzle — see [revealNextLetter]. */
-        const val MAX_HINTS_PER_PUZZLE = 3
+        /**
+         * Fallback/initial hint budget used before the first [startMatch] call (and if
+         * [difficulty] somehow isn't a key in [maxHintsByDifficulty]) — see
+         * [maxHintsForDifficulty] for the actual per-difficulty values used in play.
+         */
+        private const val DEFAULT_MAX_HINTS = 3
     }
 }

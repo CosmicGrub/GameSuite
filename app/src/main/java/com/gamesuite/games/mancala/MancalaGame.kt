@@ -27,8 +27,39 @@ data class MancalaState(
      * "Back to Menu" rather than "Play Again").
      */
     val roundOver: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    /**
+     * Pure instrumentation of the sow that produced this state -- animation/physics
+     * pitch, Mancala section: MancalaScreen's seed-hop cascade needs to know which
+     * pits the stones actually visited, in order, to animate a seed hopping
+     * pit-to-pit rather than just snapping to the final board. Element 0 is the pit
+     * the stones were picked up from ([sow]'s own `pitIndex`, captured before its
+     * loop starts); every element after that is a cursor position appended inside
+     * that same loop, in the exact order the loop already visits them (opponent-store
+     * hops excluded, since the loop itself never places a stone there) -- this never
+     * changes what sow() actually does, only records it. A hop is (path[i], path[i+1])
+     * for each consecutive pair, so path always has at least 2 entries after any real
+     * sow (sow() rejects an empty starting pit before the loop can even run).
+     * Empty for the initial deal (startMatch()) since no sow has happened yet.
+     */
+    val lastSowPath: List<Int> = emptyList(),
+    /**
+     * Non-null only when the sow that produced this state ended in a capture (see
+     * [sow]'s capture branch) -- lets MancalaScreen replay a "sweep into store" arc
+     * for the swept seeds without re-deriving the capture rule itself. Reset to null
+     * on every sow that doesn't capture, so a later non-capturing move never replays
+     * a stale flourish.
+     */
+    val lastCapture: MancalaCapture? = null
 )
+
+/**
+ * Structured capture info for [MancalaState.lastCapture] -- see [MancalaGame.sow]'s
+ * capture branch, the only place one of these is ever created. [landingPit] and
+ * [oppositePit] are both zeroed by that same branch (into [totalSwept], which is
+ * their combined stone count before the sweep) and swept into the mover's store.
+ */
+data class MancalaCapture(val landingPit: Int, val oppositePit: Int, val totalSwept: Int)
 
 /**
  * Pure result of a hypothetical sow, used both by the HARD bot's minimax
@@ -147,15 +178,22 @@ class MancalaGame : GameModule {
         pits[pitIndex] = 0
         var cursor = pitIndex
 
+        // sowPath: pure instrumentation for MancalaScreen's seed-hop animation (see
+        // MancalaState.lastSowPath's KDoc) -- element 0 is the pit the stones were
+        // picked up from; the loop below is completely unchanged, it just also
+        // appends each cursor it already visits.
+        val sowPath = mutableListOf(pitIndex)
         while (stones > 0) {
             cursor = (cursor + 1) % 14
             if (cursor == opponentStore) continue // skip opponent's store
             pits[cursor]++
             stones--
+            sowPath.add(cursor)
         }
 
         var extraTurn = false
         var captureMsg = ""
+        var capture: MancalaCapture? = null
 
         // Landed in own empty pit (was 0 before this sow, now 1) -> capture.
         if (cursor in ownPits && pits[cursor] == 1) {
@@ -166,6 +204,7 @@ class MancalaGame : GameModule {
                 pits[cursor] = 0
                 pits[ownStore] += captured
                 captureMsg = " and captured $captured"
+                capture = MancalaCapture(landingPit = cursor, oppositePit = oppositeIndex, totalSwept = captured)
             }
         } else if (cursor == ownStore) {
             extraTurn = true
@@ -195,7 +234,9 @@ class MancalaGame : GameModule {
             currentPlayerIndex = nextPlayer,
             lastAction = "${player.displayName} sowed from pit ${pitIndex + 1}$captureMsg",
             roundOver = roundOver,
-            winnerPlayerId = winnerId
+            winnerPlayerId = winnerId,
+            lastSowPath = sowPath,
+            lastCapture = capture
         )
 
         // Tally into the running session score (see scoreP1/scoreP2/draws' KDoc) rather

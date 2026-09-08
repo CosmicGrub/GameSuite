@@ -166,22 +166,49 @@ class DominoGame : GameModule {
         startMatch()
     }
 
+    /**
+     * True if [domino] could legally attach to the [attachToLeft] end of the
+     * current chain right now. This is the exact match rule [playDomino]
+     * itself relies on internally (see below) rather than a parallel
+     * re-implementation of it -- exposed as a pure, state-only read so a
+     * drag-and-drop ghost/preview can query "would this be legal here?"
+     * without ever risking drifting out of sync with the real rule.
+     */
+    fun canPlace(domino: Domino, attachToLeft: Boolean): Boolean {
+        val s = state.value ?: return false
+        if (s.chain.isEmpty()) return true
+        val end = if (attachToLeft) s.leftEnd else s.rightEnd
+        return domino.a == end || domino.b == end
+    }
+
+    /**
+     * Whether placing [domino] at the [attachToLeft] end would need to render
+     * it flipped (b-then-a) rather than as-is (a-then-b) to present its
+     * matching pip value against the chain's exposed end. Mirrors
+     * [playDomino]'s own orientation math; only meaningful when [canPlace]
+     * is already true for the same arguments, and always false against an
+     * empty chain (an opening tile has no forced orientation).
+     */
+    fun wouldFlip(domino: Domino, attachToLeft: Boolean): Boolean {
+        val s = state.value ?: return false
+        if (s.chain.isEmpty()) return false
+        val end = if (attachToLeft) s.leftEnd else s.rightEnd
+        return if (attachToLeft) domino.b != end else domino.a != end
+    }
+
     /** attachToLeft=true plays on the left end, false plays on the right end. Auto-flips as needed. */
     fun playDomino(playerIndex: Int, domino: Domino, attachToLeft: Boolean) {
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
         val player = s.players[playerIndex]
         if (!player.hand.any { it.instanceId == domino.instanceId }) return
+        if (!canPlace(domino, attachToLeft)) return // doesn't match, illegal
 
-        val newChain: List<PlacedDomino>
-        if (s.chain.isEmpty()) {
-            newChain = listOf(PlacedDomino(domino, flipped = false))
+        val newChain: List<PlacedDomino> = if (s.chain.isEmpty()) {
+            listOf(PlacedDomino(domino, flipped = false))
         } else {
-            val end = if (attachToLeft) s.leftEnd else s.rightEnd
-            val flipped = if (attachToLeft) domino.b != end else domino.a != end
-            if (!(domino.a == end || domino.b == end)) return // doesn't match, illegal
-            val placed = PlacedDomino(domino, flipped)
-            newChain = if (attachToLeft) listOf(placed) + s.chain else s.chain + placed
+            val placed = PlacedDomino(domino, wouldFlip(domino, attachToLeft))
+            if (attachToLeft) listOf(placed) + s.chain else s.chain + placed
         }
 
         val newHand = player.hand.filterNot { it.instanceId == domino.instanceId }

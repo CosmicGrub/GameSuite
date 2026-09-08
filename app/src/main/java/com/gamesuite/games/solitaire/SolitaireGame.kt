@@ -26,6 +26,23 @@ sealed class SelectionSource {
     data class Tableau(val index: Int) : SelectionSource()
 }
 
+/** Where a committed move's card ended up — the destination-side counterpart to [SelectionSource], reported alongside it via [SolitaireGame.setOnCardMoved]. */
+sealed class MoveDestination {
+    data class Tableau(val index: Int) : MoveDestination()
+    data class Foundation(val suit: Suit) : MoveDestination()
+}
+
+/**
+ * One committed card move — [SolitaireGame.setOnCardMoved]'s payload, fired
+ * from inside [SolitaireGame] for every move [tapTableau]/[tapFoundation]/
+ * [SolitaireGame.autoCompleteStep] commits alike. Purely descriptive (what
+ * moved, from where, to where): SolitaireScreen is the one that turns this
+ * into a fly-to-destination animation, since only it knows where piles
+ * actually sit on screen — same "engine reports the event, screen owns the
+ * animation" split as [SolitaireGame.setOnMatchEnd].
+ */
+data class CardMove(val card: Card, val source: SelectionSource, val destination: MoveDestination)
+
 data class SolitaireState(
     val tableau: List<TableauColumn>,
     val stock: List<Card>,
@@ -60,8 +77,10 @@ data class SolitaireState(
 }
 
 /**
- * Standard Klondike, draw-1, single-card moves only — no multi-card run
- * dragging (an honest MVP simplification: real Klondike lets you move a
+ * Standard Klondike, draw-1 by default (draw-3 is a persisted per-player
+ * preference — see [drawThree] and games/solitaire/SolitairePrefsStore.kt),
+ * single-card moves only — no multi-card run dragging (an honest MVP
+ * simplification: real Klondike lets you move a
  * face-up run as a group, but this app has no drag input model at all, see
  * TileGameScreen/DominoesScreen's tap-then-place precedent, and modeling
  * "select a run" as a distinct concept from "select a card" would roughly
@@ -130,8 +149,26 @@ class SolitaireGame : GameModule {
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-deal — see SolitaireState.won for that. */
     val matchOver = mutableStateOf(false)
 
+    /**
+     * Draw-3 preference, set by SolitaireScreen right after it reads
+     * games/solitaire/SolitairePrefsStore.kt's persisted value (same
+     * "screen reads the store, sets a plain var on the engine" wiring
+     * UnoScreen uses for `game.difficulty = settings.defaultCpuDifficulty`).
+     * Deliberately NOT an AppSettings.kt field — that store is documented
+     * app-wide-only, and this is a single game's own preference.
+     *
+     * [tapStock] reads this directly; nothing else about draw-3 changes any
+     * legality rule — [SolitaireState.cardAt] and every canPlaceOn* check
+     * only ever look at `waste.lastOrNull()`, exactly as before, regardless
+     * of how many cards a single stock draw moved to get it there.
+     */
+    var drawThree: Boolean = false
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
+
+    /** See [CardMove]'s KDoc — registered once by SolitaireScreen, same precedent as [setOnMatchEnd]. */
+    private var onCardMoved: ((CardMove) -> Unit)? = null
 
     override fun init(context: GameContext) {
         this.context = context
@@ -141,6 +178,10 @@ class SolitaireGame : GameModule {
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
+    }
+
+    fun setOnCardMoved(listener: (CardMove) -> Unit) {
+        onCardMoved = listener
     }
 
     override fun startMatch() {
@@ -180,14 +221,19 @@ class SolitaireGame : GameModule {
     }
 
     /**
-     * Draw one card face-up onto the waste (stock's last element is "the
-     * top" throughout this file — see [removeFromSource]/deal's dealing
-     * order for why). When the stock runs out, recycles the waste back into
-     * the stock reversed: waste is built by *appending* each draw, so
-     * reversing it exactly reproduces the original draw order once the
-     * stock is popped from the same end again — the standard "the deck
-     * cycles through the same sequence every pass" draw-1 rule, not a
-     * reshuffle.
+     * Draw one card (or, with [drawThree] on, up to three — fewer if the
+     * stock has fewer left) face-up onto the waste, in stock order, so
+     * `waste.last()` is always the most-recently-drawn card exactly as
+     * before (stock's last element is "the top" throughout this file — see
+     * [removeFromSource]/deal's dealing order for why). Only
+     * `waste.lastOrNull()` was ever playable under draw-1 and that's still
+     * true under draw-3 — see [drawThree]'s KDoc — so nothing here needs to
+     * touch [SolitaireState.cardAt] or either canPlaceOn* check. When the
+     * stock runs out, recycles the waste back into the stock reversed:
+     * waste is built by *appending* each draw, so reversing it exactly
+     * reproduces the original draw order once the stock is popped from the
+     * same end again — the standard "the deck cycles through the same
+     * sequence every pass" rule, not a reshuffle.
      */
     fun tapStock() {
         val s = state.value ?: return
@@ -195,8 +241,14 @@ class SolitaireGame : GameModule {
         state.value = when {
             s.stock.isNotEmpty() -> {
                 recordHistory(s)
-                val card = s.stock.last()
-                s.copy(stock = s.stock.dropLast(1), waste = s.waste + card, selected = null, lastAction = "Drew ${card.label}")
+                val count = minOf(if (drawThree) 3 else 1, s.stock.size)
+                val drawn = s.stock.takeLast(count)
+                s.copy(
+                    stock = s.stock.dropLast(count),
+                    waste = s.waste + drawn,
+                    selected = null,
+                    lastAction = if (count == 1) "Drew ${drawn.first().label}" else "Drew $count cards"
+                )
             }
             s.waste.isNotEmpty() -> {
                 recordHistory(s)
@@ -278,6 +330,12 @@ class SolitaireGame : GameModule {
     }
 
     // ---- pure rule helpers — no Compose state touched, easy to hand-trace/unit-test ----
+    // (applyMoveToTableau/applyMoveToFoundation are the one exception: each fires
+    // onCardMoved as its sole side effect, right before returning the new state —
+    // see CardMove's KDoc. That callback only ever notifies a listener the screen
+    // registers; it never reads back from or reaches into Compose state itself, so
+    // every move's actual state transition here is still computed exactly as
+    // deterministically/hand-traceably as before.)
 
     /**
      * Rank.value (games/cards/Card.kt) is the shared *high-Ace* ranking used
@@ -333,6 +391,7 @@ class SolitaireGame : GameModule {
         val newTableau = afterRemove.tableau.toMutableList().also {
             it[destIndex] = destCol.copy(faceUp = destCol.faceUp + card)
         }
+        onCardMoved?.invoke(CardMove(card, source, MoveDestination.Tableau(destIndex)))
         return afterRemove.copy(tableau = newTableau, selected = null, lastAction = "Moved ${card.label} to column ${destIndex + 1}")
     }
 
@@ -347,6 +406,7 @@ class SolitaireGame : GameModule {
         val newFoundations = afterRemove.foundations.toMutableMap()
         newFoundations[suit] = (newFoundations[suit] ?: emptyList()) + card
         val won = Suit.entries.all { (newFoundations[it]?.size ?: 0) == Rank.entries.size }
+        onCardMoved?.invoke(CardMove(card, source, MoveDestination.Foundation(suit)))
         return afterRemove.copy(
             foundations = newFoundations,
             selected = null,

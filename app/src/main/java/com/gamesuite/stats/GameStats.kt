@@ -20,5 +20,20 @@ data class GameStats(
     val wins: Int = 0,
     val losses: Int = 0,
     val draws: Int = 0,
-    val lastPlayedEpochMillis: Long = 0L
+    val lastPlayedEpochMillis: Long = 0L,
+    /**
+     * True after the player long-presses this game's Continue-row tile and
+     * chooses "Delete" (MainMenuScreen's ContinueTileMenu) — hides it from
+     * that row without touching the win/loss record above, since deleting a
+     * shortcut and erasing a stats history are two different asks. Reset
+     * back to false the next time this game is actually played
+     * (StatsRepository.recordMatch) — "remove for now", not "banish
+     * forever": playing the game again is the obvious signal the player
+     * wants it back in Continue.
+     *
+     * Defaults to false so every stats blob written before this field
+     * existed decodes as "not dismissed", per this file's own note on
+     * kotlinx.serialization defaulting missing fields — no migration needed.
+     */
+    val dismissedFromContinue: Boolean = false
 )

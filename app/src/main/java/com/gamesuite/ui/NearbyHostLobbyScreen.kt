@@ -2,6 +2,8 @@ package com.gamesuite.ui
 
 import android.os.Build
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -73,8 +75,15 @@ fun NearbyHostLobbyScreen(
         joinedGuests = joinedGuests.filterKeys { endpointId -> connectedPeers.any { it.endpointId == endpointId } }
     }
 
+    // verticalScroll: see NearbyEntryScreen's KDoc comment on the same fix — this screen's
+    // joined-guest list can grow (host + up to 3-4 guests per DEVICE_SPECIFIC_PLAN.md §2),
+    // so unlike the entry screen this one's content height is genuinely unbounded, not
+    // just theoretically close to the ~344dp cover-screen-landscape ceiling.
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

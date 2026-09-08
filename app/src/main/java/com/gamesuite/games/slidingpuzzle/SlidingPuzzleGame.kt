@@ -99,6 +99,15 @@ class SlidingPuzzleGame : GameModule {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * Snapshot of the current puzzle's arrangement, captured once in [startMatch] at the same
+     * moment [state] itself is (re)generated. [tapTile] only ever mutates [state]'s live
+     * `tiles`, never this — so it stays the untouched original scramble for [resetToInitial]
+     * to restore to, even after any number of slides. Regenerated (not reused) every time a
+     * new puzzle starts, same lifetime as [state]; null before the first puzzle exists.
+     */
+    private var initialArrangement: List<Int>? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -132,7 +141,9 @@ class SlidingPuzzleGame : GameModule {
         val (size, scrambleMoves) = difficultyConfig[difficulty] ?: difficultyConfig.getValue(CpuDifficulty.MEDIUM)
         timerStartElapsedRealtime.value = null
         solvedElapsedMillis.value = null
-        state.value = generatePuzzle(size, scrambleMoves, dailySeed)
+        val puzzle = generatePuzzle(size, scrambleMoves, dailySeed)
+        state.value = puzzle
+        initialArrangement = puzzle.tiles
     }
 
     override fun pause() {}
@@ -169,6 +180,22 @@ class SlidingPuzzleGame : GameModule {
             val start = timerStartElapsedRealtime.value ?: SystemClock.elapsedRealtime()
             solvedElapsedMillis.value = SystemClock.elapsedRealtime() - start
         }
+    }
+
+    /**
+     * Restores the current puzzle to its original scramble ([initialArrangement]), undoing
+     * every slide made so far without generating a new board — distinct from [playAgain],
+     * which deals a fresh scramble entirely. Also resets the move counter and stopwatch the
+     * same way a brand-new puzzle would. No-ops once the whole session has ended, or if no
+     * puzzle/snapshot exists yet, mirroring [playAgain]/[tapTile]'s own guards.
+     */
+    fun resetToInitial() {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        val initial = initialArrangement ?: return
+        timerStartElapsedRealtime.value = null
+        solvedElapsedMillis.value = null
+        state.value = s.copy(tiles = initial, moveCount = 0, solved = false)
     }
 
     /** Called from the solved panel's "New Puzzle" button — keeps the running tally. */

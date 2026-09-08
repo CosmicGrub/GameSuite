@@ -59,7 +59,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
     private val client = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS) // keeps NAT/carrier connections from silently timing out
         .build()
-    private var webSocket: WebSocket? = null
+    @Volatile private var webSocket: WebSocket? = null
 
     private var role: OnlineRole = OnlineRole.NONE
     var localPlayerId: String = ""
@@ -69,9 +69,16 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
 
     // Set true right before a deliberate close ([disconnect]) so the reconnect logic below
     // never tries to resurrect a connection the player (or the shell) actually meant to end.
-    private var intentionalDisconnect = false
+    @Volatile private var intentionalDisconnect = false
     private val reconnectScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var reconnectJob: Job? = null
+    @Volatile private var reconnectJob: Job? = null
+    // Guards the read-check-then-write below: [webSocket], [reconnectJob] and
+    // [pendingReconnectResult] are all touched from OkHttp's callback threads as well as the
+    // reconnect coroutine, and two near-simultaneous onFailure/onClosed callbacks (a TCP RST
+    // and a ping-timeout closing within milliseconds of each other, say) must not both pass the
+    // "already retrying" guard and launch competing reconnect attempts that race to overwrite
+    // [webSocket].
+    private val reconnectLock = Any()
 
     private var onReconnectedListener: (() -> Unit)? = null
 
@@ -196,19 +203,21 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
             _connectionError.value = reason
             return
         }
-        if (reconnectJob?.isActive == true) return // already retrying
-        _isReconnecting.value = true
-        reconnectJob = reconnectScope.launch {
-            val delaysMs = longArrayOf(1_000, 2_000, 4_000, 8_000, 8_000) // ~23s total, under the relay's 30s grace window
-            for (attemptDelay in delaysMs) {
-                delay(attemptDelay)
-                if (attemptReconnect(code)) {
-                    _isReconnecting.value = false
-                    return@launch
+        synchronized(reconnectLock) {
+            if (reconnectJob?.isActive == true) return // already retrying
+            _isReconnecting.value = true
+            reconnectJob = reconnectScope.launch {
+                val delaysMs = longArrayOf(1_000, 2_000, 4_000, 8_000, 8_000) // ~23s total, under the relay's 30s grace window
+                for (attemptDelay in delaysMs) {
+                    delay(attemptDelay)
+                    if (attemptReconnect(code)) {
+                        _isReconnecting.value = false
+                        return@launch
+                    }
                 }
+                _isReconnecting.value = false
+                _connectionError.value = "Lost connection and couldn't reconnect: $reason"
             }
-            _isReconnecting.value = false
-            _connectionError.value = "Lost connection and couldn't reconnect: $reason"
         }
     }
 
@@ -216,7 +225,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
      *  [attemptReconnect] is in flight — kept separate from the general listeners above so a
      *  reconnect attempt's outcome doesn't depend on whatever the game layer's own
      *  onMessageReceived happens to do with the same frame. */
-    private var pendingReconnectResult: CompletableDeferred<Boolean>? = null
+    @Volatile private var pendingReconnectResult: CompletableDeferred<Boolean>? = null
 
     /** One reconnect attempt: opens a fresh socket and re-joins the same room under the same
      *  playerId. Routes every incoming frame through the SAME [handleIncoming] the normal

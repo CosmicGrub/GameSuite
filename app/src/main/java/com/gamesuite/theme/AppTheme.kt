@@ -59,9 +59,13 @@ fun AppTheme(
 
         else -> when (namedTheme) {
             NamedTheme.HIGH_CONTRAST -> if (darkTheme) HighContrastDarkScheme else HighContrastLightScheme
-            // MIDNIGHT_ARCADE / FELT_TABLE fall back to Classic until they get their own
-            // palettes (see NamedTheme's KDoc) — never an unhandled-branch crash.
-            NamedTheme.CLASSIC, NamedTheme.MIDNIGHT_ARCADE, NamedTheme.FELT_TABLE ->
+            // Ports the ESP32 hardware arcade cabinet's own palette — see
+            // MidnightArcadeScheme's KDoc in theme/Color.kt for why this one
+            // scheme is used regardless of darkTheme.
+            NamedTheme.MIDNIGHT_ARCADE -> MidnightArcadeScheme
+            // FELT_TABLE falls back to Classic until it gets its own palette
+            // (see NamedTheme's KDoc) — never an unhandled-branch crash.
+            NamedTheme.CLASSIC, NamedTheme.FELT_TABLE ->
                 if (darkTheme) ClassicDarkScheme else ClassicLightScheme
         }
     }

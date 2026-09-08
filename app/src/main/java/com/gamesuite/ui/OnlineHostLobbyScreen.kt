@@ -2,6 +2,8 @@ package com.gamesuite.ui
 
 import android.os.Build
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,8 +62,14 @@ fun OnlineHostLobbyScreen(
         }
     }
 
+    // verticalScroll: see NearbyEntryScreen's KDoc comment on the same fix — this
+    // screen's connected-players list can grow with every joiner, same genuinely
+    // unbounded content height as NearbyHostLobbyScreen.
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

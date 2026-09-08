@@ -36,5 +36,9 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /** "Delete" from the Continue row's long-press menu — see
+     *  StatsRepository.dismissFromContinueRow's KDoc. */
+    fun dismissFromContinueRow(gameId: String) = viewModelScope.launch { repository.dismissFromContinueRow(gameId) }
+
     fun resetAll() = viewModelScope.launch { repository.resetAll() }
 }

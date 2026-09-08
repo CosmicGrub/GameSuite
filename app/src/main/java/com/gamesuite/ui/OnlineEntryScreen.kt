@@ -1,6 +1,8 @@
 package com.gamesuite.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,8 +36,14 @@ fun OnlineEntryScreen(
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val serverUrl = settings.onlineServerUrl
 
+    // verticalScroll: see NearbyEntryScreen's KDoc comment on the same fix — same
+    // no-scroll-plus-Arrangement.Center shape as that screen, same ~344dp
+    // cover-screen-landscape clipping risk being guarded against here.
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

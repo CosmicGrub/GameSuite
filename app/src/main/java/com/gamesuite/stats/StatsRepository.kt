@@ -53,9 +53,24 @@ class StatsRepository(private val context: Context) {
                 wins = existing.wins + if (outcome == LocalOutcome.WIN) 1 else 0,
                 losses = existing.losses + if (outcome == LocalOutcome.LOSS) 1 else 0,
                 draws = existing.draws + if (outcome == LocalOutcome.DRAW) 1 else 0,
-                lastPlayedEpochMillis = atEpochMillis
+                lastPlayedEpochMillis = atEpochMillis,
+                // Playing it again is the obvious "I want this back" signal —
+                // see GameStats.dismissedFromContinue's KDoc.
+                dismissedFromContinue = false
             )
             prefs[Keys.ALL_STATS_JSON] = Json.encodeToString(current + (gameId to updated))
+        }
+    }
+
+    /** "Delete" from the Continue row's long-press menu — see
+     *  GameStats.dismissedFromContinue's KDoc for why this doesn't touch
+     *  wins/losses/matchesPlayed. A no-op if [gameId] has no stats yet
+     *  (nothing to dismiss). */
+    suspend fun dismissFromContinueRow(gameId: String) {
+        context.statsDataStore.edit { prefs ->
+            val current = decode(prefs[Keys.ALL_STATS_JSON])
+            val existing = current[gameId] ?: return@edit
+            prefs[Keys.ALL_STATS_JSON] = Json.encodeToString(current + (gameId to existing.copy(dismissedFromContinue = true)))
         }
     }
 

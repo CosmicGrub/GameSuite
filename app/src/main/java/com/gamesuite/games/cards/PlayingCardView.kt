@@ -3,6 +3,7 @@ package com.gamesuite.games.cards
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,23 +23,55 @@ import androidx.compose.ui.unit.sp
  * so they share one visual language (shadow, rounded corners, face-down
  * back). Width/height are parameters so callers (rack, discard pile, board)
  * can size cards to their layout.
+ *
+ * [showThickness] fakes a real card's physical edge — a couple of thin,
+ * cream-colored offset layers stacked behind the face — the way a card
+ * looks resting on a table rather than a flat printed rectangle (the
+ * reference points for this were the Xbox 360 UNO's tabletop card
+ * rendering and the modern official mobile UNO app's own glossy cards).
+ * Off by default so every existing caller is unaffected; UnoScreen.kt is
+ * the first consumer, gated behind "3D Perspective Mode"
+ * (LocalCard3DMode) — this is a depth/rendering concern, the same bucket
+ * card3DFlip/tablePerspectiveTilt already live in, not a motion one.
  */
 @Composable
 fun PlayingCardView(
     card: CardVisual,
     modifier: Modifier = Modifier,
     width: androidx.compose.ui.unit.Dp = 64.dp,
-    height: androidx.compose.ui.unit.Dp = 92.dp
+    height: androidx.compose.ui.unit.Dp = 92.dp,
+    showThickness: Boolean = false
 ) {
-    Box(
-        modifier = modifier
-            .size(width = width, height = height)
-            .shadow(elevation = 3.dp, shape = RoundedCornerShape(10.dp))
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (card.faceDown) Color(0xFF2B2B2B) else card.backgroundColor)
-            .border(1.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier.size(width = width, height = height)) {
+        if (showThickness) {
+            // Two offset edge layers, cream/card-stock colored regardless of the
+            // face's own color -- a real card's edge is the paper, not the ink.
+            // Drawn smallest-offset-on-top so the stack reads as receding away
+            // from the viewer, not floating in front.
+            Box(
+                Modifier
+                    .offset(x = 2.2.dp, y = 2.2.dp)
+                    .size(width, height)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFCFC6AE))
+            )
+            Box(
+                Modifier
+                    .offset(x = 1.1.dp, y = 1.1.dp)
+                    .size(width, height)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFE3DBC5))
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(width = width, height = height)
+                .shadow(elevation = 3.dp, shape = RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (card.faceDown) Color(0xFF2B2B2B) else card.backgroundColor)
+                .border(1.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
         if (card.faceDown) {
             Box(
                 modifier = Modifier
@@ -68,6 +101,7 @@ fun PlayingCardView(
                 fontWeight = FontWeight.Bold,
                 fontSize = labelFontSize
             )
+        }
         }
     }
 }

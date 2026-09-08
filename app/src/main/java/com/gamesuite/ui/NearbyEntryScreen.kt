@@ -7,6 +7,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -65,8 +67,23 @@ fun NearbyEntryScreen(
         ActivityResultContracts.StartActivityForResult()
     ) { bluetoothOn = isBluetoothEnabled(context) }
 
+    // Fold/Tab compatibility audit finding: this screen had no scroll at all, and its
+    // content (title, description, then a permission/radio-state message + button) is
+    // laid out with verticalArrangement = Center inside a fillMaxSize() Column — on the
+    // Z Fold 5's cover screen rotated to landscape (~344dp tall, the shortest available
+    // height on either target device) that combination clips rather than scrolls if the
+    // stacked content ever exceeds the viewport, with no way to reach the cut-off part.
+    // verticalScroll fixes that; Arrangement.Center becomes a no-op once scrolling is
+    // active (Compose measures scrollable content with unbounded height, so there's no
+    // fixed extra space left to center within) but that only matters in the common case
+    // where content already fits on-screen — trading a few dp of top margin for guaranteed
+    // no-clip is the right side of that tradeoff, and matches every other screen in this
+    // app that scrolls its root instead of assuming a fixed viewport height.
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

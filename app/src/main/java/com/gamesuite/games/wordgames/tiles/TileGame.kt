@@ -21,6 +21,19 @@ data class TilePlayerState(
 
 data class PendingPlacement(val row: Int, val col: Int, val tile: RackTile, val chosenLetter: Char)
 
+/**
+ * How escalated a completed play's own visual/haptic flourish should read —
+ * see TileGameScreen.kt's word-completion flourish for what each tier
+ * actually draws. Computed from the exact same information [scoreWord] and
+ * [TileBoardLayout] already track internally (premium squares touched, and
+ * submitMove()'s own existing 7-tile Bingo check), just surfaced to the UI
+ * instead of only feeding the point total.
+ */
+enum class WordPlayTier { ORDINARY, MULTIPLIER, BINGO }
+
+/** [TileGame.setOnWordPlayed]'s payload — fired once per successful [TileGame.submitMove], mirroring the "engine reports the event, screen owns the animation" split games/solitaire/SolitaireGame.kt's CardMove/setOnCardMoved already established. */
+data class WordPlayResult(val words: List<String>, val pointsGained: Int, val tier: WordPlayTier)
+
 data class TileGameState(
     val board: List<List<BoardCell>>,
     val players: List<TilePlayerState>,
@@ -69,6 +82,7 @@ class TileGame : GameModule {
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
+    private var onWordPlayed: ((WordPlayResult) -> Unit)? = null
     private var bag: MutableList<RackTile> = mutableListOf()
 
     override fun init(context: GameContext) {
@@ -77,6 +91,11 @@ class TileGame : GameModule {
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
+    }
+
+    /** See [WordPlayResult]'s KDoc — registered once by TileGameScreen, same precedent as [setOnMatchEnd]. */
+    fun setOnWordPlayed(listener: (WordPlayResult) -> Unit) {
+        onWordPlayed = listener
     }
 
     fun loadDictionary(androidContext: Context) {
@@ -151,7 +170,18 @@ class TileGame : GameModule {
             if (!WordDictionary.isValidWord(w.text)) return "\"${w.text}\" is not a valid word"
         }
 
-        val gained = words.sumOf { scoreWord(it, s) } + if (s.pending.size == 7) 50 else 0
+        val isBingo = s.pending.size == 7
+        val gained = words.sumOf { scoreWord(it, s) } + if (isBingo) 50 else 0
+        // Surfaced to WordPlayResult below (item: word-completion flourish) -- the exact
+        // same premium-square check scoreWord() already makes per-cell internally, just
+        // read here at the pending-placement level to classify the WHOLE play rather than
+        // accumulate into a point total.
+        val usedPremiumSquare = s.pending.any { p -> TileBoardLayout.typeAt(p.row, p.col) != SquareType.NORMAL }
+        val tier = when {
+            isBingo -> WordPlayTier.BINGO
+            usedPremiumSquare -> WordPlayTier.MULTIPLIER
+            else -> WordPlayTier.ORDINARY
+        }
 
         var newBoard = s.board.map { it.toMutableList() }
         s.pending.forEach { p ->
@@ -179,8 +209,29 @@ class TileGame : GameModule {
             matchOver = matchOver
         )
 
+        onWordPlayed?.invoke(WordPlayResult(words.map { it.text }.distinct(), gained, tier))
         if (matchOver) finishGame()
         return null
+    }
+
+    /**
+     * Non-mutating: would [submitMove] currently succeed if called right now? Mirrors that
+     * function's own validation chain exactly but commits nothing -- used by
+     * TileGameScreen's idle Submit-button pulse, which needs to know a staged placement is
+     * a REAL, submittable word before nudging the player, not just "something is staged"
+     * (an illegal or incomplete placement shouldn't get an inviting pulse).
+     */
+    fun currentStagedWordIsValid(): Boolean {
+        val s = state.value ?: return false
+        if (s.pending.isEmpty()) return false
+        val boardHasAnyTile = s.board.any { row -> row.any { it.tile != null } }
+        val words = detectWords(s) ?: return false
+        if (words.isEmpty()) return false
+        val coveredCells = words.flatMap { it.cells }.toSet()
+        if (s.pending.any { (it.row to it.col) !in coveredCells }) return false
+        if (boardHasAnyTile && words.none { it.touchesExisting }) return false
+        if (!boardHasAnyTile && words.none { w -> w.cells.any { it.first == CENTER && it.second == CENTER } }) return false
+        return words.all { WordDictionary.isValidWord(it.text) }
     }
 
     fun pass() {

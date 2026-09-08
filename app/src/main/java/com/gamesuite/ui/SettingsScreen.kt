@@ -34,141 +34,181 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var showResetConfirmation by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Back") }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text("Settings", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(24.dp))
+    // Wide-window fix (Fold/Tab compatibility audit): this is a form screen — a plain
+    // fillMaxSize() column would stretch every label/switch row (and the full-width
+    // slider/text field) edge to edge across a Tab S9 landscape or Fold-unfolded window,
+    // leaving a huge gap between e.g. a switch's label and the switch itself. Same
+    // widthIn(max = 840.dp)-before-fillMaxWidth() centering trick as AdaptiveTwoPane/
+    // MainMenuScreen caps this screen to a sane reading width instead — no grid reflow
+    // needed here, unlike MainMenuScreen's button list, since a form's rows are already
+    // one-per-line by nature.
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 840.dp)
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("← Back") }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(24.dp))
 
-        SectionHeader("Theme")
-        ThemeModeSelector(settings.themeMode, onSelect = viewModel::setThemeMode)
-        Spacer(Modifier.height(12.dp))
+            SectionHeader("Theme")
+            ThemeModeSelector(settings.themeMode, onSelect = viewModel::setThemeMode)
+            Spacer(Modifier.height(12.dp))
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                SettingSwitchRow(
+                    label = "Dynamic color (Material You)",
+                    description = "Match your wallpaper's colors",
+                    checked = settings.dynamicColor,
+                    onCheckedChange = viewModel::setDynamicColor
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            NamedThemeSelector(
+                selected = settings.namedTheme,
+                enabled = !settings.dynamicColor,
+                onSelect = viewModel::setNamedTheme
+            )
+
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Sound & feedback")
             SettingSwitchRow(
-                label = "Dynamic color (Material You)",
-                description = "Match your wallpaper's colors",
-                checked = settings.dynamicColor,
-                onCheckedChange = viewModel::setDynamicColor
+                label = "Sound effects",
+                description = null,
+                checked = settings.soundEnabled,
+                onCheckedChange = viewModel::setSoundEnabled
+            )
+            SettingSwitchRow(
+                label = "Haptics",
+                description = null,
+                checked = settings.hapticsEnabled,
+                onCheckedChange = viewModel::setHapticsEnabled
+            )
+            SettingSwitchRow(
+                label = "Ambient music",
+                description = "Calming background music while you play",
+                checked = settings.musicEnabled,
+                onCheckedChange = viewModel::setMusicEnabled
+            )
+
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Accessibility")
+            SettingSwitchRow(
+                label = "Reduced motion",
+                description = "Minimize animations across all games",
+                checked = settings.reducedMotion,
+                onCheckedChange = viewModel::setReducedMotion
+            )
+            SettingSwitchRow(
+                label = "Colorblind-safe mode",
+                description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
+                checked = settings.colorblindMode,
+                onCheckedChange = viewModel::setColorblindMode
+            )
+            SettingSwitchRow(
+                label = "3D perspective mode",
+                description = "Cards and pieces get real depth and perspective flips, and boards/tables get a resting tilt",
+                checked = settings.card3DEnabled,
+                onCheckedChange = viewModel::setCard3DEnabled
+            )
+            SettingSwitchRow(
+                label = "Enhanced move animations",
+                description = "Pieces and cards move with weight instead of snapping instantly — lift-and-place, capture fades, fly-to-target tosses",
+                checked = settings.enhancedAnimationsEnabled,
+                onCheckedChange = viewModel::setEnhancedAnimationsEnabled
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
+            Slider(
+                value = settings.textScale,
+                onValueChange = viewModel::setTextScale,
+                valueRange = 0.85f..1.5f,
+                steps = 12
+            )
+
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Card size")
+            Text(
+                "Applies to every card game. Cards are capped to a size range computed " +
+                    "for this device — the smallest setting stays comfortably tappable, and " +
+                    "the largest still fits the table, so the game stays fully playable at " +
+                    "either end.",
+                style = MaterialTheme.typography.labelSmall
             )
             Spacer(Modifier.height(12.dp))
-        }
-
-        NamedThemeSelector(
-            selected = settings.namedTheme,
-            enabled = !settings.dynamicColor,
-            onSelect = viewModel::setNamedTheme
-        )
-
-        Spacer(Modifier.height(24.dp))
-        SectionHeader("Sound & feedback")
-        SettingSwitchRow(
-            label = "Sound effects",
-            description = null,
-            checked = settings.soundEnabled,
-            onCheckedChange = viewModel::setSoundEnabled
-        )
-        SettingSwitchRow(
-            label = "Haptics",
-            description = null,
-            checked = settings.hapticsEnabled,
-            onCheckedChange = viewModel::setHapticsEnabled
-        )
-
-        Spacer(Modifier.height(24.dp))
-        SectionHeader("Accessibility")
-        SettingSwitchRow(
-            label = "Reduced motion",
-            description = "Minimize animations across all games",
-            checked = settings.reducedMotion,
-            onCheckedChange = viewModel::setReducedMotion
-        )
-        SettingSwitchRow(
-            label = "Colorblind-safe mode",
-            description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
-            checked = settings.colorblindMode,
-            onCheckedChange = viewModel::setColorblindMode
-        )
-        Spacer(Modifier.height(8.dp))
-        Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
-        Slider(
-            value = settings.textScale,
-            onValueChange = viewModel::setTextScale,
-            valueRange = 0.85f..1.5f,
-            steps = 12
-        )
-
-        Spacer(Modifier.height(24.dp))
-        SectionHeader("Card size")
-        Text(
-            "Applies to every card game. Cards are capped to a size range computed " +
-                "for this device — the smallest setting stays comfortably tappable, and " +
-                "the largest still fits the table, so the game stays fully playable at " +
-                "either end.",
-            style = MaterialTheme.typography.labelSmall
-        )
-        Spacer(Modifier.height(12.dp))
-        CardSizePreview()
-        Spacer(Modifier.height(4.dp))
-        Slider(
-            value = settings.cardSizePreference,
-            onValueChange = viewModel::setCardSizePreference,
-            valueRange = 0f..1f
-        )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Small", style = MaterialTheme.typography.labelSmall)
-            Text("Large", style = MaterialTheme.typography.labelSmall)
-        }
-
-        Spacer(Modifier.height(24.dp))
-        SectionHeader("Gameplay")
-        Text("Default CPU difficulty", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Pre-selects each game's own difficulty picker — you can still override per match.",
-            style = MaterialTheme.typography.labelSmall
-        )
-        Spacer(Modifier.height(8.dp))
-        DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
-
-        Spacer(Modifier.height(24.dp))
-        SectionHeader("Online multiplayer")
-        Text(
-            "A ws:// or wss:// address for the relay server UNO's online mode connects " +
-                "through — see server/README.md. Leave blank and Online play stays disabled.",
-            style = MaterialTheme.typography.labelSmall
-        )
-        Spacer(Modifier.height(8.dp))
-        var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
-        OutlinedTextField(
-            value = serverUrlDraft,
-            onValueChange = { serverUrlDraft = it },
-            label = { Text("Online server") },
-            placeholder = { Text("ws://192.168.1.23:8080") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+            CardSizePreview()
+            Spacer(Modifier.height(4.dp))
+            Slider(
+                value = settings.cardSizePreference,
+                onValueChange = viewModel::setCardSizePreference,
+                valueRange = 0f..1f
             )
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) }) {
-            Text("Save server address")
-        }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Small", style = MaterialTheme.typography.labelSmall)
+                Text("Large", style = MaterialTheme.typography.labelSmall)
+            }
 
-        Spacer(Modifier.height(32.dp))
-        OutlinedButton(onClick = { showResetConfirmation = true }) {
-            Text("Reset all settings")
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Gameplay")
+            Text("Default CPU difficulty", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Pre-selects each game's own difficulty picker — you can still override per match.",
+                style = MaterialTheme.typography.labelSmall
+            )
+            Spacer(Modifier.height(8.dp))
+            DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
+
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Online multiplayer")
+            Text(
+                "A ws:// or wss:// address for the relay server UNO's online mode connects " +
+                    "through — see server/README.md. Leave blank and Online play stays disabled.",
+                style = MaterialTheme.typography.labelSmall
+            )
+            Spacer(Modifier.height(8.dp))
+            var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
+            OutlinedTextField(
+                value = serverUrlDraft,
+                onValueChange = { serverUrlDraft = it },
+                label = { Text("Online server") },
+                placeholder = { Text("ws://192.168.1.23:8080") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) }) {
+                Text("Save server address")
+            }
+
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("About")
+            Text(
+                "Also available: a standalone hardware version of part of this " +
+                    "project runs as a physical ESP32-based arcade cabinet — the " +
+                    "same game logic and AI, built from scratch in C++ for a " +
+                    "touchscreen microcontroller with no Android involved.",
+                style = MaterialTheme.typography.labelSmall
+            )
+
+            Spacer(Modifier.height(32.dp))
+            OutlinedButton(onClick = { showResetConfirmation = true }) {
+                Text("Reset all settings")
+            }
+            Spacer(Modifier.height(24.dp))
         }
-        Spacer(Modifier.height(24.dp))
     }
 
     // resetAll() wipes every setting on this screen (theme, sound, accessibility,
@@ -278,9 +318,9 @@ private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit
 
 @Composable
 private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect: (NamedTheme) -> Unit) {
-    // Only Classic and High Contrast ship with real palettes right now —
-    // see NamedTheme's KDoc. Midnight Arcade / Felt Table are future work.
-    val available = listOf(NamedTheme.CLASSIC, NamedTheme.HIGH_CONTRAST)
+    // Classic, High Contrast, and Midnight Arcade ship with real palettes —
+    // see NamedTheme's KDoc. Felt Table remains future work.
+    val available = listOf(NamedTheme.CLASSIC, NamedTheme.HIGH_CONTRAST, NamedTheme.MIDNIGHT_ARCADE)
     Column {
         available.forEach { theme ->
             Row(
@@ -292,7 +332,14 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
             ) {
                 RadioButton(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
                 Spacer(Modifier.width(8.dp))
-                Text(if (theme == NamedTheme.CLASSIC) "Classic" else "High Contrast")
+                Text(
+                    when (theme) {
+                        NamedTheme.CLASSIC -> "Classic"
+                        NamedTheme.HIGH_CONTRAST -> "High Contrast"
+                        NamedTheme.MIDNIGHT_ARCADE -> "Midnight Arcade"
+                        NamedTheme.FELT_TABLE -> "Felt Table"
+                    }
+                )
             }
         }
         if (!enabled) {
