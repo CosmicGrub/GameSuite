@@ -5,10 +5,23 @@ import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
+ * Migrated from app/src/test/java/com/gamesuite/games/mancala/MancalaGameTest.kt as part of
+ * the ongoing per-game KMP port sweep (docs/ENGINE_DECISION.md) -- run against both the
+ * android and desktop targets from this one shared source file, same as the three earlier
+ * pilots. MancalaGame.kt itself ported with genuinely zero code changes (same import profile
+ * as TicTacToeGame.kt: androidx.compose.runtime.mutableStateOf, com.gamesuite.core.*,
+ * CpuDifficulty -- no Math.random-style JVM-only calls to translate this time).
+ *
+ * The only change from the original: org.junit.Test/Assert.assertTrue (JVM-only) became
+ * kotlin.test.Test/assertTrue (a real Kotlin Multiplatform artifact) -- and kotlin.test's
+ * assertTrue takes its message LAST (actual, message), the reverse of JUnit's
+ * (message, actual), the same parameter-order swap already called out migrating the three
+ * earlier pilots' tests.
+ *
  * [MancalaGame.playBotTurn]'s HARD tier picks a move via a private
  * depth-limited minimax (`minimaxBestMove`) over `legalMoves`, which is
  * itself supposed to only ever offer non-empty pits — this file is a
@@ -63,8 +76,8 @@ class MancalaGameTest {
         val chosenPitIndex = match.groupValues[1].toInt() - 1
 
         assertTrue(
-            "HARD bot chose pit $chosenPitIndex which was empty before the move (pits=$pits)",
-            pits[chosenPitIndex] > 0
+            pits[chosenPitIndex] > 0,
+            "HARD bot chose pit $chosenPitIndex which was empty before the move (pits=$pits)"
         )
     }
 

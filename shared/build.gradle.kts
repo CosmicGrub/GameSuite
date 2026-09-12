@@ -54,10 +54,51 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+
+        // Real JVM sockets (java.net.Socket/ServerSocket/DatagramSocket) for LAN local
+        // multiplayer (docs/ENGINE_DECISION.md Action Item 8's "Desktop parity" scope)
+        // aren't part of Kotlin's common stdlib -- java.net.* is JVM-only, same category
+        // as java.lang.Math earlier in this module's history (see AirHockeyGame.kt's own
+        // Math.random -> kotlin.random.Random fix). But androidTarget() and
+        // jvm("desktop") are both genuine JVMs, so this one intermediate source set lets
+        // that code be written exactly once instead of duplicated between androidMain and
+        // desktopMain -- not created automatically by the default hierarchy template for
+        // a custom-named jvm("desktop") target, so wired up explicitly here.
+        val jvmMain by creating {
+            dependsOn(commonMain.get())
+            dependencies {
+                // LanMultiplayerTransport's real need: JSON encode/decode for the wire
+                // protocol (kotlinx-serialization-core alone, already on commonMain, only
+                // provides the @Serializable annotation -- actual Json.encodeToString/
+                // decodeFromString live in the -json artifact) and coroutines for the
+                // accept/read/beacon loops. Version pinned to match :app's own
+                // kotlinx-serialization-json:1.7.3 (app/build.gradle.kts) for consistency;
+                // coroutines-core wasn't previously an explicit dependency anywhere in this
+                // project (transitively pulled in via Compose/AndroidX lifecycle elsewhere),
+                // so pinned here to a version confirmed compatible with Kotlin 2.0.21.
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+            }
+        }
+        androidMain.get().dependsOn(jvmMain)
         val desktopMain by getting {
+            dependsOn(jvmMain)
             dependencies {
                 implementation(compose.desktop.currentOs)
             }
+        }
+
+        // Mirrors jvmMain above, for LanMultiplayerTransport's own real socket tests --
+        // written once here, run on both the androidTarget and jvm("desktop") test tasks,
+        // same "one shared source, both targets" shape every ported game's commonTest
+        // already has (this one just can't live in commonTest itself, for the same
+        // java.net-is-JVM-only reason its production code lives in jvmMain, not commonMain).
+        val jvmTest by creating {
+            dependsOn(commonTest.get())
+        }
+        androidUnitTest.get().dependsOn(jvmTest)
+        val desktopTest by getting {
+            dependsOn(jvmTest)
         }
     }
 }

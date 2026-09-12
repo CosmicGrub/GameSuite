@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -24,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -41,6 +45,7 @@ import com.gamesuite.games.chess.Piece
 import com.gamesuite.games.chess.PieceColor
 import com.gamesuite.games.chess.PieceType
 import com.gamesuite.games.chess.playerIndexForColor
+import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.tictactoe.TicTacToeGame
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
@@ -71,7 +76,7 @@ fun main() = application {
     }
 }
 
-private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS }
+private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS, MANCALA }
 
 @Composable
 private fun App() {
@@ -83,6 +88,7 @@ private fun App() {
                 PilotScreen.TIC_TAC_TOE -> TicTacToeDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.AIR_HOCKEY -> AirHockeyDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.CHESS -> ChessDesktopApp(onBack = { screen = PilotScreen.MENU })
+                PilotScreen.MANCALA -> MancalaDesktopApp(onBack = { screen = PilotScreen.MENU })
             }
         }
     }
@@ -102,6 +108,8 @@ private fun MenuScreen(onSelect: (PilotScreen) -> Unit) {
         Button(onClick = { onSelect(PilotScreen.AIR_HOCKEY) }) { Text("Air Hockey (Action Item 3)") }
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onSelect(PilotScreen.CHESS) }) { Text("Chess (Action Item 4 pilot)") }
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { onSelect(PilotScreen.MANCALA) }) { Text("Mancala") }
     }
 }
 
@@ -264,53 +272,81 @@ private fun AirHockeyDesktopApp(onBack: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Text("Score  You: ${state.playerScore}   Bot: ${state.cpuScore}   (first to ${AirHockeyGame.WIN_SCORE})")
         Spacer(Modifier.height(16.dp))
-        Canvas(
-            modifier = Modifier
-                .size(420.dp)
-                .background(Color(0xFF0B2545))
-                // Single drag zone driving the player's own (bottom-half) paddle --
-                // AirHockeyScreen's real dual-pointer awaitPointerEventScope loop
-                // (for local pass-and-play's second paddle) is deliberately not
-                // reproduced here; this pilot only needs to prove the ported
-                // vs-bot physics/AI path renders and responds to input live.
-                .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        change.consume()
-                        val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                        val ny = (change.position.y / size.height).coerceIn(0f, 1f)
-                        game.movePlayerPaddle(nx, ny)
+        // A fixed board size (unlike AirHockeyScreen's dynamic BoxWithConstraints-derived
+        // boardSizeDp) since this pilot window doesn't need to adapt to arbitrary layouts --
+        // the shine-overlay math below uses the same size for both the Canvas and the puck
+        // overlay Box, so it stays correct even though it's a constant here.
+        val boardSizeDp = 420.dp
+        Box {
+            Canvas(
+                modifier = Modifier
+                    .size(boardSizeDp)
+                    .background(Color(0xFF0B2545))
+                    // Single drag zone driving the player's own (bottom-half) paddle --
+                    // AirHockeyScreen's real dual-pointer awaitPointerEventScope loop
+                    // (for local pass-and-play's second paddle) is deliberately not
+                    // reproduced here; this pilot only needs to prove the ported
+                    // vs-bot physics/AI path renders and responds to input live.
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            val nx = (change.position.x / size.width).coerceIn(0f, 1f)
+                            val ny = (change.position.y / size.height).coerceIn(0f, 1f)
+                            game.movePlayerPaddle(nx, ny)
+                        }
                     }
+            ) {
+                val w = this.size.width
+                val h = this.size.height
+
+                // Center line + faceoff circle, purely cosmetic table markings.
+                drawLine(Color.White.copy(alpha = 0.35f), Offset(0f, h / 2), Offset(w, h / 2), strokeWidth = 2f)
+                drawCircle(Color.White.copy(alpha = 0.35f), radius = h * 0.12f, center = Offset(w / 2, h / 2), style = Stroke(2f))
+
+                // Goal mouths, top (bot's goal) and bottom (player's goal).
+                val goalHalfWidthPx = AirHockeyGame.GOAL_HALF_WIDTH * w
+                drawLine(Color(0xFFEF4444), Offset(w / 2 - goalHalfWidthPx, 0f), Offset(w / 2 + goalHalfWidthPx, 0f), strokeWidth = 6f)
+                drawLine(Color(0xFF3B82F6), Offset(w / 2 - goalHalfWidthPx, h), Offset(w / 2 + goalHalfWidthPx, h), strokeWidth = 6f)
+
+                // Ball trail (real recent-position/speed history the shared game already
+                // tracks in AirHockeyState.ballTrail -- rendered here, not recomputed).
+                state.ballTrail.forEachIndexed { i, point ->
+                    val alpha = (i + 1f) / (state.ballTrail.size + 1f) * 0.5f
+                    drawCircle(
+                        Color.White.copy(alpha = alpha),
+                        radius = AirHockeyGame.BALL_RADIUS * w * 0.7f,
+                        center = Offset(point.pos.x * w, point.pos.y * h)
+                    )
                 }
-        ) {
-            val w = this.size.width
-            val h = this.size.height
 
-            // Center line + faceoff circle, purely cosmetic table markings.
-            drawLine(Color.White.copy(alpha = 0.35f), Offset(0f, h / 2), Offset(w, h / 2), strokeWidth = 2f)
-            drawCircle(Color.White.copy(alpha = 0.35f), radius = h * 0.12f, center = Offset(w / 2, h / 2), style = Stroke(2f))
+                // Paddles: blue = player (bottom half), red = bot (top half).
+                drawCircle(Color(0xFF3B82F6), radius = AirHockeyGame.PADDLE_RADIUS * w, center = Offset(state.playerPaddle.x * w, state.playerPaddle.y * h))
+                drawCircle(Color(0xFFEF4444), radius = AirHockeyGame.PADDLE_RADIUS * w, center = Offset(state.cpuPaddle.x * w, state.cpuPaddle.y * h))
 
-            // Goal mouths, top (bot's goal) and bottom (player's goal).
-            val goalHalfWidthPx = AirHockeyGame.GOAL_HALF_WIDTH * w
-            drawLine(Color(0xFFEF4444), Offset(w / 2 - goalHalfWidthPx, 0f), Offset(w / 2 + goalHalfWidthPx, 0f), strokeWidth = 6f)
-            drawLine(Color(0xFF3B82F6), Offset(w / 2 - goalHalfWidthPx, h), Offset(w / 2 + goalHalfWidthPx, h), strokeWidth = 6f)
-
-            // Ball trail (real recent-position/speed history the shared game already
-            // tracks in AirHockeyState.ballTrail -- rendered here, not recomputed).
-            state.ballTrail.forEachIndexed { i, point ->
-                val alpha = (i + 1f) / (state.ballTrail.size + 1f) * 0.5f
-                drawCircle(
-                    Color.White.copy(alpha = alpha),
-                    radius = AirHockeyGame.BALL_RADIUS * w * 0.7f,
-                    center = Offset(point.pos.x * w, point.pos.y * h)
-                )
+                // Ball on top of everything else -- this baseline circle is the whole
+                // effect if the shader overlay below fails to compile for any reason.
+                drawCircle(Color.White, radius = AirHockeyGame.BALL_RADIUS * w, center = Offset(state.ballPos.x * w, state.ballPos.y * h))
             }
 
-            // Paddles: blue = player (bottom half), red = bot (top half).
-            drawCircle(Color(0xFF3B82F6), radius = AirHockeyGame.PADDLE_RADIUS * w, center = Offset(state.playerPaddle.x * w, state.playerPaddle.y * h))
-            drawCircle(Color(0xFFEF4444), radius = AirHockeyGame.PADDLE_RADIUS * w, center = Offset(state.cpuPaddle.x * w, state.cpuPaddle.y * h))
-
-            // Ball on top of everything else.
-            drawCircle(Color.White, radius = AirHockeyGame.BALL_RADIUS * w, center = Offset(state.ballPos.x * w, state.ballPos.y * h))
+            // Desktop shader parity (docs/ENGINE_DECISION.md Action Item 8): the same
+            // specular-sweep shine AirHockeyScreen.kt layers on the puck via Android's AGSL
+            // RuntimeShader, reimplemented here in real Skia SkSL for Compose Desktop's own
+            // Skiko renderer -- see DesktopShaders.kt's own top comment for exactly why the
+            // shader source itself had to be re-authored, not copy-pasted, between the two
+            // platforms. A pure no-op overlay (nothing drawn) if shader compilation ever
+            // fails, matching the Android version's own defensive fallback.
+            val puckDiameterDp = boardSizeDp * (AirHockeyGame.BALL_RADIUS * 2f)
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = boardSizeDp * state.ballPos.x - puckDiameterDp / 2f,
+                        y = boardSizeDp * state.ballPos.y - puckDiameterDp / 2f
+                    )
+                    .size(puckDiameterDp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .specularSweep(tint = Color.White.copy(alpha = 0.85f), periodMs = 1400)
+            )
         }
         Spacer(Modifier.height(16.dp))
         if (state.matchOver) {
@@ -479,4 +515,144 @@ private fun pieceGlyph(piece: Piece): String {
     )
     val glyphs = if (piece.color == PieceColor.WHITE) whiteGlyphs else blackGlyphs
     return glyphs.getValue(piece.type)
+}
+
+/**
+ * Minimal Compose Desktop rendering of the ported MancalaGame -- pit indices 0-13 per
+ * MancalaGame.kt's own top-comment layout (0-5 = player 0's pits, 6 = player 0's store,
+ * 7-12 = player 1's pits, 13 = player 1's store). You play player 0 (bottom row, left to
+ * right); the HARD bot plays player 1 (top row, rendered right to left so both rows read
+ * in the same counter-clockwise sowing direction the real rules use). Tapping a pit calls
+ * the identical shared MancalaGame.sow() ChessScreen/MancalaScreen would call.
+ */
+@Composable
+private fun MancalaDesktopApp(onBack: () -> Unit) {
+    val game = remember {
+        MancalaGame().apply {
+            difficulty = CpuDifficulty.HARD
+            init(
+                GameContext(
+                    activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "human", displayName = "You", isBot = false),
+                        PlayerInfo(playerId = "bot", displayName = "Bot", isBot = true)
+                    ),
+                    localPlayerIndex = 0,
+                    transport = LocalPassAndPlayTransport()
+                )
+            )
+            startMatch()
+        }
+    }
+    val state by game.state
+
+    // Bot-turn trigger, mirrors the other pilots' LaunchedEffect keyed on whatever
+    // signals a new turn -- playBotTurn() is itself a safe no-op when it isn't the bot's turn.
+    LaunchedEffect(state?.currentPlayerIndex, state?.roundOver) {
+        game.playBotTurn()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("GameSuite KMP Pilot: Mancala (You vs HARD bot)", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("Wins  You: ${game.scoreP1.value}   Bot: ${game.scoreP2.value}   Draws: ${game.draws.value}")
+        Spacer(Modifier.height(8.dp))
+        val s = state
+        if (s == null) {
+            Text("Setting up the board...")
+        } else {
+            Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(12.dp))
+            MancalaBoard(
+                pits = s.pits,
+                captureCandidates = if (s.currentPlayerIndex == 0) game.captureCandidates(0) else emptySet(),
+                enabled = s.currentPlayerIndex == 0 && !s.roundOver,
+                onPitClick = { pit -> game.sow(0, pit) }
+            )
+            Spacer(Modifier.height(16.dp))
+            if (s.roundOver) {
+                val outcome = when {
+                    s.winnerPlayerId == "human" -> "You win this round!"
+                    s.winnerPlayerId == "bot" -> "Bot wins this round."
+                    else -> "Draw."
+                }
+                Text(outcome)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { game.playAgain() }) { Text("Play Again") }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+        Button(onClick = onBack) { Text("Back to Menu") }
+    }
+}
+
+@Composable
+private fun MancalaBoard(pits: List<Int>, captureCandidates: Set<Int>, enabled: Boolean, onPitClick: (Int) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Player 1's row (pits 7-12), rendered right-to-left (12 down to 7) so it reads in
+        // the same counter-clockwise direction as the bottom row -- the top of a real board.
+        Row {
+            for (pit in 12 downTo 7) {
+                MancalaPit(count = pits[pit], highlighted = false, enabled = false, onClick = {})
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MancalaStore(count = pits[13], label = "Bot")
+            Spacer(Modifier.width(16.dp))
+            Column {
+                // Player 0's row (pits 0-5), left to right.
+                Row {
+                    for (pit in 0..5) {
+                        MancalaPit(
+                            count = pits[pit],
+                            highlighted = pit in captureCandidates,
+                            enabled = enabled && pits[pit] > 0,
+                            onClick = { onPitClick(pit) }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            MancalaStore(count = pits[6], label = "You")
+        }
+    }
+}
+
+@Composable
+private fun MancalaPit(count: Int, highlighted: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .padding(4.dp)
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.tertiaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant,
+                shape = CircleShape
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("$count")
+    }
+}
+
+@Composable
+private fun MancalaStore(count: Int, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(128.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("$count", style = MaterialTheme.typography.headlineSmall)
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
 }
