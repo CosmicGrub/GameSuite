@@ -3,6 +3,10 @@ package com.gamesuite.games.chess
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 // ---------------------------------------------------------------------------
 // Port of Z:\GameSuite\esp32-tictactoe\TicTacToeESP32\ChessLogic.h/.cpp -- that
@@ -87,16 +91,26 @@ import com.gamesuite.settings.CpuDifficulty
 // depends on ":shared" for this game and its own duplicate copy is gone.)
 // ---------------------------------------------------------------------------
 
+@Serializable
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
+@Serializable
 enum class PieceColor { WHITE, BLACK }
 
+@Serializable
 data class Piece(val type: PieceType, val color: PieceColor)
 
 /** Mirrors ChessRoundResult -- DRAW_STALEMATE and DRAW_REPETITION are named specifically
  *  (not a generic DRAW) so that the still-out-of-scope 50-move-rule/insufficient-material
  *  gap stays visible at every call site, exactly as the C++ header's own comment explains
  *  for its own enum. DRAW_REPETITION is a real, later addition -- see this file's top
- *  comment and [recordPositionAndCheckRepetition] for why it exists. */
+ *  comment and [recordPositionAndCheckRepetition] for why it exists.
+ *
+ *  @Serializable (added alongside PieceType/PieceColor/Piece above for ChessNetMessage.kt's
+ *  wire protocol -- see docs/ENGINE_DECISION.md Action Item 8's LAN-multiplayer follow-up)
+ *  is a neutral kotlinx.serialization annotation, not a platform framework dependency --
+ *  it doesn't reintroduce any of the Android/DataStore/coroutines coupling this file's own
+ *  top comment describes removing. */
+@Serializable
 enum class ChessResult { IN_PROGRESS, WHITE_WINS, BLACK_WINS, DRAW_STALEMATE, DRAW_REPETITION }
 
 /**
@@ -680,7 +694,16 @@ class ChessGame : GameModule {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        // Real networked play (docs/ENGINE_DECISION.md Action Item 8's follow-up on
+        // extending the proven LAN-multiplayer pattern to a second game) -- mirrors
+        // TicTacToeGame.kt's own isNetworked/isHost design almost exactly; see
+        // ChessNetMessage.kt's KDoc for what's genuinely the same and the one real
+        // wrinkle (playMove's own explicit playerIndex param, since -- unlike
+        // TicTacToe's implicit-current-player cellClicked -- Chess's move entry point
+        // already took an explicit player index for pass-and-play's sake).
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<ChessState?>(null)
@@ -707,6 +730,28 @@ class ChessGame : GameModule {
      *  [recordPositionAndCheckRepetition]. */
     private val positionHistory = mutableMapOf<String, Int>()
 
+    /** True for real networked play (LAN or online) -- see ChessNetMessage.kt's own KDoc for
+     *  the host-authoritative design this gates, mirroring TicTacToeGame.kt's own
+     *  isNetworked exactly. False (the default) for SINGLE_DEVICE_PASS_AND_PLAY/
+     *  SINGLE_PLAYER_VS_BOT, where every mutation below applies directly with no network
+     *  involvement at all, exactly as it always has. */
+    private val isNetworked: Boolean
+        get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
+
+    /** The host always sits at [GameContext.localPlayerIndex] == 0, by the same lobby
+     *  convention TicTacToeGame.kt/UnoGame.kt's own isHost relies on. Meaningless (never
+     *  read) unless [isNetworked]. */
+    private val isHost: Boolean
+        get() = context.localPlayerIndex == 0
+
+    /** Host only: bumped on every broadcast [broadcastState] triggers -- see
+     *  [ChessNetMessage.StateSync]'s own KDoc for why this exists. */
+    private var stateVersion = 0
+
+    /** Guest only: the last [ChessNetMessage.StateSync.version] actually applied, so a
+     *  stray out-of-order delivery can never move state backward. */
+    private var lastAppliedStateVersion = -1
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -714,6 +759,16 @@ class ChessGame : GameModule {
         scoreP2.value = 0
         draws.value = 0
         positionHistory.clear()
+        stateVersion = 0
+        lastAppliedStateVersion = -1
+
+        if (isNetworked) {
+            context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+            // Covers the same startup race TicTacToeGame.kt's own init() comment
+            // documents: this guest's listener above might register after the host has
+            // already broadcast (or will broadcast before this guest is ready to receive).
+            if (!isHost) sendToHost(ChessNetMessage.RequestState)
+        }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -744,6 +799,11 @@ class ChessGame : GameModule {
             lastFrom = null, lastTo = null,
             lastAction = "Game started"
         )
+        // Networked: covers both the very first real-game-start broadcast AND, since
+        // playAgain() below delegates straight to startMatch(), the play-again broadcast
+        // too -- one call site rather than TicTacToeGame.kt's two, since Chess's own
+        // playAgain() has no separate reset logic of its own to broadcast from.
+        if (isNetworked && isHost) broadcastState()
     }
 
     override fun pause() {}
@@ -770,8 +830,18 @@ class ChessGame : GameModule {
     }
 
     /** Called from the round-over panel's "Play Again" button -- keeps the running score and
-     *  deals a fresh board. Mirrors MancalaGame.playAgain()/TicTacToeGame.playAgain(). */
+     *  deals a fresh board. Mirrors MancalaGame.playAgain()/TicTacToeGame.playAgain().
+     *  Networked + not host: forwarded to the host as a [ChessIntentPayload.PlayAgain]
+     *  intent instead of applied locally, same reasoning as [playMove]. */
     fun playAgain() {
+        if (isNetworked && !isHost) {
+            sendToHost(ChessIntentPayload.PlayAgain)
+            return
+        }
+        applyPlayAgain()
+    }
+
+    private fun applyPlayAgain() {
         if (matchOver.value) return
         startMatch()
     }
@@ -785,6 +855,23 @@ class ChessGame : GameModule {
      * one side from accidentally moving the other side's piece.
      */
     fun playMove(playerIndex: Int, from: Int, to: Int) {
+        if (isNetworked && !isHost) {
+            // A guest's own UI only ever lets the LOCAL player move their own pieces, so
+            // playerIndex here should always already be context.localPlayerIndex -- this
+            // check is defensive, not load-bearing (the host re-validates the sender's
+            // actual turn independently in handleNetworkMessage regardless of what a
+            // buggy/malicious caller passes here).
+            if (playerIndex != context.localPlayerIndex) return
+            sendToHost(ChessIntentPayload.PlayMove(from, to))
+            return
+        }
+        applyPlayMove(playerIndex, from, to)
+    }
+
+    /** The real move logic -- called directly for local play (pass-and-play/vs-bot), by
+     *  [playMove] when this instance IS the host (its own local tap), and by
+     *  [handleNetworkMessage] when the host applies a validated guest intent. */
+    private fun applyPlayMove(playerIndex: Int, from: Int, to: Int) {
         val s = state.value ?: return
         if (s.roundOver || matchOver.value) return
         if (playerIndex != playerIndexForColor(s.sideToMove)) return
@@ -985,6 +1072,123 @@ class ChessGame : GameModule {
                 ChessResult.DRAW_STALEMATE -> draws.value += 1
                 ChessResult.DRAW_REPETITION -> draws.value += 1
                 else -> {}
+            }
+        }
+        // One broadcast site covers every outcome (in-progress/checkmate/stalemate/
+        // repetition) since they all funnel through this single state.value assignment
+        // above -- unlike TicTacToeGame.kt's applyCellClicked, which has three separate
+        // early-return branches each needing their own broadcast call.
+        if (isNetworked && isHost) broadcastState()
+    }
+
+    // ---- Networked play (see ChessNetMessage.kt's own KDoc for the host-authoritative
+    // design) -- everything below this point is only ever exercised when [isNetworked]. ----
+
+    /** Host only: bundles the current visible state into a [ChessNetMessage.StateSync]
+     *  and broadcasts it -- called after every host-side mutation ([applyPlayedMove]) and
+     *  once from [startMatch] (which also covers [applyPlayAgain], since that delegates
+     *  straight to [startMatch]). */
+    private fun broadcastState() {
+        val s = state.value ?: return
+        stateVersion++
+        val snapshot = ChessNetState(
+            board = s.board,
+            sideToMove = s.sideToMove,
+            castleWK = s.castleWK, castleWQ = s.castleWQ, castleBK = s.castleBK, castleBQ = s.castleBQ,
+            epSquare = s.epSquare,
+            lastFrom = s.lastFrom, lastTo = s.lastTo,
+            lastAction = s.lastAction,
+            roundOver = s.roundOver,
+            result = s.result,
+            inCheck = s.inCheck,
+            winnerPlayerId = s.winnerPlayerId,
+            scoreP1 = scoreP1.value,
+            scoreP2 = scoreP2.value,
+            draws = draws.value,
+            matchOver = matchOver.value
+        )
+        sendMessage(ChessNetMessage.StateSync(stateVersion, snapshot), toPlayerId = null)
+    }
+
+    /** Guest only: replaces every visible field with the host's own values -- the guest
+     *  never computes any of this itself (no local move generation, no local repetition
+     *  tracking), only ever displays the last [StateSync][ChessNetMessage.StateSync] it
+     *  has, same as TicTacToeGame's own non-host devices. */
+    private fun applyNetState(netState: ChessNetState) {
+        state.value = ChessState(
+            board = netState.board,
+            sideToMove = netState.sideToMove,
+            castleWK = netState.castleWK, castleWQ = netState.castleWQ,
+            castleBK = netState.castleBK, castleBQ = netState.castleBQ,
+            epSquare = netState.epSquare,
+            lastFrom = netState.lastFrom, lastTo = netState.lastTo,
+            lastAction = netState.lastAction,
+            roundOver = netState.roundOver,
+            result = netState.result,
+            inCheck = netState.inCheck,
+            winnerPlayerId = netState.winnerPlayerId
+        )
+        scoreP1.value = netState.scoreP1
+        scoreP2.value = netState.scoreP2
+        draws.value = netState.draws
+        matchOver.value = netState.matchOver
+    }
+
+    /** Non-host only: sends [intent] to whichever player is at [GameContext.players] index 0
+     *  -- the host, by the same lobby convention [isHost] itself relies on. */
+    private fun sendToHost(intent: ChessIntentPayload) {
+        sendMessage(ChessNetMessage.Intent(intent), toPlayerId = context.players.getOrNull(0)?.playerId)
+    }
+
+    /** Non-host only: same as [sendToHost] but for [ChessNetMessage.RequestState], which
+     *  isn't wrapped in a [ChessNetMessage.Intent] (it's a lobby/sync concern, not a game
+     *  move) -- mirrors [ChessNetMessage.RequestState] itself being a top-level variant
+     *  rather than an intent payload. */
+    private fun sendToHost(message: ChessNetMessage) {
+        sendMessage(message, toPlayerId = context.players.getOrNull(0)?.playerId)
+    }
+
+    /** [toPlayerId] null broadcasts to every other connected player (see
+     *  [com.gamesuite.transport.MultiplayerTransport.send]'s own KDoc) -- correct either
+     *  way for this game's fixed 2-player cap, where "everyone else" is exactly one
+     *  recipient. */
+    private fun sendMessage(message: ChessNetMessage, toPlayerId: String?) {
+        val localPlayerId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val payload = Json.encodeToString(message).encodeToByteArray()
+        context.transport.send(fromPlayerId = localPlayerId, toPlayerId = toPlayerId, payload = payload)
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = runCatching { Json.decodeFromString<ChessNetMessage>(payload.decodeToString()) }.getOrNull() ?: return
+        when (message) {
+            is ChessNetMessage.StateSync -> {
+                // The host is always authoritative over its own state -- an inbound
+                // StateSync would only ever arrive here due to a bug or a malicious peer,
+                // never as part of this protocol's own intended flow.
+                if (isHost) return
+                if (message.version <= lastAppliedStateVersion) return
+                lastAppliedStateVersion = message.version
+                applyNetState(message.state)
+            }
+            is ChessNetMessage.Intent -> {
+                if (!isHost) return // only the host ever applies a peer's intent
+                val senderIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
+                if (senderIndex == -1) return // unknown sender -- ignore rather than trust a bare claimed identity
+                val s = state.value
+                when (val intent = message.intent) {
+                    is ChessIntentPayload.PlayMove -> {
+                        // Not this sender's actual turn -- ignore rather than trust the
+                        // intent's own from/to squares blindly. applyPlayMove's own
+                        // roundOver/matchOver/legal-move guards still apply on top of
+                        // this, exactly as they do for a local tap.
+                        if (s == null || senderIndex != playerIndexForColor(s.sideToMove)) return
+                        applyPlayMove(senderIndex, intent.from, intent.to)
+                    }
+                    ChessIntentPayload.PlayAgain -> applyPlayAgain()
+                }
+            }
+            ChessNetMessage.RequestState -> {
+                if (isHost) broadcastState()
             }
         }
     }
