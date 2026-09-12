@@ -2,23 +2,28 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 /**
- * The Kotlin Multiplatform pilot module described in docs/ENGINE_DECISION.md
- * (Action Item 1) -- proves that GameSuite's pure game-logic layer really is
- * portable, by moving one game (Tic-Tac-Toe, chosen for its small size and
- * this project's own prior familiarity with it) into a commonMain source set
- * shared between the existing Android app and a brand-new desktop target.
+ * The Kotlin Multiplatform module described in docs/ENGINE_DECISION.md,
+ * started as a pilot (Action Item 1) proving that GameSuite's pure
+ * game-logic layer really is portable, by moving one game (Tic-Tac-Toe,
+ * chosen for its small size and this project's own prior familiarity with
+ * it) into a commonMain source set shared between the existing Android app
+ * and a brand-new desktop target. Since grown well past pilot status -- see
+ * below.
  *
- * Deliberately NOT an iOS target yet: per the ADR's own sequencing, iOS work
- * only starts once a macOS build host exists (Action Item 6), and nothing
- * about proving the Android/Desktop split needs one. Adding iOS here would
- * just be dead, unbuildable configuration until that prerequisite lands.
+ * NOT an iOS target, full stop -- not "not yet." The Scope Update in
+ * docs/ENGINE_DECISION.md (2026-09-12) withdrew iOS from this project
+ * entirely per the project owner's own explicit direction; Action Item 6
+ * (the macOS-build-access prerequisite this comment used to gate iOS work
+ * on) is cancelled, not merely unstarted. Adding an iOS target here is not
+ * planned.
  *
- * Deliberately NOT yet consumed by the :app module -- this is a parallel,
- * additive pilot module with its OWN copy of TicTacToeGame.kt (and the small
- * set of core/transport/settings types it depends on), not a replacement for
- * the shipping Android game. Whether and when :app switches to depending on
- * this module instead of its own copy is Action Item 5 in the ADR -- an
- * explicit, later, game-by-game decision, not something this pilot presumes.
+ * IS now consumed by the :app module (2026-09-12, Action Item 5, marked
+ * Resolved in the ADR) -- for Tic-Tac-Toe, Air Hockey, Chess, and Mancala,
+ * this module's own commonMain copy is the ONLY copy; :app's former
+ * duplicates of these four games (and the core/transport/settings types
+ * they depend on) were deleted once :app started depending on this module
+ * directly. The other 9 games remain Android-only, sourced entirely from
+ * :app, pending their own later game-by-game migration.
  */
 plugins {
     id("com.android.library")

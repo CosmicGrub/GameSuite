@@ -451,14 +451,19 @@ blocks the parts of this decision that don't need it.
   chess engine. See Action Items for the recommended sequencing — this is
   an eventual, game-by-game migration, not a requirement of this decision
   today.
-- The actual design of same-room ad-hoc multiplayer on iOS/desktop, once
-  the core port is proven — treated here as a deliberately separate,
-  later decision rather than bundled into the initial port risk.
-- Whether the not-yet-greenlit "Premium 2026 Vision" shader work happens
-  before or after this port. Recommendation: **after** — AGSL/SkSL parity
-  work is no harder to do once the port exists than before it, and there's
-  no reason to let an ungreenlit polish pitch add scope to the riskier,
-  more foundational milestone this ADR is actually deciding.
+- The actual design of same-room ad-hoc multiplayer on desktop, once the
+  core port is proven — treated here as a deliberately separate, later
+  decision rather than bundled into the initial port risk. (Originally
+  written as "iOS/desktop" before the Scope Update withdrew iOS; this
+  bullet was missed in that pass and is corrected here. As of 2026-09-12
+  this is no longer purely hypothetical: `LanMultiplayerTransport` gives
+  Tic-Tac-Toe real host-authoritative LAN play on Desktop -- see Action
+  Item 8's own updated status below.)
+- ~~Whether the not-yet-greenlit "Premium 2026 Vision" shader work happens
+  before or after this port.~~ Resolved by events, not by this
+  recommendation: the Android side of that pitch was greenlit and shipped
+  2026-09-07, and Desktop's own AGSL-equivalent (`DesktopShaders.kt`, real
+  Skia SkSL) shipped after the port existed, exactly as recommended here.
 
 ## Action Items
 
@@ -578,6 +583,40 @@ blocks the parts of this decision that don't need it.
    touching Nearby. (Originally written with iOS included in "the new
    platforms" — narrowed to Desktop only per the Scope Update; the
    reasoning is otherwise unchanged.)
+
+   **Update (2026-09-12) — two of the four are now real, two are still
+   open:**
+   - Same-room ad-hoc multiplayer: **done for one game.**
+     `LanMultiplayerTransport` (UDP discovery + TCP host-authoritative
+     play, no separate relay server) is real and proven -- real-socket
+     integration tests plus a live two-separate-process game -- and wired
+     end-to-end into Tic-Tac-Toe via a real Desktop lobby UI. This is the
+     Desktop equivalent this bullet deferred, not a placeholder. Chess,
+     Mancala, and Air Hockey (all already ported per Action Item 5) have
+     no networking code yet; the transport itself needs no further work to
+     reuse for them, only per-game wiring.
+   - AGSL/SkSL shader parity: **done, in one concrete spot.**
+     `DesktopShaders.kt` compiles genuine Skia SkSL via Skiko's
+     `RuntimeEffect`, mirroring (not sharing source with -- the dialects
+     are genuinely different languages) Android's AGSL `specularSweep`.
+     Live today on the Desktop Air Hockey pilot's puck. Not yet extended to
+     a real per-game material identity (e.g. a wood-grain board) the way
+     Android's shipped Premium 2026 Vision work has.
+   - Haptics richness on Desktop: **not started, and there's a real
+     platform gap to name.** JVM Desktop has no vibration API at all --
+     any haptic-signature work designed for Android (`Haptics.kt`) has no
+     direct equivalent here and would need a different feedback channel
+     entirely (audio cue, visual pulse) if it's ever wanted.
+   - Fold-aware layout work on Desktop: **not started**, and arguably not
+     the right framing for a resizable window rather than a folding
+     device -- this would need its own re-scoping before being picked up,
+     not a straight port of the Android fold-posture system.
+
+   See the "Premium 2026 Vision" pitch's own refreshed Desktop section for
+   the fuller writeup of what's real, what's proven, and what the actual
+   remaining gap is (a premium Desktop *UI* for these games doesn't exist
+   yet -- today's Desktop screens are pilot/demo quality, not a shipped
+   consumer experience).
 
 ## Addendum: The True-3D (Filament/SceneView) Bet — Declined Again (2026-09-12)
 

@@ -80,9 +80,11 @@ import com.gamesuite.settings.CpuDifficulty
 // Android/DataStore/coroutines imports -- everything below is plain Kotlin over
 // androidx.compose.runtime.mutableStateOf, com.gamesuite.core, and CpuDifficulty, the same
 // portability shape TicTacToeGame.kt and AirHockeyGame.kt already proved out as real KMP
-// pilots. This file itself has NOT been copied into shared/commonMain yet -- untangling was
-// the whole scope of Action Item 4, not a port -- but it's now a clean candidate whenever
-// that pilot is picked up.
+// pilots. (Stale note, corrected 2026-09-12: this comment used to say the file had NOT yet
+// been copied into shared/commonMain -- untangling was the whole scope of Action Item 4, not
+// a port. It has since actually happened, which is exactly why you're reading this comment
+// from shared/src/commonMain/kotlin/ -- Action Item 5 in docs/ENGINE_DECISION.md, ":app" now
+// depends on ":shared" for this game and its own duplicate copy is gone.)
 // ---------------------------------------------------------------------------
 
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
