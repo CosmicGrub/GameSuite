@@ -76,7 +76,7 @@ fun main() = application {
     }
 }
 
-private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS, MANCALA }
+private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS, MANCALA, TIC_TAC_TOE_LAN }
 
 @Composable
 private fun App() {
@@ -89,6 +89,7 @@ private fun App() {
                 PilotScreen.AIR_HOCKEY -> AirHockeyDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.CHESS -> ChessDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.MANCALA -> MancalaDesktopApp(onBack = { screen = PilotScreen.MENU })
+                PilotScreen.TIC_TAC_TOE_LAN -> TicTacToeLanDesktopApp(onBack = { screen = PilotScreen.MENU })
             }
         }
     }
@@ -110,6 +111,8 @@ private fun MenuScreen(onSelect: (PilotScreen) -> Unit) {
         Button(onClick = { onSelect(PilotScreen.CHESS) }) { Text("Chess (Action Item 4 pilot)") }
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onSelect(PilotScreen.MANCALA) }) { Text("Mancala") }
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { onSelect(PilotScreen.TIC_TAC_TOE_LAN) }) { Text("Tic-Tac-Toe -- LAN Multiplayer (Action Item 8)") }
     }
 }
 

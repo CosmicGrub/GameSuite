@@ -4,6 +4,9 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
 import kotlin.random.Random
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 /**
  * First proof-of-concept game module, since upgraded with a real research
@@ -46,7 +49,16 @@ class TicTacToeGame : GameModule {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        // Real networked play (docs/ENGINE_DECISION.md Action Item 8's follow-up on wiring
+        // the LAN transport into an actual playable session) -- see this class's own
+        // isNetworked/isHost and TicTacToeNetMessage.kt's KDoc for the host-authoritative
+        // design this mirrors from UnoGame.kt's own already-proven real-networked-play
+        // pattern. ONLINE included too since the mechanism (host-authoritative Intent/
+        // StateSync over any MultiplayerTransport) is transport-agnostic -- nothing here
+        // is LAN-specific.
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     // 0 = empty, 1 = P1, 2 = P2 — Compose state so UI recomposes on change.
@@ -92,6 +104,27 @@ class TicTacToeGame : GameModule {
     /** Alternates who opens each round, for fairness — reset to 1 at the start of a fresh session. */
     private var startingPlayer = 1
 
+    /** True for real networked play (LAN or online) -- see TicTacToeNetMessage.kt's own
+     *  KDoc for the host-authoritative design this gates. False (the default) for
+     *  SINGLE_DEVICE_PASS_AND_PLAY/SINGLE_PLAYER_VS_BOT, where every mutation below applies
+     *  directly with no network involvement at all, exactly as it always has. */
+    private val isNetworked: Boolean
+        get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
+
+    /** The host always sits at [GameContext.localPlayerIndex] == 0, by the same lobby
+     *  convention UnoGame.kt's own isHost relies on. Meaningless (never read) unless
+     *  [isNetworked]. */
+    private val isHost: Boolean
+        get() = context.localPlayerIndex == 0
+
+    /** Host only: bumped on every broadcast [applyCellClicked]/[applyPlayAgain] triggers --
+     *  see [TicTacToeNetMessage.StateSync]'s own KDoc for why this exists. */
+    private var stateVersion = 0
+
+    /** Guest only: the last [TicTacToeNetMessage.StateSync.version] actually applied, so a
+     *  stray out-of-order delivery can never move state backward. */
+    private var lastAppliedStateVersion = -1
+
     override fun init(context: GameContext) {
         this.context = context
         board.value = IntArray(9)
@@ -105,12 +138,29 @@ class TicTacToeGame : GameModule {
         draws.value = 0
         roundNumber.value = 1
         matchOver.value = false
+        stateVersion = 0
+        lastAppliedStateVersion = -1
+
+        if (isNetworked) {
+            context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+            // Covers the same startup race TicTacToeNetMessage.RequestState's own KDoc
+            // documents: this guest's listener above might register after the host has
+            // already broadcast (or will broadcast before this guest is ready to receive).
+            if (!isHost) sendToHost(TicTacToeNetMessage.RequestState)
+        }
     }
 
     override fun startMatch() {
         // Nothing extra needed for local pass-and-play; the bot's moves are
         // driven from the UI via playBotTurn() when it becomes its turn —
         // see TicTacToeScreen's LaunchedEffect, mirroring MancalaScreen.
+        //
+        // Networked: the host's init() already built a real (deterministic, empty) board,
+        // but a guest that joined late enough to miss init()'s own RequestState round-trip
+        // (or one that requested before the host had actually reached startMatch()) still
+        // needs a real broadcast to converge on -- harmless to also send this to an
+        // already-converged guest, since applying an identical state is a no-op.
+        if (isNetworked && isHost) broadcastState()
     }
 
     override fun pause() {}
@@ -142,8 +192,18 @@ class TicTacToeGame : GameModule {
         endMatch(GameResult(scores = scores))
     }
 
-    /** Called from the round-over panel's "Play Again" button — keeps the running score, resets the board. */
+    /** Called from the round-over panel's "Play Again" button — keeps the running score, resets the board.
+     *  Networked + not host: forwarded to the host as an [TicTacToeIntentPayload.PlayAgain]
+     *  intent instead of applied locally, same reasoning as [cellClicked]. */
     fun playAgain() {
+        if (isNetworked && !isHost) {
+            sendToHost(TicTacToeIntentPayload.PlayAgain)
+            return
+        }
+        applyPlayAgain()
+    }
+
+    private fun applyPlayAgain() {
         if (matchOver.value) return
         startingPlayer = if (startingPlayer == 1) 2 else 1
         roundNumber.value += 1
@@ -152,6 +212,103 @@ class TicTacToeGame : GameModule {
         roundOver.value = false
         currentPlayer.value = startingPlayer
         selectedSymbol.value = 1
+        if (isNetworked && isHost) broadcastState()
+    }
+
+    // ---- Networked play (see TicTacToeNetMessage.kt's own KDoc for the host-authoritative
+    // design) -- everything below this point is only ever exercised when [isNetworked]. ----
+
+    /** Host only: bundles the current visible state into a [TicTacToeNetMessage.StateSync]
+     *  and broadcasts it -- called after every host-side mutation ([applyCellClicked],
+     *  [applyPlayAgain]) and once from [startMatch]. */
+    private fun broadcastState() {
+        stateVersion++
+        val snapshot = TicTacToeNetState(
+            board = board.value.toList(),
+            currentPlayer = currentPlayer.value,
+            roundOver = roundOver.value,
+            winningLine = winningLine.value,
+            scoreP1 = scoreP1.value,
+            scoreP2 = scoreP2.value,
+            draws = draws.value,
+            roundNumber = roundNumber.value,
+            matchOver = matchOver.value,
+            selectedSymbol = selectedSymbol.value
+        )
+        sendMessage(TicTacToeNetMessage.StateSync(stateVersion, snapshot), toPlayerId = null)
+    }
+
+    /** Guest only: replaces every visible field with the host's own values -- the guest
+     *  never computes any of this itself, only ever displays the last [StateSync] it has,
+     *  same as UnoGame's own non-host devices. */
+    private fun applyNetState(state: TicTacToeNetState) {
+        board.value = state.board.toIntArray()
+        currentPlayer.value = state.currentPlayer
+        roundOver.value = state.roundOver
+        winningLine.value = state.winningLine
+        scoreP1.value = state.scoreP1
+        scoreP2.value = state.scoreP2
+        draws.value = state.draws
+        roundNumber.value = state.roundNumber
+        matchOver.value = state.matchOver
+        selectedSymbol.value = state.selectedSymbol
+    }
+
+    /** Non-host only: sends [intent] to whichever player is at [GameContext.players] index 0
+     *  -- the host, by the same lobby convention [isHost] itself relies on. */
+    private fun sendToHost(intent: TicTacToeIntentPayload) {
+        sendMessage(TicTacToeNetMessage.Intent(intent), toPlayerId = context.players.getOrNull(0)?.playerId)
+    }
+
+    /** Non-host only: same as [sendToHost] but for [TicTacToeNetMessage.RequestState], which
+     *  isn't wrapped in an [TicTacToeNetMessage.Intent] (it's a lobby/sync concern, not a
+     *  game move) -- mirrors [TicTacToeNetMessage.RequestState] itself being a top-level
+     *  variant rather than an intent payload. */
+    private fun sendToHost(message: TicTacToeNetMessage) {
+        sendMessage(message, toPlayerId = context.players.getOrNull(0)?.playerId)
+    }
+
+    /** [toPlayerId] null broadcasts to every other connected player (see
+     *  [com.gamesuite.transport.MultiplayerTransport.send]'s own KDoc) -- correct either way
+     *  for this game's fixed 2-player cap, where "everyone else" is exactly one recipient. */
+    private fun sendMessage(message: TicTacToeNetMessage, toPlayerId: String?) {
+        val localPlayerId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val payload = Json.encodeToString(message).encodeToByteArray()
+        context.transport.send(fromPlayerId = localPlayerId, toPlayerId = toPlayerId, payload = payload)
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = runCatching { Json.decodeFromString<TicTacToeNetMessage>(payload.decodeToString()) }.getOrNull() ?: return
+        when (message) {
+            is TicTacToeNetMessage.StateSync -> {
+                // The host is always authoritative over its own state -- an inbound
+                // StateSync would only ever arrive here due to a bug or a malicious peer,
+                // never as part of this protocol's own intended flow.
+                if (isHost) return
+                if (message.version <= lastAppliedStateVersion) return
+                lastAppliedStateVersion = message.version
+                applyNetState(message.state)
+            }
+            is TicTacToeNetMessage.Intent -> {
+                if (!isHost) return // only the host ever applies a peer's intent
+                val senderIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
+                if (senderIndex == -1) return // unknown sender -- ignore rather than trust a bare claimed identity
+                when (val intent = message.intent) {
+                    is TicTacToeIntentPayload.CellClicked -> {
+                        // Not this sender's actual turn -- ignore rather than trust the
+                        // intent's own cell index blindly. applyCellClicked's own
+                        // roundOver/matchOver/occupied-cell guards still apply on top of
+                        // this, exactly as they do for a local tap.
+                        if (senderIndex != currentPlayer.value - 1) return
+                        applyCellClicked(intent.index)
+                    }
+                    TicTacToeIntentPayload.PlayAgain -> applyPlayAgain()
+                }
+            }
+            TicTacToeNetMessage.RequestState -> {
+                if (isHost) broadcastState()
+            }
+        }
     }
 
     /**
@@ -164,8 +321,22 @@ class TicTacToeGame : GameModule {
         selectedSymbol.value = symbol
     }
 
-    /** Call this from the UI when a cell is tapped. */
+    /** Call this from the UI when a cell is tapped.
+     *  Networked + not host: forwarded to the host as a [TicTacToeIntentPayload.CellClicked]
+     *  intent instead of applied locally -- the host validates and applies it, then
+     *  broadcasts the result back (see [handleNetworkMessage]/[applyCellClicked]). */
     fun cellClicked(index: Int) {
+        if (isNetworked && !isHost) {
+            sendToHost(TicTacToeIntentPayload.CellClicked(index))
+            return
+        }
+        applyCellClicked(index)
+    }
+
+    /** The real move logic -- called directly for local play (pass-and-play/vs-bot), by
+     *  [cellClicked] when this instance IS the host (its own local tap), and by
+     *  [handleNetworkMessage] when the host applies a validated guest intent. */
+    private fun applyCellClicked(index: Int) {
         if (roundOver.value || matchOver.value || board.value[index] != 0) return
 
         val newBoard = board.value.copyOf()
@@ -188,16 +359,19 @@ class TicTacToeGame : GameModule {
             val scorerIsP1 = if (loserIsMover) currentPlayer.value != 1 else currentPlayer.value == 1
             if (scorerIsP1) scoreP1.value += 1 else scoreP2.value += 1
             roundOver.value = true
+            if (isNetworked && isHost) broadcastState()
             return
         }
         if (isBoardFull(newBoard)) {
             draws.value += 1
             roundOver.value = true
+            if (isNetworked && isHost) broadcastState()
             return
         }
 
         currentPlayer.value = if (currentPlayer.value == 1) 2 else 1
         selectedSymbol.value = 1
+        if (isNetworked && isHost) broadcastState()
     }
 
     /**

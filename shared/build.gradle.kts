@@ -50,6 +50,14 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
+            // Real JSON encode/decode (not just the @Serializable annotation, which
+            // -core alone provides) for TicTacToeGame's own LAN/online network protocol
+            // (TicTacToeNetMessage) -- moved here from being jvmMain-only once game logic
+            // itself (not just LanMultiplayerTransport) needed it, matching :app's own
+            // kotlinx-serialization-json:1.7.3 (app/build.gradle.kts) for version
+            // consistency, and UnoGame.kt's own already-proven Json.encodeToString/
+            // decodeFromString usage for its own network protocol.
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -67,16 +75,12 @@ kotlin {
         val jvmMain by creating {
             dependsOn(commonMain.get())
             dependencies {
-                // LanMultiplayerTransport's real need: JSON encode/decode for the wire
-                // protocol (kotlinx-serialization-core alone, already on commonMain, only
-                // provides the @Serializable annotation -- actual Json.encodeToString/
-                // decodeFromString live in the -json artifact) and coroutines for the
-                // accept/read/beacon loops. Version pinned to match :app's own
-                // kotlinx-serialization-json:1.7.3 (app/build.gradle.kts) for consistency;
-                // coroutines-core wasn't previously an explicit dependency anywhere in this
-                // project (transitively pulled in via Compose/AndroidX lifecycle elsewhere),
-                // so pinned here to a version confirmed compatible with Kotlin 2.0.21.
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+                // LanMultiplayerTransport's own real need beyond what commonMain now
+                // already provides (kotlinx-serialization-json moved up to commonMain
+                // above): coroutines for the accept/read/beacon loops. Wasn't previously
+                // an explicit dependency anywhere in this project (transitively pulled in
+                // via Compose/AndroidX lifecycle elsewhere), so pinned here to a version
+                // confirmed compatible with Kotlin 2.0.21.
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
             }
         }
