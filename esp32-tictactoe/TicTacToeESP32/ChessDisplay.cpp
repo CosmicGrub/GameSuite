@@ -14,8 +14,21 @@ static const uint16_t COLOR_SELECTED     = TFT_CYAN;   // matches the human's ow
 static const uint16_t COLOR_LEGAL_MARK   = TFT_GREEN;
 static const uint16_t COLOR_LAST_MOVE    = TFT_DARKGREY;
 static const uint16_t COLOR_CHECK        = TFT_ORANGE;
+static const uint16_t COLOR_CHECKMATE    = TFT_GREEN; // the mating-piece-to-king highlight line -- matches Display.cpp's own COLOR_WIN for a winning line
 static const uint16_t COLOR_BUTTON_BG    = TFT_DARKGREEN;
 static const uint16_t COLOR_BUTTON_TEXT  = TFT_WHITE;
+
+// A solid, uniformly-darker copy of an RGB565 color -- ported verbatim from
+// CheckersDisplay.cpp's own darkenColor565() (halves each of the 5/6/5-bit
+// R/G/B channels with plain integer shifts) for the sliding-piece drop-shadow
+// in drawPieceGlyphAtCenter() below.
+static uint16_t darkenColor565(uint16_t color) {
+    uint16_t r = (color >> 11) & 0x1F;
+    uint16_t g = (color >> 5) & 0x3F;
+    uint16_t b = color & 0x1F;
+    return ((r / 2) << 11) | ((g / 2) << 5) | (b / 2);
+}
+static const int16_t PIECE_SHADOW_OFFSET = 2; // matches CheckersDisplay.cpp's own depth-cue offset
 
 static inline uint8_t rowOf(uint8_t sq) { return sq / 8; }
 static inline uint8_t colOf(uint8_t sq) { return sq % 8; }
@@ -139,6 +152,24 @@ static void drawPieceGlyphAtCenter(TFT_eSPI &tft, int16_t cx, int16_t cy, uint16
     if (p.type == CP_NONE) return;
     char buf[2] = { pieceChar(p.type), '\0' };
     uint16_t fg = (p.color == CC_WHITE) ? COLOR_WHITE_PIECE : COLOR_BLACK_PIECE;
+
+    // Drop-shadow depth cue (Premium 2026 Vision pitch, ESP32 Chess section):
+    // a direct port of CheckersDisplay.cpp's own drawPieceGlyphAtCenter drop-
+    // shadow trick, adapted from a filled shape to a single text glyph -- a
+    // darker offset copy of the SAME character drawn first. drawString's own
+    // opaque background fill (`bg`, the real square color underneath either
+    // way) erases the offset copy's footprint once the real-color glyph
+    // draws on top, leaving only the sliver that peeks past the offset --
+    // reading as the piece sitting slightly proud of the square instead of
+    // flat on it, same as Checkers. Only this function (the sliding/captured/
+    // castling-rook glyph animateChessMove() draws) gets the shadow --
+    // drawSquareAndPiece()'s own resting-board rendering is deliberately left
+    // untouched, matching the pitch's own scope ("under the sliding piece").
+    tft.setTextColor(darkenColor565(fg), bg);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(2);
+    tft.drawString(buf, cx + PIECE_SHADOW_OFFSET, cy + PIECE_SHADOW_OFFSET);
+
     tft.setTextColor(fg, bg);
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
@@ -331,6 +362,54 @@ void animateChessMove(TFT_eSPI &tft, const ChessLayout &layout, const ChessBoard
             int16_t rcx = rookCx0 + (int16_t)((rookCx1 - rookCx0) * eased);
             int16_t rcy = rookCy0 + (int16_t)((rookCy1 - rookCy0) * eased);
             drawPieceGlyphAtCenter(tft, rcx, rcy, squareColorUnderPoint(layout, rcx, rcy), rookPiece);
+        }
+
+        unsigned long elapsed = millis() - frameStart;
+        if (elapsed < TARGET_FRAME_MS) delay(TARGET_FRAME_MS - elapsed);
+    }
+}
+
+void drawChessCheckmateHighlight(TFT_eSPI &tft, const ChessLayout &layout, const ChessBoard &board, uint8_t matedColor) {
+    int8_t fromSq, toSq;
+    board.lastMove(fromSq, toSq);
+    if (toSq < 0) return; // defensive -- nothing to highlight before any move has been played
+
+    // ChessBoard::kingSquare() is a private helper (ChessLogic.cpp's own
+    // legality checks use it internally) -- no public accessor exists, so
+    // this scans for it directly via at(), the exact same pattern
+    // drawChessBoard() above already uses to find the checked king's square.
+    uint8_t kingSq = 0;
+    for (uint8_t sq = 0; sq < 64; sq++) {
+        ChessPiece p = board.at(sq);
+        if (p.type == CP_KING && p.color == matedColor) { kingSq = sq; break; }
+    }
+    int16_t x0, y0, x2, y2;
+    squareToScreen(layout, rowOf((uint8_t)toSq), colOf((uint8_t)toSq), x0, y0);
+    squareToScreen(layout, rowOf(kingSq), colOf(kingSq), x2, y2);
+    x0 += layout.squareSize / 2; y0 += layout.squareSize / 2;
+    x2 += layout.squareSize / 2; y2 += layout.squareSize / 2;
+
+    // A highlight line from the mating piece's square to the mated king's
+    // square (Premium 2026 Vision pitch, ESP32 Chess section) -- the exact
+    // same draw-on growth Display.cpp's drawWinningLine() already uses for
+    // Tic-Tac-Toe's own winning line: grow the line toward the king over a
+    // few frames rather than painting it in one shot, reusing that function's
+    // millis()-timed per-frame budget rather than a fourth bespoke pacing
+    // scheme in this same firmware.
+    static const uint16_t DURATION_MS = 220;
+    static const uint16_t TARGET_FRAME_MS = 20;
+    uint16_t steps = DURATION_MS / TARGET_FRAME_MS;
+
+    for (uint16_t i = 1; i <= steps; i++) {
+        unsigned long frameStart = millis();
+
+        float t = (float)i / (float)steps;
+        int16_t cx = x0 + (int16_t)((x2 - x0) * t);
+        int16_t cy = y0 + (int16_t)((y2 - y0) * t);
+
+        for (int8_t d = -2; d <= 2; d++) {
+            tft.drawLine(x0, y0 + d, cx, cy + d, COLOR_CHECKMATE);
+            tft.drawLine(x0 + d, y0, cx + d, cy, COLOR_CHECKMATE);
         }
 
         unsigned long elapsed = millis() - frameStart;

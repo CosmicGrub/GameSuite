@@ -89,11 +89,16 @@ static uint16_t darkenColor565(uint16_t color) {
 // so a moving piece looks pixel-identical to a resting one (the drop-shadow
 // added here included -- animateCheckersMove() widens its own per-frame
 // erase box by PIECE_SHADOW_OFFSET to match, see that function).
-static void drawPieceGlyphAtCenter(TFT_eSPI &tft, int16_t cx, int16_t cy, int16_t cellSize, CheckersPiece piece) {
+//
+// `scale` (default 1.0, every existing call site unaffected) multiplies the
+// glyph's own size around the same (cx, cy) center -- animateCheckersPromotion()
+// below is the one caller that passes something else, for its brief
+// oversized "pop" on the square a piece just kinged.
+static void drawPieceGlyphAtCenter(TFT_eSPI &tft, int16_t cx, int16_t cy, int16_t cellSize, CheckersPiece piece, float scale = 1.0f) {
     if (piece == CheckersPiece::EMPTY) return;
 
     int16_t pad = cellSize / 6;
-    int16_t psize = cellSize - 2 * pad;
+    int16_t psize = (int16_t)((cellSize - 2 * pad) * scale);
     int16_t px = cx - psize / 2, py = cy - psize / 2;
     int16_t radius = psize / 4;
 
@@ -158,6 +163,37 @@ void drawCheckersStatus(TFT_eSPI &tft, const CheckersLayout &layout, const char 
 void drawCheckersSquare(TFT_eSPI &tft, const CheckersLayout &layout, uint8_t row, uint8_t col, CheckersPiece piece) {
     drawSquareBase(tft, layout, row, col);
     drawPieceGlyph(tft, layout, row, col, piece);
+}
+
+// Promotion "crowning" flourish (Premium 2026 Vision pitch, ESP32 Checkers
+// section) -- `piece` (already a *_KING; the caller is the one place that
+// knows this exact move was the promotion, not merely that the landed piece
+// happens to already be a king) gets a brief hold on its landing square,
+// then a 2-3 frame oversized redraw before settling back to normal size,
+// rather than drawPieceGlyphAtCenter() rendering the "K" identically whether
+// it just kinged or has been a king for ten turns. Reuses 100% of existing
+// drawing primitives (drawSquareBase + the now-scale-aware
+// drawPieceGlyphAtCenter) plus the same delay()-based pacing this file's own
+// animateCheckersMove() already relies on -- no new drawing subsystem.
+void animateCheckersPromotion(TFT_eSPI &tft, const CheckersLayout &layout, uint8_t row, uint8_t col, CheckersPiece piece) {
+    if (piece != CheckersPiece::HUMAN_KING && piece != CheckersPiece::AI_KING) return; // defensive -- callers only pass an actual king
+
+    int16_t x, y;
+    squareOrigin(layout, row, col, x, y);
+    int16_t cx = x + layout.cellSize / 2, cy = y + layout.cellSize / 2;
+
+    static const uint16_t HOLD_MS = 90;   // a beat on the landing square before the pop, so the moment reads as earned rather than instant
+    static const uint16_t POP_MS = 90;    // how long the oversized frame holds before settling
+    static const float POP_SCALE = 1.18f; // ~115-120% oversized, per the pitch's own sizing
+
+    delay(HOLD_MS);
+
+    drawSquareBase(tft, layout, row, col);
+    drawPieceGlyphAtCenter(tft, cx, cy, layout.cellSize, piece, POP_SCALE);
+    delay(POP_MS);
+
+    drawSquareBase(tft, layout, row, col);
+    drawPieceGlyphAtCenter(tft, cx, cy, layout.cellSize, piece); // settle back to normal size (scale defaults to 1.0)
 }
 
 // One side's captured-piece indicator: a small team-colored swatch (same
@@ -400,6 +436,16 @@ void animateCheckersMove(TFT_eSPI &tft, const CheckersLayout &layout, const Chec
             unsigned long elapsed = millis() - frameStart;
             if (elapsed < TARGET_FRAME_MS) delay(TARGET_FRAME_MS - elapsed);
         }
+
+        // Capture hit-stop (Premium 2026 Vision pitch, ESP32 Checkers
+        // section): a genuine ~90ms pause right as the slide reaches the
+        // captured square, immediately before it visibly disappears below --
+        // the ESP32-honest analog of hit-stop on this hardware (a plain
+        // delay(), not a shader/camera-shake, which would need a whole-board
+        // redraw every frame this blocking, non-DMA SPI path can't afford
+        // for free -- see the pitch's own audit).
+        static const uint16_t CAPTURE_HITSTOP_MS = 90;
+        if (isJump) delay(CAPTURE_HITSTOP_MS);
 
         // This hop's own slide just finished -- if it captured a piece, that
         // piece is gone for good starting now. Erase it explicitly rather

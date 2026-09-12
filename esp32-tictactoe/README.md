@@ -22,12 +22,24 @@ networking — can run on it. This project shares the *design* (the same
 minimax AI, the same clean split between game logic and rendering
 GameSuite's own architecture uses everywhere) as new C++ written for Arduino.
 
-**Verified**: this exact code compiles cleanly (0 errors, 0 warnings) against
+**Verified**: this exact code compiled cleanly (0 errors, 0 warnings) against
 the `esp32:esp32` Arduino core using `arduino-cli`, targeting the "ESP32 Dev
 Module" board — 394KB flash (30% of the default partition) and 23KB RAM (7%)
-used. (Measured 2026-09-06, after Checkers/Chess/UNO were added — re-measure
-again once Solitaire/Mahjong land, since each adds meaningfully to both
-figures.) On top of that, [native_test/](native_test/) compiles and runs the
+used. (Measured 2026-09-06, after Checkers/Chess/UNO were added.) **Stale as
+of the 2026-09-12 Premium 2026 Vision quick-win pass** (Tic-Tac-Toe's stamp-in
+placement + drop-shadow marks, Checkers' promotion pop + capture hit-stop,
+Chess's checkmate string/highlight + drop-shadow pieces) — that pass added
+real code to Display.cpp/CheckersDisplay.cpp/ChessDisplay.cpp/the .ino, was
+verified against [native_test/](native_test/)'s stubbed build (0 compile
+errors, all existing checks still pass, one new rendering check added for the
+checkmate highlight), but was **not** re-verified against the real
+`arduino-cli`/ESP32 toolchain, since that toolchain isn't available in the
+environment this pass was done in — no arduino-cli install, no physical
+board. Both the compile-against-real-hardware-headers claim and the flash/RAM
+figures above need a fresh `arduino-cli compile` pass (and, ideally, an actual
+flash-and-play check) before being trusted again; re-measure again once
+Solitaire/Mahjong land too, since each adds meaningfully to both figures. On
+top of that, [native_test/](native_test/) compiles and runs the
 real, unmodified rules engine and touch hit-testing math on a desktop
 (against no-op stand-ins for the ESP32/display-only parts) — an exhaustive
 search of every possible game confirms the AI is genuinely unbeatable (0

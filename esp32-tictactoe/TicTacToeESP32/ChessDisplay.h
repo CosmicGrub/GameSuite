@@ -148,3 +148,14 @@ bool hitTestChessPlayAgainButton(const ChessLayout &layout, int16_t touchX, int1
 // final state (highlights included) -- this function only animates the
 // slide itself and never modifies `board`.
 void animateChessMove(TFT_eSPI &tft, const ChessLayout &layout, const ChessBoard &board, const ChessBoard &beforeBoard);
+
+// Checkmate flourish (Premium 2026 Vision pitch, ESP32 Chess section): a
+// draw-on highlight line from the mating piece's own square (board.lastMove()'s
+// `to`) to the mated king's square (board.kingSquare(matedColor)). Call once,
+// right when ChessBoard::result() reports HUMAN_WINS/AI_WINS (which, in this
+// engine, only ever means checkmate -- see ChessLogic.cpp's result()), after
+// the mating move's own animateChessMove()+drawChessBoard() pair has already
+// run. `matedColor` is the side that just got checkmated (CC_BLACK on
+// HUMAN_WINS, CC_WHITE on AI_WINS) -- the OPPOSITE of whichever side's
+// ChessRoundResult just fired, since that result names the winner.
+void drawChessCheckmateHighlight(TFT_eSPI &tft, const ChessLayout &layout, const ChessBoard &board, uint8_t matedColor);

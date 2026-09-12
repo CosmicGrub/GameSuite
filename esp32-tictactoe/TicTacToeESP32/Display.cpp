@@ -37,6 +37,53 @@ static void cellCenter(const Layout &l, uint8_t cell, int16_t &cx, int16_t &cy) 
     cy = l.gridY + row * l.cellSize + l.cellSize / 2;
 }
 
+// A solid, uniformly-darker copy of an RGB565 color -- ported verbatim from
+// CheckersDisplay.cpp's own darkenColor565() (halves each of the 5/6/5-bit
+// R/G/B channels with plain integer shifts, no float/blend math) so the
+// drop-shadow trick below stays a couple of cheap extra strokes rather than
+// a new drawing subsystem.
+static uint16_t darkenColor565(uint16_t color) {
+    uint16_t r = (color >> 11) & 0x1F;
+    uint16_t g = (color >> 5) & 0x3F;
+    uint16_t b = color & 0x1F;
+    return ((r / 2) << 11) | ((g / 2) << 5) | (b / 2);
+}
+static const int16_t MARK_SHADOW_OFFSET = 2; // matches CheckersDisplay.cpp's own PIECE_SHADOW_OFFSET
+
+// Draws one mark centered at (cx, cy) at an arbitrary scale of its normal
+// half-size -- shared by the resting draw (scale 1.0) and drawCell()'s own
+// stamp-in growth animation below, so an in-progress mark is pixel-identical
+// in shape to a settled one. Also carries the Checkers-style drop-shadow: a
+// darker, down-right-offset copy of the same strokes drawn first, so only the
+// sliver peeking past the offset remains visible once the real-color strokes
+// draw on top -- reads as the mark sitting slightly proud of the cell instead
+// of flat on it, the same depth cue CheckersDisplay.cpp's pieces already use.
+static void drawMarkAtScale(TFT_eSPI &tft, int16_t cx, int16_t cy, int16_t half, uint8_t value, float scale) {
+    int16_t h = (int16_t)(half * scale);
+    if (h < 1) h = 1;
+    int16_t scx = cx + MARK_SHADOW_OFFSET, scy = cy + MARK_SHADOW_OFFSET;
+
+    if (value == HUMAN) {
+        uint16_t shadow = darkenColor565(COLOR_X);
+        for (int8_t t = -1; t <= 1; t++) {
+            tft.drawLine(scx - h + t, scy - h, scx + h + t, scy + h, shadow);
+            tft.drawLine(scx + h + t, scy - h, scx - h + t, scy + h, shadow);
+        }
+        for (int8_t t = -1; t <= 1; t++) {
+            tft.drawLine(cx - h + t, cy - h, cx + h + t, cy + h, COLOR_X);
+            tft.drawLine(cx + h + t, cy - h, cx - h + t, cy + h, COLOR_X);
+        }
+    } else if (value == AI) {
+        uint16_t shadow = darkenColor565(COLOR_O);
+        tft.drawCircle(scx, scy, h, shadow);
+        tft.drawCircle(scx, scy, h - 1, shadow);
+        tft.drawCircle(scx, scy, h - 2, shadow);
+        tft.drawCircle(cx, cy, h, COLOR_O);
+        tft.drawCircle(cx, cy, h - 1, COLOR_O);
+        tft.drawCircle(cx, cy, h - 2, COLOR_O);
+    }
+}
+
 void drawStaticChrome(TFT_eSPI &tft, const Layout &layout) {
     tft.fillScreen(COLOR_BG);
     // The status-bar region (layout.statusY/statusH) is intentionally left
@@ -63,29 +110,49 @@ void drawCell(TFT_eSPI &tft, const Layout &layout, uint8_t cellIndex, uint8_t va
     // lines either side of it.
     tft.fillRect(x + 1, y + 1, layout.cellSize - 2, layout.cellSize - 2, COLOR_BG);
 
+    if (value == EMPTY) return; // clearing a cell -- nothing further to draw, no stamp-in for a blank
+
     int16_t cx, cy;
     cellCenter(layout, cellIndex, cx, cy);
     int16_t pad = layout.cellSize / 4;      // how far the mark sits from the cell edge
     int16_t half = layout.cellSize / 2 - pad;
+    // BUG FIX (kept from the original single-shot version): X's two
+    // diagonals are drawn 3px thick (as three parallel lines) so each reads
+    // clearly at this size instead of a hairline -- the second line used to
+    // repeat the SAME "\" (top-left-to-bottom-right) diagonal as the first,
+    // just thickened along the other axis, meaning no "/" diagonal ever
+    // rendered (confirmed by a real hardware photo showing a single stroke,
+    // not a full X). drawMarkAtScale() above is where that fix now lives.
 
-    if (value == HUMAN) {
-        // X: two diagonals, drawn 3px thick (as three parallel lines) so it
-        // reads clearly at this size instead of a hairline. BUG FIX: the
-        // second line used to repeat the SAME "\" (top-left-to-bottom-right)
-        // diagonal as the first, just thickened along the other axis --
-        // meaning no "/" diagonal was ever drawn, so only half an X ever
-        // rendered (confirmed by a real hardware photo showing a single
-        // stroke, not a full X). The second line now correctly runs the
-        // other way, top-right to bottom-left.
-        for (int8_t t = -1; t <= 1; t++) {
-            tft.drawLine(cx - half + t, cy - half, cx + half + t, cy + half, COLOR_X); // "\"
-            tft.drawLine(cx + half + t, cy - half, cx - half + t, cy + half, COLOR_X); // "/"
-        }
-    } else if (value == AI) {
-        int16_t r = half;
-        tft.drawCircle(cx, cy, r, COLOR_O);
-        tft.drawCircle(cx, cy, r - 1, COLOR_O);
-        tft.drawCircle(cx, cy, r - 2, COLOR_O);
+    // Stamp-in placement (Premium 2026 Vision pitch, ESP32 Tic-Tac-Toe
+    // section): grow the mark from the cell's center instead of popping in
+    // at full size in one shot, reusing the exact manual millis()-timed
+    // per-frame-budget loop drawWinningLine()/CheckersDisplay.cpp's
+    // animateCheckersMove() already prove out on this hardware, rather than
+    // a third bespoke pacing scheme. Rises past full size before settling
+    // back down, for a snappier "stamp" read than a plain linear grow.
+    static const uint16_t DURATION_MS = 140;
+    static const uint16_t TARGET_FRAME_MS = 20; // ~50fps target, same budget as the rest of this project
+    static const float OVERSHOOT_SCALE = 1.12f;
+    uint16_t steps = DURATION_MS / TARGET_FRAME_MS;
+
+    for (uint16_t i = 1; i <= steps; i++) {
+        unsigned long frameStart = millis();
+
+        float t = (float)i / (float)steps;
+        // Rises 0 -> OVERSHOOT_SCALE over the first 70% of the animation,
+        // then settles OVERSHOOT_SCALE -> 1.0 over the remaining 30% --
+        // plain piecewise arithmetic, no separate spring/easing curve needed
+        // for a handful of frames.
+        float scale = (t < 0.7f)
+            ? (t / 0.7f) * OVERSHOOT_SCALE
+            : OVERSHOOT_SCALE - (t - 0.7f) / 0.3f * (OVERSHOOT_SCALE - 1.0f);
+
+        tft.fillRect(x + 1, y + 1, layout.cellSize - 2, layout.cellSize - 2, COLOR_BG);
+        drawMarkAtScale(tft, cx, cy, half, value, scale);
+
+        unsigned long elapsed = millis() - frameStart;
+        if (elapsed < TARGET_FRAME_MS) delay(TARGET_FRAME_MS - elapsed);
     }
 }
 

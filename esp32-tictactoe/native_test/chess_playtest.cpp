@@ -601,6 +601,52 @@ static void foolsMateTest() {
 }
 
 // ---------------------------------------------------------------------------
+// 3b) drawChessCheckmateHighlight() (Premium 2026 Vision pitch, ESP32 Chess
+//     section): replays the same real Fool's Mate line above -- so
+//     board.lastMove() is actually populated, unlike the hand-placed
+//     checkCheckmateStalemateTests() positions above, which never played a
+//     move at all -- then checks the STUBBED TFT_eSPI's captured drawLine()
+//     calls for the exact segment the mating-queen-to-king highlight line
+//     must include at its final (fully grown) frame: from h4 (the mating
+//     queen's own square) to e1 (White's king, mated in place, never having
+//     moved). Same "assert on actual drawLine() calls, not just that nothing
+//     crashed" technique playtest.cpp's own X-mark test already established.
+// ---------------------------------------------------------------------------
+static void checkmateHighlightRenderingTest() {
+    printf("=== drawChessCheckmateHighlight() rendering check (against captured drawLine() calls) ===\n");
+    ChessBoard b;
+    b.reset();
+    b.playMove(S('f', 2), S('f', 3));
+    b.playMove(S('e', 7), S('e', 5));
+    b.playMove(S('g', 2), S('g', 4));
+    b.playMove(S('d', 8), S('h', 4)); // Qh4# -- White is now checkmated
+    check("setup: White is checkmated before exercising the highlight", b.result() == ChessRoundResult::AI_WINS);
+
+    ChessLayout l = computeChessLayout();
+    TFT_eSPI tft;
+    TFT_eSPI::capturedLines.clear();
+    drawChessCheckmateHighlight(tft, l, b, CC_WHITE); // CC_WHITE: matches checkForChessRoundEnd()'s own AI_WINS branch in the .ino
+
+    // h4 = row 3, col 7; e1 = row 0, col 4 -- screen coords via the exact
+    // same bottom-up-orientation formula touchHitTestChecks() below already
+    // uses (squareToScreen() itself is file-local to ChessDisplay.cpp).
+    int16_t sq = l.squareSize;
+    int16_t matingX = l.boardX + 7 * sq + sq / 2, matingY = l.boardY + (7 - 3) * sq + sq / 2;
+    int16_t kingX   = l.boardX + 4 * sq + sq / 2, kingY   = l.boardY + (7 - 0) * sq + sq / 2;
+
+    bool foundFullSegment = false;
+    for (const auto &line : TFT_eSPI::capturedLines) {
+        if (line.x0 == matingX && line.y0 == matingY && line.x1 == kingX && line.y1 == kingY) {
+            foundFullSegment = true;
+            break;
+        }
+    }
+    check("at least one captured line spans the full mating-queen-to-king segment", foundFullSegment);
+    check("the highlight actually drew something (not a silent no-op)", !TFT_eSPI::capturedLines.empty());
+    printf("Checks run: %d, failed: %d\n\n", checksRun, checksFailed);
+}
+
+// ---------------------------------------------------------------------------
 // 4) AI sanity: a genuine opponent doesn't hang pieces for free, and takes
 //    free material when it's offered.
 // ---------------------------------------------------------------------------
@@ -909,6 +955,7 @@ int main() {
     fiftyMoveRuleTests();
     pinTest();
     foolsMateTest();
+    checkmateHighlightRenderingTest();
     aiSanityTests();
     randomSelfPlayTest();
     performanceSample();

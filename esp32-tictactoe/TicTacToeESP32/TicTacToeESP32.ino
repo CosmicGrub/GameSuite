@@ -283,6 +283,12 @@ void loop() {
 
     if (appState == AppState::CHECKERS && checkersAiMovePending && millis() >= checkersAiMoveDueAt) {
         checkersAiMovePending = false;
+        // Snapshot BEFORE playAi() mutates -- CheckersBoard is a small,
+        // cheap-to-copy value type (same idiom ChessBoard already uses for
+        // chessBoardBeforeMove above) -- needed to tell "this hop just
+        // promoted a man" from "this piece has been a king for ten turns"
+        // below, since playAi() gives no such signal on its own.
+        CheckersBoard checkersBoardBeforeMove = checkersBoard;
         checkersBoard.playAi(); // plays the AI's whole turn, every hop of a forced chain included
 
         // Walk the whole chain's own per-hop trace (see CheckersLogic.h) into
@@ -302,6 +308,19 @@ void loop() {
         animateCheckersMove(tft, checkersLayout, checkersBoard, waypointRows, waypointCols, capturedPieces, hopCount,
                              checkersBoard.at(waypointRows[hopCount], waypointCols[hopCount])); // board is already post-move -- see animateCheckersMove's header comment
         drawCheckersBoard(tft, checkersLayout, checkersBoard);
+
+        // Promotion flourish: only if the piece at its FINAL landing square
+        // was a plain man before this whole turn and is a king now -- not
+        // merely "landed piece is a king," which would also fire on a chain
+        // hop that merely continues moving an already-crowned king.
+        CheckersPiece pieceBeforeMove = checkersBoardBeforeMove.at(waypointRows[0], waypointCols[0]);
+        CheckersPiece pieceAfterMove = checkersBoard.at(waypointRows[hopCount], waypointCols[hopCount]);
+        bool justPromoted = (pieceBeforeMove == CheckersPiece::HUMAN_MAN || pieceBeforeMove == CheckersPiece::AI_MAN) &&
+                             (pieceAfterMove == CheckersPiece::HUMAN_KING || pieceAfterMove == CheckersPiece::AI_KING);
+        if (justPromoted) {
+            animateCheckersPromotion(tft, checkersLayout, waypointRows[hopCount], waypointCols[hopCount], pieceAfterMove);
+        }
+
         checkForCheckersRoundEnd();
     }
 
@@ -408,8 +427,23 @@ void checkForChessRoundEnd() {
     }
     chessRoundOver = true;
     switch (r) {
-        case ChessRoundResult::HUMAN_WINS:     drawChromeBar(tft, "You win!"); break;
-        case ChessRoundResult::AI_WINS:        drawChromeBar(tft, "ESP32 wins!"); break;
+        // HUMAN_WINS/AI_WINS only ever fire on an actual checkmate in this
+        // engine (see ChessLogic.cpp's result() -- a side with zero legal
+        // moves is either checkmated or stalemated, and stalemate is its own
+        // separate DRAW_STALEMATE case below), so it's always correct, not
+        // just usually correct, to say so explicitly instead of the generic
+        // "You win!"/"ESP32 wins!" this used to show on every win alongside
+        // every other game's identical wording (Premium 2026 Vision pitch,
+        // ESP32 Chess section). The highlight line's `matedColor` is the
+        // OPPOSITE side from whichever one just won.
+        case ChessRoundResult::HUMAN_WINS:
+            drawChromeBar(tft, "Checkmate -- you win!");
+            drawChessCheckmateHighlight(tft, chessLayout, chessBoard, CC_BLACK);
+            break;
+        case ChessRoundResult::AI_WINS:
+            drawChromeBar(tft, "Checkmate -- ESP32 wins!");
+            drawChessCheckmateHighlight(tft, chessLayout, chessBoard, CC_WHITE);
+            break;
         case ChessRoundResult::DRAW_STALEMATE: drawChromeBar(tft, "Stalemate!"); break;
         default: break;
     }
@@ -630,6 +664,18 @@ void handleTouch() {
             animateCheckersMove(tft, checkersLayout, checkersBoard, waypointRows, waypointCols, capturedPieces, 1, movingPiece);
             checkersBoard.playHuman(fromRow, fromCol, row, col);
             drawCheckersBoard(tft, checkersLayout, checkersBoard); // final correct redraw -- catches up captures/promotion/kinging the slide itself doesn't know about
+
+            // Promotion flourish: movingPiece (captured pre-move, above) was
+            // a plain man and the piece now sitting at the landing square is
+            // a king -- see the AI branch's own identical check above for why
+            // this specific comparison (not just "landed piece is a king")
+            // is the correct promotion test.
+            if (movingPiece == CheckersPiece::HUMAN_MAN || movingPiece == CheckersPiece::AI_MAN) {
+                CheckersPiece landedPiece = checkersBoard.at(row, col);
+                if (landedPiece == CheckersPiece::HUMAN_KING || landedPiece == CheckersPiece::AI_KING) {
+                    animateCheckersPromotion(tft, checkersLayout, row, col, landedPiece);
+                }
+            }
 
             uint8_t contRow, contCol;
             if (checkersBoard.inForcedContinuation(contRow, contCol)) {

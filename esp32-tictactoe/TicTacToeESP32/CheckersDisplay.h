@@ -51,6 +51,17 @@ void drawCheckersSquareHighlight(TFT_eSPI &tft, const CheckersLayout &layout, ui
 void drawCheckersPlayAgainButton(TFT_eSPI &tft, const CheckersLayout &layout);
 void hideCheckersPlayAgainButton(TFT_eSPI &tft, const CheckersLayout &layout);
 
+// Promotion "crowning" flourish (Premium 2026 Vision pitch, ESP32 Checkers
+// section) -- call once, right after the move that promoted a piece has
+// already been applied to the board and redrawn normally (e.g. right after
+// the .ino's own drawCheckersBoard() call following playHuman()/playAi()).
+// `piece` must be the already-promoted CheckersPiece::HUMAN_KING/AI_KING now
+// sitting at (row, col); a caller is responsible for knowing THIS move was
+// the actual promotion (comparing the piece's type just before the move to
+// its type just after), since this function has no way to tell "just kinged"
+// from "has been a king for ten turns" on its own.
+void animateCheckersPromotion(TFT_eSPI &tft, const CheckersLayout &layout, uint8_t row, uint8_t col, CheckersPiece piece);
+
 // Hit-testing helpers -- pure math, no TFT_eSPI calls, so they're testable
 // on a desktop with zero hardware (see native_test/checkers_playtest.cpp).
 // Return true and write the result (out params) when (touchX, touchY) in

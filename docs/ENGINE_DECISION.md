@@ -18,10 +18,9 @@ and Action Items 1-5, all of which are genuinely about Android+Desktop and unaff
 this update), but Action Items 6, 7, and 8 (macOS build access, iOS pilots, and the
 platform-parity follow-up work gated on an iOS target) are cancelled outright, not
 postponed. Background research into macOS build-access options had already been
-dispatched before this instruction arrived; it was allowed to finish (pure information
-gathering, no purchase or account created) and is kept below for reference only, in case
-iOS scope is ever reconsidered later -- but nothing in it should be acted on absent a new,
-explicit decision to do so.
+dispatched before this instruction arrived, but was stopped along with the rest of the
+Apple-related work rather than left to finish -- no purchase or account was ever created,
+and no findings document exists or should be fabricated. See Action Item 6 below.
 
 ## Context
 
@@ -557,12 +556,13 @@ blocks the parts of this decision that don't need it.
    **CANCELLED (2026-09-12) — see Scope Update at the top of this document.**
    iOS is out of scope for this project entirely; no Mac or Apple toolchain
    is being acquired. Background research into the physical-Mac vs
-   cloud-Mac-CI vs Apple-Developer-Program options had already been
-   dispatched before this instruction arrived and was kept to finish (pure
-   information gathering — nothing was purchased or signed up for); its
-   findings are archived in `docs/MACOS_ACCESS_RESEARCH.md` for reference
-   only, in case iOS scope is ever reconsidered later. Nothing in it should
-   be acted on absent a new, explicit decision to do so.
+   cloud-Mac-CI vs Apple-Developer-Program options had been dispatched
+   before this instruction arrived, but was stopped along with the rest of
+   the Apple-related work rather than left to finish — the scope-narrowing
+   instruction was "stop attempting to build anything apple related," not
+   "pause and archive first." No findings document exists, and none should
+   be created; if iOS scope is ever reconsidered, that research would need
+   to be redone from scratch against whatever's current at the time.
 7. ~~Once macOS access exists, repeat pilots 1 and 3 against an iOS
    target...~~ **CANCELLED (2026-09-12) — see Scope Update.** No iOS target,
    simulator or device, is planned.
@@ -578,3 +578,63 @@ blocks the parts of this decision that don't need it.
    touching Nearby. (Originally written with iOS included in "the new
    platforms" — narrowed to Desktop only per the Scope Update; the
    reasoning is otherwise unchanged.)
+
+## Addendum: The True-3D (Filament/SceneView) Bet — Declined Again (2026-09-12)
+
+This is a separate architectural question from the rest of this ADR — it has nothing to
+do with the PC port — recorded here because it's this project's other live "which
+rendering stack do we take on" decision, and because it directly echoes this ADR's own
+Options Considered reasoning (a heavier engine only pays for itself if the app actually
+needs its differentiators; GameSuite's don't).
+
+**Background.** The "Premium 2026 Vision" pitch (delivered 2026-09-07, its Android
+haptics/shader/material work already shipped) named one architectural bet across three
+games: an opt-in, real Filament/SceneView-rendered true-3D moment for Checkers' king
+promotion, Chess's checkmate replay, and UNO's Wild Draw Four cutscene — "one underlying
+investment wearing three costumes," each reusing the app's existing `card3DFlip`-based
+pseudo-3D (`graphicsLayer` transforms, no real geometry) for everything else and dropping
+into a real 3D render for that one rare moment only. That pitch's own go/no-go framing
+("The One Big Architectural Bet" section) already flagged this as needing a real
+rendering dependency (Filament/SceneView, real per-ABI APK size), a from-scratch 3D asset
+pipeline (modeling, materials, a lighting rig) nothing else in this codebase has ever
+needed, meaningfully more maintenance surface than everything else in that pitch
+combined, and — confirmed by the ESP32 hardware audit — no ESP32 equivalent ever
+(TFT_eSPI is a 2D-only SPI display with no GPU), making it a permanently Android-only
+investment. Its own "If You Only Greenlight Three Things" section did not include this
+bet among the three it actually recommended funding.
+
+**Why this is being revisited now.** This is the *second* time a real-3D engine has come
+up for this project. The first time (2026-09-06, during the original animation/juice
+pitch) a full 3D engine for the app broadly was judged "architecturally disproportionate"
+and `Card3D.kt`'s `graphicsLayer`-based pseudo-3D was built instead — the system already
+in production use by Chess's promotion flip and UNO's card animations today. The second
+time (the Premium 2026 Vision pitch itself, 2026-09-07) this *narrower*, three-moment
+version was raised and explicitly declined ("Not this round"). Per the project owner's
+"2, then 1, then 3" sequencing on 2026-09-12, revisiting this specific bet was the first
+item taken up in this pass.
+
+**Decision: declined a second time, not deferred to a specific future trigger.** Nothing
+material has changed since either prior pass that would flip the cost/benefit call: the
+cost side is identical (new Gradle dependency, new asset pipeline, larger APK, Android-
+only, no ESP32 path), and the benefit side is the same three once-per-game rare moments
+the pitch itself estimated already get "~90%" of the premium feeling from the much
+cheaper 2.5D/shader/haptics work in the same document — nearly all of which shipped
+2026-09-07. Two independent passes at two different scopes (whole-app engine, then a
+three-moment scoped version) have now reached the same verdict for the same underlying
+reason: a real 3D pipeline is a large, permanent, single-platform investment being
+weighed against animation polish, not against any gameplay or platform-reach need. This
+addendum records that the bet was looked at again, not skipped — it's not being carried
+forward as an open question pending some future trigger; if it's ever worth raising a
+third time, that should come from a specific, named reason to want a hero moment (e.g. a
+store-listing/marketing need for a shareable moment), not from periodic re-litigation of
+the same three-year-old-in-spirit cost/benefit tradeoff.
+
+**What this does not affect**: `Card3D.kt`'s existing pseudo-3D system is unaffected and
+keeps shipping; the rest of the Premium 2026 Vision pitch's Android per-game
+recommendations (table-material identity, haptics, shaders, hit-stop/camera-shake, sound)
+and its ESP32 section are untouched by this call and remain open work, tracked by that
+document's own "Recommended Sequencing" and "If You Only Greenlight Three Things"
+sections — next up per the 2026-09-12 sequencing is the ESP32 hardware side of that
+pitch (the quick-win bundle: Tic-Tac-Toe/Checkers/Chess stamp-ins, drop-shadow ports,
+promotion pop, capture hit-stop, and the checkmate-string fix), all scoped to the
+hardware audit's confirmed real capabilities.
