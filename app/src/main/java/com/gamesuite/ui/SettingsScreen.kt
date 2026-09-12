@@ -337,7 +337,14 @@ private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit
                     .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
+                // onClick = null (not a duplicate of the Row's own .selectable() above):
+                // the standard Material3 pattern for a RadioButton inside a selectable
+                // row -- otherwise the RadioButton attaches its OWN independent
+                // clickable/focusable semantics node on top of the Row's, and a
+                // keyboard user has to Tab through both to get past a single visual
+                // option. Confirmed as a real bug on-device (Tab order genuinely
+                // double-stopped per row) before this fix, not a hypothetical.
+                RadioButton(selected = selected == mode, onClick = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when (mode) {
@@ -367,7 +374,10 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
                     .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RadioButton(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
+                // onClick = null -- see ThemeModeSelector's matching comment above for
+                // why: the Row's own .selectable() is the real target, this is a pure
+                // visual indicator now, not a second independent Tab stop.
+                RadioButton(selected = selected == theme, enabled = enabled, onClick = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when (theme) {
