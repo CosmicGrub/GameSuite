@@ -5,17 +5,17 @@ import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Mirrors the rigor (not the line count) of
  * esp32-tictactoe/native_test/checkers_playtest.cpp's three-pronged
- * approach -- see that file's own header comment -- adapted to JUnit and to
+ * approach -- see that file's own header comment -- adapted to kotlin.test and to
  * CheckersGame's public API only (never reflection into its private move
  * generator/search), the same way that file's own helpers only ever go
  * through CheckersBoard's public surface:
@@ -39,6 +39,17 @@ import org.junit.Test
  * human-readable log message -- see CheckersState's own KDoc for why that
  * was a deliberate departure from MancalaGameTest's `lastAction`-regex
  * approach.
+ *
+ * Ported from app/src/test/.../CheckersGameTest.kt (docs/ENGINE_DECISION.md
+ * Action Item 5's own game-by-game :shared migration) -- kotlin.test's
+ * assert* functions take their optional message LAST (`assertEquals(expected,
+ * actual, message)`), the reverse of JUnit's message-first overloads, so
+ * every message-carrying call below was reordered accordingly, not just
+ * re-imported. One test -- the HARD-tier search timing check -- moved to
+ * shared/src/jvmTest/ instead of here: it needs System.nanoTime()/
+ * String.format(), real JVM APIs with no equivalent in Kotlin's common
+ * stdlib (which commonTest compiles against), unlike everything else in this
+ * file, which is pure portable Kotlin.
  */
 class CheckersGameTest {
 
@@ -103,7 +114,7 @@ class CheckersGameTest {
 
     private fun assertLightSquaresEmpty(board: List<CheckersPiece?>) {
         for (row in 0..7) for (col in 0..7) {
-            if ((row + col) % 2 == 0) assertNull("light square ($row,$col) should never hold a piece", board[row * 8 + col])
+            if ((row + col) % 2 == 0) assertNull(board[row * 8 + col], "light square ($row,$col) should never hold a piece")
         }
     }
 
@@ -184,23 +195,23 @@ class CheckersGameTest {
         game.playMove(1, 5, 2, 3, 4)
         var s = game.state.value!!
         assertEquals(CheckersMove(5, 2, 3, 4, isCapture = true, capRow = 4, capCol = 3), s.lastMove)
-        assertNull("captured piece removed", s.pieceAt(4, 3))
-        assertNull("source vacated", s.pieceAt(5, 2))
+        assertNull(s.pieceAt(4, 3), "captured piece removed")
+        assertNull(s.pieceAt(5, 2), "source vacated")
         assertEquals(CheckersPiece(1, PieceKind.MAN), s.pieceAt(3, 4))
-        assertTrue("forced continuation active", s.inForcedContinuation)
+        assertTrue(s.inForcedContinuation, "forced continuation active")
         assertEquals(3, s.forcedRow); assertEquals(4, s.forcedCol)
-        assertEquals("turn has not passed", 1, s.currentPlayerIndex)
-        assertFalse("filler still can't move mid-chain", game.hasLegalMoveFrom(7, 0))
+        assertEquals(1, s.currentPlayerIndex, "turn has not passed")
+        assertFalse(game.hasLegalMoveFrom(7, 0), "filler still can't move mid-chain")
         assertEquals(setOf(1 to 6), game.legalDestinationsFrom(3, 4))
 
         game.playMove(1, 3, 4, 1, 6)
         s = game.state.value!!
         assertEquals(CheckersMove(3, 4, 1, 6, isCapture = true, capRow = 2, capCol = 5), s.lastMove)
         assertNull(s.pieceAt(2, 5))
-        assertEquals("landed still a man (row 1 isn't the promotion row)", CheckersPiece(1, PieceKind.MAN), s.pieceAt(1, 6))
+        assertEquals(CheckersPiece(1, PieceKind.MAN), s.pieceAt(1, 6), "landed still a man (row 1 isn't the promotion row)")
         assertFalse(s.inForcedContinuation)
-        assertEquals("turn passes once the chain ends", 0, s.currentPlayerIndex)
-        assertEquals("side 0 lost exactly the 2 jumped men", 1, countOwner(s.board, 0))
+        assertEquals(0, s.currentPlayerIndex, "turn passes once the chain ends")
+        assertEquals(1, countOwner(s.board, 0), "side 0 lost exactly the 2 jumped men")
     }
 
     // ---- lastTurnHops: additive accessor added alongside the animation/physics pitch's
@@ -246,17 +257,17 @@ class CheckersGameTest {
         game.playBotTurn()
         val s = game.state.value!!
         assertEquals(
-            "the collapsed overall move still summarizes first-hop-source -> last-hop-destination, unchanged",
             CheckersMove(5, 2, 1, 6, isCapture = true),
-            s.lastMove
+            s.lastMove,
+            "the collapsed overall move still summarizes first-hop-source -> last-hop-destination, unchanged"
         )
         assertEquals(
-            "lastTurnHops keeps every individual hop, in order, each with its own accurate capture square",
             listOf(
                 CheckersMove(5, 2, 3, 4, isCapture = true, capRow = 4, capCol = 3),
                 CheckersMove(3, 4, 1, 6, isCapture = true, capRow = 2, capCol = 5)
             ),
-            s.lastTurnHops
+            s.lastTurnHops,
+            "lastTurnHops keeps every individual hop, in order, each with its own accurate capture square"
         )
     }
 
@@ -293,17 +304,17 @@ class CheckersGameTest {
             ),
             currentPlayerIndex = 1
         )
-        assertFalse("mandatory capture blocks the filler", game.hasLegalMoveFrom(7, 0))
+        assertFalse(game.hasLegalMoveFrom(7, 0), "mandatory capture blocks the filler")
         assertEquals(
-            "the king's only legal move is the backward capture",
             setOf(5 to 5),
-            game.legalDestinationsFrom(3, 3)
+            game.legalDestinationsFrom(3, 3),
+            "the king's only legal move is the backward capture"
         )
 
         game.playMove(1, 3, 3, 5, 5)
         val s = game.state.value!!
         assertNull(s.pieceAt(4, 4))
-        assertEquals("still a king after landing", CheckersPiece(1, PieceKind.KING), s.pieceAt(5, 5))
+        assertEquals(CheckersPiece(1, PieceKind.KING), s.pieceAt(5, 5), "still a king after landing")
     }
 
     @Test
@@ -331,11 +342,13 @@ class CheckersGameTest {
         game.playMove(1, 2, 5, 0, 3)
         val s = game.state.value!!
         assertEquals(CheckersMove(2, 5, 0, 3, isCapture = true, capRow = 1, capCol = 4), s.lastMove)
-        assertNull("jumped man removed", s.pieceAt(1, 4))
-        assertEquals("promoted to a king on reaching row 0", CheckersPiece(1, PieceKind.KING), s.pieceAt(0, 3))
-        assertEquals("the untouched piece is still right where a further jump would need it",
-            CheckersPiece(0, PieceKind.MAN), s.pieceAt(1, 2))
-        assertFalse("promoting mid-chain ends the turn despite a further jump existing", s.inForcedContinuation)
+        assertNull(s.pieceAt(1, 4), "jumped man removed")
+        assertEquals(CheckersPiece(1, PieceKind.KING), s.pieceAt(0, 3), "promoted to a king on reaching row 0")
+        assertEquals(
+            CheckersPiece(0, PieceKind.MAN), s.pieceAt(1, 2),
+            "the untouched piece is still right where a further jump would need it"
+        )
+        assertFalse(s.inForcedContinuation, "promoting mid-chain ends the turn despite a further jump existing")
         assertEquals(0, s.currentPlayerIndex)
         assertEquals(2, countOwner(s.board, 0))
     }
@@ -349,10 +362,10 @@ class CheckersGameTest {
         val before = game.state.value
 
         game.playMove(0, 5, 0, 4, 1) // side 0's turn hasn't come yet (side 1 moves first)
-        assertEquals("wrong-turn call left state untouched", before, game.state.value)
+        assertEquals(before, game.state.value, "wrong-turn call left state untouched")
 
         game.playMove(1, 5, 0, 3, 0) // not a real diagonal step
-        assertEquals("illegal geometry left state untouched", before, game.state.value)
+        assertEquals(before, game.state.value, "illegal geometry left state untouched")
     }
 
     // ---- 3) Both loss conditions, as distinct scenarios --------------------------------------
@@ -404,8 +417,8 @@ class CheckersGameTest {
         // move) and (2,2) blocks the landing square of the only possible jump.
         game.playMove(1, 6, 7, 5, 6) // an unrelated legal move for side 1
         val s = game.state.value!!
-        assertTrue("side 0 still has its piece", countOwner(s.board, 0) == 1)
-        assertTrue("but zero legal moves, so the game is over", s.gameOver)
+        assertTrue(countOwner(s.board, 0) == 1, "side 0 still has its piece")
+        assertTrue(s.gameOver, "but zero legal moves, so the game is over")
         assertEquals("p1", s.winnerPlayerId)
     }
 
@@ -414,11 +427,11 @@ class CheckersGameTest {
     private fun assertMoveInvariants(before: CheckersState, after: CheckersState) {
         assertEquals(64, after.board.size)
         assertLightSquaresEmpty(after.board)
-        assertTrue("side 0 piece count never increases", countOwner(after.board, 0) <= countOwner(before.board, 0))
-        assertTrue("side 1 piece count never increases", countOwner(after.board, 1) <= countOwner(before.board, 1))
+        assertTrue(countOwner(after.board, 0) <= countOwner(before.board, 0), "side 0 piece count never increases")
+        assertTrue(countOwner(after.board, 1) <= countOwner(before.board, 1), "side 1 piece count never increases")
         val mv = after.lastMove
-        assertNotNull("a completed move must be recorded", mv)
-        assertNotNull("the moved piece must actually be at its reported destination", after.pieceAt(mv!!.toRow, mv.toCol))
+        assertNotNull(mv, "a completed move must be recorded")
+        assertNotNull(after.pieceAt(mv.toRow, mv.toCol), "the moved piece must actually be at its reported destination")
     }
 
     @Test
@@ -467,7 +480,7 @@ class CheckersGameTest {
                 val before = game.state.value!!
                 if (before.gameOver) break
                 val hops_ = allLegalHops(game)
-                assertTrue("a non-game-over position must always offer a legal hop", hops_.isNotEmpty())
+                assertTrue(hops_.isNotEmpty(), "a non-game-over position must always offer a legal hop")
                 // A real UI must keep re-selecting the forced square itself -- this driver does
                 // exactly that by simply asking the public API for legal hops each iteration,
                 // which already narrows to the forced square whenever one is active.
@@ -477,30 +490,5 @@ class CheckersGameTest {
                 hops++
             }
         }
-    }
-
-    // ---- 5) HARD-tier search timing (justifies HARD_SEARCH_DEPTH; see CheckersGame's companion KDoc) ----
-
-    @Test
-    fun `HARD bot turn timing stays within a sane per-move budget on this JVM host`() {
-        val game = newGame(p0Bot = true, p1Bot = true)
-        game.difficulty = CpuDifficulty.HARD
-        game.startMatch()
-        val timingsMs = mutableListOf<Long>()
-        var turns = 0
-        while (turns < 60) {
-            if (game.state.value!!.gameOver) break
-            val start = System.nanoTime()
-            game.playBotTurn()
-            timingsMs += (System.nanoTime() - start) / 1_000_000
-            turns++
-        }
-        val avg = timingsMs.average()
-        val worst = timingsMs.max()
-        println("HARD bot turn timing over ${timingsMs.size} turns on this JVM host: avg=${"%.2f".format(avg)}ms, worst=${worst}ms")
-        // Generous regression guard (not a tight perf target) against accidentally raising the
-        // search depth far enough to make HARD noticeably laggy for a UI bot-turn delay budget.
-        assertTrue("HARD bot average turn time too high: ${avg}ms", avg < 3000)
-        assertTrue("HARD bot worst-case turn time too high: ${worst}ms", worst < 8000)
     }
 }

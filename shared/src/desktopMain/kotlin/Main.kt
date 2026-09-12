@@ -39,6 +39,9 @@ import com.gamesuite.core.GameContext
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.games.airhockey.AirHockeyGame
+import com.gamesuite.games.checkers.CheckersGame
+import com.gamesuite.games.checkers.CheckersPiece
+import com.gamesuite.games.checkers.PieceKind
 import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.chess.ChessResult
 import com.gamesuite.games.chess.Piece
@@ -76,7 +79,7 @@ fun main() = application {
     }
 }
 
-private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS, MANCALA, TIC_TAC_TOE_LAN }
+private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS, MANCALA, CHECKERS, TIC_TAC_TOE_LAN }
 
 @Composable
 private fun App() {
@@ -89,6 +92,7 @@ private fun App() {
                 PilotScreen.AIR_HOCKEY -> AirHockeyDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.CHESS -> ChessDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.MANCALA -> MancalaDesktopApp(onBack = { screen = PilotScreen.MENU })
+                PilotScreen.CHECKERS -> CheckersDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.TIC_TAC_TOE_LAN -> TicTacToeLanDesktopApp(onBack = { screen = PilotScreen.MENU })
             }
         }
@@ -111,6 +115,8 @@ private fun MenuScreen(onSelect: (PilotScreen) -> Unit) {
         Button(onClick = { onSelect(PilotScreen.CHESS) }) { Text("Chess (Action Item 4 pilot)") }
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onSelect(PilotScreen.MANCALA) }) { Text("Mancala") }
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { onSelect(PilotScreen.CHECKERS) }) { Text("Checkers") }
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onSelect(PilotScreen.TIC_TAC_TOE_LAN) }) { Text("Tic-Tac-Toe -- LAN Multiplayer (Action Item 8)") }
     }
@@ -657,5 +663,154 @@ private fun MancalaStore(count: Int, label: String) {
             Text("$count", style = MaterialTheme.typography.headlineSmall)
         }
         Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/**
+ * Minimal Compose Desktop rendering of the ported CheckersGame -- a plain 8x8 click-to-
+ * select-then-move grid with colored-disc pieces, deliberately nowhere near
+ * CheckersScreen.kt's real board (procedural wood/felt material, lift/hop/promotion motion,
+ * captured-piece tray). Tap a piece of the side to move to see its legal destinations
+ * highlighted (via the shared CheckersGame.legalDestinationsFrom -- the exact same call
+ * CheckersScreen makes), then tap a highlighted square to play it through the shared
+ * CheckersGame.playMove -- mandatory capture and forced multi-jump continuation are already
+ * folded into what legalDestinationsFrom offers, so this UI needs no rules knowledge of its
+ * own, same as the real screen. You play side 1 (the ruleset's own "moves first" side, see
+ * CheckersGame.kt's own top comment); the HARD bot (real minimax/alpha-beta search) plays
+ * side 0.
+ */
+@Composable
+private fun CheckersDesktopApp(onBack: () -> Unit) {
+    val game = remember {
+        CheckersGame().apply {
+            difficulty = CpuDifficulty.HARD
+            init(
+                GameContext(
+                    activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "bot", displayName = "Bot", isBot = true),
+                        PlayerInfo(playerId = "human", displayName = "You", isBot = false)
+                    ),
+                    localPlayerIndex = 1,
+                    transport = LocalPassAndPlayTransport()
+                )
+            )
+            startMatch()
+        }
+    }
+    val state by game.state
+    var selected by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+
+    // Bot-turn trigger, mirrors ChessDesktopApp's own LaunchedEffect (see
+    // CheckersGame.playBotTurn's KDoc) -- a safe no-op whenever it isn't actually the bot's turn.
+    LaunchedEffect(state?.currentPlayerIndex, state?.gameOver) {
+        game.playBotTurn()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("GameSuite KMP Pilot: Checkers (You = side 1 vs HARD bot = side 0)", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("Wins  Bot: ${game.scoreP1.value}   You: ${game.scoreP2.value}")
+        Spacer(Modifier.height(12.dp))
+        val s = state
+        if (s == null) {
+            Text("Setting up the board...")
+        } else {
+            CheckersBoard(
+                board = s.board,
+                selected = selected,
+                legalDestinations = selected?.let { (r, c) -> game.legalDestinationsFrom(r, c) } ?: emptySet(),
+                onSquareClick = { row, col ->
+                    val from = selected
+                    when {
+                        // A destination is already highlighted -- try to play it. playMove()
+                        // itself silently no-ops on anything not actually legal, so this can
+                        // never desync from the real rules even if this UI's own bookkeeping
+                        // were somehow stale.
+                        from != null && (row to col) in game.legalDestinationsFrom(from.first, from.second) -> {
+                            game.playMove(1, from.first, from.second, row, col)
+                            selected = null
+                        }
+                        // Otherwise, selecting is only meaningful for the human's own side (1)
+                        // and only when it's actually side 1's move -- hasLegalMoveFrom already
+                        // folds in mandatory-capture/forced-continuation, so it also correctly
+                        // refuses a non-forced piece mid-chain.
+                        s.currentPlayerIndex == 1 && game.hasLegalMoveFrom(row, col) -> selected = row to col
+                        else -> selected = null
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
+            if (s.gameOver) {
+                val outcome = if (s.winnerPlayerId == "human") "You win!" else "Bot wins."
+                Text(outcome)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { game.playAgain(); selected = null }) { Text("Play Again") }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+        Button(onClick = onBack) { Text("Back to Menu") }
+    }
+}
+
+@Composable
+private fun CheckersBoard(
+    board: List<CheckersPiece?>,
+    selected: Pair<Int, Int>?,
+    legalDestinations: Set<Pair<Int, Int>>,
+    onSquareClick: (row: Int, col: Int) -> Unit
+) {
+    Column {
+        for (row in 0..7) {
+            Row {
+                for (col in 0..7) {
+                    CheckersSquare(
+                        piece = board.getOrNull(row * 8 + col),
+                        dark = (row + col) % 2 == 1,
+                        selected = selected == row to col,
+                        legalDestination = (row to col) in legalDestinations,
+                        onClick = { onSquareClick(row, col) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckersSquare(piece: CheckersPiece?, dark: Boolean, selected: Boolean, legalDestination: Boolean, onClick: () -> Unit) {
+    val base = if (dark) Color(0xFF3E2723) else Color(0xFFD7B899)
+    val background = when {
+        selected -> Color(0xFFF6F669)
+        legalDestination -> if (dark) Color(0xFF5E8C4A) else Color(0xFFCFE8A8)
+        else -> base
+    }
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .background(background)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (piece != null) {
+            // Side 0 = warm amber disc (the C++ engine's own "AI" side), side 1 = charcoal
+            // disc (its "human" side) -- distinct from Chess's own White/Black palette so the
+            // two board-game pilots never look interchangeable at a glance.
+            val discColor = if (piece.owner == 0) Color(0xFFD98A34) else Color(0xFF37474F)
+            Box(
+                modifier = Modifier.size(40.dp).background(discColor, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (piece.kind == PieceKind.KING) {
+                    Text("K", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        } else if (legalDestination) {
+            Box(modifier = Modifier.size(12.dp).background(Color.Black.copy(alpha = 0.25f)))
+        }
     }
 }
