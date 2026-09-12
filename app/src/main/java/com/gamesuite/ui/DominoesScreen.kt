@@ -29,6 +29,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -199,9 +201,9 @@ fun DominoesScreen(
                 style = MaterialTheme.typography.labelLarge
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = game::playAgain) { Text("Play Again") }
+            Button(onClick = game::playAgain, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Play Again") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+            OutlinedButton(onClick = game::leaveSession, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
         }
         return
     }
@@ -492,28 +494,38 @@ fun DominoesScreen(
                 // DominoGame, and still fired the success sound/haptic/deselect.
                 val matchesLeft = domino.a == s.leftEnd || domino.b == s.leftEnd
                 val matchesRight = domino.a == s.rightEnd || domino.b == s.rightEnd
-                Button(enabled = isMyTurn && matchesLeft, onClick = {
-                    if (matchesLeft) {
-                        lastPlacementWasDrag = false
-                        game.playDomino(activePlayerIndex, domino, attachToLeft = true)
-                        selectedDomino = null
-                    }
-                }) { Text("Play on Left") }
-                Button(enabled = isMyTurn && matchesRight, onClick = {
-                    if (matchesRight) {
-                        lastPlacementWasDrag = false
-                        game.playDomino(activePlayerIndex, domino, attachToLeft = false)
-                        selectedDomino = null
-                    }
-                }) { Text("Play on Right") }
+                Button(
+                    enabled = isMyTurn && matchesLeft,
+                    onClick = {
+                        if (matchesLeft) {
+                            lastPlacementWasDrag = false
+                            game.playDomino(activePlayerIndex, domino, attachToLeft = true)
+                            selectedDomino = null
+                        }
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Play on Left") }
+                Button(
+                    enabled = isMyTurn && matchesRight,
+                    onClick = {
+                        if (matchesRight) {
+                            lastPlacementWasDrag = false
+                            game.playDomino(activePlayerIndex, domino, attachToLeft = false)
+                            selectedDomino = null
+                        }
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Play on Right") }
             }
             OutlinedButton(
                 enabled = isMyTurn && !canPlayNow && s.boneyardSize > 0,
-                onClick = { game.drawFromBoneyard(activePlayerIndex) }
+                onClick = { game.drawFromBoneyard(activePlayerIndex) },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             ) { Text("Draw") }
             OutlinedButton(
                 enabled = isMyTurn && !canPlayNow && s.boneyardSize == 0,
-                onClick = { game.pass(activePlayerIndex) }
+                onClick = { game.pass(activePlayerIndex) },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             ) { Text("Pass") }
         }
         }
@@ -648,6 +660,7 @@ fun DominoesScreen(
                                 selectedDomino = null
                             }
                         }
+                        .pointerHoverIcon(PointerIcon.Hand)
                         // Hand tiles are otherwise just two bare numbers separated by a divider
                         // bar -- nothing a screen reader can read as "domino" or "playable" on
                         // its own, so spell out both pip values and legality explicitly.

@@ -1,6 +1,7 @@
 package com.gamesuite.ui
 
 import android.os.Build
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -10,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
 import com.gamesuite.games.cards.CardVisual
@@ -52,7 +55,10 @@ fun SettingsScreen(
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text("← Back") }
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("← Back") }
             }
             Spacer(Modifier.height(8.dp))
             Text("Settings", style = MaterialTheme.typography.headlineSmall)
@@ -80,59 +86,67 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(24.dp))
             SectionHeader("Sound & feedback")
-            SettingSwitchRow(
-                label = "Sound effects",
-                description = null,
-                checked = settings.soundEnabled,
-                onCheckedChange = viewModel::setSoundEnabled
-            )
-            SettingSwitchRow(
-                label = "Haptics",
-                description = null,
-                checked = settings.hapticsEnabled,
-                onCheckedChange = viewModel::setHapticsEnabled
-            )
-            SettingSwitchRow(
-                label = "Ambient music",
-                description = "Calming background music while you play",
-                checked = settings.musicEnabled,
-                onCheckedChange = viewModel::setMusicEnabled
-            )
+            // focusGroup() (§4c): the three toggles below are one logical cluster — Tab
+            // moves through them together before jumping to the next section header.
+            Column(modifier = Modifier.focusGroup()) {
+                SettingSwitchRow(
+                    label = "Sound effects",
+                    description = null,
+                    checked = settings.soundEnabled,
+                    onCheckedChange = viewModel::setSoundEnabled
+                )
+                SettingSwitchRow(
+                    label = "Haptics",
+                    description = null,
+                    checked = settings.hapticsEnabled,
+                    onCheckedChange = viewModel::setHapticsEnabled
+                )
+                SettingSwitchRow(
+                    label = "Ambient music",
+                    description = "Calming background music while you play",
+                    checked = settings.musicEnabled,
+                    onCheckedChange = viewModel::setMusicEnabled
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
             SectionHeader("Accessibility")
-            SettingSwitchRow(
-                label = "Reduced motion",
-                description = "Minimize animations across all games",
-                checked = settings.reducedMotion,
-                onCheckedChange = viewModel::setReducedMotion
-            )
-            SettingSwitchRow(
-                label = "Colorblind-safe mode",
-                description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
-                checked = settings.colorblindMode,
-                onCheckedChange = viewModel::setColorblindMode
-            )
-            SettingSwitchRow(
-                label = "3D perspective mode",
-                description = "Cards and pieces get real depth and perspective flips, and boards/tables get a resting tilt",
-                checked = settings.card3DEnabled,
-                onCheckedChange = viewModel::setCard3DEnabled
-            )
-            SettingSwitchRow(
-                label = "Enhanced move animations",
-                description = "Pieces and cards move with weight instead of snapping instantly — lift-and-place, capture fades, fly-to-target tosses",
-                checked = settings.enhancedAnimationsEnabled,
-                onCheckedChange = viewModel::setEnhancedAnimationsEnabled
-            )
-            Spacer(Modifier.height(8.dp))
-            Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
-            Slider(
-                value = settings.textScale,
-                onValueChange = viewModel::setTextScale,
-                valueRange = 0.85f..1.5f,
-                steps = 12
-            )
+            // focusGroup() (§4c): same clustering as "Sound & feedback" above, including
+            // the text-size slider since it's part of the same accessibility control set.
+            Column(modifier = Modifier.focusGroup()) {
+                SettingSwitchRow(
+                    label = "Reduced motion",
+                    description = "Minimize animations across all games",
+                    checked = settings.reducedMotion,
+                    onCheckedChange = viewModel::setReducedMotion
+                )
+                SettingSwitchRow(
+                    label = "Colorblind-safe mode",
+                    description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
+                    checked = settings.colorblindMode,
+                    onCheckedChange = viewModel::setColorblindMode
+                )
+                SettingSwitchRow(
+                    label = "3D perspective mode",
+                    description = "Cards and pieces get real depth and perspective flips, and boards/tables get a resting tilt",
+                    checked = settings.card3DEnabled,
+                    onCheckedChange = viewModel::setCard3DEnabled
+                )
+                SettingSwitchRow(
+                    label = "Enhanced move animations",
+                    description = "Pieces and cards move with weight instead of snapping instantly — lift-and-place, capture fades, fly-to-target tosses",
+                    checked = settings.enhancedAnimationsEnabled,
+                    onCheckedChange = viewModel::setEnhancedAnimationsEnabled
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
+                Slider(
+                    value = settings.textScale,
+                    onValueChange = viewModel::setTextScale,
+                    valueRange = 0.85f..1.5f,
+                    steps = 12
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
             SectionHeader("Card size")
@@ -176,21 +190,27 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(8.dp))
             var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
-            OutlinedTextField(
-                value = serverUrlDraft,
-                onValueChange = { serverUrlDraft = it },
-                label = { Text("Online server") },
-                placeholder = { Text("ws://192.168.1.23:8080") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                    onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+            // focusGroup() (§4c): the address field and its Save button are one cluster.
+            Column(modifier = Modifier.focusGroup()) {
+                OutlinedTextField(
+                    value = serverUrlDraft,
+                    onValueChange = { serverUrlDraft = it },
+                    label = { Text("Online server") },
+                    placeholder = { Text("ws://192.168.1.23:8080") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                        onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+                    )
                 )
-            )
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) }) {
-                Text("Save server address")
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
+                    Text("Save server address")
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -204,7 +224,10 @@ fun SettingsScreen(
             )
 
             Spacer(Modifier.height(32.dp))
-            OutlinedButton(onClick = { showResetConfirmation = true }) {
+            OutlinedButton(
+                onClick = { showResetConfirmation = true },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("Reset all settings")
             }
             Spacer(Modifier.height(24.dp))
@@ -220,15 +243,21 @@ fun SettingsScreen(
             title = { Text("Reset all settings?") },
             text = { Text("This can't be undone.") },
             confirmButton = {
-                TextButton(onClick = {
-                    showResetConfirmation = false
-                    viewModel.resetAll()
-                }) {
+                TextButton(
+                    onClick = {
+                        showResetConfirmation = false
+                        viewModel.resetAll()
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Reset")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showResetConfirmation = false }) {
+                TextButton(
+                    onClick = { showResetConfirmation = false },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Cancel")
                 }
             }
@@ -287,19 +316,25 @@ private fun SettingSwitchRow(label: String, description: String?, checked: Boole
                 Text(description, style = MaterialTheme.typography.labelSmall)
             }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        )
     }
 }
 
 @Composable
 private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
-    Column {
+    // focusGroup() (§4c): the theme-mode options are one selectable cluster.
+    Column(modifier = Modifier.focusGroup()) {
         ThemeMode.entries.forEach { mode ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .selectable(selected = selected == mode, onClick = { onSelect(mode) })
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
@@ -321,13 +356,15 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
     // Classic, High Contrast, and Midnight Arcade ship with real palettes —
     // see NamedTheme's KDoc. Felt Table remains future work.
     val available = listOf(NamedTheme.CLASSIC, NamedTheme.HIGH_CONTRAST, NamedTheme.MIDNIGHT_ARCADE)
-    Column {
+    // focusGroup() (§4c): the palette options are one selectable cluster.
+    Column(modifier = Modifier.focusGroup()) {
         available.forEach { theme ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .selectable(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
@@ -353,12 +390,14 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
 
 @Composable
 private fun DifficultySelector(selected: CpuDifficulty, onSelect: (CpuDifficulty) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // focusGroup() (§4c): the difficulty chips are one selectable cluster.
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusGroup()) {
         CpuDifficulty.entries.forEach { difficulty ->
             FilterChip(
                 selected = selected == difficulty,
                 onClick = { onSelect(difficulty) },
-                label = { Text(difficulty.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                label = { Text(difficulty.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
         }
     }

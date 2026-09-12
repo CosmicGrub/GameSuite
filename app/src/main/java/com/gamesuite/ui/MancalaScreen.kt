@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -172,9 +174,9 @@ fun MancalaScreen(
                 style = MaterialTheme.typography.labelLarge
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = game::playAgain) { Text("Play Again") }
+            Button(onClick = game::playAgain, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Play Again") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+            OutlinedButton(onClick = game::leaveSession, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
         }
         return
     }
@@ -367,11 +369,14 @@ fun MancalaScreen(
             // same single-toggle-button shape as Solitaire's own draw-1/3 control
             // (SolitaireScreen.kt), see MancalaMotionPrefs.kt's KDoc for why the physics
             // jostle specifically warrants this where most other games in this pass don't.
-            OutlinedButton(onClick = {
-                scope.launch {
-                    motionPrefs.setTier(if (motionTier == MancalaMotionTier.MAXIMUM) MancalaMotionTier.STANDARD else MancalaMotionTier.MAXIMUM)
-                }
-            }) {
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        motionPrefs.setTier(if (motionTier == MancalaMotionTier.MAXIMUM) MancalaMotionTier.STANDARD else MancalaMotionTier.MAXIMUM)
+                    }
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text(if (motionTier == MancalaMotionTier.MAXIMUM) "Motion: Maximum" else "Motion: Standard")
             }
         }
@@ -841,6 +846,7 @@ private fun PitView(
                 CircleShape
             )
             .clickable(enabled = enabled, onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
             // Screen-reader announcement mirrors the visible layout (owner side + this pit's
             // position within that side, farthest-from-store first) plus the live stone count,
             // since a TalkBack user can't see which pit their finger landed on otherwise.

@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -172,6 +174,14 @@ fun <T> FannedHand(
                             alpha = dealProgress.value.coerceIn(0f, 1f)
                         }
                         .onGloballyPositioned { cardRootPosition = it.positionInRoot() }
+                        // Mouse/trackpad hover cursor (Tab S9 DeX windowed mode / keyboard-cover
+                        // scenario, doc section 4c) -- a hand cursor over each card that is
+                        // actually this player's own, playable card, matching the same `enabled`
+                        // gate the drag/tap gestures below already use so a card that can't
+                        // currently be played (not this player's turn) doesn't falsely invite a
+                        // click. Purely additive: has zero effect on touch/stylus-without-hover
+                        // input, so it can't regress existing tap/drag play on any device.
+                        .then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier)
                         .pointerInput(enabled, idOf(item)) {
                             if (!enabled) return@pointerInput
                             detectDragGestures(

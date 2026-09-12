@@ -1,6 +1,7 @@
 package com.gamesuite.ui
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +11,8 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -225,11 +228,21 @@ fun MainMenuScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-                Row {
-                    TextButton(onClick = onNavigateToStats) {
+                // Tab S9 input pass (§4c): grouped under focusGroup() so a hardware
+                // keyboard's Tab key steps past both header buttons as one cluster before
+                // moving into the page body below, instead of landing on every leaf in an
+                // order indistinguishable from the rest of the screen.
+                Row(modifier = Modifier.focusGroup()) {
+                    TextButton(
+                        onClick = onNavigateToStats,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
                         Text(stringResource(R.string.menu_my_stats), style = MaterialTheme.typography.labelLarge)
                     }
-                    TextButton(onClick = onNavigateToSettings) {
+                    TextButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
                         Text(stringResource(R.string.menu_settings), style = MaterialTheme.typography.labelLarge)
                     }
                 }
@@ -249,7 +262,9 @@ fun MainMenuScreen(
                 Text(stringResource(R.string.menu_continue_playing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    // focusGroup() (§4c): the Continue row is its own logical cluster of
+                    // tiles — Tab moves through them together, then on to the next section.
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).focusGroup(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     recentlyPlayed.forEach { s ->
@@ -451,10 +466,16 @@ private fun ContinueTile(
     var menuExpanded by remember { mutableStateOf(false) }
     Box {
         ElevatedCard(
-            modifier = Modifier.combinedClickable(
-                onClick = onContinue,
-                onLongClick = { menuExpanded = true }
-            )
+            // pointerHoverIcon (§4c): this tile is a real launch/continue target for a
+            // game, same as any other game-action button — mouse/trackpad users get a
+            // hand cursor over it. combinedClickable() already makes it keyboard-focusable
+            // and Enter/Space-activatable on its own, so no separate .focusable() is added.
+            modifier = Modifier
+                .combinedClickable(
+                    onClick = onContinue,
+                    onLongClick = { menuExpanded = true }
+                )
+                .pointerHoverIcon(PointerIcon.Hand)
         ) {
             Column(modifier = Modifier.padding(14.dp).widthIn(min = 110.dp)) {
                 Text(stats.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
@@ -467,15 +488,18 @@ private fun ContinueTile(
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.continue_menu_continue)) },
-                onClick = { menuExpanded = false; onContinue() }
+                onClick = { menuExpanded = false; onContinue() },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.continue_menu_restart)) },
-                onClick = { menuExpanded = false; onRestart() }
+                onClick = { menuExpanded = false; onRestart() },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.continue_menu_delete)) },
-                onClick = { menuExpanded = false; onDelete() }
+                onClick = { menuExpanded = false; onDelete() },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
         }
     }
@@ -497,7 +521,10 @@ private fun GameSection(title: String, columns: Int, entries: List<GameEntry>) {
     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(8.dp))
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        // focusGroup() (§4c): every button in this category is one Tab-order cluster, so
+        // a hardware keyboard moves section-to-section down MainMenuScreen instead of
+        // treating each of the 11 games' buttons as an undifferentiated flat sequence.
+        Column(modifier = Modifier.padding(12.dp).focusGroup()) {
             val rows = entries.chunked(columns)
             rows.forEachIndexed { rowIndex, row ->
                 Row(
@@ -530,7 +557,9 @@ private fun GameButton(label: String, modifier: Modifier = Modifier.fillMaxWidth
         // Material3 buttons already get an automatic 48dp-minimum touch target via
         // minimumInteractiveComponentSize(), but pin it explicitly too now that a button
         // can be one of 2-3 grid columns wide instead of always the full screen width.
-        modifier = modifier.heightIn(min = 48.dp)
+        // pointerHoverIcon (§4c): every game-launch button gets a hand cursor for
+        // mouse/trackpad users (DeX, Tab S9 keyboard-cover); no effect on touch.
+        modifier = modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
     ) {
         Text(label)
     }
@@ -553,7 +582,10 @@ private fun OnboardingBanner(onDismiss: () -> Unit) {
             Text(stringResource(R.string.onboarding_body), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.onboarding_dismiss)) }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text(stringResource(R.string.onboarding_dismiss)) }
             }
         }
     }

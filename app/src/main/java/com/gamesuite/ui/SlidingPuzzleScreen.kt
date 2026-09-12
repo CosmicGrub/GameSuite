@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -506,6 +508,7 @@ private fun SlidingTileView(
             .background(color)
             .border(width = 1.dp, color = Color.Black.copy(alpha = 0.28f), shape = tileShape)
             .clickable(enabled = enabled, onClick = onClick)
+            .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
             .semantics { contentDescription = "Tile $value, row ${row + 1} column ${col + 1}" },
         contentAlignment = Alignment.Center
     ) {
@@ -560,17 +563,26 @@ private fun SolvedPanel(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onPlayAgain) {
+            Button(
+                onClick = onPlayAgain,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("New Puzzle")
             }
             Spacer(modifier = Modifier.height(8.dp))
             // Replays this same puzzle's original scramble, as opposed to "New Puzzle"
             // above dealing a brand-new one — see SlidingPuzzleGame.resetToInitial's KDoc.
-            OutlinedButton(onClick = onReset) {
+            OutlinedButton(
+                onClick = onReset,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("Reset puzzle")
             }
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = onBackToMenu) {
+            OutlinedButton(
+                onClick = onBackToMenu,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("Back to Menu")
             }
         }
@@ -591,7 +603,9 @@ private fun ImageSourceChip(label: String, selected: Boolean, onClick: () -> Uni
         style = MaterialTheme.typography.labelSmall,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
     )
 }
 

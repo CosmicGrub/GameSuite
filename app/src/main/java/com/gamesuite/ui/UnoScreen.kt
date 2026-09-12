@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -621,17 +623,22 @@ fun UnoScreen(
                             )
                             // index != myIndex: never let the human catch themselves for a self-inflicted penalty.
                             if (index != myIndex && p.hand.size == 1 && !p.calledUno) {
-                                TextButton(onClick = {
-                                    // Check the live state at the moment of the tap, not the
-                                    // composition's captured `p` -- a bot can call UNO in the
-                                    // gap between this button rendering and being tapped, and
-                                    // the "successful Catch" haptic below should only fire for
-                                    // an actual catch.
-                                    val caught = game.state.value?.players?.getOrNull(index)
-                                        ?.let { it.hand.size == 1 && !it.calledUno } == true
-                                    game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
-                                    if (caught) haptics(HapticSignal.STRONG_ACTION)
-                                }) {
+                                TextButton(
+                                    onClick = {
+                                        // Check the live state at the moment of the tap, not the
+                                        // composition's captured `p` -- a bot can call UNO in the
+                                        // gap between this button rendering and being tapped, and
+                                        // the "successful Catch" haptic below should only fire for
+                                        // an actual catch.
+                                        val caught = game.state.value?.players?.getOrNull(index)
+                                            ?.let { it.hand.size == 1 && !it.calledUno } == true
+                                        game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
+                                        if (caught) haptics(HapticSignal.STRONG_ACTION)
+                                    },
+                                    // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
+                                    // §4c) -- purely additive, no effect on touch.
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                ) {
                                     Text("Catch!", color = Color.Red)
                                 }
                             }
@@ -808,21 +815,31 @@ fun UnoScreen(
                                 } else Modifier
                             )
                     ) {
-                        Button(onClick = {
-                            game.drawCard(myIndex)
-                            sounds.playDraw()
-                            haptics(HapticSignal.LIGHT_TICK)
-                        }) {
+                        Button(
+                            onClick = {
+                                game.drawCard(myIndex)
+                                sounds.playDraw()
+                                haptics(HapticSignal.LIGHT_TICK)
+                            },
+                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
+                            // §4c) -- purely additive, no effect on touch.
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                        ) {
                             Text(if (s.pendingDraw > 0) "Draw ${s.pendingDraw}" else "Draw")
                         }
                     }
                     Spacer(Modifier.width(12.dp))
                     if (myHand.size == 1) {
-                        Button(onClick = {
-                            game.callUno(myIndex)
-                            showUnoCallout = true
-                            layeredChime(sounds, scope)
-                        }) { Text("UNO!") }
+                        Button(
+                            onClick = {
+                                game.callUno(myIndex)
+                                showUnoCallout = true
+                                layeredChime(sounds, scope)
+                            },
+                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
+                            // §4c) -- purely additive, no effect on touch.
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                        ) { Text("UNO!") }
                         Spacer(Modifier.width(12.dp))
                     }
                     // Official UNO: playing a card you just drew is your OPTION, not mandatory —
@@ -830,10 +847,15 @@ fun UnoScreen(
                     // and UnoGame.keepDrawnCard()). This is the fix for the audited finding that the
                     // engine's true default silently forced this with no way to opt out.
                     if (myTurn && s.awaitingDrawDecision && !game.rules.forcePlayDrawnCard) {
-                        OutlinedButton(onClick = {
-                            game.keepDrawnCard(myIndex)
-                            haptics(HapticSignal.LIGHT_TICK)
-                        }) { Text("Keep card") }
+                        OutlinedButton(
+                            onClick = {
+                                game.keepDrawnCard(myIndex)
+                                haptics(HapticSignal.LIGHT_TICK)
+                            },
+                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
+                            // §4c) -- purely additive, no effect on touch.
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                        ) { Text("Keep card") }
                     }
                 }
             }

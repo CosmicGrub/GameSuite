@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
@@ -103,6 +105,7 @@ fun NearbyHostLobbyScreen(
 
         Button(
             enabled = joinedGuests.isNotEmpty(),
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
             onClick = {
                 val players = listOf(PlayerInfo(playerId = "host", displayName = "Host")) +
                     joinedGuests.values.map { PlayerInfo(playerId = it.clientPlayerId, displayName = it.displayName) }
@@ -126,6 +129,9 @@ fun NearbyHostLobbyScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onBack) { Text("Cancel") }
+        Button(
+            onClick = onBack,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Cancel") }
     }
 }

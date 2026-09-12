@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
@@ -262,11 +264,11 @@ fun WordSearchScreen(
                             color = Color(0xFF2E7D32)
                         )
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = game::playAgain) { Text("New Puzzle") }
+                        Button(onClick = game::playAgain, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("New Puzzle") }
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                        OutlinedButton(onClick = game::leaveSession, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
                     } else {
-                        OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                        OutlinedButton(onClick = game::leaveSession, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
                     }
                 }
             }
@@ -376,6 +378,11 @@ private fun WordSearchGrid(
     }
 
     Box(modifier = Modifier.graphicsLayer { translationX = shakeOffset.value }) {
+        // No pointerHoverIcon here, deliberately: this whole grid is one continuous
+        // drag-select Canvas (see this file's top-level KDoc) with no per-cell
+        // composable to attach a hand cursor to — a letter is part of a selection
+        // only via a drag gesture spanning the whole surface, not a discrete tap
+        // target of its own. Same reasoning as AirHockeyScreen's table Canvas.
         Canvas(
             modifier = Modifier
                 .size(width = gridWidth, height = gridWidth)

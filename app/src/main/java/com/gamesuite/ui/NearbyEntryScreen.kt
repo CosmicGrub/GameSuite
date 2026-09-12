@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -99,49 +101,67 @@ fun NearbyEntryScreen(
             !permissionsGranted -> {
                 Text("GameSuite needs Nearby devices permission to find and connect to other players.")
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { permissionLauncher.launch(requiredNearbyPermissions()) }) {
+                Button(
+                    onClick = { permissionLauncher.launch(requiredNearbyPermissions()) },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Grant permission")
                 }
             }
             !bluetoothOn -> {
                 Text("Bluetooth is off — turn it on to continue.")
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) }) {
+                Button(
+                    onClick = { enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Enable Bluetooth")
                 }
             }
             !wifiOn -> {
                 Text("Wi-Fi is off — turn it on to continue.")
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = {
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        Intent(Settings.Panel.ACTION_WIFI)
-                    } else {
-                        Intent(Settings.ACTION_WIFI_SETTINGS)
-                    }
-                    context.startActivity(intent)
-                }) {
+                Button(
+                    onClick = {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            Intent(Settings.Panel.ACTION_WIFI)
+                        } else {
+                            Intent(Settings.ACTION_WIFI_SETTINGS)
+                        }
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Open Wi-Fi settings")
                 }
             }
             else -> {
-                Button(onClick = {
-                    sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
-                    onNavigateToHostLobby()
-                }) {
+                Button(
+                    onClick = {
+                        sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
+                        onNavigateToHostLobby()
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Host a game")
                 }
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = {
-                    sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
-                    onNavigateToJoinLobby()
-                }) {
+                Button(
+                    onClick = {
+                        sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
+                        onNavigateToJoinLobby()
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Join a game")
                 }
             }
         }
 
         Spacer(Modifier.height(32.dp))
-        Button(onClick = onBack) { Text("Back") }
+        Button(
+            onClick = onBack,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Back") }
     }
 }

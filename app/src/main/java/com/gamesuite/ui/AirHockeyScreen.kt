@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -291,7 +293,10 @@ fun AirHockeyScreen(
                 style = MaterialTheme.typography.headlineSmall
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onMatchEnded) { Text("Back to menu") }
+            Button(
+                onClick = onMatchEnded,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Back to menu") }
         }
         return
     }
@@ -610,7 +615,9 @@ private fun MotionTierLabel(label: String, selected: Boolean, onClick: () -> Uni
         style = MaterialTheme.typography.labelSmall,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
     )
 }
 

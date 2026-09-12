@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameSessionManager
@@ -62,22 +64,34 @@ fun OnlineEntryScreen(
                 color = MaterialTheme.colorScheme.error
             )
             Spacer(Modifier.height(12.dp))
-            Button(onClick = onNavigateToSettings) { Text("Set server address in Settings") }
+            Button(
+                onClick = onNavigateToSettings,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Set server address in Settings") }
         } else {
             Text("Server: $serverUrl", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = {
-                sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
-                onNavigateToHostLobby()
-            }) { Text("Host") }
+            Button(
+                onClick = {
+                    sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
+                    onNavigateToHostLobby()
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Host") }
             Spacer(Modifier.height(8.dp))
-            Button(onClick = {
-                sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
-                onNavigateToJoinLobby()
-            }) { Text("Join") }
+            Button(
+                onClick = {
+                    sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
+                    onNavigateToJoinLobby()
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Join") }
         }
 
         Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onBack) { Text("Back") }
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Back") }
     }
 }

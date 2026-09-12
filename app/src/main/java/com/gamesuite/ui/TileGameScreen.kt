@@ -38,7 +38,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
@@ -203,7 +205,9 @@ fun TileGameScreen(
         ) {
             Text("${winner?.displayName} wins with ${winner?.score} points!", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onMatchEnded) { Text("Back to menu") }
+            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover use case,
+            // docs/DEVICE_SPECIFIC_PLAN.md §4c) -- purely additive, no effect on touch.
+            Button(onClick = onMatchEnded, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to menu") }
         }
         return
     }
@@ -348,6 +352,10 @@ fun TileGameScreen(
                                 .semantics {
                                     contentDescription = "$word, last played word. Double tap to confirm it is a valid dictionary word."
                                 }
+                                // Mouse/trackpad hover cursor (§4c) -- a real clickable row (clue-list-
+                                // style), not decorative text, so it earns the same hand cursor as any
+                                // other tappable game-action target.
+                                .pointerHoverIcon(PointerIcon.Hand)
                                 .clickable {
                                     coroutineScope.launch {
                                         snackbarHostState.showSnackbar("\"$word\" is a valid dictionary word.")
@@ -522,6 +530,10 @@ fun TileGameScreen(
                                     // this bundle's own notes. No-op on an empty cell (displayTile null)
                                     // or with 3D Perspective Mode off.
                                     .specularSweep(enabled = card3D && displayTile != null, tint = TILE_GLOSS_TINT, periodMs = TILE_GLOSS_PERIOD_MS)
+                                    // Mouse/trackpad hover cursor (§4c) -- every board cell is a real
+                                    // tap/drop target (place a selected tile, or unstage a pending one),
+                                    // purely additive and invisible to touch input.
+                                    .pointerHoverIcon(PointerIcon.Hand)
                                     .clickable(enabled = isMyTurn) {
                                         when {
                                             pending != null -> game.unstageTile(row, col)
@@ -631,6 +643,9 @@ fun TileGameScreen(
                             // bundle's own notes, applied to every rack tile too.
                             .specularSweep(enabled = card3D, tint = TILE_GLOSS_TINT, periodMs = TILE_GLOSS_PERIOD_MS)
                             .semantics { contentDescription = tileDescription }
+                            // Mouse/trackpad hover cursor (§4c) -- a real draggable/tappable rack
+                            // tile, purely additive and invisible to touch input.
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .clickable(enabled = isMyTurn && !isBeingDragged) {
                                 if (swapMode) {
                                     swapSelectedIds = if (tile.instanceId in swapSelectedIds) {
@@ -740,9 +755,15 @@ fun TileGameScreen(
                     animationSpec = infiniteRepeatable(animation = tween(700), repeatMode = RepeatMode.Reverse),
                     label = "submitPulseScale"
                 )
+                // Mouse/trackpad hover cursor (§4c) on every real game-action control button in
+                // this row -- purely additive, zero effect on touch input. (submitPulseScale's
+                // graphicsLayer stays first in the chain, unchanged, so the pulse animation is
+                // unaffected by the added pointerHoverIcon.)
                 Button(
                     enabled = isMyTurn && !swapMode,
-                    modifier = Modifier.graphicsLayer { scaleX = submitPulseScale; scaleY = submitPulseScale },
+                    modifier = Modifier
+                        .graphicsLayer { scaleX = submitPulseScale; scaleY = submitPulseScale }
+                        .pointerHoverIcon(PointerIcon.Hand),
                     onClick = {
                         val error = game.submitMove()
                         if (error != null) {
@@ -750,30 +771,47 @@ fun TileGameScreen(
                         }
                     }
                 ) { Text("Submit") }
-                OutlinedButton(enabled = isMyTurn && !swapMode, onClick = { game.clearStaged() }) { Text("Clear") }
-                OutlinedButton(enabled = isMyTurn && !swapMode, onClick = { game.pass() }) { Text("Pass") }
+                OutlinedButton(
+                    enabled = isMyTurn && !swapMode,
+                    onClick = { game.clearStaged() },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Clear") }
+                OutlinedButton(
+                    enabled = isMyTurn && !swapMode,
+                    onClick = { game.pass() },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Pass") }
                 if (swapMode) {
                     Button(
                         enabled = isMyTurn && swapSelectedIds.isNotEmpty() && swapSelectedIds.size <= s.bagCount,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                         onClick = {
                             game.swapTiles(swapSelectedIds)
                             swapSelectedIds = emptySet()
                             swapMode = false
                         }
                     ) { Text("Swap (${swapSelectedIds.size})") }
-                    OutlinedButton(enabled = isMyTurn, onClick = {
-                        swapMode = false
-                        swapSelectedIds = emptySet()
-                    }) { Text("Cancel") }
+                    OutlinedButton(
+                        enabled = isMyTurn,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        onClick = {
+                            swapMode = false
+                            swapSelectedIds = emptySet()
+                        }
+                    ) { Text("Cancel") }
                 } else {
                     OutlinedButton(
                         enabled = isMyTurn && s.bagCount > 0,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                         onClick = { swapMode = true; selectedTileId = null }
                     ) { Text("Swap") }
                 }
                 // Motion-intensity tier -- see TileMotionPrefsStore.kt's KDoc for exactly
                 // what Maximum unlocks over Standard.
-                OutlinedButton(onClick = { coroutineScope.launch { motionPrefsStore.setMotionTier(if (maximumTier) TileMotionTier.STANDARD else TileMotionTier.MAXIMUM) } }) {
+                OutlinedButton(
+                    onClick = { coroutineScope.launch { motionPrefsStore.setMotionTier(if (maximumTier) TileMotionTier.STANDARD else TileMotionTier.MAXIMUM) } },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text(if (maximumTier) "Motion: Maximum" else "Motion: Standard")
                 }
             }
@@ -898,6 +936,9 @@ private fun BlankLetterDialog(onLetterChosen: (Char) -> Unit, onDismiss: () -> U
                         modifier = Modifier
                             .padding(2.dp)
                             .size(32.dp)
+                            // Mouse/trackpad hover cursor (§4c) -- each letter is a real "letter
+                            // key" game-action target, purely additive over touch.
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .clickable { onLetterChosen(letter) },
                         contentAlignment = Alignment.Center
                     ) { Text(letter.toString()) }

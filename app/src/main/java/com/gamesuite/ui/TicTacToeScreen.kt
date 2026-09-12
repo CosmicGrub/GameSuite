@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -108,6 +110,14 @@ import kotlinx.coroutines.launch
  *  - Deliberately NOT added: a motion-intensity tier, an idle/attract
  *    loop, table-material identity, or any shader — none of those fit this
  *    particular game, per the pitch's own reasoning.
+ *
+ * TAB S9 INPUT PASS (DEVICE_SPECIFIC_PLAN.md §4c) additions: every tappable
+ * board cell and the wild-mode/round-over control buttons now also carry
+ * `Modifier.pointerHoverIcon(PointerIcon.Hand)`, so a mouse or the Tab S9
+ * trackpad shows a hand cursor over them (DeX windowed mode, keyboard-cover
+ * scenario) — zero effect on touch, purely additive. This is an in-game
+ * board per §4c's own scoping, so no keyboard-focus/Tab-traversal work was
+ * added here.
  */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -354,10 +364,18 @@ fun TicTacToeScreen(
                     if (wild && !isBotTurn && !roundOver) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(1 to "X", 2 to "O").forEach { (symbol, label) ->
+                                // Wild-mode symbol picker (in-screen control button, §4c) —
+                                // mouse/trackpad hover cursor only, additive over touch.
                                 if (selectedSymbol == symbol) {
-                                    Button(onClick = { game.chooseSymbol(symbol) }) { Text("Place $label") }
+                                    Button(
+                                        onClick = { game.chooseSymbol(symbol) },
+                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                    ) { Text("Place $label") }
                                 } else {
-                                    OutlinedButton(onClick = { game.chooseSymbol(symbol) }) { Text("Place $label") }
+                                    OutlinedButton(
+                                        onClick = { game.chooseSymbol(symbol) },
+                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                    ) { Text("Place $label") }
                                 }
                             }
                         }
@@ -441,6 +459,9 @@ fun TicTacToeScreen(
                                             alpha = s
                                         }
                                         .background(if (isWinningCell) Color(0xFFFFD54F) else Color.LightGray)
+                                        // Mouse/trackpad hover cursor (§4c) — tappable board
+                                        // cell; no effect on touch input.
+                                        .pointerHoverIcon(PointerIcon.Hand)
                                         .clickable(enabled = cellValue == 0 && !isBotTurn && !roundOver) {
                                             lastTap = InkTap(index, tapCounter)
                                             tapCounter += 1
@@ -650,11 +671,18 @@ private fun RoundOverPanel(
         ) {
             Text(resultText, style = MaterialTheme.typography.headlineSmall)
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onPlayAgain) {
+            // In-screen game control buttons (§4c) — hover cursor only, additive.
+            Button(
+                onClick = onPlayAgain,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("Play Again")
             }
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = onBackToMenu) {
+            OutlinedButton(
+                onClick = onBackToMenu,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) {
                 Text("Back to Menu")
             }
         }

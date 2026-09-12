@@ -1,5 +1,6 @@
 package com.gamesuite.ui
 
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -7,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.games.uno.UnoRules
@@ -51,7 +54,10 @@ fun UnoHouseRulesScreen(
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text("← Back") }
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("← Back") }
             }
             Spacer(Modifier.height(8.dp))
             Text("UNO House Rules", style = MaterialTheme.typography.headlineSmall)
@@ -62,54 +68,64 @@ fun UnoHouseRulesScreen(
             )
             Spacer(Modifier.height(20.dp))
 
-            RuleToggle(
-                label = "Draw stacking",
-                description = "Answer a +2 with a +2 (or +4) instead of drawing immediately.",
-                checked = stackDraw,
-                onCheckedChange = {
-                    stackDraw = it
-                    if (!it) stackDrawFourOnDrawTwo = false
-                }
-            )
-            if (stackDraw) {
+            // focusGroup() (§4c): the house-rule toggles are one logical cluster — Tab
+            // moves through them together before reaching the "Players" section below.
+            Column(modifier = Modifier.focusGroup()) {
                 RuleToggle(
-                    label = "Allow +4 on +2",
-                    description = "Also lets a +4 answer a stacked +2 (not just matching +2s).",
-                    checked = stackDrawFourOnDrawTwo,
-                    onCheckedChange = { stackDrawFourOnDrawTwo = it }
+                    label = "Draw stacking",
+                    description = "Answer a +2 with a +2 (or +4) instead of drawing immediately.",
+                    checked = stackDraw,
+                    onCheckedChange = {
+                        stackDraw = it
+                        if (!it) stackDrawFourOnDrawTwo = false
+                    }
+                )
+                if (stackDraw) {
+                    RuleToggle(
+                        label = "Allow +4 on +2",
+                        description = "Also lets a +4 answer a stacked +2 (not just matching +2s).",
+                        checked = stackDrawFourOnDrawTwo,
+                        onCheckedChange = { stackDrawFourOnDrawTwo = it }
+                    )
+                }
+                RuleToggle(
+                    label = "7-0",
+                    description = "Playing a 7 swaps hands with an opponent; playing a 0 rotates every hand.",
+                    checked = sevenZero,
+                    onCheckedChange = { sevenZero = it }
+                )
+                RuleToggle(
+                    label = "Jump-in",
+                    description = "Any player holding an exact match of the top card may play it out of turn.",
+                    checked = jumpIn,
+                    onCheckedChange = { jumpIn = it }
+                )
+                RuleToggle(
+                    label = "Must play a drawn card",
+                    description = "Off (official rule): playing a card you just drew is your choice, not mandatory.",
+                    checked = forcePlayDrawnCard,
+                    onCheckedChange = { forcePlayDrawnCard = it }
                 )
             }
-            RuleToggle(
-                label = "7-0",
-                description = "Playing a 7 swaps hands with an opponent; playing a 0 rotates every hand.",
-                checked = sevenZero,
-                onCheckedChange = { sevenZero = it }
-            )
-            RuleToggle(
-                label = "Jump-in",
-                description = "Any player holding an exact match of the top card may play it out of turn.",
-                checked = jumpIn,
-                onCheckedChange = { jumpIn = it }
-            )
-            RuleToggle(
-                label = "Must play a drawn card",
-                description = "Off (official rule): playing a card you just drew is your choice, not mandatory.",
-                checked = forcePlayDrawnCard,
-                onCheckedChange = { forcePlayDrawnCard = it }
-            )
 
             Spacer(Modifier.height(24.dp))
             Text("Players", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            RuleToggle(
-                label = "vs 2 CPU bots",
-                description = "Off: 4-player local pass-and-play instead.",
-                checked = vsBot,
-                onCheckedChange = { vsBot = it }
-            )
+            // focusGroup() (§4c): its own single-item cluster, kept distinct from the
+            // house-rule toggles above.
+            Column(modifier = Modifier.focusGroup()) {
+                RuleToggle(
+                    label = "vs 2 CPU bots",
+                    description = "Off: 4-player local pass-and-play instead.",
+                    checked = vsBot,
+                    onCheckedChange = { vsBot = it }
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
-            Button(onClick = {
+            Button(
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                onClick = {
                 val rules = UnoRules(
                     stackDraw = stackDraw,
                     stackDrawFourOnDrawTwo = stackDrawFourOnDrawTwo,
@@ -151,6 +167,10 @@ private fun RuleToggle(label: String, description: String, checked: Boolean, onC
             Text(label, style = MaterialTheme.typography.bodyLarge)
             Text(description, style = MaterialTheme.typography.labelSmall)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        )
     }
 }

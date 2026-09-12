@@ -43,6 +43,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -630,9 +632,9 @@ private fun HangmanResultPanel(
         )
     }
     Spacer(Modifier.height(16.dp))
-    Button(onClick = onNewWord) { Text("New Word") }
+    Button(onClick = onNewWord, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("New Word") }
     Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onBackToMenu) { Text("Back to Menu") }
+    OutlinedButton(onClick = onBackToMenu, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
 }
 
 /**
@@ -687,6 +689,7 @@ private fun HangmanKeyboard(
                 modifier = Modifier
                     .padding(2.dp)
                     .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .pointerHoverIcon(PointerIcon.Hand)
                     .onGloballyPositioned { coords ->
                         onKeyPositioned(
                             letter,

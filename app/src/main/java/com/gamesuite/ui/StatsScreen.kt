@@ -8,6 +8,8 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -58,7 +60,10 @@ fun StatsScreen(
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text("← Back") }
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("← Back") }
             }
             Spacer(Modifier.height(8.dp))
             Text("My Stats", style = MaterialTheme.typography.headlineSmall)
@@ -109,7 +114,10 @@ fun StatsScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
-                OutlinedButton(onClick = { confirmingReset = true }) {
+                OutlinedButton(
+                    onClick = { confirmingReset = true },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text("Reset stats")
                 }
             }
@@ -123,13 +131,19 @@ fun StatsScreen(
             title = { Text("Reset all stats?") },
             text = { Text("This permanently clears every game's win/loss record. This can't be undone.") },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.resetAll()
-                    confirmingReset = false
-                }) { Text("Reset") }
+                TextButton(
+                    onClick = {
+                        viewModel.resetAll()
+                        confirmingReset = false
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Reset") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmingReset = false }) { Text("Cancel") }
+                TextButton(
+                    onClick = { confirmingReset = false },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) { Text("Cancel") }
             }
         )
     }

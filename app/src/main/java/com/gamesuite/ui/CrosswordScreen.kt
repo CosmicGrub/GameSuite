@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -405,6 +407,7 @@ fun CrosswordScreen(
                                     game.selectEntry(entry.id)
                                     openEntryId = entry.id
                                 }
+                                .pointerHoverIcon(PointerIcon.Hand)
                                 .padding(vertical = 6.dp)
                                 .drawWithContent {
                                     drawContent()
@@ -432,9 +435,9 @@ fun CrosswordScreen(
                     Spacer(Modifier.height(8.dp))
                     CascadingSolvedText(reducedMotion = reducedMotion)
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = game::playAgain) { Text("New Puzzle") }
+                    Button(onClick = game::playAgain, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("New Puzzle") }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                    OutlinedButton(onClick = game::leaveSession, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
                 } else {
                     Spacer(Modifier.height(8.dp))
                     // The hint action itself lives in AnswerDialog below (it reveals
@@ -553,25 +556,29 @@ private fun AnswerDialog(
                 // a no-op once every letter here is already shown.
                 TextButton(
                     onClick = onHint,
-                    enabled = hintsRemaining > 0 && '_' in pattern
+                    enabled = hintsRemaining > 0 && '_' in pattern,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                 ) { Text("Hint ($hintsRemaining left)") }
                 Spacer(Modifier.height(8.dp))
                 Row {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Cancel") }
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = {
-                        val correct = onSubmit(text)
-                        if (correct) {
-                            justCorrect = true
-                            scope.launch {
-                                delay(if (reducedMotion) 80L else 380L)
-                                onCorrectSettled()
+                    Button(
+                        onClick = {
+                            val correct = onSubmit(text)
+                            if (correct) {
+                                justCorrect = true
+                                scope.launch {
+                                    delay(if (reducedMotion) 80L else 380L)
+                                    onCorrectSettled()
+                                }
+                            } else {
+                                wrongAttempt++
+                                isError = true
                             }
-                        } else {
-                            wrongAttempt++
-                            isError = true
-                        }
-                    }) { Text("Submit") }
+                        },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) { Text("Submit") }
                 }
             }
         }

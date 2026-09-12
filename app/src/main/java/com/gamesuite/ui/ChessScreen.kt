@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -267,9 +269,15 @@ fun ChessScreen(
                 style = MaterialTheme.typography.labelLarge
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = game::playAgain) { Text("Play Again") }
+            Button(
+                onClick = game::playAgain,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Play Again") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+            OutlinedButton(
+                onClick = game::leaveSession,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Back to Menu") }
         }
         return
     }
@@ -308,18 +316,24 @@ fun ChessScreen(
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Pieces:", style = MaterialTheme.typography.labelSmall)
-                TextButton(onClick = {
-                    val next = if (pieceStyle == ChessPieceStyle.CLASSIC) ChessPieceStyle.MINIMALIST else ChessPieceStyle.CLASSIC
-                    scope.launch { prefsStore.setPieceStyle(next) }
-                }) {
+                TextButton(
+                    onClick = {
+                        val next = if (pieceStyle == ChessPieceStyle.CLASSIC) ChessPieceStyle.MINIMALIST else ChessPieceStyle.CLASSIC
+                        scope.launch { prefsStore.setPieceStyle(next) }
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text(if (pieceStyle == ChessPieceStyle.CLASSIC) "Classic" else "Minimalist")
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("Motion:", style = MaterialTheme.typography.labelSmall)
-                TextButton(onClick = {
-                    val next = if (motionTier == ChessMotionTier.STANDARD) ChessMotionTier.MAXIMUM else ChessMotionTier.STANDARD
-                    scope.launch { prefsStore.setMotionTier(next) }
-                }) {
+                TextButton(
+                    onClick = {
+                        val next = if (motionTier == ChessMotionTier.STANDARD) ChessMotionTier.MAXIMUM else ChessMotionTier.STANDARD
+                        scope.launch { prefsStore.setMotionTier(next) }
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
                     Text(if (motionTier == ChessMotionTier.STANDARD) "Standard" else "Maximum")
                 }
             }
@@ -550,6 +564,7 @@ fun ChessScreen(
                                     }
                                 }
                             }
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .semantics { contentDescription = squareDescription(square, piece) }
                     ) {
                         if (isLastMoveSquare) Box(Modifier.matchParentSize().background(LAST_MOVE_TINT))

@@ -7,9 +7,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.focusGroup
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
@@ -100,23 +103,32 @@ fun NearbyJoinLobbyScreen(
                 if (discoveredHosts.isEmpty()) {
                     Text("Searching...")
                 } else {
-                    discoveredHosts.forEach { host ->
-                        Button(
-                            enabled = !connecting,
-                            onClick = {
-                                connecting = true
-                                transport.requestConnectionTo(host.endpointId)
+                    // focusGroup() (§4c): the discovered-host list is a dynamic, clue-list-style
+                    // set of tappable rows — Tab moves through them as one cluster, then on to
+                    // Cancel below, rather than treating each as an unrelated stop.
+                    Column(modifier = Modifier.focusGroup()) {
+                        discoveredHosts.forEach { host ->
+                            Button(
+                                enabled = !connecting,
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                onClick = {
+                                    connecting = true
+                                    transport.requestConnectionTo(host.endpointId)
+                                }
+                            ) {
+                                Text(host.displayName)
                             }
-                        ) {
-                            Text(host.displayName)
+                            Spacer(Modifier.height(8.dp))
                         }
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
         }
 
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onBack) { Text("Cancel") }
+        Button(
+            onClick = onBack,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Cancel") }
     }
 }

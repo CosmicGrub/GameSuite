@@ -23,6 +23,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -607,13 +609,27 @@ fun SolitaireScreen(
 
                         Spacer(Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedButton(onClick = game::undo, enabled = game.canUndo.value && !autoCompleting) { Text("Undo") }
-                            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover use case,
+                            // docs/DEVICE_SPECIFIC_PLAN.md §4c) on every real game-action control
+                            // button in this row -- purely additive, zero effect on touch input.
+                            OutlinedButton(
+                                onClick = game::undo,
+                                enabled = game.canUndo.value && !autoCompleting,
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) { Text("Undo") }
+                            OutlinedButton(
+                                onClick = game::leaveSession,
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) { Text("Back to Menu") }
                             // Only offered once SolitaireState.autoCompleteAvailable holds — see
                             // SolitaireGame's KDoc on why that check (no card face-down anywhere)
                             // guarantees the rest of the deal is winnable.
                             if (s.autoCompleteAvailable) {
-                                Button(onClick = game::startAutoComplete, enabled = !autoCompleting) {
+                                Button(
+                                    onClick = game::startAutoComplete,
+                                    enabled = !autoCompleting,
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                ) {
                                     Text(if (autoCompleting) "Auto-completing…" else "Auto-complete")
                                 }
                             }
@@ -621,12 +637,18 @@ fun SolitaireScreen(
                             // setting rather than a fixed rule, see SolitairePrefsStore.kt.
                             // Applies to future stock draws only; no restriction against
                             // changing it mid-deal since nothing about it is destructive.
-                            OutlinedButton(onClick = { scope.launch { prefsStore.setDrawThree(!drawThree) } }) {
+                            OutlinedButton(
+                                onClick = { scope.launch { prefsStore.setDrawThree(!drawThree) } },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
                                 Text(if (drawThree) "Draw 3" else "Draw 1")
                             }
                             // Motion-intensity tier (item 6) -- see SolitaireMotionPrefsStore.kt's
                             // KDoc for exactly what Maximum unlocks over Standard.
-                            OutlinedButton(onClick = { scope.launch { motionPrefsStore.setMotionTier(if (maximumTier) SolitaireMotionTier.STANDARD else SolitaireMotionTier.MAXIMUM) } }) {
+                            OutlinedButton(
+                                onClick = { scope.launch { motionPrefsStore.setMotionTier(if (maximumTier) SolitaireMotionTier.STANDARD else SolitaireMotionTier.MAXIMUM) } },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
                                 Text(if (maximumTier) "Motion: Maximum" else "Motion: Standard")
                             }
                         }
@@ -768,7 +790,7 @@ private fun FlyingCardOverlay(flight: Flight, cardWidth: Dp, cardHeight: Dp, use
 
 @Composable
 private fun StockPileView(hasCards: Boolean, width: Dp, height: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(modifier = modifier.clickable(onClick = onClick)) {
+    Box(modifier = modifier.pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onClick)) {
         if (hasCards) {
             PlayingCardView(
                 card = CardVisual(id = -1, label = "", backgroundColor = Color.White, faceDown = true),
@@ -808,6 +830,7 @@ private fun WastePileView(
     Box(
         modifier = modifier
             .semantics { contentDescription = description }
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
             .then(if (isSelected) Modifier.border(3.dp, Color(0xFFFFC107), RoundedCornerShape(10.dp)) else Modifier)
     ) {
@@ -862,6 +885,7 @@ private fun FoundationPileView(
     Box(
         modifier = modifier
             .semantics { contentDescription = description }
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
             .specularSweep(enabled = shimmerActive, tint = FOUNDATION_SHIMMER_TINT, periodMs = FOUNDATION_SHIMMER_MS)
     ) {
@@ -913,6 +937,7 @@ private fun TableauColumnView(
             // since the enclosing Row top-aligns every column and this Box has a
             // fixed width — see [onOriginPositioned]'s param doc at the call site.
             .onGloballyPositioned { onOriginPositioned(it.positionInRoot()) }
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
             .then(if (cards.isEmpty()) Modifier.semantics { contentDescription = "Empty, $columnLabel" } else Modifier)
     ) {
@@ -1069,9 +1094,10 @@ private fun SolvedPanel(onNewGame: () -> Unit, onBackToMenu: () -> Unit) {
             ) {
                 Text("Solved!", style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onNewGame) { Text("New Game") }
+                // Same additive hover-cursor treatment as the in-game control row above.
+                Button(onClick = onNewGame, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("New Game") }
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(onClick = onBackToMenu) { Text("Back to Menu") }
+                OutlinedButton(onClick = onBackToMenu, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Back to Menu") }
             }
         }
     }

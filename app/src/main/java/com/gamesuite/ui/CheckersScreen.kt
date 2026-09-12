@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -137,6 +139,15 @@ import kotlin.random.Random
  *    swaps in -- gated on the tier being anything but [CheckersMotionTier.OFF]
  *    (same reach as `enhanced`/`card3D`, not `maximum`-only, since this is
  *    baseline round-transition polish rather than a top-tier flourish).
+ *
+ * TAB S9 INPUT PASS (DEVICE_SPECIFIC_PLAN.md §4c) additions: every tappable
+ * board square, every piece ([PieceView]), the motion-tier [FilterChip] row,
+ * and the results-screen Play Again/Back to Menu buttons now also carry
+ * `Modifier.pointerHoverIcon(PointerIcon.Hand)`, so a mouse or the Tab S9
+ * trackpad shows a hand cursor over them (DeX windowed mode, keyboard-cover
+ * scenario) — zero effect on touch, purely additive. This is an in-game
+ * board per §4c's own scoping, so no keyboard-focus/Tab-traversal work was
+ * added here.
  */
 @Composable
 fun CheckersScreen(
@@ -261,9 +272,16 @@ fun CheckersScreen(
             Spacer(Modifier.height(8.dp))
             Text("$p1Name: $scoreP1 · $p2Name: $scoreP2", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = game::playAgain) { Text("Play Again") }
+            // In-screen game control buttons (§4c) — hover cursor only, additive.
+            Button(
+                onClick = game::playAgain,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Play Again") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = game::leaveSession) { Text("Back to Menu") }
+            OutlinedButton(
+                onClick = game::leaveSession,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Back to Menu") }
         }
         return
     }
@@ -397,10 +415,13 @@ fun CheckersScreen(
             // rule/presentation choice, mirroring SolitaireScreen's draw-1/3 toggle.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CheckersMotionTier.entries.forEach { tier ->
+                    // In-screen control button (motion-tier picker, §4c) — hover
+                    // cursor only, additive.
                     FilterChip(
                         selected = motionTierPref == tier,
                         onClick = { scope.launch { prefsStore.setMotionTier(tier) } },
-                        label = { Text(tier.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        label = { Text(tier.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                     )
                 }
             }
@@ -490,6 +511,9 @@ fun CheckersScreen(
                                         Modifier.border(3.dp, if (isSelected) Color(0xFFFFC107) else Color(0xFF8BC34A))
                                     } else Modifier
                                 )
+                                // Mouse/trackpad hover cursor (§4c) — tappable board
+                                // square; no effect on touch input.
+                                .pointerHoverIcon(PointerIcon.Hand)
                                 .clickable(enabled = isDark) { onSquareTapped(row, col) }
                                 .semantics { contentDescription = squareDescription(s, row, col, isDestination) }
                         )
@@ -780,6 +804,9 @@ private fun PieceView(
             )
             .border(if (selected) 3.dp else 2.dp, if (selected) Color(0xFFFFC107) else ringColor, CircleShape)
             .then(if (showPromotionFlip) Modifier.card3DFlip(flipProgress.value) else Modifier)
+            // Mouse/trackpad hover cursor (§4c) — tappable/selectable piece; no
+            // effect on touch input.
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
             .semantics {
                 contentDescription = "${if (piece.owner == 0) "Dark" else "Light"} " +

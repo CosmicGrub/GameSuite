@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
@@ -111,6 +113,7 @@ fun OnlineJoinLobbyScreen(
                 Spacer(Modifier.height(16.dp))
                 Button(
                     enabled = roomCodeInput.length == ROOM_CODE_LENGTH,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                     onClick = {
                         transport.clearError()
                         transport.joinRoom(roomCodeInput, clientPlayerId, "Guest (${Build.MODEL})")
@@ -122,6 +125,9 @@ fun OnlineJoinLobbyScreen(
         }
 
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onBack) { Text("Cancel") }
+        Button(
+            onClick = onBack,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Cancel") }
     }
 }
