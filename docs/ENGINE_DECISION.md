@@ -1,10 +1,27 @@
-# ADR-1: Engine/Framework Choice for iOS and PC Ports
+# ADR-1: Engine/Framework Choice for the PC Port (iOS scope withdrawn)
 
-**Status:** Proposed
-**Date:** September 2026 [^date]
+**Status:** Accepted (Android/PC scope), iOS scope withdrawn -- see Scope Update below
+**Date:** September 2026
 **Deciders:** the project owner
 
-[^date]: Written without access to a real clock — confirm the exact date before filing.
+## Scope Update (2026-09-12)
+
+**iOS is out of scope for this project, full stop -- not deferred, not gated on Mac
+access, withdrawn.** The project owner does not want a Mac or an iPhone involved in this
+project in any capacity. GameSuite's actual platform scope is **Android and PC/Windows
+only.**
+
+This changes the Decision below in one place: everywhere it says "iOS and PC ports" or
+sequences "desktop first, iOS second," read that as **desktop only** -- the KMP/CMP
+adoption decision itself stands (see Decision, Options Considered, Trade-off Analysis,
+and Action Items 1-5, all of which are genuinely about Android+Desktop and unaffected by
+this update), but Action Items 6, 7, and 8 (macOS build access, iOS pilots, and the
+platform-parity follow-up work gated on an iOS target) are cancelled outright, not
+postponed. Background research into macOS build-access options had already been
+dispatched before this instruction arrived; it was allowed to finish (pure information
+gathering, no purchase or account created) and is kept below for reference only, in case
+iOS scope is ever reconsidered later -- but nothing in it should be acted on absent a new,
+explicit decision to do so.
 
 ## Context
 
@@ -114,11 +131,13 @@ file rather than assumed:
 ## Decision
 
 **Adopt Kotlin Multiplatform + Compose Multiplatform (KMP/CMP) as the
-engine/framework for GameSuite's iOS and PC ports.** Sequence **desktop
-first** (buildable today, in this project's actual Windows/Gradle/CLI
-environment, with zero new infrastructure), and treat **acquiring a macOS
-build host** as an explicit, named prerequisite task to complete *before*
-iOS work begins — not a footnote discovered mid-port.
+engine/framework for GameSuite's PC port.** ~~Sequence desktop first..., and
+treat acquiring a macOS build host as an explicit, named prerequisite task to
+complete before iOS work begins...~~ **Superseded by the Scope Update above:
+iOS is withdrawn from this project entirely, not sequenced for later.** The
+desktop (Windows/JVM) target, buildable today in this project's actual
+Windows/Gradle/CLI environment with zero new infrastructure, is now this
+decision's only non-Android target.
 
 Android's existing, shipping, twice-verified native Kotlin/Compose app is not
 touched by this decision in the near term. See **Consequences** and
@@ -530,28 +549,32 @@ blocks the parts of this decision that don't need it.
    *unmigrated* game (Mancala: same check) to confirm the core-layer
    convergence didn't disturb any of the other 10 games.
 
-   Future pilots (Action Items 3/7's remaining games) should fold this same
-   migration step into their own pass rather than leaving a second, growing
-   backlog of ported-but-not-yet-migrated `:shared` copies.
-6. **Solve macOS build access as its own explicit, parallel decision** —
-   not blocking any of the above, since none of it needs an Apple toolchain
-   yet. Concretely: choose between a physical Mac, a rented cloud-Mac CI
-   service (Codemagic, MacStadium, or GitHub Actions' macOS runners are the
-   current mainstream options), and budget for it alongside the
-   already-necessary $99/yr Apple Developer Program fee. Do this while
-   steps 1-5 are underway, so it's ready the moment desktop work is
-   solid enough to justify starting the iOS target.
-7. **Once macOS access exists, repeat pilots 1 and 3 against an iOS target**
-   (`iosSimulatorArm64` first, a real device second) before attempting any
-   further game. This is the point where Compose Multiplatform's documented
-   iOS rough edges (text-field behavior, accessibility parity) need direct,
-   hands-on verification on this specific app, not assumption from research.
+   Future pilots (the remaining ~10 not-yet-ported games from Action Item 3)
+   should fold this same migration step into their own pass rather than
+   leaving a second, growing backlog of ported-but-not-yet-migrated `:shared`
+   copies.
+6. ~~Solve macOS build access as its own explicit, parallel decision...~~
+   **CANCELLED (2026-09-12) — see Scope Update at the top of this document.**
+   iOS is out of scope for this project entirely; no Mac or Apple toolchain
+   is being acquired. Background research into the physical-Mac vs
+   cloud-Mac-CI vs Apple-Developer-Program options had already been
+   dispatched before this instruction arrived and was kept to finish (pure
+   information gathering — nothing was purchased or signed up for); its
+   findings are archived in `docs/MACOS_ACCESS_RESEARCH.md` for reference
+   only, in case iOS scope is ever reconsidered later. Nothing in it should
+   be acted on absent a new, explicit decision to do so.
+7. ~~Once macOS access exists, repeat pilots 1 and 3 against an iOS
+   target...~~ **CANCELLED (2026-09-12) — see Scope Update.** No iOS target,
+   simulator or device, is planned.
 8. **Defer same-room ad-hoc multiplayer, AGSL/SkSL shader parity, haptics
-   richness, and fold-aware layout work on the new platforms until after**
-   the core "this game's logic runs identically on Android, Windows, and
-   iOS" claim is proven for at least two pilot games. None of these four are
-   needed to validate this ADR's central decision, and bundling them in
-   early would obscure whether a build failure is a KMP/CMP problem or a
-   Nearby/shader/haptics problem. Online multiplayer (already
-   platform-agnostic via `server/`) is sufficient to prove cross-platform
-   multiplayer works at all in the meantime, without touching Nearby.
+   richness, and fold-aware layout work on Desktop until after** the core
+   "this game's logic runs identically on Android and Windows" claim is
+   proven for at least two pilot games (already true as of Action Items 1
+   and 3). None of these four are needed to validate this ADR's central
+   decision, and bundling them in early would obscure whether a build
+   failure is a KMP/CMP problem or a Nearby/shader/haptics problem. Online
+   multiplayer (already platform-agnostic via `server/`) is sufficient to
+   prove cross-platform multiplayer works at all in the meantime, without
+   touching Nearby. (Originally written with iOS included in "the new
+   platforms" — narrowed to Desktop only per the Scope Update; the
+   reasoning is otherwise unchanged.)
