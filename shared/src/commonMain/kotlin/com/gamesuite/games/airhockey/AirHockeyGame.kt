@@ -94,6 +94,25 @@ class AirHockeyGame : GameModule {
          *  celebration sequence (camera-shake/flash/particles/scoreboard punch) reads before
          *  play resumes. See tick()'s hit-stop handling. */
         const val GOAL_FREEZE_FRAMES = 10
+
+        /**
+         * Real, observed bug fix: this simplified physics has at least one genuine degenerate
+         * steady state a rally can fall into and never leave on its own -- a ball settling into
+         * a near-horizontal trajectory at a paddle's own height gets perpetually re-floored to
+         * MIN_PADDLE_BOUNCE_SPEED in roughly the same direction by shallow, repeated paddle
+         * grazes (see [resolvePaddleCollision]'s speed floor), while the two side walls just
+         * flip its x-velocity elastically -- so it shuttles left-right forever at a y nowhere
+         * near either goal mouth, never scoring and never naturally resolving. [tick] tracks
+         * real elapsed seconds since the last goal ([secondsSinceLastGoal]) and forces a fresh,
+         * randomized-direction "stale rally reset" (see [AirHockeyState.staleRallyReset]) if
+         * this much time passes with no goal -- a hard guarantee against a permanently stuck
+         * table, independent of whatever specific geometry caused the stall. 15s was chosen
+         * against MAX_SPEED=1.6 covering this whole 1.0-unit-wide/tall table in well under a
+         * second at full speed -- any single rally genuinely still in progress after 15
+         * continuous seconds is already far outside normal play, not a false-positive risk for
+         * a merely slow-but-live rally.
+         */
+        const val STALL_TIMEOUT_SECONDS = 15f
     }
 
     /**
@@ -137,6 +156,14 @@ class AirHockeyGame : GameModule {
     /** Fired exactly once per goal, from the same branch that resets the ball to center. */
     data class GoalEvent(val seq: Long, val scoredByPlayer: Boolean, val matchOver: Boolean)
 
+    /** Fired whenever [tick] force-resets a rally that ran [STALL_TIMEOUT_SECONDS] with no goal
+     *  (see that constant's KDoc) -- a real, previously-possible-forever-stuck-table bug fix,
+     *  not a cosmetic event. No score changes; this is a "the physics stalled" signal, not a
+     *  scoring one. A UI MAY react to this (e.g. a brief "Rally reset" toast) but doesn't have
+     *  to -- the reset itself is what actually fixes the stall regardless of whether anything
+     *  visibly announces it. */
+    data class StaleRallyResetEvent(val seq: Long)
+
     data class AirHockeyState(
         val ballPos: Offset = Offset(0.5f, 0.5f),
         val ballVel: Vec = Vec(0f, 0f),
@@ -157,7 +184,8 @@ class AirHockeyGame : GameModule {
         val ballTrail: List<TrailPoint> = emptyList(),
         val lastPaddleImpact: PaddleImpactEvent? = null,
         val lastWallBounce: WallBounceEvent? = null,
-        val goalEvent: GoalEvent? = null
+        val goalEvent: GoalEvent? = null,
+        val staleRallyReset: StaleRallyResetEvent? = null
     )
 
     val state = mutableStateOf(AirHockeyState())
@@ -201,8 +229,14 @@ class AirHockeyGame : GameModule {
      *  reading the just-reset ball as "crossed center, push forward". */
     private var postConcedeDefenseTimer = 0f
 
+    /** Real elapsed seconds since the last goal (or match start) -- see [STALL_TIMEOUT_SECONDS]'s
+     *  KDoc. Reset to 0 on every goal (including a stale-rally reset itself, so a table that
+     *  somehow re-stalls immediately after a forced reset gets another full timeout, not zero). */
+    private var secondsSinceLastGoal = 0f
+
     override fun init(context: GameContext) {
         this.context = context
+        secondsSinceLastGoal = 0f
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -211,6 +245,7 @@ class AirHockeyGame : GameModule {
 
     override fun startMatch() {
         state.value = AirHockeyState(ballVel = Vec(if (Random.nextDouble() < 0.5) -0.5f else 0.5f, 0.5f))
+        secondsSinceLastGoal = 0f
     }
 
     override fun pause() {}
@@ -297,6 +332,10 @@ class AirHockeyGame : GameModule {
             hitStopFramesRemaining--
             return
         }
+
+        // See STALL_TIMEOUT_SECONDS' KDoc -- reset to 0 the moment a real goal is scored
+        // (below), so this only ever measures a single, currently-live rally's own duration.
+        secondsSinceLastGoal += dt
 
         var ball = s.ballPos
         var vel = s.ballVel
@@ -409,6 +448,7 @@ class AirHockeyGame : GameModule {
         val newTrail = (s.ballTrail + TrailPoint(ball, vel.length())).takeLast(trailCap)
 
         if (scored) {
+            secondsSinceLastGoal = 0f
             val matchOver = playerScore >= matchTarget || cpuScore >= matchTarget
             eventSeq++
             // Hold the freshly-reset ball still for a beat so the goal celebration
@@ -445,6 +485,24 @@ class AirHockeyGame : GameModule {
                 }
                 endMatch(GameResult(scores = scores))
             }
+        } else if (secondsSinceLastGoal >= STALL_TIMEOUT_SECONDS) {
+            // Real, previously-possible-forever-stuck-table bug fix -- see STALL_TIMEOUT_SECONDS'
+            // KDoc. No score change either way: this is "the physics stalled," not a goal.
+            // Both velocity components get a fresh random direction (unlike a real goal-reset,
+            // which biases y toward whoever just conceded -- there's no "conceder" here) so a
+            // reset can't just fall straight back into the same degenerate trajectory.
+            eventSeq++
+            secondsSinceLastGoal = 0f
+            hitStopFramesRemaining = GOAL_FREEZE_FRAMES
+            state.value = AirHockeyState(
+                ballPos = Offset(0.5f, 0.5f),
+                ballVel = Vec(if (Random.nextDouble() < 0.5) -0.5f else 0.5f, if (Random.nextDouble() < 0.5) -0.6f else 0.6f),
+                playerPaddle = s.playerPaddle,
+                cpuPaddle = cpuPaddle,
+                playerScore = playerScore,
+                cpuScore = cpuScore,
+                staleRallyReset = StaleRallyResetEvent(eventSeq)
+            )
         } else {
             state.value = s.copy(
                 ballPos = ball,

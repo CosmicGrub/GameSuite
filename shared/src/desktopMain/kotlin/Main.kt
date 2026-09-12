@@ -35,20 +35,29 @@ import com.gamesuite.core.GameContext
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.games.airhockey.AirHockeyGame
+import com.gamesuite.games.chess.ChessGame
+import com.gamesuite.games.chess.ChessResult
+import com.gamesuite.games.chess.Piece
+import com.gamesuite.games.chess.PieceColor
+import com.gamesuite.games.chess.PieceType
+import com.gamesuite.games.chess.playerIndexForColor
 import com.gamesuite.games.tictactoe.TicTacToeGame
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
 
 /**
  * The Compose Multiplatform Desktop entry point called for by
- * docs/ENGINE_DECISION.md Action Items 1 and 3 -- "stand up a minimal
- * Compose Multiplatform Desktop window around it [the ported game]. This is
- * the actual test of the ADR's central claim." A small in-window menu picks
- * between the two pilots landed so far (Tic-Tac-Toe, the "it just ports"
- * baseline; Air Hockey, the "harder pilot" with real-time physics and a
- * continuous per-frame loop) rather than each needing its own launch
- * config -- both game rules rendered are the exact same commonMain classes
- * the Android app's own TicTacToeScreen/AirHockeyScreen would drive.
+ * docs/ENGINE_DECISION.md Action Items 1, 3, and the follow-up Chess pilot
+ * that Action Item 4's persistence untangling unblocked -- "stand up a
+ * minimal Compose Multiplatform Desktop window around it [the ported
+ * game]. This is the actual test of the ADR's central claim." A small
+ * in-window menu picks between the three pilots landed so far (Tic-Tac-Toe,
+ * the "it just ports" baseline; Air Hockey, the "harder pilot" with
+ * real-time physics and a continuous per-frame loop; Chess, the largest --
+ * 1022 lines -- and the one that needed a real preparatory refactor before
+ * it could port at all) rather than each needing its own launch config --
+ * every game's rules rendered here are the exact same commonMain classes
+ * the Android app's own TicTacToeScreen/AirHockeyScreen/ChessScreen would drive.
  *
  * Deliberately not shared into commonMain: the ADR's pilot scope is proving
  * the LOGIC layer ports cleanly, not building a second, parallel UI layer.
@@ -62,7 +71,7 @@ fun main() = application {
     }
 }
 
-private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY }
+private enum class PilotScreen { MENU, TIC_TAC_TOE, AIR_HOCKEY, CHESS }
 
 @Composable
 private fun App() {
@@ -73,6 +82,7 @@ private fun App() {
                 PilotScreen.MENU -> MenuScreen(onSelect = { screen = it })
                 PilotScreen.TIC_TAC_TOE -> TicTacToeDesktopApp(onBack = { screen = PilotScreen.MENU })
                 PilotScreen.AIR_HOCKEY -> AirHockeyDesktopApp(onBack = { screen = PilotScreen.MENU })
+                PilotScreen.CHESS -> ChessDesktopApp(onBack = { screen = PilotScreen.MENU })
             }
         }
     }
@@ -90,6 +100,8 @@ private fun MenuScreen(onSelect: (PilotScreen) -> Unit) {
         Button(onClick = { onSelect(PilotScreen.TIC_TAC_TOE) }) { Text("Tic-Tac-Toe (Action Item 1)") }
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onSelect(PilotScreen.AIR_HOCKEY) }) { Text("Air Hockey (Action Item 3)") }
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { onSelect(PilotScreen.CHESS) }) { Text("Chess (Action Item 4 pilot)") }
     }
 }
 
@@ -307,4 +319,164 @@ private fun AirHockeyDesktopApp(onBack: () -> Unit) {
         }
         Button(onClick = onBack) { Text(if (state.matchOver) "Back to Menu" else "Quit to Menu") }
     }
+}
+
+/**
+ * Minimal Compose Desktop rendering of the ported ChessGame -- a plain 8x8
+ * click-to-select-then-move grid with Unicode piece glyphs, deliberately
+ * nowhere near ChessScreen.kt's real board (silhouette-path piece art,
+ * check/checkmate hit-stop, captured-piece tray, evaluation bar). Tap a
+ * piece of the side to move to see its legal destinations highlighted (via
+ * the shared ChessGame.legalDestinationsFor -- the exact same call
+ * ChessScreen makes), then tap a highlighted square to play it through the
+ * shared ChessGame.playMove. You always play White; the HARD bot (real
+ * minimax/alpha-beta search, see ChessGame's own KDoc) plays Black.
+ */
+@Composable
+private fun ChessDesktopApp(onBack: () -> Unit) {
+    val game = remember {
+        ChessGame().apply {
+            difficulty = CpuDifficulty.HARD
+            init(
+                GameContext(
+                    activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "human", displayName = "You", isBot = false),
+                        PlayerInfo(playerId = "bot", displayName = "Bot", isBot = true)
+                    ),
+                    localPlayerIndex = 0,
+                    transport = LocalPassAndPlayTransport()
+                )
+            )
+            startMatch()
+        }
+    }
+    val state by game.state
+    var selected by remember { mutableStateOf<Int?>(null) }
+
+    // Bot-turn trigger, mirrors ChessScreen's own LaunchedEffect keyed on sideToMove/roundOver
+    // (see ChessGame.playBotTurn's KDoc) -- a safe no-op whenever it isn't actually a bot's turn.
+    LaunchedEffect(state?.sideToMove, state?.roundOver) {
+        game.playBotTurn()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("GameSuite KMP Pilot: Chess (You = White vs HARD bot = Black)", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("Wins  You: ${game.scoreP1.value}   Bot: ${game.scoreP2.value}   Draws: ${game.draws.value}")
+        Spacer(Modifier.height(8.dp))
+        val s = state
+        if (s == null) {
+            Text("Setting up the board...")
+        } else {
+            Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(12.dp))
+            ChessBoard(
+                board = s.board,
+                selected = selected,
+                legalDestinations = selected?.let { game.legalDestinationsFor(it) } ?: emptySet(),
+                onSquareClick = { square ->
+                    val from = selected
+                    when {
+                        // A destination is already highlighted -- try to play it. playMove()
+                        // itself silently no-ops on anything not actually legal, so this can
+                        // never desync from the real rules even if this UI's own bookkeeping
+                        // were somehow stale.
+                        from != null && square in game.legalDestinationsFor(from) -> {
+                            game.playMove(playerIndexForColor(s.sideToMove), from, square)
+                            selected = null
+                        }
+                        // Otherwise, selecting is only meaningful for the human's own side
+                        // (White) and only when it's actually White's move.
+                        s.board.getOrNull(square)?.color == PieceColor.WHITE && s.sideToMove == PieceColor.WHITE ->
+                            selected = square
+                        else -> selected = null
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
+            if (s.roundOver) {
+                val outcome = when (s.result) {
+                    ChessResult.WHITE_WINS -> "Checkmate -- you win!"
+                    ChessResult.BLACK_WINS -> "Checkmate -- bot wins."
+                    ChessResult.DRAW_STALEMATE -> "Stalemate -- draw."
+                    ChessResult.DRAW_REPETITION -> "Draw by repetition."
+                    ChessResult.IN_PROGRESS -> "" // unreachable when roundOver is true
+                }
+                Text(outcome)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { game.playAgain(); selected = null }) { Text("Play Again") }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+        Button(onClick = onBack) { Text("Back to Menu") }
+    }
+}
+
+@Composable
+private fun ChessBoard(board: List<Piece?>, selected: Int?, legalDestinations: Set<Int>, onSquareClick: (Int) -> Unit) {
+    Column {
+        // Rank 8 (Black's back rank) at the top, rank 1 (White's) at the bottom -- White's own
+        // point of view, matching how this pilot always seats the human as White. square index
+        // is rank*8+file (a1=0), the exact same convention ChessGame.kt's own top comment documents.
+        for (displayRow in 7 downTo 0) {
+            Row {
+                for (col in 0..7) {
+                    val square = displayRow * 8 + col
+                    ChessSquare(
+                        piece = board.getOrNull(square),
+                        dark = (displayRow + col) % 2 == 0,
+                        selected = selected == square,
+                        legalDestination = square in legalDestinations,
+                        onClick = { onSquareClick(square) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChessSquare(piece: Piece?, dark: Boolean, selected: Boolean, legalDestination: Boolean, onClick: () -> Unit) {
+    val base = if (dark) Color(0xFF769656) else Color(0xFFEEEED2)
+    val background = when {
+        selected -> Color(0xFFF6F669)
+        legalDestination -> if (dark) Color(0xFF5E8C4A) else Color(0xFFCFE8A8)
+        else -> base
+    }
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .background(background)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (piece != null) {
+            Text(pieceGlyph(piece), style = MaterialTheme.typography.headlineMedium)
+        } else if (legalDestination) {
+            // Empty legal-destination square: a small dot, same convention most chess UIs use
+            // (a full highlight tile would be indistinguishable from "square just moved from").
+            Box(modifier = Modifier.size(12.dp).background(Color.Black.copy(alpha = 0.25f)))
+        }
+    }
+}
+
+/** Standard Unicode chess glyphs (U+2654-265F) -- solid white-outline glyphs for White so both
+ *  colors stay readable against either light or dark square backgrounds; a real desktop font
+ *  fallback stack covers these on every platform this pilot targets. */
+private fun pieceGlyph(piece: Piece): String {
+    val whiteGlyphs = mapOf(
+        PieceType.KING to "♔", PieceType.QUEEN to "♕", PieceType.ROOK to "♖",
+        PieceType.BISHOP to "♗", PieceType.KNIGHT to "♘", PieceType.PAWN to "♙"
+    )
+    val blackGlyphs = mapOf(
+        PieceType.KING to "♚", PieceType.QUEEN to "♛", PieceType.ROOK to "♜",
+        PieceType.BISHOP to "♝", PieceType.KNIGHT to "♞", PieceType.PAWN to "♟"
+    )
+    val glyphs = if (piece.color == PieceColor.WHITE) whiteGlyphs else blackGlyphs
+    return glyphs.getValue(piece.type)
 }

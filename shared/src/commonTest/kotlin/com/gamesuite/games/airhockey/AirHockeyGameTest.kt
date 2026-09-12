@@ -6,6 +6,9 @@ import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.transport.LocalPassAndPlayTransport
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -124,5 +127,50 @@ class AirHockeyGameTest {
                 "$initialSpeed), but final speed was $finalSpeed -- rallies should decay, not " +
                 "coast forever at MAX_SPEED"
         )
+    }
+
+    // ---- Stall watchdog: a real, previously-possible-forever-stuck-table bug fix -------------
+
+    /**
+     * Reproduces the exact degenerate shape reported live: a ball moving purely horizontally,
+     * dead center in y, far from both paddles -- per [ballSlowsDownInFreeFlight] above, this
+     * shape never nears a goal mouth and only ever bounces elastically off the two side walls,
+     * so before [AirHockeyGame.STALL_TIMEOUT_SECONDS] existed this would bounce, unscored,
+     * forever. Confirms no reset fires before the timeout, and that crossing it force-resets
+     * the ball to center, fires [AirHockeyGame.AirHockeyState.staleRallyReset], and awards
+     * neither player a point -- this is a stall recovery, not a goal.
+     */
+    @Test
+    fun stalledRallyIsForceResetAfterTheTimeout() {
+        val game = newGame()
+        game.startMatch()
+
+        game.state.value = game.state.value.copy(
+            ballPos = Offset(0.5f, 0.5f),
+            ballVel = AirHockeyGame.Vec(0.3f, 0f),
+            playerPaddle = Offset(0.5f, 0.85f),
+            cpuPaddle = Offset(0.5f, 0.15f)
+        )
+
+        var elapsed = 0f
+        while (elapsed < AirHockeyGame.STALL_TIMEOUT_SECONDS - 0.5f) {
+            game.tick(0.05f)
+            elapsed += 0.05f
+        }
+        assertNull(
+            game.state.value.staleRallyReset,
+            "must not force-reset before the stall timeout has actually elapsed"
+        )
+
+        repeat(20) { game.tick(0.05f) } // crosses the timeout
+
+        val s = game.state.value
+        assertNotNull(
+            s.staleRallyReset,
+            "expected the stall watchdog to fire once STALL_TIMEOUT_SECONDS of no-goal play elapsed"
+        )
+        assertEquals(Offset(0.5f, 0.5f), s.ballPos, "stalled ball must be recentered")
+        assertEquals(0, s.playerScore, "a stall reset must not award either player a point")
+        assertEquals(0, s.cpuScore, "a stall reset must not award either player a point")
     }
 }

@@ -5,15 +5,28 @@ import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
+ * Migrated from app/src/test/java/com/gamesuite/games/chess/ChessGameTest.kt for
+ * docs/ENGINE_DECISION.md Action Item 4's follow-up pilot port -- the regression-safety
+ * half of the claim, run against both the android and desktop targets from this one shared
+ * source file, same as TicTacToeGameTest.kt/AirHockeyGameTest.kt before it.
+ *
+ * The only changes from the original: org.junit.Test/Assert.* (JVM-only) became
+ * kotlin.test.Test/assertEquals/assertTrue/assertFalse/assertNull (real Kotlin Multiplatform
+ * artifacts) -- and every kotlin.test assertion takes its message LAST (actual, message), the
+ * reverse of JUnit's message-first overloads, the same parameter-order swap already called out
+ * migrating the two earlier pilots' tests. assertNotNull was imported but never actually called
+ * anywhere in the original file, so it's dropped here rather than carried over unused. Backtick
+ * test-function names are a Kotlin language feature, not a JUnit one, so every `` `like this` ``
+ * name below is unchanged.
+ *
  * Pure JUnit coverage (no Robolectric/Compose test rule), same shape as
  * MancalaGameTest. `state` is public `mutableStateOf<ChessState?>`, so
  * fixtures that need a specific position (pin, castling-rights edge case, en
@@ -96,7 +109,7 @@ class ChessGameTest {
 
         // Illegal: e2 to e5 is not a legal first move for a pawn (too far).
         game.playMove(0, sq('e', 2), sq('e', 5))
-        assertEquals("illegal move must leave state completely unchanged", before, game.state.value)
+        assertEquals(before, game.state.value, "illegal move must leave state completely unchanged")
 
         // Legal: e2-e4.
         game.playMove(0, sq('e', 2), sq('e', 4))
@@ -161,8 +174,8 @@ class ChessGameTest {
         )
 
         val dests = game.legalDestinationsFor(sq('e', 4))
-        assertTrue("pinned rook must have some legal moves (along the pin line)", dests.isNotEmpty())
-        assertTrue("every legal destination must stay on the e-file", dests.all { it % 8 == sq('e', 1) % 8 })
+        assertTrue(dests.isNotEmpty(), "pinned rook must have some legal moves (along the pin line)")
+        assertTrue(dests.all { it % 8 == sq('e', 1) % 8 }, "every legal destination must stay on the e-file")
         assertFalse(sq('d', 4) in dests)
         assertFalse(sq('f', 4) in dests)
     }
@@ -186,7 +199,7 @@ class ChessGameTest {
         )
 
         val dests = game.legalDestinationsFor(sq('e', 1))
-        assertFalse("king must not be able to castle without its rook actually present", sq('g', 1) in dests)
+        assertFalse(sq('g', 1) in dests, "king must not be able to castle without its rook actually present")
     }
 
     @Test
@@ -209,7 +222,7 @@ class ChessGameTest {
         game.playMove(1, sq('h', 5), sq('h', 1))
         val after = game.state.value!!
         assertEquals(sq('h', 1), after.lastTo)
-        assertFalse("White's kingside castling right must be gone once its rook is captured", after.castleWK)
+        assertFalse(after.castleWK, "White's kingside castling right must be gone once its rook is captured")
     }
 
     // ---- En passant ----------------------------------------------------------
@@ -234,7 +247,7 @@ class ChessGameTest {
         val after = game.state.value!!
         assertEquals(sq('d', 6), after.lastTo)
         assertEquals(Piece(PieceType.PAWN, PieceColor.WHITE), after.board[sq('d', 6)])
-        assertNull("the captured black pawn's original square must now be empty", after.board[sq('d', 5)])
+        assertNull(after.board[sq('d', 5)], "the captured black pawn's original square must now be empty")
         assertNull(after.board[sq('e', 5)])
     }
 
@@ -360,15 +373,15 @@ class ChessGameTest {
                 if (s.roundOver) break
 
                 val legalBefore = game.allLegalMoves().toSet()
-                assertTrue("game $gameIndex, ply $plies: side to move must have at least one legal move here", legalBefore.isNotEmpty())
+                assertTrue(legalBefore.isNotEmpty(), "game $gameIndex, ply $plies: side to move must have at least one legal move here")
 
                 game.playBotTurn()
                 val after = game.state.value!!
                 val played = after.lastFrom!! to after.lastTo!!
 
                 assertTrue(
-                    "game $gameIndex, ply $plies: HARD bot played $played, which was not in the legal move set $legalBefore",
-                    played in legalBefore
+                    played in legalBefore,
+                    "game $gameIndex, ply $plies: HARD bot played $played, which was not in the legal move set $legalBefore"
                 )
                 plies++
             }
@@ -391,7 +404,7 @@ class ChessGameTest {
                 game.playBotTurn()
                 val after = game.state.value!!
                 val played = after.lastFrom!! to after.lastTo!!
-                assertTrue("difficulty=$difficulty ply $plies: illegal move $played, legal set was $legalBefore", played in legalBefore)
+                assertTrue(played in legalBefore, "difficulty=$difficulty ply $plies: illegal move $played, legal set was $legalBefore")
                 plies++
             }
         }

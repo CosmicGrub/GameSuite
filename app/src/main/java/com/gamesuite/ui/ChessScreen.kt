@@ -255,6 +255,7 @@ fun ChessScreen(
         val headline = when (s.result) {
             ChessResult.WHITE_WINS, ChessResult.BLACK_WINS -> "${winner?.displayName ?: "?"} wins by checkmate!"
             ChessResult.DRAW_STALEMATE -> "Draw by stalemate"
+            ChessResult.DRAW_REPETITION -> "Draw by repetition"
             ChessResult.IN_PROGRESS -> ""
         }
         Column(
@@ -461,7 +462,7 @@ fun ChessScreen(
                         delay(110)
                         sounds.playShuffle()
                     }
-                    s.result == ChessResult.DRAW_STALEMATE -> {
+                    s.result == ChessResult.DRAW_STALEMATE || s.result == ChessResult.DRAW_REPETITION -> {
                         haptics(HapticSignal.FAILURE)
                         sounds.playTap()
                     }
