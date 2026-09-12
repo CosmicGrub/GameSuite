@@ -373,9 +373,16 @@ fun ChessScreen(
 
             val moverAnim = remember(moveKey) { Animatable(offsetPxFor(s.lastFrom ?: s.lastTo ?: 0, squarePx), Offset.VectorConverter) }
             LaunchedEffect(moveKey) {
-                if (s.lastFrom != null && s.lastTo != null) {
-                    moverAnim.snapTo(offsetPxFor(s.lastFrom, squarePx))
-                    moverAnim.animateTo(offsetPxFor(s.lastTo, squarePx), animationSpec = landingSpec)
+                // Local vals, not a direct smart-cast on s.lastFrom/lastTo: ChessState now comes
+                // from the :shared module (see docs/ENGINE_DECISION.md Action Item 5), and Kotlin
+                // never smart-casts a nullable val property declared in a different module, even
+                // a plain stored one -- see this file's other lastFrom/lastTo null-checks for the
+                // same fix.
+                val lastFrom = s.lastFrom
+                val lastTo = s.lastTo
+                if (lastFrom != null && lastTo != null) {
+                    moverAnim.snapTo(offsetPxFor(lastFrom, squarePx))
+                    moverAnim.animateTo(offsetPxFor(lastTo, squarePx), animationSpec = landingSpec)
                 }
             }
             val rookAnim = remember(moveKey) {
@@ -395,12 +402,15 @@ fun ChessScreen(
             val boardMemory = remember { BoardMemory() }
             val moveDiff = remember(moveKey) {
                 val prevBoard = boardMemory.previous
-                val diff = if (prevBoard != null && s.lastFrom != null && s.lastTo != null) {
-                    val captured = findCapturedSquare(prevBoard, s.board, s.lastFrom, s.lastTo)?.let { sq ->
+                // Local vals so lastFrom/lastTo smart-cast below -- see the LaunchedEffect above.
+                val lastFrom = s.lastFrom
+                val lastTo = s.lastTo
+                val diff = if (prevBoard != null && lastFrom != null && lastTo != null) {
+                    val captured = findCapturedSquare(prevBoard, s.board, lastFrom, lastTo)?.let { sq ->
                         prevBoard.getOrNull(sq)?.let { CapturedPieceInfo(it, sq) }
                     }
-                    val before = prevBoard.getOrNull(s.lastFrom)
-                    val after = s.board.getOrNull(s.lastTo)
+                    val before = prevBoard.getOrNull(lastFrom)
+                    val after = s.board.getOrNull(lastTo)
                     val promotion = if (before?.type == PieceType.PAWN && after != null &&
                         after.type != PieceType.PAWN && after.color == before.color
                     ) {
@@ -588,8 +598,10 @@ fun ChessScreen(
                 }
 
                 // Transient overlay(s) for the piece(s) that just moved -- see this file's KDoc.
-                if (s.lastFrom != null && s.lastTo != null) {
-                    s.board.getOrNull(s.lastTo)?.let { movedPiece ->
+                // Local val, not a direct smart-cast -- see the earlier lastFrom/lastTo fixes above.
+                val overlayLastTo = s.lastTo
+                if (s.lastFrom != null && overlayLastTo != null) {
+                    s.board.getOrNull(overlayLastTo)?.let { movedPiece ->
                         val showPromotionFlip = promotionInfo != null && card3D
                         Box(
                             modifier = Modifier

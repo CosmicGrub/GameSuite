@@ -13,8 +13,6 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
  */
 enum class NamedTheme { CLASSIC, HIGH_CONTRAST, MIDNIGHT_ARCADE, FELT_TABLE }
 
-enum class CpuDifficulty { EASY, MEDIUM, HARD }
-
 /**
  * App-wide settings — everything that applies across all games. Per-game
  * settings (UNO house rules, per-game CPU difficulty overrides, etc.) are

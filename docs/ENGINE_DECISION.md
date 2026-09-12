@@ -485,6 +485,54 @@ blocks the parts of this decision that don't need it.
    module. Migrating the UI later, too, is a reasonable option given how
    similar the two APIs are — but it is a separate, later decision, not
    something this ADR resolves now.
+
+   **Resolved.** Executed immediately after the three pilots above (Tic-Tac-Toe,
+   Air Hockey, Chess) were each ported and independently verified, per this
+   item's own "once 2-3 games have proven the pattern" trigger. `:app` now
+   depends on `:shared` (`implementation(project(":shared"))`) and its own
+   duplicate copies of `TicTacToeGame.kt`/`AirHockeyGame.kt`/`ChessGame.kt`
+   (plus their now-redundant Android-side unit tests, superseded by
+   `:shared`'s `commonTest` coverage of the identical class) are gone.
+
+   Two real technical findings surfaced only by actually doing this, not by
+   static analysis beforehand:
+   - `:app` could not keep its own copies of `GameModule.kt`,
+     `MultiplayerTransport.kt`, `LocalPassAndPlayTransport.kt`, and
+     `CpuDifficulty` (previously declared inline in `settings/AppSettings.kt`)
+     once depending on `:shared` -- both sides declare the exact same
+     fully-qualified class names, so real convergence meant deleting `:app`'s
+     copies of these four foundational types too, not just the three piloted
+     games' own logic files. This is a genuine, if quiet, win: all 13 games
+     (not just the 3 ported so far) now compile against one single canonical
+     `GameModule`/transport/`CpuDifficulty`, at zero behavior change for the
+     other 10, since those four types were already byte-identical duplicates.
+     (Oddly, `:app:assembleDebug` did not actually fail with both copies
+     briefly present on the classpath at once mid-migration -- AGP/D8
+     tolerated it silently rather than erroring via
+     `checkDebugDuplicateClasses`. That "it happened to build" state was
+     deliberately not kept as the end state: which copy would have won at
+     runtime was undefined, so the duplicates were removed regardless of the
+     lucky green build.)
+   - Converging onto `:shared`'s `ChessState` then broke `ChessScreen.kt`'s
+     compile with "Smart cast to 'kotlin.Int' is impossible, because ... is a
+     public API property declared in different module" at every
+     `s.lastFrom != null && s.lastTo != null` site. This is a real, documented
+     Kotlin compiler restriction: smart-casts never apply to a nullable `val`
+     property -- even a plain stored one with no custom getter -- once it's
+     declared in a separately-compiled module. Fixed with the standard
+     workaround (bind to a local `val` first, smart-cast that instead) at
+     each of the three affected sites.
+
+   Verified, not assumed: full `:app` compile, the app's whole 37-test unit
+   suite, `:shared`'s own test suite (both targets) re-confirmed unaffected,
+   and a real install-and-play check on the tablet -- both a migrated game
+   (Chess: a real move played, a real CPU reply, no crash) and a deliberately
+   *unmigrated* game (Mancala: same check) to confirm the core-layer
+   convergence didn't disturb any of the other 10 games.
+
+   Future pilots (Action Items 3/7's remaining games) should fold this same
+   migration step into their own pass rather than leaving a second, growing
+   backlog of ported-but-not-yet-migrated `:shared` copies.
 6. **Solve macOS build access as its own explicit, parallel decision** —
    not blocking any of the above, since none of it needs an Apple toolchain
    yet. Concretely: choose between a physical Mac, a rented cloud-Mac CI
