@@ -1,16 +1,8 @@
 package com.gamesuite.games.chess
 
-import android.content.Context
 import androidx.compose.runtime.mutableStateOf
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 // ---------------------------------------------------------------------------
 // Port of Z:\GameSuite\esp32-tictactoe\TicTacToeESP32\ChessLogic.h/.cpp -- that
@@ -74,6 +66,17 @@ import kotlinx.coroutines.flow.map
 // justification (phones are dramatically faster than the ESP32's 240MHz
 // single-core Xtensa chip the C++ version targeted, so this searches several
 // plies deeper than that engine's fixed depth of 3).
+//
+// PERSISTENCE: this file has none of its own. ChessPieceStyle/ChessMotionTier and their
+// DataStore-backed ChessPrefsStore used to live directly in this file; they were split into
+// the sibling ChessPrefsStore.kt (docs/ENGINE_DECISION.md Action Item 4, "ChessGame.kt
+// persistence untangling") specifically so this file could go back to having zero
+// Android/DataStore/coroutines imports -- everything below is plain Kotlin over
+// androidx.compose.runtime.mutableStateOf, com.gamesuite.core, and CpuDifficulty, the same
+// portability shape TicTacToeGame.kt and AirHockeyGame.kt already proved out as real KMP
+// pilots. This file itself has NOT been copied into shared/commonMain yet -- untangling was
+// the whole scope of Action Item 4, not a port -- but it's now a clean candidate whenever
+// that pilot is picked up.
 // ---------------------------------------------------------------------------
 
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
@@ -645,51 +648,14 @@ fun materialAdvantageForWhite(board: List<Piece?>): Int {
     return blackLost - whiteLost
 }
 
-/** Selectable piece-silhouette art sets for ChessScreen's board rendering -- see
- *  ChessScreen.kt's `buildPieceSilhouette`. Persisted via [ChessPrefsStore]. */
-enum class ChessPieceStyle { CLASSIC, MINIMALIST }
-
-/**
- * Chess's own genuine 3-tier motion-intensity split (on top of, not instead of, the app-wide
- * [com.gamesuite.settings.LocalEnhancedAnimations] / [com.gamesuite.settings.LocalReducedMotion]
- * gates ChessScreen already reads): STANDARD is everything this screen already shipped --
- * weighted lift/slide, capture fade-out, promotion flip. MAXIMUM additionally arms the
- * checkmate-specific hit-stop + camera-push and the board's specular-sweep sheen. Persisted via
- * [ChessPrefsStore], with a visible toggle in ChessScreen.kt -- mirrors the small
- * per-game-DataStore shape `games/solitaire/SolitairePrefsStore.kt` already established for
- * Solitaire's draw-1/draw-3 preference, just co-located in this file rather than a sibling file
- * since this bundle's file list is exactly {ChessGame.kt, ChessScreen.kt}. */
-enum class ChessMotionTier { STANDARD, MAXIMUM }
-
-private val Context.chessPrefsDataStore: DataStore<Preferences> by preferencesDataStore(name = "chess_prefs")
-
-/** See [ChessPieceStyle]/[ChessMotionTier] KDoc for why this lives here instead of its own
- *  file. Never read/written directly from a @Composable -- ChessScreen collects both flows as
- *  state and calls the setters from its own toggle controls, exactly like
- *  SolitaireScreen does with SolitairePrefsStore. */
-class ChessPrefsStore(private val context: Context) {
-    private object Keys {
-        val PIECE_STYLE = stringPreferencesKey("piece_style")
-        val MOTION_TIER = stringPreferencesKey("motion_tier")
-    }
-
-    val pieceStyle: Flow<ChessPieceStyle> = context.chessPrefsDataStore.data.map { prefs ->
-        prefs[Keys.PIECE_STYLE]?.let { runCatching { ChessPieceStyle.valueOf(it) }.getOrNull() } ?: ChessPieceStyle.CLASSIC
-    }
-
-    suspend fun setPieceStyle(style: ChessPieceStyle) {
-        context.chessPrefsDataStore.edit { it[Keys.PIECE_STYLE] = style.name }
-    }
-
-    /** Standard (the default) until the player opts into Maximum. */
-    val motionTier: Flow<ChessMotionTier> = context.chessPrefsDataStore.data.map { prefs ->
-        prefs[Keys.MOTION_TIER]?.let { runCatching { ChessMotionTier.valueOf(it) }.getOrNull() } ?: ChessMotionTier.STANDARD
-    }
-
-    suspend fun setMotionTier(tier: ChessMotionTier) {
-        context.chessPrefsDataStore.edit { it[Keys.MOTION_TIER] = tier.name }
-    }
-}
+// ChessPieceStyle, ChessMotionTier, and their DataStore-backed persistence (ChessPrefsStore)
+// used to live directly in this file -- moved to the sibling ChessPrefsStore.kt for
+// docs/ENGINE_DECISION.md Action Item 4 ("ChessGame.kt persistence untangling"). Nothing
+// below this point (or above, back to this file's own imports) touches
+// Context/DataStore/coroutines Flow any more -- see ChessPrefsStore.kt's own top-of-file
+// note for the full reasoning. ChessScreen.kt's existing `import
+// com.gamesuite.games.chess.ChessPieceStyle` (etc.) needed no change: Kotlin resolves same-
+// package symbols regardless of which file in the package declares them.
 
 /**
  * Standard-issue chess engine, GameSuite-shaped: a plain Kotlin class holding
