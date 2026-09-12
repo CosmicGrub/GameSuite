@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "GameSuite"
 include(":app")
+include(":shared")
