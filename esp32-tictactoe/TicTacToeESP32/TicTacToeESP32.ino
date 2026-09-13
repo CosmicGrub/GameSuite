@@ -35,6 +35,8 @@
 #include "ChessDisplay.h"
 #include "UnoLogic.h"
 #include "UnoDisplay.h"
+#include "MancalaLogic.h"
+#include "MancalaDisplay.h"
 
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
@@ -64,13 +66,19 @@ bool unoRoundOver = false;
 unsigned long unoAiMoveDueAt = 0;
 bool unoAiMovePending = false;
 
+MancalaBoard mancalaBoard;
+MancalaLayout mancalaLayout;
+bool mancalaRoundOver = false;
+unsigned long mancalaAiMoveDueAt = 0;
+bool mancalaAiMovePending = false;
+
 // ---- Arcade home menu ----
 // Adding a game means: write its GameLogic/Display pair, add one entry here,
-// flip its `enabled` flag once it's built -- no other wiring needed. Chess is
-// listed disabled ("coming soon") because it's still being built; Mancala and
-// Dominoes are listed disabled because the README's own roadmap already
-// named them as the next-best fits for this hardware -- a player sees the
-// real roadmap on the device itself instead of it being invisible until built.
+// flip its `enabled` flag once it's built -- no other wiring needed. Dominoes
+// is still listed disabled ("coming soon") because the README's own roadmap
+// already named it as the next-best fit for this hardware -- a player sees
+// the real roadmap on the device itself instead of it being invisible until
+// built.
 struct MenuGame {
     const char *label;
     bool enabled;
@@ -80,7 +88,7 @@ static const MenuGame MENU_GAMES[] = {
     {"Checkers", true},
     {"Chess", true},
     {"UNO", true},
-    {"Mancala", false},
+    {"Mancala", true},
     {"Dominoes", false},
 };
 static const uint8_t MENU_GAME_COUNT = sizeof(MENU_GAMES) / sizeof(MENU_GAMES[0]);
@@ -88,8 +96,9 @@ static const uint8_t TICTACTOE_GAME_INDEX = 0;
 static const uint8_t CHECKERS_GAME_INDEX = 1;
 static const uint8_t CHESS_GAME_INDEX = 2;
 static const uint8_t UNO_GAME_INDEX = 3;
+static const uint8_t MANCALA_GAME_INDEX = 4;
 
-enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO };
+enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA };
 AppState appState = AppState::MENU;
 MenuLayout menuLayout;
 // Index of the first game currently shown in the (possibly scrolled) menu --
@@ -123,6 +132,9 @@ void checkForChessRoundEnd();
 void startNewUnoRound();
 void afterUnoStateChange();
 void checkForUnoRoundEnd();
+void startNewMancalaRound();
+void refreshMancalaStatusText();
+void checkForMancalaRoundEnd();
 void redrawMenu();
 
 void enterMenu() {
@@ -233,6 +245,13 @@ void enterUno() {
     Serial.println("[ArcadeOS] entered UNO");
 }
 
+void enterMancala() {
+    appState = AppState::MANCALA;
+    mancalaLayout = computeMancalaLayout();
+    startNewMancalaRound();
+    Serial.println("[ArcadeOS] entered Mancala");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(300); // let the USB-serial link settle before the first print
@@ -262,6 +281,7 @@ void setup() {
     // stub, but a real board should still seed it with real entropy once,
     // here, before the first shuffle.
     seedUnoRandom(esp_random());
+    seedMancalaRandom(esp_random());
 
     enterMenu();
     Serial.println("[ArcadeOS] setup complete, entering loop()");
@@ -339,6 +359,27 @@ void loop() {
         afterUnoStateChange();
     }
 
+    if (appState == AppState::MANCALA && mancalaAiMovePending && millis() >= mancalaAiMoveDueAt) {
+        mancalaAiMovePending = false;
+        mancalaBoard.playAi(); // exactly ONE sow -- see MancalaLogic.h's playAi() comment for why, unlike every
+                                // other game's playAi(), this is deliberately not the AI's whole turn
+        animateMancalaSow(tft, mancalaLayout, mancalaBoard);
+        drawMancalaBoard(tft, mancalaLayout, mancalaBoard);
+
+        if (!mancalaBoard.isHumanTurn() && mancalaBoard.result() == MancalaResult::IN_PROGRESS) {
+            // That sow landed in the AI's own store -- same extra turn a
+            // human earns from the identical rule (see handleTouch()'s own
+            // Mancala branch) -- so schedule another "thinking" delay
+            // instead of handing off, exactly mirroring how a human player
+            // just keeps tapping through their own extra turns.
+            refreshMancalaStatusText();
+            mancalaAiMovePending = true;
+            mancalaAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+        } else {
+            checkForMancalaRoundEnd();
+        }
+    }
+
     // A slow heartbeat so a remote/serial-only observer can tell the sketch is
     // still alive in loop() (vs. having crashed/reset) without flooding the
     // log the way printing every single loop() iteration would.
@@ -351,6 +392,7 @@ void loop() {
             case AppState::CHECKERS:  stateName = "checkers"; break;
             case AppState::CHESS:     stateName = "chess"; break;
             case AppState::UNO:       stateName = "uno"; break;
+            case AppState::MANCALA:   stateName = "mancala"; break;
             default: break;
         }
         Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s\n", millis() / 1000, stateName);
@@ -417,6 +459,41 @@ void startNewCheckersRound() {
 
 void refreshCheckersStatusText() {
     drawChromeBar(tft, checkersBoard.isHumanTurn() ? "Your turn" : "ESP32 thinking...");
+}
+
+void checkForMancalaRoundEnd() {
+    MancalaResult r = mancalaBoard.result();
+    if (r == MancalaResult::IN_PROGRESS) {
+        refreshMancalaStatusText();
+        return;
+    }
+    mancalaRoundOver = true;
+    switch (r) {
+        case MancalaResult::HUMAN_WINS: drawMancalaStatus(tft, mancalaLayout, "You win!", mancalaBoard.getDifficulty()); break;
+        case MancalaResult::AI_WINS:    drawMancalaStatus(tft, mancalaLayout, "ESP32 wins!", mancalaBoard.getDifficulty()); break;
+        case MancalaResult::DRAW:       drawMancalaStatus(tft, mancalaLayout, "Draw!", mancalaBoard.getDifficulty()); break;
+        default: break;
+    }
+    drawMancalaPlayAgainButton(tft, mancalaLayout);
+}
+
+void startNewMancalaRound() {
+    mancalaBoard.reset();
+    mancalaRoundOver = false;
+    mancalaAiMovePending = false;
+    drawMancalaStaticChrome(tft, mancalaLayout);
+    drawMancalaBoard(tft, mancalaLayout, mancalaBoard);
+    refreshMancalaStatusText();
+}
+
+void refreshMancalaStatusText() {
+    const char *text;
+    if (mancalaBoard.isHumanTurn()) {
+        text = mancalaBoard.lastMoveEarnedExtraTurn() ? "Your extra turn!" : "Your turn";
+    } else {
+        text = mancalaBoard.lastMoveEarnedExtraTurn() ? "ESP32's extra turn..." : "ESP32 thinking...";
+    }
+    drawMancalaStatus(tft, mancalaLayout, text, mancalaBoard.getDifficulty());
 }
 
 void checkForChessRoundEnd() {
@@ -580,6 +657,7 @@ void handleTouch() {
         else if (idx == CHECKERS_GAME_INDEX) enterCheckers();
         else if (idx == CHESS_GAME_INDEX) enterChess();
         else if (idx == UNO_GAME_INDEX) enterUno();
+        else if (idx == MANCALA_GAME_INDEX) enterMancala();
         return;
     }
 
@@ -799,6 +877,59 @@ void handleTouch() {
             if (ok) afterUnoStateChange();
             return;
         }
+    }
+
+    if (appState == AppState::MANCALA) {
+        // The difficulty chip is checked before anything else, and stays
+        // live on the round-over screen too (unlike Play Again) -- cycling
+        // it only ever affects the AI's NEXT sow, so there's no reason to
+        // block it while the human is mid-turn, the AI is "thinking", or a
+        // round has just ended and the player wants a harder rematch before
+        // tapping Play Again.
+        if (hitTestMancalaDifficultyButton(mancalaLayout, tx, ty)) {
+            CpuDifficulty d = mancalaBoard.getDifficulty();
+            CpuDifficulty next = (d == CpuDifficulty::EASY) ? CpuDifficulty::MEDIUM
+                                : (d == CpuDifficulty::MEDIUM) ? CpuDifficulty::HARD
+                                : CpuDifficulty::EASY;
+            mancalaBoard.setDifficulty(next);
+            if (!mancalaRoundOver) refreshMancalaStatusText();
+            return;
+        }
+
+        if (mancalaRoundOver) {
+            if (hitTestMancalaPlayAgainButton(mancalaLayout, tx, ty)) {
+                startNewMancalaRound();
+            }
+            return;
+        }
+
+        if (mancalaAiMovePending || !mancalaBoard.isHumanTurn()) return; // ignore taps while the AI is "thinking"
+
+        uint8_t pit;
+        if (!hitTestMancalaPit(mancalaLayout, tx, ty, pit)) return;
+        if (!mancalaBoard.playHuman(pit)) return; // illegal tap (not your pit, or empty) -- silently ignored, same as any other illegal tap in this project
+
+        animateMancalaSow(tft, mancalaLayout, mancalaBoard);
+        drawMancalaBoard(tft, mancalaLayout, mancalaBoard);
+
+        if (mancalaBoard.isHumanTurn()) {
+            // Landed in your own store -- extra turn, same rule an AI turn
+            // can chain through in loop() above. Just refresh the status
+            // text; the next tap sows again, no different from any other
+            // of the human's turns.
+            refreshMancalaStatusText();
+            return;
+        }
+
+        MancalaResult r = mancalaBoard.result();
+        if (r != MancalaResult::IN_PROGRESS) {
+            checkForMancalaRoundEnd();
+            return;
+        }
+        refreshMancalaStatusText();
+        mancalaAiMovePending = true;
+        mancalaAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+        return;
     }
 }
 

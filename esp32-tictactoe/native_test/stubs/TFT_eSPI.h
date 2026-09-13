@@ -59,6 +59,11 @@ public:
         capturedLines.push_back({x0, y0, x1, y1, color});
     }
     void drawCircle(int32_t, int32_t, int32_t, uint32_t) {}
+    // Added for MancalaDisplay.cpp's pit glyphs -- no other game's Display
+    // module draws a filled circle (Checkers/Chess pieces are rounded
+    // squares), same no-op-only reasoning as every other rendering method
+    // in this stub.
+    void fillCircle(int32_t, int32_t, int32_t, uint32_t) {}
     void fillRoundRect(int32_t, int32_t, int32_t, int32_t, int32_t, uint32_t) {}
     void drawRoundRect(int32_t, int32_t, int32_t, int32_t, int32_t, uint32_t) {}
     // Theme.h's smooth-font loading -- no-ops here, same reasoning as every

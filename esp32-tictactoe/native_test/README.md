@@ -7,19 +7,21 @@ against small no-op stand-ins for `Arduino.h`/`TFT_eSPI.h` (`stubs/`). This
 runs the whole game logic and touch-math thousands of times in under a
 second, instead of one slow manual tap at a time on real hardware.
 
-Four games have a native playtest driver today, one executable each:
+Five games have a native playtest driver today, one executable each:
 `playtest.cpp` (Tic-Tac-Toe), `checkers_playtest.cpp`, `chess_playtest.cpp`,
-and `uno_playtest.cpp` — see each file's own top-of-file comment for what it
-specifically verifies (Tic-Tac-Toe's is an exhaustive full-game-tree search;
-Checkers and Chess mix hand-built rules positions with a bounded tree walk
-and, for Chess, perft move-count verification; UNO covers rules/deck/AI-
-heuristic/touch-math). Mancala and Dominoes don't have one yet — add
-`<game>_playtest.cpp` following the same pattern once their GameLogic/
+`uno_playtest.cpp`, and `mancala_playtest.cpp` — see each file's own
+top-of-file comment for what it specifically verifies (Tic-Tac-Toe's is an
+exhaustive full-game-tree search; Checkers and Chess mix hand-built rules
+positions with a bounded tree walk and, for Chess, perft move-count
+verification; UNO covers rules/deck/AI-heuristic/touch-math; Mancala covers
+capture/extra-turn/round-end-sweep rules, a stone-conservation invariant, and
+its EASY/MEDIUM/HARD difficulty tiers). Dominoes doesn't have one yet — add
+`dominoes_playtest.cpp` following the same pattern once its GameLogic/
 Display pair exists.
 
 **What this proves**: for Tic-Tac-Toe, the AI is genuinely unbeatable (an
 exhaustive search of every possible game finds zero human wins); across all
-four games, turn order and illegal-move rejection are correct, reported
+five games, turn order and illegal-move rejection are correct, reported
 win/capture/game-ending conditions match real board state, and every pixel
 inside each game's touch grid/buttons resolves to the right cell with no
 gaps, overlaps, or off-by-one edges.
@@ -92,6 +94,17 @@ g++ -std=c++17 -I stubs -o uno_playtest uno_playtest.cpp ../TicTacToeESP32/UnoLo
 ./uno_playtest
 ```
 
-Exit code is `0` if every check passed, `1` otherwise for all four — safe to
+### Mancala
+
+```
+cl /nologo /EHsc /std:c++17 /I stubs /Fe:mancala_playtest.exe mancala_playtest.cpp ..\TicTacToeESP32\MancalaLogic.cpp ..\TicTacToeESP32\MancalaDisplay.cpp
+.\mancala_playtest.exe
+```
+```
+g++ -std=c++17 -I stubs -o mancala_playtest mancala_playtest.cpp ../TicTacToeESP32/MancalaLogic.cpp ../TicTacToeESP32/MancalaDisplay.cpp
+./mancala_playtest
+```
+
+Exit code is `0` if every check passed, `1` otherwise for all five — safe to
 wire into a CI job, the same spirit as GameSuite's own JUnit tests and the
 relay server's `smoke-test.js`.

@@ -181,13 +181,16 @@ exact project) describe the wrong variant.
 ## What's next
 
 Tic-Tac-Toe was the first proof-of-concept for the display/touch/input
-pipeline; Checkers, Chess, and UNO have since shipped on top of the same
-GameLogic/Display split and the home menu that came with it — see
+pipeline; Checkers, Chess, UNO, and Mancala have since shipped on top of the
+same GameLogic/Display split and the home menu that came with it — see
 `MENU_GAMES` near the top of `TicTacToeESP32.ino`, where each entry's
 `enabled` flag reflects what's actually built and reachable from the menu
-today, not just planned. Mancala and Dominoes are the next-best fits (small
-state, no big dictionary) — currently present in that same array as
-`false` — and follow the same pattern: a new GameLogic.h/.cpp pair, a new
+today, not just planned. Mancala is also the first game here with real
+EASY/MEDIUM/HARD difficulty tiers (see `Difficulty.h`) rather than one fixed
+AI strength — retrofitting the same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO
+is a separate, not-yet-started follow-up. Dominoes is the next-best fit
+(small state, no big dictionary) — currently present in that same array as
+`false` — and follows the same pattern: a new GameLogic.h/.cpp pair, a new
 Display.h/.cpp pair, then flipping the menu entry to `true`.
 
 Not attempted here, and not realistic on this hardware without much more
