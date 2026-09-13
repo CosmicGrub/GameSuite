@@ -898,8 +898,26 @@ class ChessGame : GameModule {
             CpuDifficulty.EASY -> generateLegalMoves(pos, s.sideToMove).randomOrNull()
             CpuDifficulty.MEDIUM -> onePlyGreedyMove(pos, s.sideToMove)
             CpuDifficulty.HARD -> minimaxBestMove(pos, s.sideToMove, HARD_SEARCH_DEPTH)
-        }
-        if (move != null) applyPlayedMove(s, pos, move)
+        } ?: return
+        // Routes through the public, network-aware playMove() rather than calling
+        // applyPlayedMove directly (the real bug this fixes): a non-host device with a bot on
+        // its OWN local seat must have that bot's chosen move sent to the host as a real
+        // Intent, exactly like a human's tap would be -- not applied to this device's own
+        // state.value directly, which would silently desync host and guest forever, the host
+        // never finding out the guest's bot ever moved at all. Mirrors TicTacToeGame's own
+        // playBotTurn(), which already calls the public cellClicked() for the same reason.
+        //
+        // Correctness of WHO calls this still relies on the caller only ever invoking
+        // playBotTurn() for a seat that's actually this device's own local responsibility (see
+        // GameContext.localPlayerIndex) -- exactly the same requirement a human player's UI
+        // already has to respect (a device's own screen only ever taps for its own seat). A
+        // caller that invoked this for the OTHER device's bot seat would still be rejected
+        // safely rather than corrupt anything: playMove()'s own isNetworked/isHost branch
+        // forwards a non-host call as an Intent regardless of which seat it names, and the
+        // host's handleNetworkMessage independently re-validates the sender's actual turn
+        // before ever applying it -- but it would be redundant, wasted computation, so callers
+        // (see the LAN multiplayer test harness) should still gate on local ownership.
+        playMove(botPlayerIndex, move.from, move.to)
     }
 
     /**

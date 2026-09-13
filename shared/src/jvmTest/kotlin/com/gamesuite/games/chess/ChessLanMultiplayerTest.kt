@@ -3,6 +3,7 @@ package com.gamesuite.games.chess
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
+import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LanMultiplayerTransport
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -213,6 +214,94 @@ class ChessLanMultiplayerTest {
             assertEquals(1, pair.guest.scoreP2.value)
         } finally {
             pair.disconnect()
+        }
+    }
+
+    /**
+     * The real end-to-end proof behind ChessGame.playBotTurn()'s networking fix (it used to
+     * call the private applyPlayedMove() directly, silently desyncing a non-host device's own
+     * bot seat from the host forever -- see that function's own KDoc) and the exact scenario
+     * a cross-device (PC/tablet) LAN test drives: each side's own bot decides moves ONLY for
+     * its own local seat (never the other device's), sent over the real transport exactly like
+     * a human tap would be, for a full game to a real, agreeing conclusion on both ends --
+     * different difficulties on each side specifically to prove this doesn't depend on both
+     * sides computing identical moves, only on the wire protocol carrying whatever each side's
+     * own bot actually decided.
+     */
+    @Test
+    fun bothSidesBotsPlayAFullGameToARealAgreeingConclusionOverRealSockets() {
+        val hostTransport = LanMultiplayerTransport()
+        val guestTransport = LanMultiplayerTransport()
+
+        val hostedLatch = CountDownLatch(1)
+        var hostPort = -1
+        hostTransport.onHosted { port -> hostPort = port; hostedLatch.countDown() }
+        hostTransport.hostGame("host-p", "Host")
+        await(hostedLatch, "host to open its port")
+
+        val hostJoinedLatch = CountDownLatch(1)
+        hostTransport.onPlayerJoined { hostJoinedLatch.countDown() }
+        val guestJoinedLatch = CountDownLatch(1)
+        guestTransport.onJoinedLobby { guestJoinedLatch.countDown() }
+        guestTransport.joinHost("127.0.0.1", hostPort, "guest-p", "Guest")
+        await(guestJoinedLatch, "guest to join the lobby")
+        await(hostJoinedLatch, "host to see the guest register")
+
+        val players = listOf(
+            PlayerInfo(playerId = "host-p", displayName = "Host", isBot = true),
+            PlayerInfo(playerId = "guest-p", displayName = "Guest", isBot = true)
+        )
+        // Deliberately mismatched difficulties -- EASY's real randomness on one side, HARD's
+        // real minimax search on the other -- so this can't accidentally pass just because
+        // both sides happen to compute the same move independently; only the wire protocol
+        // carrying the actual mover's own decision can make this converge.
+        val hostGame = ChessGame().apply { difficulty = CpuDifficulty.EASY }
+        val guestGame = ChessGame().apply { difficulty = CpuDifficulty.HARD }
+        hostGame.init(GameContext(activeMode = PlayMode.LOCAL_AD_HOC, players = players, localPlayerIndex = 0, transport = hostTransport))
+        guestGame.init(GameContext(activeMode = PlayMode.LOCAL_AD_HOC, players = players, localPlayerIndex = 1, transport = guestTransport))
+        hostGame.startMatch()
+        guestGame.startMatch()
+
+        try {
+            var plies = 0
+            while (plies < 400) {
+                // Wait for both sides to genuinely agree on whose turn it is (and whether the
+                // game already ended) before either one decides its next move -- driving this
+                // off a side that hasn't caught up to the other's last broadcast yet would let
+                // a bot "move" when its own local view is actually stale.
+                awaitCondition("both sides to converge on the same sideToMove/roundOver before ply ${plies + 1}") {
+                    val hs = hostGame.state.value
+                    val gs = guestGame.state.value
+                    hs != null && gs != null && hs.sideToMove == gs.sideToMove && hs.roundOver == gs.roundOver
+                }
+                val hs = hostGame.state.value!!
+                if (hs.roundOver) break
+                // Each side ever only decides a move for ITS OWN local seat -- host's own bot
+                // for seat 0, guest's own bot for seat 1 -- never the other device's, exactly
+                // the ownership discipline a real human's own device-local UI already has to
+                // respect (ChessGame.playMove's own KDoc).
+                when (playerIndexForColor(hs.sideToMove)) {
+                    0 -> hostGame.playBotTurn()
+                    1 -> guestGame.playBotTurn()
+                }
+                plies++
+            }
+
+            assertTrue(plies < 400, "game did not complete within 400 plies -- possible desync or stall")
+            awaitCondition("both sides to report the same final result", seconds = 10) {
+                hostGame.state.value?.roundOver == true &&
+                    guestGame.state.value?.roundOver == true &&
+                    hostGame.state.value?.result == guestGame.state.value?.result
+            }
+            val finalResult = hostGame.state.value?.result
+            assertTrue(finalResult != null && finalResult != ChessResult.IN_PROGRESS, "expected a real decisive/drawn result, got $finalResult")
+            // Score bookkeeping must also agree -- proves the running score, not just the
+            // board, stayed in sync across the whole game.
+            assertEquals(hostGame.scoreP1.value, guestGame.scoreP1.value, "host/guest scoreP1 disagree after a full synced game")
+            assertEquals(hostGame.scoreP2.value, guestGame.scoreP2.value, "host/guest scoreP2 disagree after a full synced game")
+        } finally {
+            hostTransport.disconnect()
+            guestTransport.disconnect()
         }
     }
 }

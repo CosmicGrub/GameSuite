@@ -132,3 +132,18 @@ compose.desktop {
         mainClass = "MainKt"
     }
 }
+
+// Headless PC-side counterpart to app/src/androidTest's LanBotMatchInstrumentedTest -- a real
+// cross-device LAN multiplayer verification tool (see LanBotMatchCli.kt's own KDoc), run via
+// `gradlew :shared:runLanBotMatch --args="--role=host --game=chess ..."` rather than through
+// the GUI `:shared:run` task (which stays pinned to MainKt, unaffected by this).
+tasks.register<JavaExec>("runLanBotMatch") {
+    group = "verification"
+    description = "Headless LAN bot-vs-bot match runner (LanBotMatchCli.kt) -- pass args via --args=\"--role=host --game=chess ...\""
+    mainClass.set("LanBotMatchCliKt")
+    classpath = files(
+        kotlin.targets.getByName("desktop").compilations.getByName("main").output.allOutputs,
+        configurations.getByName("desktopRuntimeClasspath")
+    )
+    standardInput = System.`in`
+}
