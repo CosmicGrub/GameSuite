@@ -41,6 +41,8 @@
 #include "DominoesDisplay.h"
 #include "SolitaireLogic.h"
 #include "SolitaireDisplay.h"
+#include "SpiderLogic.h"
+#include "SpiderDisplay.h"
 
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
@@ -97,13 +99,20 @@ SolitaireLayout solitaireLayout;
 bool solitaireAutoCompletePending = false;
 unsigned long solitaireAutoCompleteDueAt = 0;
 
+// Spider Solitaire has no AI, no waste/foundation piles, and no
+// auto-complete (see SpiderLogic.h's own top comment on why) -- just a
+// board+layout pair, same minimal footprint as every other solo-puzzle
+// screen here would need if it had no extra scheduled behavior of its own.
+SpiderBoard spiderBoard;
+SpiderLayout spiderLayout;
+
 // ---- Arcade home menu ----
 // Adding a game means: write its GameLogic/Display pair, add one entry here,
 // flip its `enabled` flag once it's built -- no other wiring needed. Klondike
-// Solitaire is the first of the roadmap's next-named Solitaire variants
-// (Spider Solitaire and a few others are still to come, each will get its
-// own new disabled ("coming soon") entry the moment it's named, then flip to
-// true once built); Mahjong is the one item left after that.
+// and Spider are both built now; a few more named Solitaire variants are
+// still to come (each will get its own new disabled ("coming soon") entry
+// the moment it's named, then flip to true once built), then Mahjong is the
+// one item left on the roadmap after that.
 struct MenuGame {
     const char *label;
     bool enabled;
@@ -115,7 +124,14 @@ static const MenuGame MENU_GAMES[] = {
     {"UNO", true},
     {"Mancala", true},
     {"Dominoes", true},
-    {"Solitaire", true},
+    // Relabeled from a bare "Solitaire" to "Klondike" now that a second
+    // solitaire variant exists -- the underlying C++ types/functions all
+    // still say "Solitaire" (matching SolitaireLogic.h/SolitaireDisplay.h's
+    // own file names, already shipped) since renaming every identifier
+    // just to match a menu label would be a much larger, purely cosmetic
+    // change; only the player-facing tile text changes here.
+    {"Klondike", true},
+    {"Spider", true},
 };
 static const uint8_t MENU_GAME_COUNT = sizeof(MENU_GAMES) / sizeof(MENU_GAMES[0]);
 static const uint8_t TICTACTOE_GAME_INDEX = 0;
@@ -125,8 +141,9 @@ static const uint8_t UNO_GAME_INDEX = 3;
 static const uint8_t MANCALA_GAME_INDEX = 4;
 static const uint8_t DOMINOES_GAME_INDEX = 5;
 static const uint8_t SOLITAIRE_GAME_INDEX = 6;
+static const uint8_t SPIDER_GAME_INDEX = 7;
 
-enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA, DOMINOES, SOLITAIRE };
+enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA, DOMINOES, SOLITAIRE, SPIDER };
 AppState appState = AppState::MENU;
 MenuLayout menuLayout;
 // Index of the first game currently shown in the (possibly scrolled) menu --
@@ -175,6 +192,10 @@ void startNewSolitaireRound();
 void refreshSolitaireStatusText();
 void refreshSolitaireBoard();
 void redrawSolitaireBoard();
+void startNewSpiderRound();
+void refreshSpiderStatusText();
+void refreshSpiderBoard();
+void redrawSpiderBoard();
 void redrawMenu();
 
 void enterMenu() {
@@ -314,6 +335,14 @@ void enterSolitaire() {
     Serial.println("[ArcadeOS] entered Solitaire");
 }
 
+void enterSpider() {
+    appState = AppState::SPIDER;
+    spiderLayout = computeSpiderLayout();
+    spiderBoard.resetSession();
+    redrawSpiderBoard();
+    Serial.println("[ArcadeOS] entered Spider");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(300); // let the USB-serial link settle before the first print
@@ -346,6 +375,7 @@ void setup() {
     seedMancalaRandom(esp_random());
     seedDominoesRandom(esp_random());
     seedSolitaireRandom(esp_random());
+    seedSpiderRandom(esp_random());
 
     enterMenu();
     Serial.println("[ArcadeOS] setup complete, entering loop()");
@@ -506,6 +536,7 @@ void loop() {
             case AppState::MANCALA:   stateName = "mancala"; break;
             case AppState::DOMINOES:  stateName = "dominoes"; break;
             case AppState::SOLITAIRE: stateName = "solitaire"; break;
+            case AppState::SPIDER:    stateName = "spider"; break;
             default: break;
         }
         Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s\n", millis() / 1000, stateName);
@@ -776,6 +807,34 @@ void startNewSolitaireRound() {
     redrawSolitaireBoard();
 }
 
+void refreshSpiderStatusText() {
+    const char *text = spiderBoard.isWon() ? "Solved! Tap New for another deal" : spiderBoard.lastAction();
+    drawSpiderStatus(tft, spiderLayout, text, spiderBoard.completedSequences());
+}
+
+// Redraws every pile/button (not the static background) -- called after
+// every tap, same "just redraw what could have changed" simplicity every
+// other game's own board redraw already uses.
+void refreshSpiderBoard() {
+    drawSpiderButtons(tft, spiderLayout);
+    drawSpiderStock(tft, spiderLayout, spiderBoard.stockCount(), spiderBoard.canDealFromStock());
+    drawSpiderTableau(tft, spiderLayout, spiderBoard);
+    refreshSpiderStatusText();
+}
+
+void redrawSpiderBoard() {
+    drawSpiderStaticChrome(tft, spiderLayout);
+    refreshSpiderBoard();
+}
+
+// Deals a fresh hand -- called by the "New" button. Keeps
+// gamesWonThisSession() (only enterSpider()'s own resetSession() clears
+// that), same split as Klondike's own reset()/resetSession().
+void startNewSpiderRound() {
+    spiderBoard.reset();
+    redrawSpiderBoard();
+}
+
 void checkForChessRoundEnd() {
     ChessRoundResult r = chessBoard.result();
     if (r == ChessRoundResult::IN_PROGRESS) {
@@ -940,6 +999,7 @@ void handleTouch() {
         else if (idx == MANCALA_GAME_INDEX) enterMancala();
         else if (idx == DOMINOES_GAME_INDEX) enterDominoes();
         else if (idx == SOLITAIRE_GAME_INDEX) enterSolitaire();
+        else if (idx == SPIDER_GAME_INDEX) enterSpider();
         return;
     }
 
@@ -1391,6 +1451,31 @@ void handleTouch() {
         if (hitTestSolitaireTableau(solitaireLayout, solitaireBoard, tx, ty, col)) {
             solitaireBoard.tapTableau(col);
             refreshSolitaireBoard();
+            return;
+        }
+    }
+
+    if (appState == AppState::SPIDER) {
+        // "New" is always available -- same "don't gate a restart on the
+        // hand actually ending" reasoning as Klondike's own New button.
+        if (hitTestSpiderNewButton(spiderLayout, tx, ty)) {
+            startNewSpiderRound();
+            return;
+        }
+        if (hitTestSpiderUndoButton(spiderLayout, tx, ty)) {
+            spiderBoard.undo();
+            refreshSpiderBoard();
+            return;
+        }
+        if (hitTestSpiderStock(spiderLayout, tx, ty)) {
+            spiderBoard.tapStock();
+            refreshSpiderBoard();
+            return;
+        }
+        uint8_t col;
+        if (hitTestSpiderTableau(spiderLayout, spiderBoard, tx, ty, col)) {
+            spiderBoard.tapColumn(col);
+            refreshSpiderBoard();
             return;
         }
     }

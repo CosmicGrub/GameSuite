@@ -181,32 +181,44 @@ exact project) describe the wrong variant.
 ## What's next
 
 Tic-Tac-Toe was the first proof-of-concept for the display/touch/input
-pipeline; Checkers, Chess, UNO, Mancala, Dominoes, and (Klondike) Solitaire
-have since shipped on top of the same GameLogic/Display split and the home
-menu that came with it — see `MENU_GAMES` near the top of
-`TicTacToeESP32.ino`, where every entry's `enabled` flag is now `true`.
-Mancala and Dominoes both ship with real EASY/MEDIUM/HARD difficulty tiers
-(see `Difficulty.h`) rather than one fixed AI strength — retrofitting the
-same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO is a separate, not-yet-started
-follow-up (Solitaire has no AI at all, and needs none — a solo puzzle with no
-opponent). Dominoes' own chain can hold more tiles than one screen width
-shows at a readable size, so it renders as a horizontally scrollable track
-(see `DominoesDisplay.h`'s header comment) — the first scrolling game board
-in this arcade, following the same "the .ino owns scroll position, Display
-just renders whatever window it's told to" split `MenuScreen.h`'s own menu
-scrolling already established. Solitaire's own tableau columns face the same
-"more cards than one screen fits" problem vertically instead, solved
-differently: each column's own card-to-card spacing compresses dynamically
-to fit (see `SolitaireDisplay.h`'s `solitaireFanOffset()`), the same
-"natural spacing unless it would overflow, then compress" idiom
-`UnoDisplay.cpp`'s hand-row layout already used, just applied per-column.
+pipeline; Checkers, Chess, UNO, Mancala, Dominoes, Klondike, and Spider
+Solitaire have since shipped on top of the same GameLogic/Display split and
+the home menu that came with it — see `MENU_GAMES` near the top of
+`TicTacToeESP32.ino`, where every entry's `enabled` flag is now `true`
+(Klondike and Spider's own menu tiles read that way — "Klondike"/"Spider" —
+even though their underlying C++ types are still named `Solitaire*`,
+matching `SolitaireLogic.h`'s own file name from before Spider existed;
+renaming every identifier just to match a friendlier menu label wasn't worth
+the diff). Mancala and Dominoes both ship with real EASY/MEDIUM/HARD
+difficulty tiers (see `Difficulty.h`) rather than one fixed AI strength --
+retrofitting the same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO is a
+separate, not-yet-started follow-up (neither solitaire variant has any AI at
+all, and needs none — solo puzzles with no opponent). Dominoes' own chain
+can hold more tiles than one screen width shows at a readable size, so it
+renders as a horizontally scrollable track (see `DominoesDisplay.h`'s header
+comment) — the first scrolling game board in this arcade, following the
+same "the .ino owns scroll position, Display just renders whatever window
+it's told to" split `MenuScreen.h`'s own menu scrolling already established.
+Both solitaire variants' own tableau columns face the same "more cards than
+one screen fits" problem vertically instead, solved differently: each
+column's own card-to-card spacing compresses dynamically to fit (see
+`SolitaireDisplay.h`'s `solitaireFanOffset()`/`SpiderDisplay.h`'s
+`spiderFanOffset()`), the same "natural spacing unless it would overflow,
+then compress" idiom `UnoDisplay.cpp`'s hand-row layout already used, just
+applied per-column.
 
-Klondike is the first of the roadmap's named Solitaire variants — Spider
-Solitaire and a few others named in the project's own tracked memory are
-still to come, each will get its own new disabled ("coming soon") menu entry
-the moment it's named, then flip to `true` once built, same as every game
-above it did. Mahjong (both solo Mahjong Solitaire and full multiplayer
-Mahjong) is the one item left on the roadmap after that. Genuinely not
+Spider is the first game in this whole project with no GameSuite reference
+to port from at all (it isn't in the Android app) — see `SpiderLogic.h`'s
+own top comment for the real-world rules it was built against from scratch,
+and for the one meaningful scope cut worth knowing (single-card moves only,
+same as Klondike, but a bigger loss of convenience for Spider specifically
+since real Spider strategy leans on relocating whole same-suit runs far more
+than Klondike's own tableau play does). A few more named Solitaire variants
+are still to come per the project's own tracked memory, each will get its
+own new disabled ("coming soon") menu entry the moment it's named, then flip
+to `true` once built, same as every game above it did. Mahjong (both solo
+Mahjong Solitaire and full multiplayer Mahjong) is the one item left on the
+roadmap after that. Genuinely not
 attempted here, and not realistic on this hardware without much more work:
 Air Hockey (real-time physics + simultaneous multi-touch), and the
 dictionary-backed word games (Word Search/Crossword/Word Tiles rely on a
