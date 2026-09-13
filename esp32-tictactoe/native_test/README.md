@@ -7,26 +7,33 @@ against small no-op stand-ins for `Arduino.h`/`TFT_eSPI.h` (`stubs/`). This
 runs the whole game logic and touch-math thousands of times in under a
 second, instead of one slow manual tap at a time on real hardware.
 
-Six games have a native playtest driver today, one executable each:
+Seven games have a native playtest driver today, one executable each:
 `playtest.cpp` (Tic-Tac-Toe), `checkers_playtest.cpp`, `chess_playtest.cpp`,
-`uno_playtest.cpp`, `mancala_playtest.cpp`, and `dominoes_playtest.cpp` — see
-each file's own top-of-file comment for what it specifically verifies
-(Tic-Tac-Toe's is an exhaustive full-game-tree search; Checkers and Chess mix
-hand-built rules positions with a bounded tree walk and, for Chess, perft
-move-count verification; UNO covers rules/deck/AI-heuristic/touch-math;
-Mancala covers capture/extra-turn/round-end-sweep rules, a stone-conservation
-invariant, and its EASY/MEDIUM/HARD difficulty tiers; Dominoes covers the
-attach/auto-flip math on both chain ends, must-draw-before-you-may-pass, a
-blocked hand's tie-break, a tile-conservation invariant, and its own
-EASY/MEDIUM/HARD tiers verified against the AI's otherwise-hidden hand via a
-clearly-labeled test-only seam).
+`uno_playtest.cpp`, `mancala_playtest.cpp`, `dominoes_playtest.cpp`, and
+`solitaire_playtest.cpp` — see each file's own top-of-file comment for what
+it specifically verifies (Tic-Tac-Toe's is an exhaustive full-game-tree
+search; Checkers and Chess mix hand-built rules positions with a bounded
+tree walk and, for Chess, perft move-count verification; UNO covers
+rules/deck/AI-heuristic/touch-math; Mancala covers capture/extra-turn/
+round-end-sweep rules, a stone-conservation invariant, and its EASY/MEDIUM/
+HARD difficulty tiers; Dominoes covers the attach/auto-flip math on both
+chain ends, must-draw-before-you-may-pass, a blocked hand's tie-break, a
+tile-conservation invariant, and its own EASY/MEDIUM/HARD tiers verified
+against the AI's otherwise-hidden hand via a clearly-labeled test-only seam;
+Solitaire — a solo puzzle with no opponent and no fixed win/loss cadence a
+"random self-play" simulation can lean on the way the others do — instead
+covers the real deal algorithm against a known card order, every tableau/
+foundation legality rule, auto-flip, undo, the auto-complete heuristic's own
+two move-finders, and a bounded "monkey test" of thousands of random legal-
+or-illegal taps checking the one hard invariant that must never break: every
+one of the 52 cards accounted for exactly once, across every pile).
 
 **What this proves**: for Tic-Tac-Toe, the AI is genuinely unbeatable (an
 exhaustive search of every possible game finds zero human wins); across all
-six games, turn order and illegal-move rejection are correct, reported
-win/capture/game-ending conditions match real board state, and every pixel
-inside each game's touch grid/buttons resolves to the right cell with no
-gaps, overlaps, or off-by-one edges.
+seven games, turn order (or, for Solitaire, tap-legality) and illegal-move
+rejection are correct, reported win/capture/game-ending conditions match
+real board state, and every pixel inside each game's touch grid/buttons
+resolves to the right cell with no gaps, overlaps, or off-by-one edges.
 
 **What this can't prove** — nothing about actual pixel rendering, real touch
 calibration, real SPI timing, or your board's specific pin wiring. Only the
@@ -118,6 +125,17 @@ g++ -std=c++17 -I stubs -o dominoes_playtest dominoes_playtest.cpp ../TicTacToeE
 ./dominoes_playtest
 ```
 
-Exit code is `0` if every check passed, `1` otherwise for all six — safe to
+### Solitaire
+
+```
+cl /nologo /EHsc /std:c++17 /I stubs /Fe:solitaire_playtest.exe solitaire_playtest.cpp ..\TicTacToeESP32\SolitaireLogic.cpp ..\TicTacToeESP32\SolitaireDisplay.cpp
+.\solitaire_playtest.exe
+```
+```
+g++ -std=c++17 -I stubs -o solitaire_playtest solitaire_playtest.cpp ../TicTacToeESP32/SolitaireLogic.cpp ../TicTacToeESP32/SolitaireDisplay.cpp
+./solitaire_playtest
+```
+
+Exit code is `0` if every check passed, `1` otherwise for all seven — safe to
 wire into a CI job, the same spirit as GameSuite's own JUnit tests and the
 relay server's `smoke-test.js`.

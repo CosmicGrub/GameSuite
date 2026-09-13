@@ -181,25 +181,34 @@ exact project) describe the wrong variant.
 ## What's next
 
 Tic-Tac-Toe was the first proof-of-concept for the display/touch/input
-pipeline; Checkers, Chess, UNO, Mancala, and Dominoes have since shipped on
-top of the same GameLogic/Display split and the home menu that came with it
-— see `MENU_GAMES` near the top of `TicTacToeESP32.ino`, where every entry's
-`enabled` flag is now `true`. Mancala and Dominoes both ship with real
-EASY/MEDIUM/HARD difficulty tiers (see `Difficulty.h`) rather than one fixed
-AI strength — retrofitting the same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO
-is a separate, not-yet-started follow-up. Dominoes' own chain can hold more
-tiles than one screen width shows at a readable size, so it renders as a
-horizontally scrollable track (see `DominoesDisplay.h`'s header comment) —
-the first scrolling game board in this arcade, following the same "the .ino
-owns scroll position, Display just renders whatever window it's told to"
-split `MenuScreen.h`'s own menu scrolling already established.
+pipeline; Checkers, Chess, UNO, Mancala, Dominoes, and (Klondike) Solitaire
+have since shipped on top of the same GameLogic/Display split and the home
+menu that came with it — see `MENU_GAMES` near the top of
+`TicTacToeESP32.ino`, where every entry's `enabled` flag is now `true`.
+Mancala and Dominoes both ship with real EASY/MEDIUM/HARD difficulty tiers
+(see `Difficulty.h`) rather than one fixed AI strength — retrofitting the
+same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO is a separate, not-yet-started
+follow-up (Solitaire has no AI at all, and needs none — a solo puzzle with no
+opponent). Dominoes' own chain can hold more tiles than one screen width
+shows at a readable size, so it renders as a horizontally scrollable track
+(see `DominoesDisplay.h`'s header comment) — the first scrolling game board
+in this arcade, following the same "the .ino owns scroll position, Display
+just renders whatever window it's told to" split `MenuScreen.h`'s own menu
+scrolling already established. Solitaire's own tableau columns face the same
+"more cards than one screen fits" problem vertically instead, solved
+differently: each column's own card-to-card spacing compresses dynamically
+to fit (see `SolitaireDisplay.h`'s `solitaireFanOffset()`), the same
+"natural spacing unless it would overflow, then compress" idiom
+`UnoDisplay.cpp`'s hand-row layout already used, just applied per-column.
 
-Solitaire (a Klondike port plus Spider Solitaire and a few variants not yet
-in the Android app at all) and Mahjong (both solo Mahjong Solitaire and full
-multiplayer Mahjong) are next on the roadmap after Dominoes, not yet started
-— see the project's own tracked memory for the exact sequencing. Genuinely
-not attempted here, and not realistic on this hardware without much more
-work: Air Hockey (real-time physics + simultaneous multi-touch), and the
+Klondike is the first of the roadmap's named Solitaire variants — Spider
+Solitaire and a few others named in the project's own tracked memory are
+still to come, each will get its own new disabled ("coming soon") menu entry
+the moment it's named, then flip to `true` once built, same as every game
+above it did. Mahjong (both solo Mahjong Solitaire and full multiplayer
+Mahjong) is the one item left on the roadmap after that. Genuinely not
+attempted here, and not realistic on this hardware without much more work:
+Air Hockey (real-time physics + simultaneous multi-touch), and the
 dictionary-backed word games (Word Search/Crossword/Word Tiles rely on a
 3.6MB word list — this ESP32-32E variant has no PSRAM and only 4MB of flash
 total).

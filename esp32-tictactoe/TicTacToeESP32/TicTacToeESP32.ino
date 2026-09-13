@@ -39,6 +39,8 @@
 #include "MancalaDisplay.h"
 #include "DominoesLogic.h"
 #include "DominoesDisplay.h"
+#include "SolitaireLogic.h"
+#include "SolitaireDisplay.h"
 
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
@@ -85,13 +87,23 @@ uint8_t dominoesScrollOffset = 0;
 // see DominoesDisplay.h's own header comment on the chevrons' dual purpose.
 int8_t dominoesSelectedHandIndex = -1;
 
+SolitaireBoard solitaireBoard;
+SolitaireLayout solitaireLayout;
+// Mirrors every other game's own AI-move scheduling (XAiMovePending/
+// XAiMoveDueAt) but drives SolitaireBoard::autoCompleteStep() one visible
+// move at a time instead of an opponent's turn -- there's no AI here at
+// all (a solo puzzle), so this is the one non-AI use of that same
+// millis()-gated pacing idiom in this file.
+bool solitaireAutoCompletePending = false;
+unsigned long solitaireAutoCompleteDueAt = 0;
+
 // ---- Arcade home menu ----
 // Adding a game means: write its GameLogic/Display pair, add one entry here,
-// flip its `enabled` flag once it's built -- no other wiring needed. Every
-// game named in the README's roadmap so far is built and enabled; the next
-// wave (Solitaire, Mahjong) will each get their own new disabled ("coming
-// soon") entry here the moment they're named, then flip to true once built,
-// same as every game above it did.
+// flip its `enabled` flag once it's built -- no other wiring needed. Klondike
+// Solitaire is the first of the roadmap's next-named Solitaire variants
+// (Spider Solitaire and a few others are still to come, each will get its
+// own new disabled ("coming soon") entry the moment it's named, then flip to
+// true once built); Mahjong is the one item left after that.
 struct MenuGame {
     const char *label;
     bool enabled;
@@ -103,6 +115,7 @@ static const MenuGame MENU_GAMES[] = {
     {"UNO", true},
     {"Mancala", true},
     {"Dominoes", true},
+    {"Solitaire", true},
 };
 static const uint8_t MENU_GAME_COUNT = sizeof(MENU_GAMES) / sizeof(MENU_GAMES[0]);
 static const uint8_t TICTACTOE_GAME_INDEX = 0;
@@ -111,8 +124,9 @@ static const uint8_t CHESS_GAME_INDEX = 2;
 static const uint8_t UNO_GAME_INDEX = 3;
 static const uint8_t MANCALA_GAME_INDEX = 4;
 static const uint8_t DOMINOES_GAME_INDEX = 5;
+static const uint8_t SOLITAIRE_GAME_INDEX = 6;
 
-enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA, DOMINOES };
+enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA, DOMINOES, SOLITAIRE };
 AppState appState = AppState::MENU;
 MenuLayout menuLayout;
 // Index of the first game currently shown in the (possibly scrolled) menu --
@@ -157,6 +171,10 @@ void refreshDominoesChevrons();
 void redrawDominoesChainArea();
 void playDominoesTileAt(uint8_t handIndex, bool attachToLeft);
 void finishDominoesHumanAction();
+void startNewSolitaireRound();
+void refreshSolitaireStatusText();
+void refreshSolitaireBoard();
+void redrawSolitaireBoard();
 void redrawMenu();
 
 void enterMenu() {
@@ -281,6 +299,21 @@ void enterDominoes() {
     Serial.println("[ArcadeOS] entered Dominoes");
 }
 
+void enterSolitaire() {
+    appState = AppState::SOLITAIRE;
+    solitaireLayout = computeSolitaireLayout();
+    solitaireAutoCompletePending = false;
+    // resetSession() (not reset()) -- this is the one moment
+    // gamesWonThisSession() should clear, mirroring every other game's own
+    // enterX()-does-a-full-reset convention, just split into "clear the
+    // session tally" (only here) and "deal a fresh hand" (also every "New"
+    // tap) since Solitaire is the first game here to carry a persistent
+    // session counter at all.
+    solitaireBoard.resetSession();
+    redrawSolitaireBoard();
+    Serial.println("[ArcadeOS] entered Solitaire");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(300); // let the USB-serial link settle before the first print
@@ -312,6 +345,7 @@ void setup() {
     seedUnoRandom(esp_random());
     seedMancalaRandom(esp_random());
     seedDominoesRandom(esp_random());
+    seedSolitaireRandom(esp_random());
 
     enterMenu();
     Serial.println("[ArcadeOS] setup complete, entering loop()");
@@ -447,6 +481,16 @@ void loop() {
         checkForDominoesRoundEnd();
     }
 
+    if (appState == AppState::SOLITAIRE && solitaireAutoCompletePending && millis() >= solitaireAutoCompleteDueAt) {
+        solitaireBoard.autoCompleteStep();
+        refreshSolitaireBoard();
+        if (solitaireBoard.isAutoCompleting()) {
+            solitaireAutoCompleteDueAt = millis() + AI_MOVE_DELAY_MS;
+        } else {
+            solitaireAutoCompletePending = false;
+        }
+    }
+
     // A slow heartbeat so a remote/serial-only observer can tell the sketch is
     // still alive in loop() (vs. having crashed/reset) without flooding the
     // log the way printing every single loop() iteration would.
@@ -461,6 +505,7 @@ void loop() {
             case AppState::UNO:       stateName = "uno"; break;
             case AppState::MANCALA:   stateName = "mancala"; break;
             case AppState::DOMINOES:  stateName = "dominoes"; break;
+            case AppState::SOLITAIRE: stateName = "solitaire"; break;
             default: break;
         }
         Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s\n", millis() / 1000, stateName);
@@ -693,6 +738,44 @@ void playDominoesTileAt(uint8_t handIndex, bool attachToLeft) {
     finishDominoesHumanAction();
 }
 
+void refreshSolitaireStatusText() {
+    // lastAction() IS the status text here, not a fixed "your turn"-style
+    // message -- see SolitaireLogic.h's own top comment on why a solo
+    // puzzle benefits from per-tap feedback the way this arcade's 2-player
+    // games don't need to bother with.
+    const char *text = solitaireBoard.isWon() ? "Solved! Tap New for another deal" : solitaireBoard.lastAction();
+    drawSolitaireStatus(tft, solitaireLayout, text, solitaireBoard.gamesWonThisSession());
+}
+
+// Redraws every pile/button (not the static background) -- called after
+// every tap and every auto-complete step, same "just redraw what could have
+// changed" simplicity every other game's own board redraw already uses.
+void refreshSolitaireBoard() {
+    drawSolitaireButtons(tft, solitaireLayout, solitaireBoard.autoCompleteAvailable());
+    drawSolitaireStock(tft, solitaireLayout, solitaireBoard.stockCount());
+    drawSolitaireTableauAndWaste(tft, solitaireLayout, solitaireBoard);
+    for (uint8_t s = 0; s < SOLITAIRE_SUIT_COUNT; s++) {
+        drawSolitaireFoundation(tft, solitaireLayout, solitaireBoard, (SolitaireSuit)s);
+    }
+    refreshSolitaireStatusText();
+}
+
+// Full redraw including the static background -- only needed when entering
+// the screen or dealing a brand new hand, unlike refreshSolitaireBoard().
+void redrawSolitaireBoard() {
+    drawSolitaireStaticChrome(tft, solitaireLayout);
+    refreshSolitaireBoard();
+}
+
+// Deals a fresh hand -- called by the "New" button. Keeps
+// gamesWonThisSession() (see SolitaireBoard::reset()'s own comment); only
+// enterSolitaire() clears that via resetSession() instead.
+void startNewSolitaireRound() {
+    solitaireBoard.reset();
+    solitaireAutoCompletePending = false;
+    redrawSolitaireBoard();
+}
+
 void checkForChessRoundEnd() {
     ChessRoundResult r = chessBoard.result();
     if (r == ChessRoundResult::IN_PROGRESS) {
@@ -856,6 +939,7 @@ void handleTouch() {
         else if (idx == UNO_GAME_INDEX) enterUno();
         else if (idx == MANCALA_GAME_INDEX) enterMancala();
         else if (idx == DOMINOES_GAME_INDEX) enterDominoes();
+        else if (idx == SOLITAIRE_GAME_INDEX) enterSolitaire();
         return;
     }
 
@@ -1249,6 +1333,66 @@ void handleTouch() {
             refreshDominoesChevrons();
         }
         return;
+    }
+
+    if (appState == AppState::SOLITAIRE) {
+        // New/Undo are always available -- a Klondike deal can be
+        // genuinely unwinnable, so unlike every other game's Play Again
+        // (gated on the round actually ending), a player shouldn't have to
+        // wait for a win to restart. Auto's own hit test is checked too,
+        // but it stays a harmless no-op (see SolitaireBoard::
+        // startAutoComplete()'s own guard) unless autoCompleteAvailable()
+        // is genuinely true right now.
+        if (hitTestSolitaireNewButton(solitaireLayout, tx, ty)) {
+            startNewSolitaireRound();
+            return;
+        }
+        if (hitTestSolitaireUndoButton(solitaireLayout, tx, ty)) {
+            solitaireBoard.undo();
+            refreshSolitaireBoard();
+            return;
+        }
+        if (hitTestSolitaireAutoButton(solitaireLayout, tx, ty)) {
+            // Guarded on !solitaireAutoCompletePending too, not just
+            // autoCompleteAvailable() (which stays true for the whole
+            // sequence, not just before it starts) -- otherwise repeatedly
+            // tapping Auto while it's already stepping through keeps
+            // pushing its own next-step deadline further into the future,
+            // and a tap faster than AI_MOVE_DELAY_MS could stall it from
+            // ever advancing.
+            if (!solitaireAutoCompletePending && solitaireBoard.autoCompleteAvailable()) {
+                solitaireBoard.startAutoComplete();
+                solitaireAutoCompletePending = true;
+                solitaireAutoCompleteDueAt = millis() + AI_MOVE_DELAY_MS;
+                refreshSolitaireStatusText();
+            }
+            return;
+        }
+
+        if (solitaireAutoCompletePending) return; // ignore board taps while auto-complete is stepping through
+
+        if (hitTestSolitaireStock(solitaireLayout, tx, ty)) {
+            solitaireBoard.tapStock();
+            refreshSolitaireBoard();
+            return;
+        }
+        if (hitTestSolitaireWaste(solitaireLayout, tx, ty)) {
+            solitaireBoard.tapWaste();
+            refreshSolitaireBoard();
+            return;
+        }
+        SolitaireSuit pile;
+        if (hitTestSolitaireFoundation(solitaireLayout, tx, ty, pile)) {
+            solitaireBoard.tapFoundation(pile);
+            refreshSolitaireBoard();
+            return;
+        }
+        uint8_t col;
+        if (hitTestSolitaireTableau(solitaireLayout, solitaireBoard, tx, ty, col)) {
+            solitaireBoard.tapTableau(col);
+            refreshSolitaireBoard();
+            return;
+        }
     }
 }
 
