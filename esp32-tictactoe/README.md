@@ -181,21 +181,25 @@ exact project) describe the wrong variant.
 ## What's next
 
 Tic-Tac-Toe was the first proof-of-concept for the display/touch/input
-pipeline; Checkers, Chess, UNO, and Mancala have since shipped on top of the
-same GameLogic/Display split and the home menu that came with it — see
-`MENU_GAMES` near the top of `TicTacToeESP32.ino`, where each entry's
-`enabled` flag reflects what's actually built and reachable from the menu
-today, not just planned. Mancala is also the first game here with real
+pipeline; Checkers, Chess, UNO, Mancala, and Dominoes have since shipped on
+top of the same GameLogic/Display split and the home menu that came with it
+— see `MENU_GAMES` near the top of `TicTacToeESP32.ino`, where every entry's
+`enabled` flag is now `true`. Mancala and Dominoes both ship with real
 EASY/MEDIUM/HARD difficulty tiers (see `Difficulty.h`) rather than one fixed
 AI strength — retrofitting the same tiers onto Tic-Tac-Toe/Checkers/Chess/UNO
-is a separate, not-yet-started follow-up. Dominoes is the next-best fit
-(small state, no big dictionary) — currently present in that same array as
-`false` — and follows the same pattern: a new GameLogic.h/.cpp pair, a new
-Display.h/.cpp pair, then flipping the menu entry to `true`.
+is a separate, not-yet-started follow-up. Dominoes' own chain can hold more
+tiles than one screen width shows at a readable size, so it renders as a
+horizontally scrollable track (see `DominoesDisplay.h`'s header comment) —
+the first scrolling game board in this arcade, following the same "the .ino
+owns scroll position, Display just renders whatever window it's told to"
+split `MenuScreen.h`'s own menu scrolling already established.
 
-Not attempted here, and not realistic on this hardware without much more
-work: Solitaire (many cards and a larger tableau to render than UNO's
-hand-plus-discard-pile), Air Hockey (real-time physics + simultaneous
-multi-touch), and the dictionary-backed word games (Word Search/Crossword/
-Word Tiles rely on a 3.6MB word list — this ESP32-32E variant has no PSRAM
-and only 4MB of flash total).
+Solitaire (a Klondike port plus Spider Solitaire and a few variants not yet
+in the Android app at all) and Mahjong (both solo Mahjong Solitaire and full
+multiplayer Mahjong) are next on the roadmap after Dominoes, not yet started
+— see the project's own tracked memory for the exact sequencing. Genuinely
+not attempted here, and not realistic on this hardware without much more
+work: Air Hockey (real-time physics + simultaneous multi-touch), and the
+dictionary-backed word games (Word Search/Crossword/Word Tiles rely on a
+3.6MB word list — this ESP32-32E variant has no PSRAM and only 4MB of flash
+total).

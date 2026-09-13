@@ -37,6 +37,8 @@
 #include "UnoDisplay.h"
 #include "MancalaLogic.h"
 #include "MancalaDisplay.h"
+#include "DominoesLogic.h"
+#include "DominoesDisplay.h"
 
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
@@ -72,13 +74,24 @@ bool mancalaRoundOver = false;
 unsigned long mancalaAiMoveDueAt = 0;
 bool mancalaAiMovePending = false;
 
+DominoesBoard dominoesBoard;
+DominoesLayout dominoesLayout;
+bool dominoesRoundOver = false;
+unsigned long dominoesAiMoveDueAt = 0;
+bool dominoesAiMovePending = false;
+uint8_t dominoesScrollOffset = 0;
+// -1 = no hand tile currently selected; otherwise the index of a selected
+// tile that's legal on BOTH exposed chain ends, awaiting an end choice --
+// see DominoesDisplay.h's own header comment on the chevrons' dual purpose.
+int8_t dominoesSelectedHandIndex = -1;
+
 // ---- Arcade home menu ----
 // Adding a game means: write its GameLogic/Display pair, add one entry here,
-// flip its `enabled` flag once it's built -- no other wiring needed. Dominoes
-// is still listed disabled ("coming soon") because the README's own roadmap
-// already named it as the next-best fit for this hardware -- a player sees
-// the real roadmap on the device itself instead of it being invisible until
-// built.
+// flip its `enabled` flag once it's built -- no other wiring needed. Every
+// game named in the README's roadmap so far is built and enabled; the next
+// wave (Solitaire, Mahjong) will each get their own new disabled ("coming
+// soon") entry here the moment they're named, then flip to true once built,
+// same as every game above it did.
 struct MenuGame {
     const char *label;
     bool enabled;
@@ -89,7 +102,7 @@ static const MenuGame MENU_GAMES[] = {
     {"Chess", true},
     {"UNO", true},
     {"Mancala", true},
-    {"Dominoes", false},
+    {"Dominoes", true},
 };
 static const uint8_t MENU_GAME_COUNT = sizeof(MENU_GAMES) / sizeof(MENU_GAMES[0]);
 static const uint8_t TICTACTOE_GAME_INDEX = 0;
@@ -97,8 +110,9 @@ static const uint8_t CHECKERS_GAME_INDEX = 1;
 static const uint8_t CHESS_GAME_INDEX = 2;
 static const uint8_t UNO_GAME_INDEX = 3;
 static const uint8_t MANCALA_GAME_INDEX = 4;
+static const uint8_t DOMINOES_GAME_INDEX = 5;
 
-enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA };
+enum class AppState { MENU, TICTACTOE, CHECKERS, CHESS, UNO, MANCALA, DOMINOES };
 AppState appState = AppState::MENU;
 MenuLayout menuLayout;
 // Index of the first game currently shown in the (possibly scrolled) menu --
@@ -135,6 +149,14 @@ void checkForUnoRoundEnd();
 void startNewMancalaRound();
 void refreshMancalaStatusText();
 void checkForMancalaRoundEnd();
+void startNewDominoesRound();
+void refreshDominoesStatusText();
+void checkForDominoesRoundEnd();
+void refreshDominoesHumanHand();
+void refreshDominoesChevrons();
+void redrawDominoesChainArea();
+void playDominoesTileAt(uint8_t handIndex, bool attachToLeft);
+void finishDominoesHumanAction();
 void redrawMenu();
 
 void enterMenu() {
@@ -252,6 +274,13 @@ void enterMancala() {
     Serial.println("[ArcadeOS] entered Mancala");
 }
 
+void enterDominoes() {
+    appState = AppState::DOMINOES;
+    dominoesLayout = computeDominoesLayout();
+    startNewDominoesRound();
+    Serial.println("[ArcadeOS] entered Dominoes");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(300); // let the USB-serial link settle before the first print
@@ -282,6 +311,7 @@ void setup() {
     // here, before the first shuffle.
     seedUnoRandom(esp_random());
     seedMancalaRandom(esp_random());
+    seedDominoesRandom(esp_random());
 
     enterMenu();
     Serial.println("[ArcadeOS] setup complete, entering loop()");
@@ -380,6 +410,43 @@ void loop() {
         }
     }
 
+    if (appState == AppState::DOMINOES && dominoesAiMovePending && millis() >= dominoesAiMoveDueAt) {
+        dominoesAiMovePending = false;
+        // Snapshot the chain's OLD left end before playAi() below mutates
+        // it -- the only way to tell afterward whether the AI's turn (a
+        // play, possibly after several draws first -- see
+        // DominoesBoard::playAi()'s own header comment) attached to the
+        // left or the right, which decides which end auto-scroll should
+        // reveal.
+        uint8_t chainLenBefore = dominoesBoard.chainLength();
+        uint8_t oldLeftId = chainLenBefore > 0 ? dominoesBoard.chainTileAt(0).instanceId : 255;
+
+        dominoesBoard.playAi();
+
+        if (dominoesBoard.chainLength() > chainLenBefore) {
+            bool attachedLeft = (dominoesBoard.chainTileAt(0).instanceId != oldLeftId);
+            if (attachedLeft) {
+                dominoesScrollOffset = 0;
+            } else {
+                uint8_t visible = dominoesChainVisibleTileCount(dominoesLayout);
+                dominoesScrollOffset = dominoesBoard.chainLength() > visible ? dominoesBoard.chainLength() - visible : 0;
+            }
+        }
+        redrawDominoesChainArea();
+        drawDominoesAiHand(tft, dominoesLayout, dominoesBoard.aiHandCount());
+        drawDominoesBoneyard(tft, dominoesLayout, dominoesBoard.boneyardCount());
+        // The AI's move can change one (or both, on its opening tile) of
+        // the chain's exposed ends -- which hand tiles the human can
+        // actually play right now shifts along with them, so the hand's
+        // own playable/dimmed highlighting (see drawDominoesHumanHand()'s
+        // playableMask) would otherwise go stale the instant the AI moves,
+        // same bug class UNO's afterUnoStateChange() and Mancala's own AI
+        // dispatch (drawMancalaBoard() after playAi()) already redraw the
+        // human-visible side to avoid.
+        refreshDominoesHumanHand();
+        checkForDominoesRoundEnd();
+    }
+
     // A slow heartbeat so a remote/serial-only observer can tell the sketch is
     // still alive in loop() (vs. having crashed/reset) without flooding the
     // log the way printing every single loop() iteration would.
@@ -393,6 +460,7 @@ void loop() {
             case AppState::CHESS:     stateName = "chess"; break;
             case AppState::UNO:       stateName = "uno"; break;
             case AppState::MANCALA:   stateName = "mancala"; break;
+            case AppState::DOMINOES:  stateName = "dominoes"; break;
             default: break;
         }
         Serial.printf("[ArcadeOS] alive, uptime=%lus, state=%s\n", millis() / 1000, stateName);
@@ -494,6 +562,135 @@ void refreshMancalaStatusText() {
         text = mancalaBoard.lastMoveEarnedExtraTurn() ? "ESP32's extra turn..." : "ESP32 thinking...";
     }
     drawMancalaStatus(tft, mancalaLayout, text, mancalaBoard.getDifficulty());
+}
+
+void checkForDominoesRoundEnd() {
+    DominoesResult r = dominoesBoard.result();
+    if (r == DominoesResult::IN_PROGRESS) {
+        refreshDominoesStatusText();
+        return;
+    }
+    dominoesRoundOver = true;
+    switch (r) {
+        case DominoesResult::HUMAN_WINS: drawDominoesStatus(tft, dominoesLayout, "You win!", dominoesBoard.getDifficulty()); break;
+        case DominoesResult::AI_WINS:    drawDominoesStatus(tft, dominoesLayout, "ESP32 wins!", dominoesBoard.getDifficulty()); break;
+        case DominoesResult::DRAW:       drawDominoesStatus(tft, dominoesLayout, "Blocked -- draw!", dominoesBoard.getDifficulty()); break;
+        default: break;
+    }
+    drawDominoesPlayAgainButton(tft, dominoesLayout);
+}
+
+void startNewDominoesRound() {
+    dominoesBoard.reset();
+    dominoesRoundOver = false;
+    dominoesAiMovePending = false;
+    dominoesSelectedHandIndex = -1;
+    dominoesScrollOffset = 0;
+
+    drawDominoesStaticChrome(tft, dominoesLayout);
+    drawDominoesAiHand(tft, dominoesLayout, dominoesBoard.aiHandCount());
+    drawDominoesBoneyard(tft, dominoesLayout, dominoesBoard.boneyardCount());
+    drawDominoesPassButton(tft, dominoesLayout);
+    redrawDominoesChainArea();
+    refreshDominoesHumanHand();
+    refreshDominoesStatusText();
+
+    // If the opening-deal rule (highest double, or highest single tile --
+    // see DominoesBoard::reset()) gave the AI the first move, schedule it
+    // the same way every other game schedules its own opening AI turn.
+    if (!dominoesBoard.isHumanTurn()) {
+        dominoesAiMovePending = true;
+        dominoesAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+    }
+}
+
+void refreshDominoesStatusText() {
+    const char *text;
+    if (dominoesBoard.isHumanTurn()) {
+        if (dominoesBoard.currentSideHasLegalPlay()) text = "Your turn";
+        else if (dominoesBoard.boneyardCount() > 0) text = "Draw a tile";
+        else text = "No moves -- tap Pass";
+    } else {
+        text = "ESP32 thinking...";
+    }
+    drawDominoesStatus(tft, dominoesLayout, text, dominoesBoard.getDifficulty());
+}
+
+// Rebuilds the human hand row from the board's own current tiles/
+// playability/selection -- called after anything that can change hand
+// size, which tiles are playable (the chain's ends moved), or the
+// selection itself.
+void refreshDominoesHumanHand() {
+    uint8_t count = dominoesBoard.humanHandCount();
+    DominoTileView tiles[DOMINOES_MAX_HAND];
+    uint32_t playableMask = 0;
+    for (uint8_t i = 0; i < count; i++) {
+        tiles[i] = dominoesBoard.humanHandTile(i);
+        if (dominoesBoard.humanHandTileIsPlayable(i)) playableMask |= (1UL << i);
+    }
+    drawDominoesHumanHand(tft, dominoesLayout, tiles, count, playableMask, dominoesSelectedHandIndex);
+}
+
+// Redraws the two end chevrons in whichever of their two meanings
+// currently applies -- see DominoesDisplay.h's own header comment.
+void refreshDominoesChevrons() {
+    if (dominoesSelectedHandIndex >= 0) {
+        DominoTileView t = dominoesBoard.humanHandTile((uint8_t)dominoesSelectedHandIndex);
+        drawDominoesSelectionDropZones(tft, dominoesLayout, dominoesBoard.canAttachLeft(t), dominoesBoard.canAttachRight(t));
+    } else {
+        uint8_t visible = dominoesChainVisibleTileCount(dominoesLayout);
+        bool canLeft = dominoesScrollOffset > 0;
+        bool canRight = (uint16_t)(dominoesScrollOffset + visible) < dominoesBoard.chainLength();
+        drawDominoesScrollChevrons(tft, dominoesLayout, canLeft, canRight);
+    }
+}
+
+void redrawDominoesChainArea() {
+    drawDominoesChain(tft, dominoesLayout, dominoesBoard, dominoesScrollOffset);
+    refreshDominoesChevrons();
+}
+
+// Common tail of any action that ends the human's Dominoes turn (a real
+// play, or a pass) -- NOT a boneyard draw, which keeps the turn with the
+// human (see DominoesBoard::drawHumanTile()'s own comment).
+void finishDominoesHumanAction() {
+    dominoesSelectedHandIndex = -1;
+    DominoesResult r = dominoesBoard.result();
+    if (r != DominoesResult::IN_PROGRESS) {
+        checkForDominoesRoundEnd();
+        return;
+    }
+    refreshDominoesStatusText();
+    dominoesAiMovePending = true;
+    dominoesAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+}
+
+// Plays hand tile `handIndex` at the given end, auto-scrolling the chain
+// track to reveal whichever end just grew, then hands off to
+// finishDominoesHumanAction(). Callers (handleTouch()'s own Dominoes
+// branch) already checked canAttachLeft()/canAttachRight() before calling
+// this -- see playHumanTile()'s own "never re-validates" convention.
+void playDominoesTileAt(uint8_t handIndex, bool attachToLeft) {
+    if (!dominoesBoard.playHumanTile(handIndex, attachToLeft)) return; // defensive; see this function's own comment
+
+    // Clear the selection BEFORE any redraw below -- the just-played tile
+    // is already gone from the hand array and every index at/after it has
+    // shifted down by one, so leaving a stale dominoesSelectedHandIndex set
+    // even briefly would make refreshDominoesChevrons()/
+    // refreshDominoesHumanHand() read whatever tile (or out-of-range
+    // garbage) now sits at that index instead of recognizing "nothing is
+    // selected anymore".
+    dominoesSelectedHandIndex = -1;
+
+    if (attachToLeft) {
+        dominoesScrollOffset = 0;
+    } else {
+        uint8_t visible = dominoesChainVisibleTileCount(dominoesLayout);
+        dominoesScrollOffset = dominoesBoard.chainLength() > visible ? dominoesBoard.chainLength() - visible : 0;
+    }
+    redrawDominoesChainArea();
+    refreshDominoesHumanHand();
+    finishDominoesHumanAction();
 }
 
 void checkForChessRoundEnd() {
@@ -658,6 +855,7 @@ void handleTouch() {
         else if (idx == CHESS_GAME_INDEX) enterChess();
         else if (idx == UNO_GAME_INDEX) enterUno();
         else if (idx == MANCALA_GAME_INDEX) enterMancala();
+        else if (idx == DOMINOES_GAME_INDEX) enterDominoes();
         return;
     }
 
@@ -929,6 +1127,127 @@ void handleTouch() {
         refreshMancalaStatusText();
         mancalaAiMovePending = true;
         mancalaAiMoveDueAt = millis() + AI_MOVE_DELAY_MS;
+        return;
+    }
+
+    if (appState == AppState::DOMINOES) {
+        // Same "live even on the round-over screen" difficulty chip
+        // convention as Mancala's own -- see that branch's comment.
+        if (hitTestDominoesDifficultyButton(dominoesLayout, tx, ty)) {
+            CpuDifficulty d = dominoesBoard.getDifficulty();
+            CpuDifficulty next = (d == CpuDifficulty::EASY) ? CpuDifficulty::MEDIUM
+                                : (d == CpuDifficulty::MEDIUM) ? CpuDifficulty::HARD
+                                : CpuDifficulty::EASY;
+            dominoesBoard.setDifficulty(next);
+            if (!dominoesRoundOver) refreshDominoesStatusText();
+            return;
+        }
+
+        if (dominoesRoundOver) {
+            if (hitTestDominoesPlayAgainButton(dominoesLayout, tx, ty)) {
+                startNewDominoesRound();
+            }
+            return;
+        }
+
+        // The two end chevrons are checked next, and reviewing/scrolling
+        // the chain is always allowed (even while the AI is "thinking")
+        // -- but actually PLAYING into a drop zone obviously still needs a
+        // selected tile, which only ever exists during the human's own
+        // turn (see DominoesDisplay.h's own header comment on the
+        // chevrons' dual purpose).
+        bool haveSelection = dominoesSelectedHandIndex >= 0;
+        bool legalOnLeft = false, legalOnRight = false;
+        if (haveSelection) {
+            DominoTileView sel = dominoesBoard.humanHandTile((uint8_t)dominoesSelectedHandIndex);
+            legalOnLeft = dominoesBoard.canAttachLeft(sel);
+            legalOnRight = dominoesBoard.canAttachRight(sel);
+        }
+
+        if (hitTestDominoesLeftChevron(dominoesLayout, tx, ty)) {
+            if (haveSelection) {
+                if (legalOnLeft) playDominoesTileAt((uint8_t)dominoesSelectedHandIndex, true);
+            } else if (dominoesScrollOffset > 0) {
+                dominoesScrollOffset--;
+                redrawDominoesChainArea();
+            }
+            return;
+        }
+        if (hitTestDominoesRightChevron(dominoesLayout, tx, ty)) {
+            if (haveSelection) {
+                if (legalOnRight) playDominoesTileAt((uint8_t)dominoesSelectedHandIndex, false);
+            } else {
+                uint8_t visible = dominoesChainVisibleTileCount(dominoesLayout);
+                uint8_t maxScroll = dominoesBoard.chainLength() > visible ? dominoesBoard.chainLength() - visible : 0;
+                if (dominoesScrollOffset < maxScroll) {
+                    dominoesScrollOffset++;
+                    redrawDominoesChainArea();
+                }
+            }
+            return;
+        }
+
+        if (dominoesAiMovePending || !dominoesBoard.isHumanTurn()) return; // ignore further taps while the AI is "thinking"
+
+        if (hitTestDominoesBoneyard(dominoesLayout, tx, ty)) {
+            if (dominoesBoard.drawHumanTile()) {
+                // The turn stays with the human (see drawHumanTile()'s own
+                // comment) -- no AI scheduling here, just refresh what
+                // changed.
+                dominoesSelectedHandIndex = -1;
+                refreshDominoesHumanHand();
+                refreshDominoesChevrons();
+                drawDominoesBoneyard(tft, dominoesLayout, dominoesBoard.boneyardCount());
+                refreshDominoesStatusText();
+            }
+            return;
+        }
+
+        if (hitTestDominoesPassButton(dominoesLayout, tx, ty)) {
+            if (dominoesBoard.passHuman()) finishDominoesHumanAction();
+            return;
+        }
+
+        uint8_t idx;
+        if (!hitTestDominoesHumanHandTile(dominoesLayout, dominoesBoard.humanHandCount(), tx, ty, idx)) {
+            // Tapped somewhere that isn't a hand tile at all (and wasn't a
+            // chevron/boneyard/pass hit above either) -- drop any pending
+            // selection, same "any other illegal tap clears it" convention
+            // Checkers' own selection uses.
+            if (haveSelection) {
+                dominoesSelectedHandIndex = -1;
+                refreshDominoesHumanHand();
+                refreshDominoesChevrons();
+            }
+            return;
+        }
+
+        if ((int8_t)idx == dominoesSelectedHandIndex) {
+            // Tapping the already-selected tile again deselects it, same
+            // convention Chess' own "tap the selected piece again"
+            // deselection uses.
+            dominoesSelectedHandIndex = -1;
+            refreshDominoesHumanHand();
+            refreshDominoesChevrons();
+            return;
+        }
+
+        DominoTileView tapped = dominoesBoard.humanHandTile(idx);
+        bool canLeft = dominoesBoard.canAttachLeft(tapped);
+        bool canRight = dominoesBoard.canAttachRight(tapped);
+        if (!canLeft && !canRight) return; // illegal tile -- silently ignored, same convention as everywhere else in this project
+
+        if (dominoesBoard.chainEmpty() || (canLeft && !canRight)) {
+            playDominoesTileAt(idx, true);
+        } else if (canRight && !canLeft) {
+            playDominoesTileAt(idx, false);
+        } else {
+            // Legal on both ends -- select it and show the drop zones
+            // instead of guessing which end the player meant.
+            dominoesSelectedHandIndex = (int8_t)idx;
+            refreshDominoesHumanHand();
+            refreshDominoesChevrons();
+        }
         return;
     }
 }
