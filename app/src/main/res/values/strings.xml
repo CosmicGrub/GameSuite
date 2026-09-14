@@ -83,5 +83,6 @@
     <string name="game_lights_out">Lights Out</string>
     <string name="game_color_flood">Color Flood</string>
     <string name="game_edge_match">Edge Match</string>
+    <string name="game_breakout">Breakout</string>
     <string name="game_party_toolkit">Open Toolkit</string>
 </resources>

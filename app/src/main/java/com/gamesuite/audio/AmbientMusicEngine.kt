@@ -280,6 +280,15 @@ object MusicProfiles {
         arpeggioRateHz = 4f,
         arpeggioVolume = 0.16f
     )
+
+    /** Aliased to AIR_HOCKEY rather than PUZZLE_FOCUS, deliberately breaking the
+     *  otherwise-mechanical "solo game = PUZZLE_FOCUS" pattern every solo game in the new-games
+     *  batch (Minesweeper through Edge Match) has followed so far: Breakout is real-time
+     *  paddle/ball arcade action, not a calm turn-based puzzle, and AIR_HOCKEY's own KDoc above
+     *  ("a fast arcade game... restrained... since it has to coexist with real-time paddle/goal
+     *  SFX") describes Breakout's exact identity almost word for word. Genre/energy match wins
+     *  over player-count here, not the other way around. */
+    val BREAKOUT = AIR_HOCKEY
 }
 
 /**

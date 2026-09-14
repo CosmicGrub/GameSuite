@@ -336,12 +336,17 @@ catalog or already listed above.
   satisfaction problem, not a trivial scramble) — flag this honestly as the hardest
   generator problem in this whole list if picked up, likely wanting a real constraint
   solver rather than the "generate solved then reduce" idiom used elsewhere.
-- **Breakout / Brick Breaker** — real-time paddle-and-ball arcade action. Reuses Air
-  Hockey's existing continuous-physics/frame-stepped-loop infrastructure almost
-  directly (circle-vs-AABB collision instead of circle-vs-circle, a static brick grid
-  instead of a second paddle) — meaningfully lower-risk than Tower Defence's real-time
-  ask specifically because it's built on a pattern this codebase has already shipped and
-  verified once (Air Hockey), not a new one.
+- **Breakout / Brick Breaker** — ✅ **Shipped** as Breakout (`games/breakout/BreakoutGame.kt`
+  + `ui/BreakoutScreen.kt`, README Roadmap item 22). Real-time paddle-and-ball arcade
+  action, reusing Air Hockey's existing continuous-physics/frame-stepped-loop
+  infrastructure almost directly (a plain point-in-time circle-vs-rect collision test
+  instead of Air Hockey's own swept one — a deliberate, documented trade-off, not an
+  oversight; a static brick grid instead of a second paddle) — lower-risk than Tower
+  Defence's real-time ask specifically because it's built on a pattern this codebase had
+  already shipped and verified once (Air Hockey), not a new one. See README item 22 for
+  the full build writeup, including a real input bug (`PointerInputChange.changedToDown()`
+  reading false against this exact touch path, fixed with manual press-state tracking)
+  caught and fixed during on-device verification.
 - **Kakuro / KenKen** — numeric grid puzzles in the Sudoku family (Kakuro: crossword-
   shaped sum clues; KenKen: irregular "cage" regions with an arithmetic-target clue).
   Lower priority than Nonogram/Sudoku — genuinely niche relative to the other picks here,
@@ -369,7 +374,7 @@ games proposed above duplicate anything in the existing 13-game catalog.
    (the generative Custom-game builder, including Penrose tiling, remains its own
    later phase — not started).
 8. ~~Party Toolkit (Boardgame Pal set)~~ — done, shipped as Party Toolkit.
-9. Breakout — after Party Toolkit, reusing Air Hockey's physics infrastructure.
+9. ~~Breakout~~ — done, shipped as Breakout.
 10. Nonogram / Kakuro / KenKen — later; Nonogram if picked up before the other two,
     given it's the more widely-recognized title of the three.
 11. Tower Defence — own future ADR before any implementation starts; the one item here

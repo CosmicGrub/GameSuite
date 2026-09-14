@@ -271,6 +271,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("party-toolkit")
+            },
+            "breakout" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("breakout")
             }
         )
     }
@@ -567,7 +575,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() },
                     GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
                     GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
-                    GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() }
+                    GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() },
+                    GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() }
                 )
             )
 

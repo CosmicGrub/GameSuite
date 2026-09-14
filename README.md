@@ -1309,6 +1309,74 @@ point the app's Settings → Online multiplayer server address at it
       appeared), fixed by capturing the trimmed name into an immutable `val` before
       calling `launch`, and re-verified with real names persisting correctly across
       leaving and re-entering the toolkit.
+- [x] 22. New game modules, wave 2: **Breakout**
+      (`games/breakout/BreakoutGame.kt` + `ui/BreakoutScreen.kt`) — real-time
+      paddle-and-ball arcade action, per `docs/NEW_GAMES_BRAINSTORM.md`'s own
+      "Breakout / Brick Breaker" entry. First game of a new wave (the 8-game batch
+      started at item 14 closed out with Party Toolkit at item 21) and the first
+      SOLO real-time-physics game in the app — reuses
+      [AirHockeyGame](shared/src/commonMain/kotlin/com/gamesuite/games/airhockey/AirHockeyGame.kt)'s
+      existing continuous-physics/frame-stepped-loop infrastructure (a `tick(dtSeconds)`
+      driven every frame from a `withFrameNanos` loop, normalized 0f..1f coordinates,
+      a `dtSeconds.coerceIn(0f, 0.05f)` clamp against a huge step after backgrounding)
+      almost directly, exactly as the brainstorm doc's own entry called for. No approved
+      design doc existed for this one — scoped directly from that entry's own brief note
+      plus this app's established idioms, same as Minesweeper/Sudoku/Lights Out/Dots and
+      Boxes/Connect Four were, since the brainstorm doc doesn't flag Breakout as needing
+      its own dedicated design pass the way it explicitly did for Edge Match/Party
+      Toolkit.
+      **Difficulty scoped differently than every solo puzzle in this batch on purpose**:
+      the brick grid stays a fixed 5x8 layout across every tier; EASY/MEDIUM/HARD instead
+      scale paddle width and ball speed, since Breakout's difficulty is about real-time
+      reflexes, not a bigger reasoning space — a deliberate departure from the
+      board-size-scaling idiom Minesweeper/Sudoku/Lights Out/Edge Match all share, not an
+      oversight. No daily-challenge route either: every other solo game in this batch
+      seeds something genuinely random per day; Breakout's grid has nothing to seed at
+      all, so a `-daily` route would be cosmetic. `BreakoutStatsStore` tracks a plain
+      best-score per difficulty tier instead, the honest "arcade high score" shape this
+      genre actually calls for (not a moves/time pair borrowed from the puzzle games just
+      for consistency).
+      Classic mechanics: touch-down launches a resting ball and starts steering the
+      paddle from that x; paddle-hit angle depends on where the ball is caught (classic
+      "aim with the catch" feel); top brick rows are worth more (`(rows - row) * 10`);
+      clearing every brick regenerates a fresh full grid and speeds the ball up a notch
+      (capped); 3 lives, `Random`-genuinely-angled launches (no injectable seed needed —
+      no puzzle-solvability or daily-seed concern rides on it, unlike every generator
+      elsewhere in this batch). A real, deliberately-scoped-and-documented trade-off:
+      brick/paddle collision is a plain point-in-time circle-vs-rect test, NOT the
+      swept-segment test AirHockeyGame's own `resolvePaddleCollision` uses to fix its own
+      real tunneling bug — not replicated here because a missed hit in THIS game just
+      delays that brick/catch to a later pass rather than costing an unfair goal the way
+      it does in Air Hockey, and the numbers were chosen to keep the worst case rare, not
+      to make it impossible.
+      Music profile is aliased to `MusicProfiles.AIR_HOCKEY`, not `PUZZLE_FOCUS` — a
+      deliberate break from the "solo game = PUZZLE_FOCUS" pattern every other solo game
+      in this batch has followed, since Air Hockey's own "fast arcade game, not a calm
+      strategy one" identity fits Breakout's real energy far better than the quiet-focus
+      pad reserved for turn-based puzzles.
+      14 unit tests passing (wall/brick/paddle collision and score, the degenerate-rally
+      guard, life-loss/game-over/level-clear transitions, `playAgain`/`leaveSession`
+      reporting the session's best run, `startMatch`/`pause`/`resume` no-ops). 152 unit
+      tests passing app-wide, full `:app:compileDebugKotlin` + `:app:assembleDebug`
+      verified, and installed and played live on a real device across many launches:
+      real ball flight, brick destruction with correct row-scoring, paddle-angle
+      steering, life loss and ball re-racking, a full game-over → new-best-score →
+      "Play Again" reset → a second game-over → "Back to Menu" cycle, all with clean
+      `logcat` throughout.
+      **A real input bug was caught and fixed during that verification**: the first
+      implementation detected a fresh touch-down via
+      `PointerInputChange.changedToDown()` to trigger the ball's launch — confirmed,
+      via an on-device debug log, to read `false` on a genuine tap through this exact
+      input path, so the ball never launched no matter how the paddle was dragged (paddle
+      movement itself worked fine, since that read the touch position directly rather
+      than depending on the down-transition flag). Fixed by tracking "was anything
+      pressed last iteration" manually in the pointer loop's own closure instead of
+      relying on that flag, and re-verified live afterward across dozens of launches.
+      **A real rendering-adjacent scope note, not a bug**: no camera-shake/particle-burst
+      "premium" juice layer like Air Hockey's own — a simpler first build, matching the
+      brainstorm doc's own "lower risk" framing for this entry; haptics/SFX per real
+      event (brick broken, paddle bounce, wall bounce, life lost, level cleared, run
+      over) are still wired, the same baseline every other game in this app meets.
 
 ## Fixes and hardening
 

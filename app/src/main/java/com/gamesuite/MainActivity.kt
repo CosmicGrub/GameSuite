@@ -37,6 +37,7 @@ import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.stats.StatsViewModel
 import com.gamesuite.theme.AppTheme
 import com.gamesuite.games.airhockey.AirHockeyGame
+import com.gamesuite.games.breakout.BreakoutGame
 import com.gamesuite.games.checkers.CheckersGame
 import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.colorflood.ColorFloodGame
@@ -57,6 +58,7 @@ import com.gamesuite.games.wordgames.crossword.CrosswordGame
 import com.gamesuite.games.wordgames.tiles.TileGame
 import com.gamesuite.games.wordgames.wordsearch.WordSearchGame
 import com.gamesuite.ui.AirHockeyScreen
+import com.gamesuite.ui.BreakoutScreen
 import com.gamesuite.ui.CheckersScreen
 import com.gamesuite.ui.ChessScreen
 import com.gamesuite.ui.ColorFloodScreen
@@ -571,6 +573,15 @@ class MainActivity : ComponentActivity() {
                             PartyToolkitScreen(
                                 sessionManager = sessionManager,
                                 game = partyToolkitGame,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("breakout") {
+                            val breakoutGame = rememberActiveModule(sessionManager) { BreakoutGame() }
+                            BreakoutScreen(
+                                sessionManager = sessionManager,
+                                game = breakoutGame,
+                                settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
