@@ -940,6 +940,50 @@ point the app's Settings → Online multiplayer server address at it
       tracked in `docs/NEW_GAMES_BRAINSTORM.md`, not duplicated here — this Roadmap
       stays a build-history log; the brainstorm doc is where the forward-looking plan
       lives.
+- [x] 15. New game modules, wave 1 continued: **Sudoku**
+      (`games/sudoku/SudokuGame.kt` + `ui/SudokuScreen.kt`), second game of the batch
+      started at item 14. Classic 9x9 rules; select-then-enter input (tap a cell, then
+      tap a number-pad digit — same two-step model Solitaire already uses); a
+      notes-mode toggle for pencil marks, auto-cleared from peers when a value is
+      placed elsewhere; EASY/MEDIUM/HARD tiers by target clue count (42/32/26) reusing
+      `CpuDifficulty`; a `sudoku-daily` route; best-time-per-tier persistence
+      (`SudokuStatsStore`); mistake tracking shown as feedback, not a fail condition.
+      Generation is real, not approximated: fill a complete valid grid via randomized
+      backtracking, then remove clues one at a time, keeping each removal only if the
+      puzzle-so-far still has EXACTLY ONE solution — verified by actually re-solving
+      it. 14 unit tests passing; full `:app:compileDebugKotlin` verified after wiring
+      the new routes/menu entries/strings into
+      `MainActivity.kt`/`MainMenuScreen.kt`/`strings.xml`.
+      **A real, serious bug found by a dedicated background multi-agent adversarial
+      review before this ever shipped — not caught by the initial unit tests**: three
+      independent reviewer agents examined the freshly-written engine from different
+      angles (generator correctness, state-mutation correctness, robustness). The
+      robustness reviewer flagged that the uniqueness-checking solver (plain
+      fixed-order backtracking, no bound on search effort) could blow up
+      combinatorially; a skeptical verifier agent didn't take that on faith — it
+      independently reimplemented the exact algorithm from scratch and empirically
+      swept seeds, finding HARD-tier (26-clue) cases needing 7M+ recursive calls with
+      no plateau across hundreds of samples. Since generation ran fully synchronously
+      with no background dispatch, and a daily-seed puzzle is deterministic, a bad
+      seed would have frozen the UI thread for every player opening that day's HARD
+      puzzle on the day it landed — a real ANR risk, not a hypothetical one. **Fixed**
+      by rewriting the solver with a minimum-remaining-values (MRV) heuristic (branch
+      on the emptiest-constrained cell first, not left-to-right) plus a hard
+      call-budget ceiling that treats "ran out of budget" identically to "not unique"
+      — this bounds the carving step's total worst-case work regardless of how
+      adversarial a seed's puzzle geometry is, not just makes the common case faster.
+      A second, lower-severity finding (`selectCell` had no bounds check, so an
+      out-of-range index would crash instead of no-op'ing like every other
+      invalid-state case in the class) was fixed too, though the reviewer confirmed
+      the shipped UI's only call site could never trigger it. Both fixes are covered
+      by new tests, including a 300-seed HARD-tier sweep that generates AND
+      independently re-verifies uniqueness for every seed — the whole batch runs in
+      ~140ms with zero inconclusive results, down from what individual pathological
+      seeds would have cost under the old solver. This is the first time this
+      project's adversarial-review discipline was run as an explicit, dedicated
+      background workflow on a brand-new engine before any user-facing report of
+      "done," rather than as an ad hoc pass during a broader review sweep — worth
+      noting as a process precedent, not just a one-off bugfix.
 
 ## Fixes and hardening
 

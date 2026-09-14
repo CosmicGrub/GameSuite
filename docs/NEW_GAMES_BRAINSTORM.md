@@ -59,18 +59,48 @@ flag count) and no hint/solver. Not yet given the foldable-aware `AdaptiveTwoPan
 treatment `SlidingPuzzleScreen` has — a single-pane scrollable grid works fine at
 all three tier sizes and was judged sufficient for a working v1.
 
-### Sudoku — recommended next
-Classic 9x9, three-region (row/column/3x3 box) constraint puzzle. Fits this app's
-existing patterns extremely well: a `List<Int?>` cell-value board (mirrors
-`MinesweeperCell`'s flat-list-of-81 shape almost exactly), a generator that carves a
-solved grid down to a target clue count per difficulty tier (same "generate solved,
-then remove/scramble under a solvability guarantee" idiom `SlidingPuzzleGame` already
-uses for its own scramble), and a `PUZZLE_FOCUS` ambient-music/daily-seed/best-time
-pattern identical to Minesweeper's. Needs one thing Minesweeper didn't: a **note/pencil-
-mark mode** (small candidate digits in a cell) — a real, expected Sudoku feature,
-scoped as a per-cell `Set<Int>` alongside the committed value. Difficulty ladder by
-clue count (e.g. EASY ~40 clues, MEDIUM ~30, HARD ~24) reusing `CpuDifficulty`, same as
-Minesweeper's mine-density ladder.
+### Sudoku — ✅ shipped
+`games/sudoku/SudokuGame.kt` + `ui/SudokuScreen.kt`. Classic 9x9, three-region
+(row/column/3x3 box) constraint puzzle. Select-then-enter input (tap a cell, then tap
+a number-pad digit — the same two-step model Solitaire already uses, since this app
+has no drag input), a notes-mode toggle for pencil marks (a per-cell `Set<Int>`,
+auto-cleared from peers when a value is placed elsewhere), EASY/MEDIUM/HARD tiers by
+target clue count (42/32/26) reusing `CpuDifficulty`, daily-seed mode
+(`sudoku-daily` route), best-time-per-tier persistence (`SudokuStatsStore`), live
+timer, mistake tracking (shown as feedback, not enforced as a fail condition).
+14 unit tests passing.
+
+**Generation is real, not approximated**: a complete valid grid is built via
+randomized backtracking, then clues are removed one at a time, keeping each removal
+only if the puzzle-so-far still has EXACTLY ONE solution — verified by actually
+re-solving it, not assumed. This is the standard, well-established technique for a
+uniquely, logically solvable puzzle.
+
+**A real, serious bug found by a dedicated background adversarial-review workflow
+before this ever shipped, not caught by the initial unit tests**: the first version
+of the uniqueness-checking solver used a naive fixed left-to-right cell order with no
+bound on search effort. Three independent reviewer agents examined the engine from
+different angles (generator correctness, state-mutation correctness, robustness); the
+robustness reviewer flagged that this solver could blow up combinatorially, and a
+skeptical verifier agent didn't just take that claim on faith — it independently
+reimplemented the exact algorithm from scratch and empirically swept seeds, finding
+HARD-tier (26-clue) cases needing 7M+ recursive calls with no plateau across hundreds
+of samples. Since generation ran fully synchronously with no background dispatch, and
+a daily-seed puzzle is deterministic, a bad seed would have frozen the UI thread for
+every player opening that day's HARD puzzle — a real ANR risk, not a hypothetical
+one. **Fixed** by rewriting the solver with a minimum-remaining-values (MRV)
+heuristic (branch on the emptiest-constrained cell first, not left-to-right) plus a
+hard call-budget ceiling that treats "ran out of budget" identically to "not unique"
+(puts the clue back rather than ever risk a false uniqueness claim) — this bounds
+`carvePuzzle`'s total worst-case work regardless of how adversarial a seed's puzzle
+geometry is, not just makes the common case faster. A second finding (`selectCell`
+had no bounds check, so an out-of-range index would crash `setValue`/`clearValue`/
+`toggleNote` instead of no-op'ing like every other invalid-state case) was also fixed,
+though the reviewer confirmed the shipped UI's only call site can never trigger it.
+Both fixes are covered by new tests, including a 300-seed HARD-tier sweep that
+generates AND independently re-verifies uniqueness for every seed — the whole batch
+runs in ~140ms, down from what would have been many individual seeds taking seconds
+to tens of seconds each under the old solver.
 
 ### Dots and Boxes — recommended next
 A grid of dots; players draw one edge per turn; completing a box's 4th edge scores it
@@ -211,8 +241,7 @@ games proposed above duplicate anything in the existing 13-game catalog.
 ## Suggested build order
 
 1. ~~Minesweeper~~ — done.
-2. Sudoku — closest architectural sibling to Minesweeper just shipped, reuses the most
-   patterns while adding pencil-marks as the one genuinely new mechanic.
+2. ~~Sudoku~~ — done.
 3. Lights Out — smallest remaining build, good pacing between larger ones.
 4. Dots and Boxes — first two-player-shaped new game in this batch, exercises
    `SINGLE_DEVICE_PASS_AND_PLAY` + bot the same way Checkers/Chess do.

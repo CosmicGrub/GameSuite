@@ -45,6 +45,7 @@ import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
+import com.gamesuite.games.sudoku.SudokuGame
 import com.gamesuite.games.uno.UnoGame
 import com.gamesuite.games.wordgames.crossword.CrosswordGame
 import com.gamesuite.games.wordgames.tiles.TileGame
@@ -67,6 +68,7 @@ import com.gamesuite.ui.OnlineJoinLobbyScreen
 import com.gamesuite.ui.SettingsScreen
 import com.gamesuite.ui.SlidingPuzzleScreen
 import com.gamesuite.ui.SolitaireScreen
+import com.gamesuite.ui.SudokuScreen
 import com.gamesuite.ui.StatsScreen
 import com.gamesuite.ui.TicTacToeScreen
 import com.gamesuite.ui.TileGameScreen
@@ -445,6 +447,27 @@ class MainActivity : ComponentActivity() {
                             MinesweeperScreen(
                                 sessionManager = sessionManager,
                                 game = minesweeperGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("sudoku") {
+                            val sudokuGame = rememberActiveModule(sessionManager) { SudokuGame() }
+                            SudokuScreen(
+                                sessionManager = sessionManager,
+                                game = sudokuGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("sudoku-daily") {
+                            // Same GameModule/screen as "sudoku" — a today's-date seed is the
+                            // only difference, so every player gets the identical puzzle.
+                            val sudokuGame = rememberActiveModule(sessionManager) { SudokuGame() }
+                            SudokuScreen(
+                                sessionManager = sessionManager,
+                                game = sudokuGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
