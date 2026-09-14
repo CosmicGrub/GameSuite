@@ -182,6 +182,27 @@ object MusicProfiles {
         arpeggioVolume = 0.11f
     )
 
+    /** Confident, tactile pentatonic pad with a moderate plucked arpeggio —
+     *  Connect Four's rhythm is a steady back-and-forth of single,
+     *  deliberate drops (unlike Dots and Boxes' fast alternating taps), so
+     *  this sits between that game's quicker energy and Checkers/Chess's
+     *  slower contemplation: same wood-toned pentatonic family as
+     *  Dominoes/Mancala/Dots and Boxes, its own root, a steadier (not
+     *  faster) arpeggio. */
+    val CONNECT_FOUR = MusicProfile(
+        rootNoteHz = 184.99f, // F#3
+        scaleIntervals = MAJOR_PENTATONIC,
+        chordProgressionDegrees = listOf(0, 2, 4, 3),
+        chordDurationSeconds = 13f,
+        voiceCount = 3,
+        baseVolume = 0.14f,
+        waveformBrightness = 0.21f,
+        lowpassCutoffHz = 3600f,
+        arpeggioEnabled = true,
+        arpeggioRateHz = 1.2f,
+        arpeggioVolume = 0.12f
+    )
+
     /** Gentle, airy major pad — the shared "focus" mood for every quiet
      *  solo puzzle game (Solitaire, Word Tiles, Word Search, Crossword,
      *  Hangman). One profile really is enough for all five, per the brief. */
@@ -204,6 +225,7 @@ object MusicProfiles {
     val MINESWEEPER = PUZZLE_FOCUS
     val SUDOKU = PUZZLE_FOCUS
     val LIGHTS_OUT = PUZZLE_FOCUS
+    val COLOR_FLOOD = PUZZLE_FOCUS
 
     /** A touch more playful and a bit faster than everything else that
      *  isn't Air Hockey — light plucked-arpeggio texture matching UNO's

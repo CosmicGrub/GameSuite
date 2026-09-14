@@ -41,6 +41,7 @@
     <string name="game_minesweeper_daily">Minesweeper — today\'s board</string>
     <string name="game_sudoku_daily">Sudoku — today\'s puzzle</string>
     <string name="game_lights_out_daily">Lights Out — today\'s board</string>
+    <string name="game_color_flood_daily">Color Flood — today\'s board</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -50,6 +51,8 @@
     <string name="game_dominoes_vs_cpu">Dominoes (vs CPU)</string>
     <string name="game_dots_and_boxes_vs_cpu">Dots and Boxes (vs CPU)</string>
     <string name="game_dots_and_boxes_pass_play">Dots and Boxes (pass &amp; play)</string>
+    <string name="game_connect_four_vs_cpu">Connect Four (vs CPU)</string>
+    <string name="game_connect_four_pass_play">Connect Four (pass &amp; play)</string>
     <string name="game_mancala_vs_cpu">Mancala (vs CPU)</string>
     <string name="game_checkers_vs_cpu">Checkers (vs CPU)</string>
     <string name="game_chess_vs_cpu">Chess (vs CPU)</string>
@@ -76,4 +79,5 @@
     <string name="game_minesweeper">Minesweeper</string>
     <string name="game_sudoku">Sudoku</string>
     <string name="game_lights_out">Lights Out</string>
+    <string name="game_color_flood">Color Flood</string>
 </resources>

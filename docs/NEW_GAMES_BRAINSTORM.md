@@ -194,21 +194,53 @@ intentional behavior `MinesweeperGame`/`SudokuGame` already have (a "New Board" 
 solving today's daily gives a fresh extra puzzle, not a repeat of the shared daily
 one), not a bug introduced here.
 
-### Color Match ("Color Puzzle" in Chogan's preview) — needs a concrete rule set chosen
-The reference material only showed a "coming soon" card, not actual gameplay, for this
-one. Two well-known real games share the "Color Puzzle" name in the wild and either is a
-reasonable, honest interpretation: **Color Flood** (a grid of colored cells, flood-fill
-outward from one corner by repeatedly picking a color, win by making the whole grid one
-color in as few/limited moves as possible) or a **match-3** (Bejeweled-style swap-
-adjacent-to-match-3+ — a much larger build: swap-and-settle animation, cascade/combo
-resolution, a real scoring loop). Recommend **Color Flood** as the concrete pick — it is
-honestly scoped (a grid + a flood-fill, reusing the exact BFS shape
-`MinesweeperGame.floodReveal` already implements) versus match-3's considerably larger
-animation/cascade engine, and it's listed separately below anyway as an
-"additional inspired-by" game, so building it once here and treating "Color Puzzle" and
-"Color Flood" as the same game avoids building two near-duplicate grid-color games. If
-the project owner specifically wants match-3 gameplay instead, that's a distinctly
-larger, separate scope call — flagged, not assumed.
+### Color Match ("Color Puzzle" in Chogan's preview) — ✅ shipped as Color Flood
+`games/colorflood/ColorFloodGame.kt` + `ui/ColorFloodScreen.kt`. The reference material
+only showed a "coming soon" card, not actual gameplay, for this one — two well-known
+real games share the "Color Puzzle" name in the wild (Color Flood vs. a Bejeweled-style
+match-3), and Color Flood was the deliberate pick: a grid of colored cells, flood-fill
+outward from the top-left corner by repeatedly picking a color, win by making the whole
+grid one color. Honestly scoped (a grid + a flood-fill) versus match-3's considerably
+larger swap-and-settle/cascade-combo animation engine, and this build also covers the
+separately-listed "additional inspired-by" Color Flood pick below, so one game serves
+both entries rather than building two near-duplicates. If the project owner specifically
+wants match-3 gameplay later, that's a distinctly larger, separate scope call.
+
+Reuses `MinesweeperGame`'s own iterative flood-fill BFS shape almost exactly, just
+applied to color equality instead of "is a zero." EASY/MEDIUM/HARD scale BOTH board
+size and color count (9x9/4 colors, 12x12/5, 16x16/6) — difficulty here comes from more
+cells AND more colors to coordinate, not just a bigger board. Best-moves-and-best-time
+stats (two-metric, like Lights Out — a real, honest minimum-moves skill metric exists).
+**No move limit, no loss state** — a deliberate design decision, not a scope cut: every
+random coloring is trivially solvable (repeatedly picking any color not yet in the
+territory strictly grows it), so there's no "you lost" outcome to build; move count is
+tracked purely as a personal-best stat. 13 unit tests passing, including an
+independently-written BFS that re-verifies territory connectivity from scratch and a
+deterministic "always pick a boundary color" solving strategy (proven to always make
+progress) used to drive real boards to completion in tests, rather than a strategy that
+could stall.
+
+**Two real bugs found by a single-dimension background adversarial-review workflow**
+(same proportional scaling as Lights Out's — this engine's flood-fill logic carries
+similarly low algorithmic risk):
+- **MEDIUM: the main gameplay method only checked the per-board `isOver` flag, not the
+  session-level `matchOver` flag.** A `pick()` call after `leaveSession()` had already
+  delivered the final `GameResult` could still mutate state — including setting
+  `won = true` with no second result ever reported. Not reachable through this game's
+  actual screen (`leaveSession()` is only ever wired to the finished-board panel's own
+  button, which only renders once the board is already over), but a real gap worth
+  closing regardless, the same spirit as Sudoku's own `selectCell` bounds-check fix.
+  **Fixed**, and — since the identical `isOver`-but-not-`matchOver` gap turned out to
+  exist in Minesweeper/Sudoku/Lights Out/Dots and Boxes too (same copy-pasted
+  precedent) — spawned as a consolidated follow-up task to apply the same fix there.
+- **LOW: `pause()` wasn't idempotent the way `resume()` already was.** A second
+  `pause()` call with no `resume()` in between silently overwrote the pause anchor,
+  dropping the interval between the two calls from the paused-time tracking (inflating
+  the eventual recorded solve time). The verifier confirmed the arithmetic is real but
+  also confirmed it isn't reachable today (Android's lifecycle guarantees
+  onPause()/onResume() strictly alternate, and this app has exactly one call site of
+  each) — still fixed defensively, and bundled into the same follow-up task above,
+  since the identical asymmetry exists in all four sibling engines.
 
 ### Tessel-inspired tile edge-matching puzzle — large scope, defer past the first wave
 Tessel's core loop (place tiles so touching edges match, e.g. by color/pattern) is a
@@ -274,13 +306,17 @@ These extend the same genres the reference apps established (grid puzzles, simpl
 abstract-strategy board games) without duplicating anything already in the 13-game
 catalog or already listed above.
 
-- **Connect Four** — drop-a-disc, 4-in-a-row, gravity-constrained columns. A genuinely
-  different tactical shape from Tic-Tac-Toe/Checkers/Chess despite the superficial
-  "grid + pieces" similarity (gravity + longer runs changes the solved-game structure
-  entirely), and a well-known enough title that it's worth a real minimax-with-pruning
-  bot ladder analogous to Tic-Tac-Toe's HARD tier, scaled by search depth per
-  `CpuDifficulty` tier rather than full solve (Connect Four's full game tree is much
-  larger than Tic-Tac-Toe's).
+- **Connect Four** — ✅ shipped. `games/connectfour/ConnectFourGame.kt` +
+  `ui/ConnectFourScreen.kt`. Drop-a-disc, 4-in-a-row, gravity-constrained columns — a
+  genuinely different tactical shape from Tic-Tac-Toe/Checkers/Chess despite the
+  superficial "grid + pieces" similarity (gravity + longer runs changes the
+  solved-game structure entirely). Got the real minimax-with-pruning bot ladder this
+  entry called for, analogous to Tic-Tac-Toe's HARD tier but scaled by search depth
+  per `CpuDifficulty` tier rather than a full solve, since Connect Four's full game
+  tree (~4.5 trillion legal positions) is far too large for that. See README Roadmap
+  item 19 for the full build writeup, including the process note on this one landing
+  as independently-authored parallel work from a concurrent session that this pass
+  verified and built the UI/wiring layer on top of, rather than duplicating.
 - **Color Flood** — see "Color Match" above; recommended as the same build, not a
   separate one.
 - **Nonogram / Picross** — row/column numeric clues describing run-lengths of filled
@@ -317,9 +353,8 @@ games proposed above duplicate anything in the existing 13-game catalog.
 2. ~~Sudoku~~ — done.
 3. ~~Lights Out~~ — done.
 4. ~~Dots and Boxes~~ — done.
-5. Color Flood ("Color Puzzle") — reuses `MinesweeperGame`'s own flood-fill BFS shape.
-6. Connect Four — a second solid two-player abstract-strategy game with a real bot
-   ladder.
+5. ~~Color Flood~~ — done.
+6. ~~Connect Four~~ — done.
 7. Tessel-style fixed-board edge-matching puzzle (without the generative Custom-game
    builder — that stays a later phase).
 8. Party Toolkit (Boardgame Pal set) — bundled single entry, own pass, architecturally

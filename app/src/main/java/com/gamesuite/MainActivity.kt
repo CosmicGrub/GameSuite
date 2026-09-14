@@ -39,6 +39,8 @@ import com.gamesuite.theme.AppTheme
 import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.checkers.CheckersGame
 import com.gamesuite.games.chess.ChessGame
+import com.gamesuite.games.colorflood.ColorFloodGame
+import com.gamesuite.games.connectfour.ConnectFourGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
 import com.gamesuite.games.hangman.HangmanGame
@@ -55,6 +57,8 @@ import com.gamesuite.games.wordgames.wordsearch.WordSearchGame
 import com.gamesuite.ui.AirHockeyScreen
 import com.gamesuite.ui.CheckersScreen
 import com.gamesuite.ui.ChessScreen
+import com.gamesuite.ui.ColorFloodScreen
+import com.gamesuite.ui.ConnectFourScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.DotsAndBoxesScreen
@@ -379,6 +383,15 @@ class MainActivity : ComponentActivity() {
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
+                        composable("connect-four") {
+                            val connectFourGame = rememberActiveModule(sessionManager) { ConnectFourGame() }
+                            ConnectFourScreen(
+                                sessionManager = sessionManager,
+                                game = connectFourGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
                         composable("checkers") {
                             val checkersGame = rememberActiveModule(sessionManager) { CheckersGame() }
                             CheckersScreen(
@@ -502,6 +515,27 @@ class MainActivity : ComponentActivity() {
                             LightsOutScreen(
                                 sessionManager = sessionManager,
                                 game = lightsOutGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("color-flood") {
+                            val colorFloodGame = rememberActiveModule(sessionManager) { ColorFloodGame() }
+                            ColorFloodScreen(
+                                sessionManager = sessionManager,
+                                game = colorFloodGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("color-flood-daily") {
+                            // Same GameModule/screen as "color-flood" — a today's-date seed is
+                            // the only difference, so every player gets the identical board.
+                            val colorFloodGame = rememberActiveModule(sessionManager) { ColorFloodGame() }
+                            ColorFloodScreen(
+                                sessionManager = sessionManager,
+                                game = colorFloodGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

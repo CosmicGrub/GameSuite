@@ -156,6 +156,17 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("dots-and-boxes")
             },
+            "connect-four" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "p1", displayName = "You"),
+                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
+                    ),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("connect-four")
+            },
             "mancala" to {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_PLAYER_VS_BOT,
@@ -236,6 +247,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("lights-out")
+            },
+            "color-flood" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("color-flood")
             }
         )
     }
@@ -361,6 +380,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("lights-out-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_color_flood_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("color-flood-daily")
                     }
                 )
             )
@@ -417,6 +444,18 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("dots-and-boxes")
+                    },
+                    GameEntry(stringResource(R.string.game_connect_four_vs_cpu)) { primaryLaunch.getValue("connect-four").invoke() },
+                    GameEntry(stringResource(R.string.game_connect_four_pass_play)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                            players = listOf(
+                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
+                                PlayerInfo(playerId = "p2", displayName = "Player 2")
+                            ),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("connect-four")
                     },
                     GameEntry(stringResource(R.string.game_mancala_vs_cpu)) { primaryLaunch.getValue("mancala").invoke() },
                     GameEntry(stringResource(R.string.game_checkers_vs_cpu)) { primaryLaunch.getValue("checkers").invoke() },
@@ -502,7 +541,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() },
                     GameEntry(stringResource(R.string.game_minesweeper)) { primaryLaunch.getValue("minesweeper").invoke() },
                     GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() },
-                    GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() }
+                    GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
+                    GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() }
                 )
             )
 

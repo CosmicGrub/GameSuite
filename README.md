@@ -1072,6 +1072,83 @@ point the app's Settings → Online multiplayer server address at it
       test that plays a full board to completion and checks the actual final mover
       stays "current." Full `:app:compileDebugKotlin` verified end-to-end after wiring
       the new routes/menu entries/strings.
+- [x] 18. New game modules, wave 1 continued: **Color Flood**
+      (`games/colorflood/ColorFloodGame.kt` + `ui/ColorFloodScreen.kt`), fifth game of
+      the batch started at item 14 and the concrete pick for the reference material's
+      "Color Puzzle" preview (see `docs/NEW_GAMES_BRAINSTORM.md` for why Color Flood
+      was chosen over a match-3 reading of that name). Territory starts as the
+      top-left cell; picking a color repaints the whole territory and re-floods from
+      the origin, reusing `MinesweeperGame`'s own iterative BFS flood shape almost
+      exactly. Deliberately NO move limit and NO loss state — every random board is
+      trivially solvable, so move count is tracked purely as a personal-best skill
+      metric (`ColorFloodStatsStore`, same best-moves/best-time two-metric shape as
+      `LightsOutStatsStore`/`SlidingPuzzleStatsStore`), same spirit as Lights Out's own
+      move count. Difficulty scales both board size AND color count (EASY 9x9/4,
+      MEDIUM 12x12/5, HARD 16x16/6), a `color-flood-daily` route, own bespoke chrome
+      palette sharing warm tokens with the rest of this batch while the CELL colors
+      themselves deliberately span real hue variety rather than warm shades (this
+      puzzle's whole mechanic depends on genuinely distinguishable colors). Landed in
+      two passes: the engine/stats/tests (11 unit tests, including an independent BFS
+      recomputation of territory connectivity and a deterministic
+      always-grow-the-territory solver used to actually win real boards through the
+      public API) built the pause()/resume() timer fix and the
+      matchOver-reset-in-startMatch() fix in from the start, rather than shipping the
+      bug and rediscovering it a sixth time — both were found by adversarial review
+      across Minesweeper/Sudoku/Lights Out, and (separately) fixed in the pre-existing
+      `SlidingPuzzleGame`. The UI screen and wiring into
+      `MainActivity.kt`/`MainMenuScreen.kt`/`strings.xml`/`AmbientMusicEngine.kt`
+      (`MusicProfiles.COLOR_FLOOD`) followed in a second pass. 86 unit tests passing
+      across the whole app; full `:app:compileDebugKotlin` and `:app:assembleDebug`
+      verified, and — a first for this batch — actually installed and played on a
+      real device rather than verified by compile/test alone: walked the full golden
+      path (menu → daily entry → difficulty switch generates a fresh board → picking
+      colors grows territory and updates Moves/timer live → flooding the board shows
+      "Board flooded!" with new-best-moves/new-best-time badges → Back to Menu ends
+      the session and the menu's own "Continue playing" row picks it up with a real
+      1W-0L record), with a clean `logcat` (no crashes/exceptions) throughout.
+- [x] 19. New game modules, wave 1 continued: **Connect Four**
+      (`games/connectfour/ConnectFourGame.kt` + `ui/ConnectFourScreen.kt`), sixth game
+      of the batch started at item 14, and the second TWO-PLAYER game in it (after
+      Dots and Boxes) — drop a disc into one of 7 columns, gravity pulls it to the
+      lowest empty row, four in a row (horizontal/vertical/either diagonal) wins.
+      Standard fixed 6-row x 7-col board (`difficulty` tunes the BOT, same idiom as
+      Dots and Boxes/Checkers/Chess, not the board itself); reuses Dots and Boxes'
+      own session shape almost exactly (`sessionWins`/`sessionDraws`/`matchOver`/
+      alternating starting player/`leaveSession`/`playAgain`), and — since there's no
+      "go again" rule here — `playBotTurn()` never needs to recurse the way Dots and
+      Boxes' own does. **Bot ladder**: a real minimax search with alpha-beta pruning
+      and center-first move ordering, scaled by SEARCH DEPTH per `CpuDifficulty` tier
+      rather than a full solve — Connect Four's full game tree (~4.5 trillion legal
+      positions) is far too large for that, unlike Tic-Tac-Toe's, which this app's own
+      exhaustive minimax can afford to search completely. A depth-limited search needs
+      a position evaluation for the non-terminal cutoff: the standard "score every
+      possible 4-cell window by how many of the mover's/opponent's discs it already
+      contains, plus a center-column control bonus" heuristic. A deliberate, honest
+      scope cut, not an oversight — no opening book, no transposition table, no
+      iterative deepening; a plain depth-capped alpha-beta search is already fast
+      enough on a 6x7 board for real-time play on a phone. 18 unit tests passing (up
+      from 11 for Color Flood), including independent win-line verification for all
+      four line directions (horizontal/vertical/both diagonals), bot-always-takes-an-
+      immediate-win coverage across every difficulty tier, a MEDIUM/HARD-blocks-an-
+      immediate-threat regression, and a wall-clock smoke test guarding against an
+      accidental alpha-beta performance regression.
+      VISUAL IDENTITY: chrome shares the batch's warm tokens, but the board itself —
+      blue frame, red/yellow discs — deliberately stays the genre's own unmistakable
+      signature rather than being reskinned into the warm palette, same reasoning
+      Color Flood's own KDoc gives for its cell colors. 114 unit tests passing across
+      the whole app; full `:app:compileDebugKotlin` and `:app:assembleDebug` verified,
+      and — following Color Flood's new precedent — actually installed and played on
+      a real device: walked the full golden path in BOTH modes (vs CPU: the bot
+      responds after a real 800ms delay, turn-taking and status text update live;
+      pass & play: drove a real horizontal 4-in-a-row to a win, confirming the
+      winning line's own highlight, the finished panel's "Play Again"/"Back to Menu"
+      buttons, and the menu's own "Continue playing" row picking up the new 1W-0L
+      record) — clean `logcat` (no crashes/exceptions) throughout both sessions.
+      **Process note**: this engine/test pair was independently authored by a
+      concurrent session in the same checkout while this session was also mid-build
+      on it; rather than overwrite genuinely-equivalent parallel work, this pass
+      adopted that version as authoritative (verified it compiles/passes/plays
+      correctly first) and built the UI/wiring layer on top of it.
 
 ## Fixes and hardening
 

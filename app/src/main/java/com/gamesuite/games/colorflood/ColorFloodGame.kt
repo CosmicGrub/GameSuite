@@ -137,9 +137,20 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
      * SlidingPuzzle all needed after this exact pattern was found by
      * adversarial review; built in here from the start rather than waiting
      * to rediscover it a sixth time.
+     *
+     * Guarded by `pausedAtElapsedRealtime == null` so a second [pause] call
+     * with no [resume] in between is a no-op rather than silently moving
+     * the anchor forward and losing the intervening interval — found by
+     * this game's own adversarial review as a latent asymmetry with
+     * [resume] (which was already correctly idempotent). Not currently
+     * reachable through this app's real lifecycle wiring (Android
+     * guarantees onPause()/onResume() strictly alternate, and there's
+     * exactly one call site of each), but a real code-level gap worth
+     * closing defensively regardless, the same spirit as
+     * SudokuGame.selectCell's own bounds check.
      */
     override fun pause() {
-        if (timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
+        if (pausedAtElapsedRealtime == null && timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
             pausedAtElapsedRealtime = nowMillis()
         }
     }
@@ -163,11 +174,20 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
      * territory's current color (picking your own color grows nothing, so
      * this correctly doesn't count as a move — same "an action that
      * changes nothing isn't a move" idiom MinesweeperGame's own guard
-     * clauses follow), or the board is already won.
+     * clauses follow), the board is already won, or the whole session has
+     * already ended via [leaveSession]/[endMatch] — found missing by this
+     * game's own adversarial review (only [s]'s per-board `isOver` was
+     * checked, not [matchOver], so a pick() after the final `GameResult`
+     * had already been delivered could still mutate state, including
+     * setting `won = true` with no second result ever reported). Not
+     * currently reachable through this app's real screens (leaveSession()
+     * is only ever wired to the finished-board panel's own "Back to Menu"
+     * button, which only renders once the board is already over), but a
+     * real gap worth closing defensively regardless.
      */
     fun pick(colorIndex: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (colorIndex !in 0 until s.colorCount) return
         if (colorIndex == s.currentColor) return
 
