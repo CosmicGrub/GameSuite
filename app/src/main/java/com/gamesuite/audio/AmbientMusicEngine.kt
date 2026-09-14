@@ -164,6 +164,24 @@ object MusicProfiles {
         arpeggioVolume = 0.12f
     )
 
+    /** A light, quick-turnaround pentatonic pad with a subtle plucked
+     *  arpeggio — Dots and Boxes plays in fast alternating taps punctuated
+     *  by chain-reaction bursts, so this sits between TIC_TAC_TOE's sparse
+     *  stillness and UNO's playful energy rather than copying either. */
+    val DOTS_AND_BOXES = MusicProfile(
+        rootNoteHz = 174.61f, // F3
+        scaleIntervals = MAJOR_PENTATONIC,
+        chordProgressionDegrees = listOf(0, 2, 3, 2),
+        chordDurationSeconds = 12f,
+        voiceCount = 3,
+        baseVolume = 0.13f,
+        waveformBrightness = 0.2f,
+        lowpassCutoffHz = 3800f,
+        arpeggioEnabled = true,
+        arpeggioRateHz = 1.4f,
+        arpeggioVolume = 0.11f
+    )
+
     /** Gentle, airy major pad — the shared "focus" mood for every quiet
      *  solo puzzle game (Solitaire, Word Tiles, Word Search, Crossword,
      *  Hangman). One profile really is enough for all five, per the brief. */

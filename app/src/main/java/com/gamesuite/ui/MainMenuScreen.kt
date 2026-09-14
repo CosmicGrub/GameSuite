@@ -145,6 +145,17 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("dominoes")
             },
+            "dots-and-boxes" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "p1", displayName = "You"),
+                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
+                    ),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("dots-and-boxes")
+            },
             "mancala" to {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_PLAYER_VS_BOT,
@@ -395,6 +406,18 @@ fun MainMenuScreen(
                         onNavigateToGame("tic-tac-toe-wild")
                     },
                     GameEntry(stringResource(R.string.game_dominoes_vs_cpu)) { primaryLaunch.getValue("dominoes").invoke() },
+                    GameEntry(stringResource(R.string.game_dots_and_boxes_vs_cpu)) { primaryLaunch.getValue("dots-and-boxes").invoke() },
+                    GameEntry(stringResource(R.string.game_dots_and_boxes_pass_play)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                            players = listOf(
+                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
+                                PlayerInfo(playerId = "p2", displayName = "Player 2")
+                            ),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("dots-and-boxes")
+                    },
                     GameEntry(stringResource(R.string.game_mancala_vs_cpu)) { primaryLaunch.getValue("mancala").invoke() },
                     GameEntry(stringResource(R.string.game_checkers_vs_cpu)) { primaryLaunch.getValue("checkers").invoke() },
                     GameEntry(stringResource(R.string.game_chess_vs_cpu)) { primaryLaunch.getValue("chess").invoke() }

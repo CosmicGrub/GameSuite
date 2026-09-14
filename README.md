@@ -1037,6 +1037,41 @@ point the app's Settings → Online multiplayer server address at it
       test suites. 56 unit tests passing across the whole app (up from 39); full
       `:app:compileDebugKotlin` verified end-to-end after wiring the new routes/menu
       entries/strings into `MainActivity.kt`/`MainMenuScreen.kt`/`strings.xml`.
+- [x] 17. New game modules, wave 1 continued: **Dots and Boxes**
+      (`games/dotsandboxes/DotsAndBoxesGame.kt` + `ui/DotsAndBoxesScreen.kt`), fourth
+      game of the batch started at item 14, and the first TWO-PLAYER game in it — every
+      prior game this wave (Minesweeper/Sudoku/Lights Out) was a solo puzzle. A 5x5-box
+      grid (the classic size, fixed rather than scaled by difficulty — `difficulty`
+      instead tunes the BOT here, same idiom as Checkers/Chess/Dominoes); players draw
+      one edge per turn, completing a box's 4th edge scores it and grants that player
+      another turn, most boxes wins. Supports both `SINGLE_PLAYER_VS_BOT` and
+      `SINGLE_DEVICE_PASS_AND_PLAY` as separate menu entries (matching Tic-Tac-Toe/
+      UNO's precedent), reuses TicTacToeGame's "alternate who starts" fairness idiom
+      and DominoGame's per-player-state-list/session-tally shape. A real 3-tier bot:
+      EASY is uniform random with zero strategy; MEDIUM/HARD both take any free box and
+      refuse to hand the opponent one when a safer move exists; HARD additionally picks
+      the smallest forced sacrifice via a one-ply chain-reaction simulation when no
+      safe move exists at all. The real "double-cross" expert counter-strategy is a
+      documented, deliberate scope cut, left for later. Got its own bespoke ambient-
+      music profile (`DOTS_AND_BOXES`), not a `PUZZLE_FOCUS` alias, matching how every
+      other 2-player board game in this app is scored. 14 unit tests passing.
+      **One real bug found by a 2-dimension background adversarial-review workflow**
+      (proportionally scaled between Sudoku's 3-dimension pass and Lights Out's
+      1-dimension pass, matching this engine's own moderate complexity): the
+      "complete a box → go again" rule was implemented as
+      `completedCount > 0 && !allClaimed`, but every edge on the board borders at
+      least one box, so the move that completes the LAST box on the board always has
+      `completedCount > 0` too — making that guard unsatisfiable at exactly the moment
+      the board ends, and `currentPlayerIndex` in the terminal state always named the
+      player who did NOT just make the winning move as "current." No effect on
+      scoring, the declared winner, or further play (the board freezes either way
+      once over), but a real, always-reproducible terminal-state data inconsistency a
+      future UI element could reasonably get wrong by trusting it. **Fixed** by
+      dropping the `!allClaimed` condition entirely — `completedCount > 0` alone is
+      both correct and simpler than what it replaced — covered by a new regression
+      test that plays a full board to completion and checks the actual final mover
+      stays "current." Full `:app:compileDebugKotlin` verified end-to-end after wiring
+      the new routes/menu entries/strings.
 
 ## Fixes and hardening
 

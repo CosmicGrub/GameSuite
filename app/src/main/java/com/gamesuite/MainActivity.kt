@@ -40,6 +40,7 @@ import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.checkers.CheckersGame
 import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.dominoes.DominoGame
+import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
@@ -56,6 +57,7 @@ import com.gamesuite.ui.CheckersScreen
 import com.gamesuite.ui.ChessScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
+import com.gamesuite.ui.DotsAndBoxesScreen
 import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
@@ -364,6 +366,15 @@ class MainActivity : ComponentActivity() {
                             DominoesScreen(
                                 sessionManager = sessionManager,
                                 game = dominoGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("dots-and-boxes") {
+                            val dotsAndBoxesGame = rememberActiveModule(sessionManager) { DotsAndBoxesGame() }
+                            DotsAndBoxesScreen(
+                                sessionManager = sessionManager,
+                                game = dotsAndBoxesGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )

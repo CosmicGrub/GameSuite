@@ -102,16 +102,48 @@ generates AND independently re-verifies uniqueness for every seed — the whole 
 runs in ~140ms, down from what would have been many individual seeds taking seconds
 to tens of seconds each under the old solver.
 
-### Dots and Boxes — recommended next
-A grid of dots; players draw one edge per turn; completing a box's 4th edge scores it
-and grants another turn; most boxes wins. This is meaningfully different from every
-existing game in the catalog — it's edge-selection on a grid, not cell-selection — so
-it earns its place rather than duplicating Tic-Tac-Toe's shape. Fits
-`SINGLE_PLAYER_VS_BOT` (a real if simple bot: complete any free 3-edge box, else avoid
-creating one, else random) and `SINGLE_DEVICE_PASS_AND_PLAY` equally well, matching
-Checkers/Chess's own dual-mode pattern. `GameCategory.PUZZLE` or a case could be made
-for `BOARD` — lean `BOARD` since it's a two-player territory-scoring game like Checkers,
-not a solo puzzle like Minesweeper/Sudoku.
+### Dots and Boxes — ✅ shipped
+`games/dotsandboxes/DotsAndBoxesGame.kt` + `ui/DotsAndBoxesScreen.kt`. A 5x5-box grid
+(the classic size); players draw one edge per turn; completing a box's 4th edge scores
+it and grants another turn; most boxes wins. The first TWO-PLAYER game in this batch —
+meaningfully different from every solo puzzle before it (Minesweeper/Sudoku/Lights
+Out): edge-selection on a grid, not cell-selection, and `GameCategory.BOARD` (a
+territory-scoring game like Checkers, not a solo puzzle). Board size is FIXED (not
+scaled by difficulty, unlike the solo puzzles) — `difficulty` instead tunes the BOT,
+same idiom as Checkers/Chess/Dominoes. Supports both `SINGLE_PLAYER_VS_BOT` and
+`SINGLE_DEVICE_PASS_AND_PLAY` (both exposed as separate menu entries, matching
+Tic-Tac-Toe/UNO's precedent), and reuses `TicTacToeGame`'s own "alternate who starts"
+fairness idiom across Play Again rounds and `DominoGame`'s own per-player-state-list
+and session-tally shape. Bot has three real tiers: EASY is uniform random with zero
+strategy; MEDIUM and HARD both take any free box available and refuse to create a
+3-edge box (the one real skill in this game — handing the opponent a free box) when a
+safer move exists; HARD additionally picks the SMALLEST forced sacrifice via a
+one-ply chain-reaction simulation when no safe move exists at all. The real "double-
+cross" expert counter-strategy (deliberately leaving a chain's last 2 boxes to force
+the opponent to open the next chain) is a documented, deliberate scope cut — a
+genuinely more complex technique on top of what HARD already does, left for later.
+Got its own bespoke ambient-music profile (`MusicProfiles.DOTS_AND_BOXES`), not an
+alias to `PUZZLE_FOCUS` — matching how every other 2-player board game in this app
+(Chess/Checkers/Mancala/Dominoes/Tic-Tac-Toe) gets its own profile, since that alias
+is reserved for quiet solo puzzles. 14 unit tests passing.
+
+**One real bug found by a 2-dimension background adversarial-review workflow
+(proportionally scaled between Sudoku's 3-dimension pass and Lights Out's 1-dimension
+pass, matching this engine's own moderate complexity — turn management plus a 3-tier
+bot with a chain-simulation heuristic)**: the "complete a box → go again" rule was
+implemented as `completedCount > 0 && !allClaimed`, but every edge on the board
+borders at least one box, so the move that completes the LAST box on the board always
+has `completedCount > 0` too — meaning that guard is unsatisfiable at exactly the
+moment the board ends, and `currentPlayerIndex` in the terminal state always named the
+player who did NOT just make the winning move as "current," rather than the actual
+mover. No effect on scoring, the declared winner, or further play (the board is frozen
+either way once over), but a real, always-reproducible data inconsistency in the
+terminal state — the exact kind of thing a future UI element (or this screen's own
+`lastAction` text, or a differently-written status display) could reasonably get
+wrong by trusting it. **Fixed** by dropping the `!allClaimed` condition entirely
+(`completedCount > 0` alone is both correct and simpler than what it replaced) and
+covered by a new regression test that plays a full board to completion and asserts
+the actual final mover stays "current."
 
 ### Lights Out ("Brain Trainer" in Chogan's preview) — ✅ shipped
 `games/lightsout/LightsOutGame.kt` + `ui/LightsOutScreen.kt`. An NxN grid of lit/unlit
@@ -284,8 +316,7 @@ games proposed above duplicate anything in the existing 13-game catalog.
 1. ~~Minesweeper~~ — done.
 2. ~~Sudoku~~ — done.
 3. ~~Lights Out~~ — done.
-4. Dots and Boxes — first two-player-shaped new game in this batch, exercises
-   `SINGLE_DEVICE_PASS_AND_PLAY` + bot the same way Checkers/Chess do.
+4. ~~Dots and Boxes~~ — done.
 5. Color Flood ("Color Puzzle") — reuses `MinesweeperGame`'s own flood-fill BFS shape.
 6. Connect Four — a second solid two-player abstract-strategy game with a real bot
    ladder.
