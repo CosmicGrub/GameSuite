@@ -255,6 +255,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("color-flood")
+            },
+            "edge-match" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("edge-match")
             }
         )
     }
@@ -388,6 +396,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("color-flood-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_edge_match_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("edge-match-daily")
                     }
                 )
             )
@@ -542,7 +558,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_minesweeper)) { primaryLaunch.getValue("minesweeper").invoke() },
                     GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() },
                     GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
-                    GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() }
+                    GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
+                    GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() }
                 )
             )
 

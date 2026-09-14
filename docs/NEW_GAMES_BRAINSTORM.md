@@ -242,19 +242,19 @@ similarly low algorithmic risk):
   each) — still fixed defensively, and bundled into the same follow-up task above,
   since the identical asymmetry exists in all four sibling engines.
 
-### Tessel-inspired tile edge-matching puzzle — large scope, defer past the first wave
-Tessel's core loop (place tiles so touching edges match, e.g. by color/pattern) is a
-reasonable, scoped-down build on its own (a fixed tile set + fixed board, not
-procedural). Its **"Custom game" generative builder** (multiple tiling geometries
-including Penrose tiling, adjustable difficulty/piece-count sliders, presumably a
-constraint-solver-backed generator ensuring every custom puzzle is solvable) is a
-substantially larger undertaking — real computational geometry for non-square tilings,
-a generation+solvability-verification pipeline, and a much bigger settings surface than
-any existing game in this catalog has. Recommend: build the **fixed-board square-grid
-edge-matching version first** (own game, own scope, ships value immediately, same
-"honest MVP cut" culture as Klondike dropping multi-card runs) and treat the full
-generative Custom-game builder as an explicit future phase on top of it, not part of the
-same initial build. Do not silently fold Penrose-tiling support into a "v1."
+### Tessel-inspired tile edge-matching puzzle — fixed-board half ✅ shipped as Edge Match
+`games/edgematch/EdgeMatchGame.kt` + `ui/EdgeMatchScreen.kt`. Tessel's core loop (place
+tiles so touching edges match, e.g. by color/pattern) is a reasonable, scoped-down build
+on its own (a fixed tile set + fixed board, not procedural). Its **"Custom game"
+generative builder** (multiple tiling geometries including Penrose tiling, adjustable
+difficulty/piece-count sliders, presumably a constraint-solver-backed generator ensuring
+every custom puzzle is solvable) is a substantially larger undertaking — real
+computational geometry for non-square tilings, a generation+solvability-verification
+pipeline, and a much bigger settings surface than any existing game in this catalog has
+— and stays exactly that: an explicit, NOT-YET-STARTED future phase. Do not silently
+fold Penrose-tiling support into what's shipped. See README Roadmap item 20 for the full
+build writeup (generation-by-construction rather than a solver, the select/rotate/swap
+interaction, difficulty scaling, verification).
 
 ### Tower Defence — large scope, defer
 Real-time enemy waves, pathing, tower placement/upgrades/targeting, and an economy loop
@@ -355,8 +355,9 @@ games proposed above duplicate anything in the existing 13-game catalog.
 4. ~~Dots and Boxes~~ — done.
 5. ~~Color Flood~~ — done.
 6. ~~Connect Four~~ — done.
-7. Tessel-style fixed-board edge-matching puzzle (without the generative Custom-game
-   builder — that stays a later phase).
+7. ~~Tessel-style fixed-board edge-matching puzzle~~ — done, shipped as Edge Match
+   (the generative Custom-game builder, including Penrose tiling, remains its own
+   later phase — not started).
 8. Party Toolkit (Boardgame Pal set) — bundled single entry, own pass, architecturally
    distinct from everything else above.
 9. Breakout — after Party Toolkit, reusing Air Hockey's physics infrastructure.

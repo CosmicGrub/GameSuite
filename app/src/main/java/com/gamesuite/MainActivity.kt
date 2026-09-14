@@ -43,6 +43,7 @@ import com.gamesuite.games.colorflood.ColorFloodGame
 import com.gamesuite.games.connectfour.ConnectFourGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
+import com.gamesuite.games.edgematch.EdgeMatchGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
@@ -62,6 +63,7 @@ import com.gamesuite.ui.ConnectFourScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.DotsAndBoxesScreen
+import com.gamesuite.ui.EdgeMatchScreen
 import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
@@ -536,6 +538,27 @@ class MainActivity : ComponentActivity() {
                             ColorFloodScreen(
                                 sessionManager = sessionManager,
                                 game = colorFloodGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("edge-match") {
+                            val edgeMatchGame = rememberActiveModule(sessionManager) { EdgeMatchGame() }
+                            EdgeMatchScreen(
+                                sessionManager = sessionManager,
+                                game = edgeMatchGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("edge-match-daily") {
+                            // Same GameModule/screen as "edge-match" — a today's-date seed is
+                            // the only difference, so every player gets the identical puzzle.
+                            val edgeMatchGame = rememberActiveModule(sessionManager) { EdgeMatchGame() }
+                            EdgeMatchScreen(
+                                sessionManager = sessionManager,
+                                game = edgeMatchGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

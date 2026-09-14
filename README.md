@@ -1149,6 +1149,76 @@ point the app's Settings → Online multiplayer server address at it
       on it; rather than overwrite genuinely-equivalent parallel work, this pass
       adopted that version as authoritative (verified it compiles/passes/plays
       correctly first) and built the UI/wiring layer on top of it.
+- [x] 20. New game modules, wave 1 continued: **Edge Match**
+      (`games/edgematch/EdgeMatchGame.kt` + `ui/EdgeMatchScreen.kt`), seventh game of
+      the batch started at item 14 — the fixed-board half of the Tessel-inspired tile
+      edge-matching entry. Scoped through a real round of brainstorming with the
+      project owner BEFORE implementation (`docs/EDGE_MATCH_DESIGN.md`, approved),
+      not assumed from the brainstorm doc's own recommendation alone — see
+      `docs/NEW_GAMES_BRAINSTORM.md` for why the generative "Custom game" builder,
+      including Penrose tiling, stays a deliberately deferred separate phase, not
+      part of this build. Every tile carries 4 edge COLOR indices; the board is
+      solved once every pair of touching edges between adjacent tiles matches.
+      **Unlike real Tessel's own pool-based "place tiles, choosing both position AND
+      rotation" mechanic, every tile here starts already in its correct grid cell and
+      NEVER MOVES — the only player action is tapping a tile to rotate it 90°
+      clockwise in place.** This was the design doc's own single-highest-leverage
+      scoping call: it turns an open-ended placement/tiling problem into one that's
+      solvable by construction, the same idiom Lights Out/Color Flood already use.
+      **Live match highlighting**: every currently-matching interior edge gets a
+      bright stroke outline in real time, recomputed on every tap — this app's
+      established "full information, no hidden state" puzzle culture, the same
+      spirit Sudoku flags a wrong entry immediately in.
+      **Generation, not a solver**: built directly from a SEAM-based representation
+      (one random color per interior seam shared between two adjacent tiles, one
+      independent random color per border-facing edge, each tile's own canonical
+      4-color record read off its 4 relevant seam/border assignments) rather than
+      placing tiles first and inferring seams. Since a tile's position never changes
+      and rotation alone can't alter which 4 colors it owns, resetting every tile
+      back to rotation 0 is ALWAYS a valid solution — solvability guaranteed by
+      construction, no uniqueness proof needed (unlike Sudoku's own generator), and
+      any fully-matched rotation state is a legitimate win even if it isn't
+      bit-for-bit the original arrangement. EASY/MEDIUM/HARD scale BOTH board size
+      AND color count together (4x4/4, 6x6/5, 8x8/6), the same lever Color Flood
+      already uses. Every valid tap counts as a move unconditionally — including one
+      that rotates an already-correct tile — the same idiom Lights Out's `press()`
+      already follows. Best-moves-and-best-time stats (`EdgeMatchStatsStore`, the
+      same two-metric shape as Color Flood/Lights Out/Sliding Puzzle), a
+      `resetToInitial()` "Reset" option in the finished panel mirroring Sliding
+      Puzzle's own, an `edge-match-daily` route, and `PUZZLE_FOCUS` as the music
+      profile (not a bespoke one — that's reserved for 2-player games in this app).
+      Pause()/resume() idempotency and the matchOver-reset-in-startMatch() fix were
+      both built in from the start rather than rediscovered later, matching this
+      batch's now-standing practice.
+      **Process note**: this game was actually built TWICE. The first pass
+      (independently, without having seen the approved design doc) shipped a
+      swap-and-rotate mechanic with fixed-pattern-count difficulty scaling — fully
+      tested and working, but not what the project owner had already settled on.
+      Caught before committing by discovering `docs/EDGE_MATCH_DESIGN.md` (a
+      concurrent session's own commit) mid-build; the user was asked directly rather
+      than guessing which version should ship, chose "rebuild to match the approved
+      doc," and this entry describes that rebuild, not the discarded first pass.
+      13 unit tests passing, including one that independently re-verifies (never
+      trusting the engine's own claim) that resetting every tile in a freshly
+      generated puzzle back to rotation 0 actually satisfies every adjacency, and
+      one that solves a REAL generated puzzle end-to-end through the actual public
+      `tapTile()` API (rotating each tile back to its own original orientation) at
+      every difficulty across 5 seeds. VISUAL IDENTITY: each tile renders as 4
+      colored triangular wedges meeting at its center — the standard edge-matching
+      genre visual; chrome shares the batch's warm tokens, the edge-pattern colors
+      are the one deliberate exception (same reasoning as Color Flood's cell
+      colors). 127 unit tests passing across the whole app; full
+      `:app:compileDebugKotlin` and `:app:assembleDebug` verified, and installed and
+      played on a real device: confirmed the menu/daily wiring, difficulty
+      switching, a real tap correctly rotating a tile in place (position
+      unchanged), the move counter and live timer updating correctly, and — the
+      design doc's own headline feature — the live match-highlight stroke
+      recomputing correctly after that rotation, with clean `logcat` throughout.
+      The finished-puzzle panel itself (identical Compose pattern to Color
+      Flood's/Connect Four's own, both already confirmed rendering correctly on
+      this same device) was not independently re-solved by hand on this pass —
+      covered instead by the unit suite's own direct, exact-code-path coverage of
+      reaching `solved=true` through real `tapTile()` calls.
 
 ## Fixes and hardening
 

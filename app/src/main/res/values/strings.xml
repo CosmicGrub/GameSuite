@@ -42,6 +42,7 @@
     <string name="game_sudoku_daily">Sudoku — today\'s puzzle</string>
     <string name="game_lights_out_daily">Lights Out — today\'s board</string>
     <string name="game_color_flood_daily">Color Flood — today\'s board</string>
+    <string name="game_edge_match_daily">Edge Match — today\'s puzzle</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -80,4 +81,5 @@
     <string name="game_sudoku">Sudoku</string>
     <string name="game_lights_out">Lights Out</string>
     <string name="game_color_flood">Color Flood</string>
+    <string name="game_edge_match">Edge Match</string>
 </resources>

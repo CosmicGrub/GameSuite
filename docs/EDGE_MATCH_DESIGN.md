@@ -1,6 +1,7 @@
 # Edge Match — Design
 
-**Status:** Approved by the project owner via brainstorming, ready for an implementation plan
+**Status:** Approved by the project owner via brainstorming — implemented and shipped as
+`games/edgematch/EdgeMatchGame.kt` + `ui/EdgeMatchScreen.kt` (README Roadmap item 20)
 **Date:** September 2026
 **Deciders:** the project owner
 
@@ -117,9 +118,14 @@ longer):
   `totalPausedMillis` fields all mirror that same established pattern.
 - **Both now-well-known bug patterns fixed in from the start**, not found after the fact this
   time (unlike Minesweeper/Sudoku/Lights Out, which shipped them first and needed a consolidated
-  follow-up fix — see that fix's own commit): the gameplay-mutating method (`rotateTile`) checks
-  `matchOver.value`, not just the per-board `isOver`; `pause()` is idempotent
+  follow-up fix — see that fix's own commit): the gameplay-mutating method (`tapTile`) checks
+  `matchOver.value`, not just the per-board `solved`; `pause()` is idempotent
   (`pausedAtElapsedRealtime == null` guard) from day one.
+- **`resetToInitial()`**: restores the current puzzle to its original scramble, undoing every
+  rotation made so far without generating a new board — distinct from `playAgain` (a fresh
+  puzzle entirely). Mirrors `SlidingPuzzleGame.resetToInitial()`'s own idiom; not in this doc's
+  original scoping pass but a small, low-risk addition worth keeping since it matches an
+  already-established sibling pattern.
 - **Music profile**: reuses `MusicProfiles.PUZZLE_FOCUS`, the shared "quiet solo puzzle" profile
   every other solo puzzle in this batch (Minesweeper/Sudoku/Lights Out/Color Flood) already
   aliases to — not a new bespoke profile. Bespoke profiles in this app are reserved for
