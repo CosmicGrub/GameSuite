@@ -296,9 +296,19 @@ different kind of thing. Two real findings from this:
   is a "match"), or does it get its own top-level menu section outside the
   `GameModule`/`GameSection` system entirely? Recommend the former for menu-integration
   consistency, revisit if it feels forced once actually built.
-- Not started, not scaffolded — flagged as a distinct effort from the puzzle-game batch
-  above, worth its own pass rather than interleaving with Sudoku/Dots and
-  Boxes/Lights Out.
+- ✅ **Shipped** as Party Toolkit (`games/partytoolkit/PartyToolkitGame.kt` +
+  `ui/PartyToolkitScreen.kt`, README Roadmap item 21) — scoped through a real
+  brainstorming round with the project owner first (`docs/PARTY_TOOLKIT_DESIGN.md`,
+  approved), same discipline as Edge Match. Built as the recommended token
+  `GameModule` with the new `GameCategory.UTILITY` value. Two deliberate revisions
+  from this doc's own original call, made during the build and recorded in the design
+  doc itself: tabs instead of a landing grid (the crowding concern below didn't hold
+  up in practice), and independent per-tool player lists instead of one shared
+  roster. See README item 21 for the full build writeup, including a second
+  "approved design doc found after building started" process incident (this time a
+  completeness gap against the Hourglass tool's spec, closed directly rather than
+  needing the project owner's own call) and two real bugs caught and fixed during
+  on-device verification.
 
 ## Additional games inspired by, but not directly shown in, the reference photos
 
@@ -358,8 +368,7 @@ games proposed above duplicate anything in the existing 13-game catalog.
 7. ~~Tessel-style fixed-board edge-matching puzzle~~ — done, shipped as Edge Match
    (the generative Custom-game builder, including Penrose tiling, remains its own
    later phase — not started).
-8. Party Toolkit (Boardgame Pal set) — bundled single entry, own pass, architecturally
-   distinct from everything else above.
+8. ~~Party Toolkit (Boardgame Pal set)~~ — done, shipped as Party Toolkit.
 9. Breakout — after Party Toolkit, reusing Air Hockey's physics infrastructure.
 10. Nonogram / Kakuro / KenKen — later; Nonogram if picked up before the other two,
     given it's the more widely-recognized title of the three.

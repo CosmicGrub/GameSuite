@@ -35,7 +35,17 @@ interface GameModule {
     fun endMatch(result: GameResult)
 }
 
-enum class GameCategory { BOARD, CARD, ARCADE, PUZZLE, WORD, OTHER }
+/**
+ * [UTILITY]: added for Party Toolkit (README Roadmap item 21) — a bundled set of
+ * board-game-night utilities (dice, timers, scoreboards...) with no win condition
+ * and no "match" in the [GameModule] sense at all. [OTHER] was the closest
+ * pre-existing fit but doesn't communicate "utility tool, not a game" to a player
+ * browsing the library — a real gap flagged in docs/NEW_GAMES_BRAINSTORM.md before
+ * this was added. Not read anywhere in the shell today (the menu's own sections
+ * are hand-built per docs/NEW_GAMES_BRAINSTORM.md, not derived from this field) —
+ * purely descriptive metadata, same as every other value here.
+ */
+enum class GameCategory { BOARD, CARD, ARCADE, PUZZLE, WORD, UTILITY, OTHER }
 
 enum class PlayMode {
     SINGLE_DEVICE_PASS_AND_PLAY,

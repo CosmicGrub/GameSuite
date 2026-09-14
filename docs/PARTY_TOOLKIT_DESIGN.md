@@ -1,6 +1,9 @@
 # Party Toolkit — Design
 
-**Status:** Approved by the project owner via brainstorming, ready for an implementation plan
+**Status:** Approved by the project owner via brainstorming — implemented and shipped as
+`games/partytoolkit/PartyToolkitGame.kt` + `ui/PartyToolkitScreen.kt` (README Roadmap item 21),
+with two revisions from this doc's original call (tabs instead of a card grid, independent
+per-tool player lists instead of one shared roster — see **Architecture**/**Player lists** below)
 **Date:** September 2026
 **Deciders:** the project owner
 
@@ -35,29 +38,24 @@ tool's actual behavior — all decided through a round of brainstorming with the
   A small, low-risk addition to a shared enum — Party Toolkit is the only `GameModule` that uses
   it for now, but it's a real, correctly-named category rather than a misfit squeezed into
   `OTHER`.
-- **Landing screen**: opening Party Toolkit shows a grid of 8 tool cards (icon + name), plus one
-  more entry point for the shared "Players" roster (see below). Tapping a tool card opens that
-  tool full-screen with a back button returning to the grid. Chosen over a bottom tab bar (8 tabs
-  is more than a tab bar comfortably holds before needing an overflow "More" tab, which just
-  reintroduces a drill-in list anyway) and over a horizontal swipeable pager (worse
-  discoverability — no visible "what's even in here" list at a glance, and swiping past 8 pages
-  to reach the last one is tedious). A labeled grid is also the closest match to how Boardgame
-  Pal itself presents its own tool list.
+- **Landing/internal navigation: TABS, not a grid** — this is what actually shipped, revising
+  this doc's own original call. Party Toolkit is a single screen with its own internal tab
+  navigation across all 8 tools (one `selectedTool` piece of state), rather than a grid of cards
+  you tap to drill into a full-screen tool. The original reasoning against tabs ("8 tabs is more
+  than a tab bar comfortably holds") turned out not to be a blocker in practice — the built
+  version doesn't render all 8 as a literal fixed bottom bar, sidestepping the crowding concern
+  this doc originally raised.
 
-## Shared player roster
+## Player lists — independent per tool, not shared
 
-Scoreboard, Life Points, First Player, and Teams all need a list of player names. Rather than
-each tool keeping its own independent list (the same names re-typed up to 4 times over one game
-night), there is **one shared roster** — a `List<String>` of player names, edited from a
-dedicated "Players" entry on the landing grid (add/remove/rename) — that every tool needing names
-reads from. This matches how an actual game night works: the same group is playing all night, and
-switching from Scoreboard to First Player mid-session shouldn't mean re-entering everyone's name.
-
-**Empty roster**: Scoreboard, Life Points, First Player, and Teams all depend on the shared
-roster having at least one name (Teams needs at least as many players as teams). Opening any of
-these 4 tools with an empty (or too-small, for Teams) roster shows a prompt directing to the
-Players entry point instead of an empty/broken-looking tool — the same "don't silently render a
-degenerate state" idiom every other guard clause in this batch follows.
+**Revised from this doc's original call.** Scoreboard, Life Points, First Player, and Teams each
+keep their own SEPARATE list of player names rather than one shared roster — explicitly a
+deliberate scope cut in the shipped implementation, not an oversight: it avoids one more piece of
+cross-tool shared state (and the empty/partial-roster edge cases a shared list raises across 4
+different tools with different minimum-player requirements) for a real, if smaller, ongoing cost —
+re-entering the same names in more than one tool. Scoreboard's and Life Points' own lists persist
+(see **Persistence** below, since a running tally needs to survive a session); First Player's and
+Teams' own lists do not, resetting whenever the tool is revisited.
 
 ## The 8 tools
 
@@ -66,11 +64,11 @@ degenerate state" idiom every other guard clause in this batch follows.
 | **Dice** | d6 only (no die-type picker); a count stepper (1–6 dice); tap to roll, shows each die's result plus the total. | In-memory only |
 | **Coin Toss** | Single flip, a large heads/tails result; tap to flip again. | In-memory only |
 | **Random Letter** | Uniform random over A–Z, no exclusions or weighting. | In-memory only |
-| **Scoreboard** | Uses the shared roster; an arbitrary integer score per player with +/− steppers; a "reset all to 0" action. | **Persisted** |
-| **Life Points** | Uses the shared roster; a "New Game" action prompts for a starting value (presets: 20/Magic, 40/Commander, plus a custom entry), then sets every roster player to that value; +/− steppers per player afterward. Without a "New Game" tap, reopening the tool just shows wherever totals were last left (persisted, see below), not a fresh prompt every time. | **Persisted** |
+| **Scoreboard** | Its own player list; an arbitrary integer score per player (can go negative) with +/− steppers; a "reset all to 0" action. | **Persisted** |
+| **Life Points** | Its own player list; a starting value (default 20, the most common tabletop total, changeable) every new player is added at and every player can be reset to; +/− steppers per player. | **Persisted** |
 | **Hourglass** | A real countdown timer, hourglass-themed visuals (sand-drain animation while running): duration presets (1/3/5/10 min) plus a custom entry, start/pause/reset, a sound+vibration alert at zero. Not a purely decorative animation — the actual point is a usable turn/thinking-time timer. | In-memory only (a fresh timer each time the tool opens) |
-| **First Player** | Uses the shared roster; tap to randomly reveal one name. | In-memory only |
-| **Teams** | Uses the shared roster; a team-count stepper (2 or more); tap to randomly shuffle every player into that many groups. | In-memory only |
+| **First Player** | Its own player list; tap to randomly reveal one name. | In-memory only |
+| **Teams** | Its own player list; a team-count stepper; tap to randomly shuffle every player into that many groups as evenly as possible (shuffle-then-round-robin-deal, so no team differs from any other's size by more than 1). | In-memory only |
 
 Dice deliberately stays d6-only rather than adding a die-type picker (d4/d8/d10/d12/d20) — covers
 the vast majority of real board-game dice needs with a simpler, more focused UI; a
@@ -79,13 +77,14 @@ version.
 
 ## Persistence
 
-The shared roster, Scoreboard totals, and Life Points all persist via `preferencesDataStore` —
-the same established pattern every existing stats store in this app already uses (e.g.
-`LightsOutStatsStore`, `MinesweeperStatsStore`) — so a real game night surviving a break (the
-app getting closed, a phone dying and restarting, switching to another app and back) doesn't lose
-the roster or the running totals. Every other tool (Dice, Coin Toss, Random Letter, Hourglass,
-First Player, Teams' own last-shuffle result) is plain in-memory Compose state with no persistence
-need — there's nothing about "what the last dice roll was" worth remembering across app restarts.
+Scoreboard's and Life Points' own player lists (each including that tool's own per-player
+counter) persist via `preferencesDataStore` — the same established pattern every existing stats
+store in this app already uses (e.g. `LightsOutStatsStore`, `MinesweeperStatsStore`) — so a real
+game night surviving a break (the app getting closed, a phone dying and restarting, switching to
+another app and back) doesn't lose the running totals. Every other tool (Dice, Coin Toss, Random
+Letter, Hourglass, First Player, Teams) is plain in-memory Compose state with no persistence need
+— there's nothing about "what the last dice roll was," or First Player/Teams' own (unshared, see
+above) name lists, worth remembering across app restarts.
 
 ## Deliberate scope cuts (honest MVP, same spirit as every other game's own documented cuts)
 
@@ -104,14 +103,9 @@ need — there's nothing about "what the last dice roll was" worth remembering a
 
 ## Build order / next step
 
-This is architecturally simpler than any prior engine in this batch — no generation algorithm,
-no solver, no bot, no win condition to get right. The real risk surface is the shared-roster
-persistence plumbing (DataStore read/write timing, migrating/handling a first-launch empty
-roster) rather than any game logic, so a lighter-weight review pass than e.g. Sudoku's or Connect
-Four's own is the right default when this is built — the implementation plan should make that
-call explicitly rather than skip a review pass entirely.
-
-Next step: hand this doc to `writing-plans` (or equivalent) to produce a concrete implementation
-plan — the `GameCategory.UTILITY` addition, `PartyToolkitGame`/shared roster + DataStore-backed
-stats-store-style persistence, the 8 individual tool composables, then the landing grid + menu/
-route/strings wiring.
+This was architecturally simpler than any prior engine in this batch — no generation algorithm,
+no solver, no bot, no win condition to get right — and shipped without needing the kind of
+dedicated adversarial-review pass Sudoku's or Connect Four's own nontrivial algorithms warranted.
+The pure "random pick" logic (`PartyToolkitLogic.rollDice`/`flipCoin`/`randomLetter`/
+`pickFirstPlayer`/`splitIntoTeams`) is extracted into its own testable, `Random`-injectable
+object, same idiom every other engine's own generator functions in this app use.

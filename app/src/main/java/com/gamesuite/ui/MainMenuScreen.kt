@@ -263,6 +263,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("edge-match")
+            },
+            "party-toolkit" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("party-toolkit")
             }
         )
     }
@@ -560,6 +568,16 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
                     GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
                     GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() }
+                )
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            GameSection(
+                title = stringResource(R.string.section_party_toolkit),
+                columns = gameColumns,
+                entries = listOf(
+                    GameEntry(stringResource(R.string.game_party_toolkit)) { primaryLaunch.getValue("party-toolkit").invoke() }
                 )
             )
 

@@ -48,6 +48,7 @@ import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
+import com.gamesuite.games.partytoolkit.PartyToolkitGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.sudoku.SudokuGame
@@ -75,6 +76,7 @@ import com.gamesuite.ui.NearbyJoinLobbyScreen
 import com.gamesuite.ui.OnlineEntryScreen
 import com.gamesuite.ui.OnlineHostLobbyScreen
 import com.gamesuite.ui.OnlineJoinLobbyScreen
+import com.gamesuite.ui.PartyToolkitScreen
 import com.gamesuite.ui.SettingsScreen
 import com.gamesuite.ui.SlidingPuzzleScreen
 import com.gamesuite.ui.SolitaireScreen
@@ -562,6 +564,14 @@ class MainActivity : ComponentActivity() {
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("party-toolkit") {
+                            val partyToolkitGame = rememberActiveModule(sessionManager) { PartyToolkitGame() }
+                            PartyToolkitScreen(
+                                sessionManager = sessionManager,
+                                game = partyToolkitGame,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
                     }

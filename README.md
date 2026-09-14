@@ -1219,6 +1219,96 @@ point the app's Settings → Online multiplayer server address at it
       this same device) was not independently re-solved by hand on this pass —
       covered instead by the unit suite's own direct, exact-code-path coverage of
       reaching `solved=true` through real `tapTile()` calls.
+- [x] 21. New game modules, wave 1 continued: **Party Toolkit**
+      (`games/partytoolkit/PartyToolkitGame.kt` + `ui/PartyToolkitScreen.kt`), eighth
+      and final entry of the batch started at item 14 — a bundled board-game-night
+      utility set (Dice, Coin Toss, Random Letter, Scoreboard, Life Points, Hourglass,
+      First Player, Teams), architecturally distinct from every other game in this
+      batch: none of the 8 tools is a "game" in the `GameModule` sense (no win
+      condition, most have no real "match"). Scoped through a real round of
+      brainstorming with the project owner before implementation
+      (`docs/PARTY_TOOLKIT_DESIGN.md`, approved), same discipline as Edge Match.
+      **Architecture**: `PartyToolkitGame` registers as one TOKEN `GameModule` purely
+      so it reuses the existing menu/nav plumbing — `startMatch()`/`pause()`/
+      `resume()`/`endMatch()` are genuine no-ops, `leaveToolkit()` reports an unscored
+      `GameResult` on the way out. New `GameCategory.UTILITY` value added (`OTHER` was
+      the closest existing fit but doesn't communicate "utility tool, not a game" to a
+      player browsing the menu) — purely descriptive metadata, not read anywhere in
+      shell logic today. All 8 tools live inside `PartyToolkitScreen`'s own internal
+      tab navigation, not as separate `GameModule`s or menu entries.
+      **Two deliberate revisions from the design doc's original call, decided during
+      the build and documented in the doc itself**: tabs instead of a landing grid of
+      8 cards (the crowding concern the doc raised against tabs didn't hold up once
+      built — the tab row scrolls rather than trying to fit all 8 as fixed bottom-bar
+      items), and independent per-tool player lists (Scoreboard/Life Points/First
+      Player/Teams each keep their own roster) instead of one roster shared across all
+      four — a smaller, honest ongoing cost (re-entering names in more than one tool)
+      traded for not needing a shared-state layer with its own empty/partial-roster
+      edge cases across 4 tools with different minimum-player needs.
+      **The 8 tools**: Dice (d6-only by design, no die-type picker; 1-6 count stepper;
+      roll + per-die faces + total). Coin Toss (single flip, heads/tails, plus a
+      running heads/tails tally beyond what the design doc's own "no flip/roll
+      history" scope cut technically called for — a small, harmless addition kept
+      rather than stripped back out, worth knowing about). Random Letter (uniform
+      A-Z). Scoreboard and Life Points (own player list each, **persisted** via
+      `PartyToolkitStore`/`preferencesDataStore` — the same pattern every other
+      `XStatsStore` in this app uses; Life Points has a changeable starting total,
+      default 20, every new/reset player returns to). First Player and Teams (own
+      player list each, not persisted — resets each visit;
+      `PartyToolkitLogic.splitIntoTeams` shuffle-then-round-robin-deals so no team
+      differs from another's size by more than 1). Hourglass: a real countdown timer
+      with duration presets (1/3/5/10 min) **plus a custom-minutes entry**, start/
+      pause/reset, and an animated sand-drain visual (a Canvas-drawn hourglass whose
+      fill level is computed directly from `remainingSeconds`/`totalSeconds`, eased
+      between one-second ticks via `animateFloatAsState` rather than jumping) — not
+      purely decorative, since it's driven by real timer state. The alert at zero is
+      both a haptic (`HapticSignal.CELEBRATION`) and a real sound
+      (`SfxKind.SUCCESS_CHIME` via the same `rememberProceduralSfx` one-shot-SFX idiom
+      every other game screen already uses), matching the design doc's "sound+
+      vibration alert," not haptic alone.
+      **Process note — a second "approved design doc found mid/post-build" incident,
+      same lesson as Edge Match**: the toolkit's 8 tools were built and playtested on
+      a real device first; only then was `docs/PARTY_TOOLKIT_DESIGN.md` (a concurrent
+      session's own commit, `b84d23c`) discovered already revised in the working tree
+      to describe the tabs/independent-lists decisions above as deliberate — but the
+      Hourglass row was untouched, still specifying the sand-drain animation, custom
+      duration entry, and sound alert none of which the first build had. Unlike Edge
+      Match's rotate-vs-swap fork (a genuine mechanic disagreement needing the
+      project owner's own call via `AskUserQuestion`), this was a completeness gap
+      against an unambiguous, already-approved spec — no product decision to make, so
+      it was closed directly: the sand visual, custom-duration field, and
+      `SfxKind.SUCCESS_CHIME` alert were added in a follow-up pass, each verified live
+      on a real device. **A real rendering bug was caught and fixed during that
+      verification**: the bottom bulb's first implementation filled from the wrong
+      end (using `1f - animatedProgress` where the geometry needed `animatedProgress`
+      directly), so it visually drained back to empty right as the timer completed
+      instead of ending full — caught by pixel-sampling real device screenshots at
+      the timer's midpoint and at 0:00 (not just eyeballing them), fixed, and
+      re-verified the same way afterward: near-start (~2% elapsed) shows a thin sand
+      band near the base, the midpoint (~50%) shows both bulbs roughly half full, and
+      completion shows the bottom bulb fully orange with the top bulb fully empty.
+      11 unit tests passing for `PartyToolkitLogic`'s pure random-pick functions
+      (dice range, coin fairness over trials, letter range/variety, first-player
+      null-on-empty-roster + eventually-covers-every-name, team-split exact-partition
+      + size-diff-at-most-1 + count-clamping) and `PartyToolkitGame`'s token
+      lifecycle (`leaveToolkit` reports an unscored result; `startMatch`/`pause`/
+      `resume` are genuine no-ops) — `PartyToolkitStore` itself has no unit test,
+      matching this app's own standing precedent that no DataStore-backed
+      `XStatsStore` gets one (needs a real `Context`, no Robolectric in this
+      project), so its persistence is exercised at runtime instead. 138 unit tests
+      passing across the whole app; full `:app:compileDebugKotlin` and
+      `:app:assembleDebug` verified, and every tool played live on a real device
+      including the closure-race bug below.
+      **A real data-loss bug was also caught and fixed during the initial build's
+      device playtest**: `ScoreboardTool`'s and `LifePointsTool`'s own "add player"
+      handlers read the mutable `newName` text-field state from *inside* a
+      `scope.launch { ... }` coroutine body, with the very next line synchronously
+      clearing that same field — since `launch` doesn't run synchronously, the field
+      could be cleared before the coroutine read it, silently saving a player with an
+      empty name. Confirmed live (typed "Alice," only blank-named counter controls
+      appeared), fixed by capturing the trimmed name into an immutable `val` before
+      calling `launch`, and re-verified with real names persisting correctly across
+      leaving and re-entering the toolkit.
 
 ## Fixes and hardening
 
