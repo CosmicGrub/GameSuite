@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +76,22 @@ import kotlinx.coroutines.delay
  * this session's own time budget; the row/column clue numbers alone are
  * enough to play correctly today, just a little more effort to eyeball on
  * HARD's 15x15 grid.
+ *
+ * LIVE CLUE STRIKETHROUGH (docs/NONOGRAM_DESIGN.md's own **Feedback** section): a row's or
+ * column's clue numbers strike through once that line's CURRENT fill pattern (FILLED cells only —
+ * MARKED_EMPTY doesn't count either way) already matches its clue — [nonogramCluesOf] is the
+ * exact same run-length derivation [NonogramGame] itself uses to build the clues in the first
+ * place, just re-run against the player's live fill state instead of the solution, matching the
+ * design doc's own "recomputed live via the same [logic], not a separate 'is this line correct'
+ * check" call. A duplicated small pure function rather than a new public method on [NonogramGame]
+ * — [NonogramState] already exposes everything this needs ([NonogramState.cells]/`rowClues`/
+ * `colClues`), and this mirrors the same "a tiny derivation function gets its own independent
+ * copy where it's used" idiom [NonogramGameTest]'s own `independentCluesOf` already established
+ * for verification rather than reuse. This does NOT gate winning or mistakes — a satisfied-looking
+ * line can still include MARKED_EMPTY noise elsewhere, or (rarely) a line whose WRONG fill pattern
+ * happens to match its clue's shape by coincidence; the real win check ([NonogramState.won]) still
+ * compares every cell against [NonogramState.solution] directly, unaffected by this display-only
+ * signal.
  */
 @Composable
 fun NonogramScreen(
@@ -220,6 +237,8 @@ private fun NonogramGrid(
         Row {
             Box(Modifier.width(rowHeaderWidth).height(colHeaderHeight))
             for (c in 0 until state.size) {
+                val colFilled = (0 until state.size).map { r -> state.cells[r * state.size + c] == NonogramCellState.FILLED }
+                val colSatisfied = nonogramCluesOf(colFilled) == state.colClues[c]
                 Box(
                     modifier = Modifier.width(cellSize).height(colHeaderHeight),
                     contentAlignment = Alignment.BottomCenter
@@ -229,23 +248,26 @@ private fun NonogramGrid(
                         if (clue.isEmpty()) {
                             ClueDigit("0", palette, dim = true)
                         } else {
-                            for (n in clue) ClueDigit(n.toString(), palette, dim = false)
+                            for (n in clue) ClueDigit(n.toString(), palette, dim = false, satisfied = colSatisfied)
                         }
                     }
                 }
             }
         }
         for (r in 0 until state.size) {
+            val rowFilled = (0 until state.size).map { c -> state.cells[r * state.size + c] == NonogramCellState.FILLED }
+            val rowClue = state.rowClues[r]
+            val rowSatisfied = nonogramCluesOf(rowFilled) == rowClue
             Row {
                 Box(
                     modifier = Modifier.width(rowHeaderWidth).height(cellSize),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    val clue = state.rowClues[r]
                     ClueDigit(
-                        if (clue.isEmpty()) "0" else clue.joinToString(" "),
+                        if (rowClue.isEmpty()) "0" else rowClue.joinToString(" "),
                         palette,
-                        dim = clue.isEmpty(),
+                        dim = rowClue.isEmpty(),
+                        satisfied = rowSatisfied,
                         modifier = Modifier.padding(end = 6.dp)
                     )
                 }
@@ -264,11 +286,30 @@ private fun NonogramGrid(
     }
 }
 
+/** Same run-length derivation [NonogramGame] itself uses to build clues from the solution — see
+ *  this file's own class KDoc's LIVE CLUE STRIKETHROUGH section for why this is its own small
+ *  copy rather than a call into the engine. */
+private fun nonogramCluesOf(line: List<Boolean>): List<Int> {
+    val result = mutableListOf<Int>()
+    var run = 0
+    for (cell in line) {
+        if (cell) {
+            run++
+        } else if (run > 0) {
+            result += run
+            run = 0
+        }
+    }
+    if (run > 0) result += run
+    return result
+}
+
 @Composable
-private fun ClueDigit(text: String, palette: NonogramPalette, dim: Boolean, modifier: Modifier = Modifier) {
+private fun ClueDigit(text: String, palette: NonogramPalette, dim: Boolean, satisfied: Boolean = false, modifier: Modifier = Modifier) {
     Text(
         text,
-        color = if (dim) palette.textPrimary.copy(alpha = 0.35f) else palette.textPrimary,
+        color = if (dim) palette.textPrimary.copy(alpha = 0.35f) else if (satisfied) palette.textPrimary.copy(alpha = 0.4f) else palette.textPrimary,
+        textDecoration = if (satisfied) TextDecoration.LineThrough else TextDecoration.None,
         fontSize = 11.sp,
         lineHeight = 12.sp,
         modifier = modifier

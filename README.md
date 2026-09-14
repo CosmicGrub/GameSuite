@@ -1377,6 +1377,87 @@ point the app's Settings → Online multiplayer server address at it
       brainstorm doc's own "lower risk" framing for this entry; haptics/SFX per real
       event (brick broken, paddle bounce, wall bounce, life lost, level cleared, run
       over) are still wired, the same baseline every other game in this app meets.
+- [x] 23. New game modules, wave 2 continued: **Nonogram**
+      (`games/nonogram/NonogramGame.kt` + `ui/NonogramScreen.kt`) — row/column numeric
+      clues describing run-lengths of filled cells; fill the grid to satisfy both. Per
+      `docs/NEW_GAMES_BRAINSTORM.md`'s own explicit warning, this was flagged as **"the
+      hardest generator problem in this whole list"** before it was even started, and it
+      earned that: `docs/NONOGRAM_DESIGN.md` settles a real constraint-propagation
+      line-solver as the actual engine, not an approximation, through a full round of
+      brainstorming with the project owner — the single highest-leverage decision in
+      scoping this game, the same way "rotate-only, not placement" was for Edge Match.
+      **The line-solver**: for every row and column, enumerate which of its own
+      run-length placements remain consistent with what's currently known (filled/
+      empty/undetermined) and intersect them — any cell that agrees across every still-
+      possible placement becomes newly known; repeated across every row and column to a
+      fixed point. **EASY/MEDIUM only accept a generated candidate the line-solver alone
+      fully resolves** — this proves both a unique solution AND that a human can solve
+      it through pure logic with zero guessing, a real fairness bar the puzzle-genre
+      idiom this batch otherwise shares (Minesweeper/Sudoku/Lights Out/Edge Match all
+      just scale board size) doesn't by itself guarantee. **HARD** escalates to a
+      call-budget-capped backtracking search (same "budget exhausted = not verified,
+      discard and retry, never guess past it" principle `SudokuGame.countSolutions`
+      already established) when line-solving alone stalls — some HARD cells genuinely
+      require a guess-and-verify step, a real technique-level skill-ceiling raise, not
+      just a bigger board with the same solving method. EASY 5x5 / MEDIUM 10x10 / HARD
+      15x15, the classic nonogram-book size progression. Tapping a cell cycles
+      UNDETERMINED → FILLED → MARKED_EMPTY → UNDETERMINED (the X-mark is a pure
+      scratchpad aid, never scored); a FILLED cell that doesn't match the solution
+      renders in the danger color immediately (this app's established "full
+      information, no hidden state" puzzle culture — Sudoku flags a wrong entry
+      immediately, Edge Match live-highlights matches) with a running, never-decrementing
+      mistake counter (Sudoku's own "session stat, not a live blocking flag" idiom,
+      applied per-cell). **Live clue-strikethrough feedback**: a row's or column's clue
+      numbers strike through the instant that line's current fill pattern (FILLED cells
+      only) matches its own clue, recomputed live via the exact same run-length
+      derivation the engine uses to build clues from the solution in the first place —
+      real-time deductive feedback, not a static clue label, matching the design doc's
+      own **Feedback** section. Time-only stats (`NonogramStatsStore`, matching
+      Minesweeper/Sudoku's shape) — no honest "fewest moves" metric exists here the way
+      Lights Out/Edge Match's own move count does, since every solution cell needs
+      exactly one fill regardless of order. Daily-seed route (`nonogram-daily`), same
+      shape as every other solo puzzle in this app.
+      **Process note — built collaboratively across two sessions in this exact shared
+      checkout, same collision pattern as Connect Four/Edge Match/Party Toolkit/
+      Breakout, but with a clean resolution this time**: an initial engine (random-
+      grid-then-backtracking-uniqueness-check, no line-solver, all three tiers held to
+      the same "merely unique" bar) was independently built, unit-tested (12/12), and
+      adversarially reviewed by a dedicated background agent — 200,000 fuzzed line-level
+      cases plus thousands of whole-grid trials against a structurally independent
+      ground truth (a different technique, not a copy of the algorithm under review)
+      found zero correctness bugs, a legitimate clean bill of health (same as Connect
+      Four's own review outcome) — before a concurrent session's own
+      `docs/NONOGRAM_DESIGN.md` (approved via brainstorming) was discovered already
+      committed, extending that same engine with the real line-solver fairness gate
+      above. Reviewed and adopted the extension as authoritative per the established
+      "verify then adopt, don't duplicate" precedent: manually traced the new
+      propagation logic (built directly on the already-exhaustively-verified line-
+      matcher, so inherits its correctness), confirmed a dedicated independent
+      re-verification test (a fresh reimplementation, not the engine's own check)
+      passing across 10 seeds x 2 tiers, and confirmed the design doc's own build-order
+      section had already caught and fixed a real regression during development (a
+      naive backtracking-from-blank HARD-tier solve measuring up to ~2.5 seconds for
+      some seeds, fixed by running the line-solver as a shared propagation pre-pass
+      before backtracking, not a bigger budget or a smaller board).
+      **One real, honest gap found and closed directly, not re-asked**: the design
+      doc's own **Feedback** section calls for the live clue-strikethrough described
+      above, but the already-committed `NonogramScreen.kt` (this session's own earlier
+      work, preserved unchanged by the concurrent session's commit) never implemented
+      it — a plain completeness gap against unambiguous, already-approved spec text
+      (Party Toolkit's Hourglass situation, not Edge Match's rotate-vs-swap fork), so
+      closed directly: added the strikethrough computation and wiring, verified live on
+      a real device (a row's clue struck through the instant its true solution cells
+      were filled, while unsatisfied rows/columns stayed normal).
+      165 unit tests passing app-wide, full `:app:compileDebugKotlin` +
+      `:app:assembleDebug` verified, and played live on a real device across all three
+      difficulties: real generation (including HARD's 15x15 rendering promptly, no
+      visible stall), the full tap cycle, immediate per-cell mistake highlighting with
+      an exactly-matching mistake count, a hand-solved EASY board reaching the finished
+      panel with a genuine "New best time!", "New Puzzle" dealing a fresh board, and
+      clean `logcat` throughout multiple install/uninstall cycles (one real but
+      unrelated stale-incremental-build APK crash — `NoClassDefFoundError` on
+      `androidx.startup.R$string` — hit mid-session and resolved by a clean
+      `:app:clean :app:assembleDebug`, not a code defect).
 
 ## Fixes and hardening
 

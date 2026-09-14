@@ -329,13 +329,19 @@ catalog or already listed above.
   verified and built the UI/wiring layer on top of, rather than duplicating.
 - **Color Flood** — see "Color Match" above; recommended as the same build, not a
   separate one.
-- **Nonogram / Picross** — row/column numeric clues describing run-lengths of filled
-  cells; fill the grid to satisfy both. A natural extension of the "grid logic puzzle"
-  family Minesweeper/Sudoku/Lights Out are building out, with its own generator
-  challenge (generating a puzzle with a *unique* solution is a real constraint-
-  satisfaction problem, not a trivial scramble) — flag this honestly as the hardest
-  generator problem in this whole list if picked up, likely wanting a real constraint
-  solver rather than the "generate solved then reduce" idiom used elsewhere.
+- **Nonogram / Picross** — ✅ **Shipped** as Nonogram (`games/nonogram/NonogramGame.kt` +
+  `ui/NonogramScreen.kt`, README Roadmap item 23). Row/column numeric clues describing
+  run-lengths of filled cells; fill the grid to satisfy both. This entry's own "hardest
+  generator problem in this whole list" warning held up — `docs/NONOGRAM_DESIGN.md`
+  (approved via brainstorming) settled a real constraint-propagation line-solver as the
+  actual engine: EASY/MEDIUM only accept a candidate the line-solver alone fully
+  resolves (proving both uniqueness and guess-free solvability), HARD escalates to
+  budget-capped backtracking when propagation stalls. See README item 23 for the full
+  build writeup, including a two-session collision resolved cleanly (an initial
+  merely-unique-check engine, adversarially reviewed with zero bugs found, was extended
+  by a concurrent session's line-solver fairness gate — reviewed and adopted rather than
+  duplicated) and one real completeness gap (live clue-strikethrough feedback, called
+  for in the design doc but missing from the shipped screen) closed directly.
 - **Breakout / Brick Breaker** — ✅ **Shipped** as Breakout (`games/breakout/BreakoutGame.kt`
   + `ui/BreakoutScreen.kt`, README Roadmap item 22). Real-time paddle-and-ball arcade
   action, reusing Air Hockey's existing continuous-physics/frame-stepped-loop
@@ -375,8 +381,9 @@ games proposed above duplicate anything in the existing 13-game catalog.
    later phase — not started).
 8. ~~Party Toolkit (Boardgame Pal set)~~ — done, shipped as Party Toolkit.
 9. ~~Breakout~~ — done, shipped as Breakout.
-10. Nonogram / Kakuro / KenKen — later; Nonogram if picked up before the other two,
-    given it's the more widely-recognized title of the three.
+10. ~~Nonogram~~ — done, shipped as Nonogram. Kakuro / KenKen remain — later; genuinely
+    niche relative to the other picks in this batch, worth mentioning for completeness
+    rather than near-term scheduling.
 11. Tower Defence — own future ADR before any implementation starts; the one item here
     that may not fit this app's declarative-Compose model as comfortably as everything
     else on this list does.
