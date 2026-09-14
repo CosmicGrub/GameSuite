@@ -42,6 +42,7 @@ import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.mancala.MancalaGame
+import com.gamesuite.games.minesweeper.MinesweeperGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.uno.UnoGame
@@ -56,6 +57,7 @@ import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.MainMenuScreen
 import com.gamesuite.ui.MancalaScreen
+import com.gamesuite.ui.MinesweeperScreen
 import com.gamesuite.ui.NearbyEntryScreen
 import com.gamesuite.ui.NearbyHostLobbyScreen
 import com.gamesuite.ui.NearbyJoinLobbyScreen
@@ -422,6 +424,27 @@ class MainActivity : ComponentActivity() {
                             SlidingPuzzleScreen(
                                 sessionManager = sessionManager,
                                 game = slidingPuzzleGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("minesweeper") {
+                            val minesweeperGame = rememberActiveModule(sessionManager) { MinesweeperGame() }
+                            MinesweeperScreen(
+                                sessionManager = sessionManager,
+                                game = minesweeperGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("minesweeper-daily") {
+                            // Same GameModule/screen as "minesweeper" — a today's-date seed is
+                            // the only difference, so every player gets the identical board.
+                            val minesweeperGame = rememberActiveModule(sessionManager) { MinesweeperGame() }
+                            MinesweeperScreen(
+                                sessionManager = sessionManager,
+                                game = minesweeperGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

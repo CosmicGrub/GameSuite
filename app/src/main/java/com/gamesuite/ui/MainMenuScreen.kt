@@ -201,6 +201,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("sliding-puzzle")
+            },
+            "minesweeper" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("minesweeper")
             }
         )
     }
@@ -302,6 +310,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("sliding-puzzle-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_minesweeper_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("minesweeper-daily")
                     }
                 )
             )
@@ -428,7 +444,8 @@ fun MainMenuScreen(
                         )
                         onNavigateToGame("air-hockey")
                     },
-                    GameEntry(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() }
+                    GameEntry(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() },
+                    GameEntry(stringResource(R.string.game_minesweeper)) { primaryLaunch.getValue("minesweeper").invoke() }
                 )
             )
 

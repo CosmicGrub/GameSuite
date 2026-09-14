@@ -183,6 +183,7 @@ object MusicProfiles {
     val WORD_SEARCH = PUZZLE_FOCUS
     val CROSSWORD = PUZZLE_FOCUS
     val HANGMAN = PUZZLE_FOCUS
+    val MINESWEEPER = PUZZLE_FOCUS
 
     /** A touch more playful and a bit faster than everything else that
      *  isn't Air Hockey — light plucked-arpeggio texture matching UNO's

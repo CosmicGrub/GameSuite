@@ -894,6 +894,52 @@ point the app's Settings → Online multiplayer server address at it
       correctly in the end, but the lesson is to stagger workflows that
       share the same "temporarily edit, verify, revert" touchpoints, or
       give them worktree isolation, rather than run them fully parallel.
+- [x] 14. New game modules, wave 1: **Minesweeper**
+      (`games/minesweeper/MinesweeperGame.kt` + `ui/MinesweeperScreen.kt`) — the first
+      of a batch of new games scoped from 33 reference screenshots of three unrelated
+      apps (Chogan, Boardgame Pal, Tessel — see `docs/NEW_GAMES_BRAINSTORM.md` for the
+      full brainstorm, scope decisions, and remaining backlog). First-click-safe mine
+      placement (mines excluded from the first-tapped cell and its 8 neighbors),
+      iterative BFS flood-fill reveal, flag toggle, three difficulty tiers reusing
+      `CpuDifficulty` (EASY 9x9/10 mines, MEDIUM 16x16/40, HARD 16x30/99 — the standard
+      tier sizes), a `minesweeper-daily` route sharing the same today's-date-seed
+      pattern as Sliding Puzzle/Word Search, and a `MinesweeperStatsStore` tracking
+      best time per tier. 9 unit tests covering mine count, first-click safety across
+      100 trials per tier, adjacent-count correctness, win/loss detection, flagging,
+      flood-fill, and daily-seed reproducibility — all passing.
+      **Two decisions this wave made explicit, both settled going forward, not just for
+      this one game**: (1) new games live as ordinary `GameModule`s inside this same
+      app, not a separate app or codebase; (2) new games get their own warm,
+      Chogan-inspired color palette (`minesweeperPalette()`), isolated from the 13
+      existing games' Material3 identity — safe because gameplay colors in this app
+      already never read `MaterialTheme.colorScheme` in the first place (every game's
+      board colors are bespoke literals; see `AppTheme.kt`'s own KDoc), so this is a
+      new game choosing different literals, not an exception carved out for it.
+      Existing games were **not** re-themed as part of this wave.
+      **A real test-coverage gap found and fixed, not just worked around**: adding the
+      live timer required calling `SystemClock.elapsedRealtime()`, which throws
+      "not mocked" under this project's plain-JUnit setup (no Robolectric dependency
+      exists here). `SlidingPuzzleGameTest` avoids this exact issue only by never
+      calling its own SystemClock-touching `tapTile()` — a pre-existing, undocumented
+      coverage gap. Rather than copy that gap, `MinesweeperGame` took an injectable
+      `nowMillis: () -> Long = { SystemClock.elapsedRealtime() }` constructor
+      parameter so tests inject a deterministic fake clock instead — better coverage
+      than the precedent it was built from, not a regression.
+      **Deliberate MVP cuts, documented in the engine's own KDoc**: no chord-tap
+      (auto-reveal via satisfied flag count), no hint/solver. No foldable-aware
+      `AdaptiveTwoPane` split either (`SlidingPuzzleScreen` has one) — a single-pane
+      scrollable grid was judged sufficient at all three tier sizes for a working v1.
+      Verified via a full `:app:compileDebugKotlin` build (not just the isolated
+      engine+test module) after wiring the new routes/menu entries/strings into
+      `MainActivity.kt`/`MainMenuScreen.kt`/`strings.xml` — no arduino-cli/physical-
+      device access applies here (this is the Android app, not the ESP32 cabinet), but
+      no on-device (Fold 5 / Tab S9) install-and-play pass has happened yet for this
+      game specifically. The remaining brainstormed batch (Sudoku, Dots and Boxes,
+      Lights Out, Color Flood, Connect Four, a Tessel-style edge-matching puzzle, a
+      bundled Boardgame-Pal-style "Party Toolkit," and further stretch picks) is
+      tracked in `docs/NEW_GAMES_BRAINSTORM.md`, not duplicated here — this Roadmap
+      stays a build-history log; the brainstorm doc is where the forward-looking plan
+      lives.
 
 ## Fixes and hardening
 

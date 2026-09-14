@@ -38,6 +38,7 @@
     <!-- Daily challenge -->
     <string name="game_word_search_daily">Word Search — today\'s puzzle</string>
     <string name="game_sliding_puzzle_daily">Sliding Puzzle — today\'s scramble</string>
+    <string name="game_minesweeper_daily">Minesweeper — today\'s board</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -68,4 +69,5 @@
     <string name="game_air_hockey_vs_cpu">Air Hockey (vs CPU)</string>
     <string name="game_air_hockey_pass_play">Air Hockey (pass &amp; play)</string>
     <string name="game_sliding_puzzle">Sliding Puzzle</string>
+    <string name="game_minesweeper">Minesweeper</string>
 </resources>
