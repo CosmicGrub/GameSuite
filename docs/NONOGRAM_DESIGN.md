@@ -92,12 +92,19 @@ just a simplified one.
 
 A row or column's own clue numbers strike through once that line's CURRENT fill pattern already
 satisfies them — recomputed live via the same line-solver logic (not a separate "is this line
-correct" check) as the player fills/unfills cells. No per-cell right/wrong flag, and no mistake
-counter: unlike Sudoku (where a placed digit is immediately, unambiguously right or wrong against
-the known solution), a nonogram cell's "correctness" only really resolves at the LINE level, and
-a wrong fill can make a clue's count look satisfied and then later look broken again as more
-cells go in — an instant per-cell flag doesn't map cleanly onto how nonogram clues actually
-resolve, so this doesn't force Sudoku's model onto a genre where it doesn't fit.
+correct" check) as the player fills/unfills cells. No per-cell "wrong, undo this" blocking flag —
+unlike Sudoku (where a placed digit is immediately, unambiguously right or wrong against the
+known solution), a nonogram cell's "correctness" only really resolves at the LINE level, and a
+wrong fill can make a clue's count look satisfied and then later look broken again as more cells
+go in, so this doesn't force Sudoku's instant-flag model onto a genre where it doesn't map as
+cleanly.
+
+**Revised from this doc's original "no mistake counter" call**: a running mistake COUNT is
+tracked after all (incremented whenever a FILLED mark lands on a cell the true solution says
+should be empty, never decremented) — Sudoku's own "session stat, not a live per-cell flag or an
+enforced limit" idiom, just applied at the cell level rather than skipped entirely. Kept once
+built and tested rather than stripped back out purely to match the original plan — a real,
+reasonable skill signal, just not what was scoped going in.
 
 ## Stats, daily seed, session shape
 
@@ -134,18 +141,18 @@ resolve, so this doesn't force Sudoku's model onto a genre where it doesn't fit.
   nonograms (where each filled run also carries a specific color) — a real, separate genre
   variant, not attempted here.
 
-## Build order / next step
+## Build order
 
-This has genuinely the highest algorithmic risk of any engine in this batch, per the brainstorm
-doc's own "hardest generator problem" framing — the implementation plan should budget a real
-adversarial-review pass on the line-solver/backtracking-escalation logic specifically (the same
-class of risk Sudoku's own uniqueness solver turned out to have — a naive or unbounded search
-could blow up combinatorially at HARD's 15×15 size), not skip or lightly scale one down the way
-e.g. Party Toolkit reasonably could.
-
-Next step: hand this doc to `writing-plans` (or equivalent) to produce a concrete implementation
-plan — the `NonogramGame`/`NonogramState` engine (grid generation, the line-solver, the bounded
-backtracking escalation, clue-derivation), `NonogramStatsStore`, unit tests (including an
-independently-reimplemented uniqueness verifier in the test file itself, matching
-`SudokuGameTest`'s/`EdgeMatchGameTest`'s own "don't trust the engine's own solver to check
-itself" precedent), then the UI screen + menu/route/strings wiring.
+This had genuinely the highest algorithmic risk of any engine in this batch, per the brainstorm
+doc's own "hardest generator problem" framing, and the named implementation risk above (EASY/
+MEDIUM's line-solvability accept rate being unknown ahead of time) was real enough to measure
+directly rather than assume: an initial version of `countSolutions` that backtracked from a blank
+grid in naive row-major order (no propagation pre-pass at all) measured up to ~2.5 seconds for
+some HARD-tier (15×15) seeds despite its own call-budget safety net — fixed by extracting the
+line-solver's propagation loop (`propagateLineConstraints`) as a shared pre-pass BOTH
+`isFullyDeterminedByLineSolving` (the EASY/MEDIUM gate) and `countSolutions` (HARD's backtracking
+verifier) run first, letting backtracking explore only whatever cells propagation genuinely
+couldn't pin down — not two separate solvers, one shared piece of logic. Once fixed, the EASY/
+MEDIUM fairness guarantee itself (20 puzzles across both tiers, independently re-verified via a
+freshly-written test-side line-solver) generates in ~31ms total — the accept-rate risk did not
+materialize as a real problem in practice.

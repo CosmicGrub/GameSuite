@@ -44,6 +44,7 @@
     <string name="game_lights_out_daily">Lights Out — today\'s board</string>
     <string name="game_color_flood_daily">Color Flood — today\'s board</string>
     <string name="game_edge_match_daily">Edge Match — today\'s puzzle</string>
+    <string name="game_nonogram_daily">Nonogram — today\'s puzzle</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -84,5 +85,6 @@
     <string name="game_color_flood">Color Flood</string>
     <string name="game_edge_match">Edge Match</string>
     <string name="game_breakout">Breakout</string>
+    <string name="game_nonogram">Nonogram</string>
     <string name="game_party_toolkit">Open Toolkit</string>
 </resources>

@@ -279,6 +279,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("breakout")
+            },
+            "nonogram" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("nonogram")
             }
         )
     }
@@ -420,6 +428,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("edge-match-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_nonogram_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("nonogram-daily")
                     }
                 )
             )
@@ -576,7 +592,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
                     GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
                     GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() },
-                    GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() }
+                    GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() },
+                    GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() }
                 )
             )
 

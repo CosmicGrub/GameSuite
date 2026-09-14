@@ -49,6 +49,7 @@ import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
+import com.gamesuite.games.nonogram.NonogramGame
 import com.gamesuite.games.partytoolkit.PartyToolkitGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
@@ -75,6 +76,7 @@ import com.gamesuite.ui.MinesweeperScreen
 import com.gamesuite.ui.NearbyEntryScreen
 import com.gamesuite.ui.NearbyHostLobbyScreen
 import com.gamesuite.ui.NearbyJoinLobbyScreen
+import com.gamesuite.ui.NonogramScreen
 import com.gamesuite.ui.OnlineEntryScreen
 import com.gamesuite.ui.OnlineHostLobbyScreen
 import com.gamesuite.ui.OnlineJoinLobbyScreen
@@ -563,6 +565,27 @@ class MainActivity : ComponentActivity() {
                             EdgeMatchScreen(
                                 sessionManager = sessionManager,
                                 game = edgeMatchGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("nonogram") {
+                            val nonogramGame = rememberActiveModule(sessionManager) { NonogramGame() }
+                            NonogramScreen(
+                                sessionManager = sessionManager,
+                                game = nonogramGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("nonogram-daily") {
+                            // Same GameModule/screen as "nonogram" — a today's-date seed is the
+                            // only difference, so every player gets the identical puzzle.
+                            val nonogramGame = rememberActiveModule(sessionManager) { NonogramGame() }
+                            NonogramScreen(
+                                sessionManager = sessionManager,
+                                game = nonogramGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
