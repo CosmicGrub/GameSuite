@@ -326,6 +326,72 @@ class LightsOutGameTest {
     }
 
     @Test
+    fun `press is rejected once the session has ended via leaveSession, even if the board itself was not yet won`() {
+        // Found by adversarial review (ColorFloodGame.pick()'s own pass):
+        // press()'s only liveness check was `s.isOver` (per-board), never
+        // `matchOver` (session-level), so a call after leaveSession() had
+        // already delivered the final GameResult could still mutate state
+        // -- including a phantom win with no second result ever reported.
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 1L)
+        val s0 = game.state.value!!
+        val litIndices = s0.cells.indices.filter { s0.cells[it] }
+        game.press(litIndices.first())
+        assertFalse(game.state.value!!.won) // sanity: EASY (3x3) scrambled boards need more than one press
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.press(0)
+        assertEquals("a press() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
+    fun `pausing twice without an intervening resume does not lose the interval between the two pauses`() {
+        // Found by adversarial review: pause() overwrote its anchor on a
+        // second call with no resume() in between (unlike resume(), which
+        // was already correctly idempotent), silently dropping the
+        // interval between the two pause() calls from totalPausedMillis
+        // and counting it as active play instead.
+        var clock = 0L
+        val game = LightsOutGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 1L)
+
+        val s0 = game.state.value!!
+        val litIndices = s0.cells.indices.filter { s0.cells[it] }
+        clock = 100L
+        game.press(litIndices.first()) // starts the timer at t=100
+
+        clock = 110L
+        game.pause() // pausedAt = 110
+
+        clock = 200L
+        game.pause() // must be a no-op -- pausedAt should STILL be 110, not overwritten to 200
+
+        clock = 250L
+        game.resume() // totalPausedMillis += 250 - 110 = 140 (not 250 - 200 = 50)
+
+        clock = 300L
+        winByRealPresses(game)
+
+        val recordedMillis = game.finishedElapsedMillis.value!!
+        assertTrue(
+            "recorded solve time was ${recordedMillis}ms -- the [110,200] interval between the two pause() calls must count as paused, not active",
+            recordedMillis < 100L
+        )
+    }
+
+    @Test
     fun `matchOver resets on a new match, even after a prior endMatch -- playAgain and leaveSession never get permanently stuck`() {
         // Found by adversarial review: matchOver was only ever cleared in
         // init(), so calling endMatch() (a public override) and then

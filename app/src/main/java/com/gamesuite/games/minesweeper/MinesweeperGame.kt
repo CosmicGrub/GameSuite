@@ -184,9 +184,15 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
      * `GameSessionManager.pause()`/`resume()` really do forward from
      * `MainActivity.onPause()`/`onResume()` — this is not a
      * theoretical/unwired path, it fires on every real backgrounding.
+     *
+     * Guarded by `pausedAtElapsedRealtime == null` so a second [pause] call
+     * with no [resume] in between is a no-op rather than silently moving the
+     * anchor forward and losing the intervening interval — the same
+     * asymmetry-with-[resume] gap found and fixed in ColorFloodGame.pause()
+     * (see that class's KDoc), closed here defensively for the same reason.
      */
     override fun pause() {
-        if (timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
+        if (pausedAtElapsedRealtime == null && timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
             pausedAtElapsedRealtime = nowMillis()
         }
     }
@@ -204,10 +210,21 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         onMatchEnd?.invoke(result)
     }
 
-    /** Reveal the cell at [index] (row-major). No-op if the board is already decided, or the cell isn't hidden (already revealed, or flagged — a flagged cell must be unflagged first, the standard convention). */
+    /**
+     * Reveal the cell at [index] (row-major). No-op if the board is already
+     * decided, the cell isn't hidden (already revealed, or flagged — a
+     * flagged cell must be unflagged first, the standard convention), or the
+     * whole session has already ended via [leaveSession]/[endMatch] — found
+     * missing by ColorFloodGame.pick()'s own adversarial review (only the
+     * per-board `isOver` was checked, never `matchOver`, so a call after the
+     * final `GameResult` had already been delivered could still mutate
+     * state, including a phantom win with no second result ever reported —
+     * see that class's KDoc). Not currently reachable through this app's
+     * real screens, but a real gap worth closing defensively regardless.
+     */
     fun revealCell(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (s.cells[index].state != CellState.HIDDEN) return
 
         // Stopwatch starts on the first *actual* reveal, not on board generation --
@@ -250,10 +267,10 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
     }
 
-    /** Toggles a flag on a still-hidden cell — a no-op on an already-revealed cell, or once the board is decided. */
+    /** Toggles a flag on a still-hidden cell — a no-op on an already-revealed cell, once the board is decided, or once the whole session has already ended via [leaveSession]/[endMatch] (see [revealCell]'s KDoc for why). */
     fun toggleFlag(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.state == CellState.REVEALED) return
 

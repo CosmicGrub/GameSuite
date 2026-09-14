@@ -298,6 +298,54 @@ class DotsAndBoxesGameTest {
     }
 
     @Test
+    fun `drawing an edge is rejected once the session has ended via leaveSession, even if the board itself was not yet over`() {
+        // Found by adversarial review (ColorFloodGame.pick()'s own pass):
+        // drawEdge()'s only liveness check was `s.boardOver` (per-board),
+        // never `matchOver` (session-level), so a call after leaveSession()
+        // had already delivered the final GameResult could still mutate
+        // state -- including a phantom box claim/win with no second result
+        // ever reported.
+        val game = newTwoHumanGame()
+        game.startMatch()
+        game.drawHorizontalEdge(0, 0)
+        assertFalse(game.state.value!!.boardOver)
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.drawHorizontalEdge(1, 0)
+        assertEquals("a drawHorizontalEdge() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+
+        game.drawVerticalEdge(0, 0)
+        assertEquals("a drawVerticalEdge() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
+    fun `playBotTurn is rejected once the session has ended via leaveSession, even if the board itself was not yet over`() {
+        // Companion regression to the drawEdge() test above: playBotTurn()
+        // routes every actual move through drawEdge(), so once drawEdge()
+        // started no-op'ing on a matchOver'd session, playBotTurn()'s own
+        // termination argument (recurse only while it's still the bot's
+        // turn on an unfinished board) would silently break -- boardOver
+        // never flips, so it would recurse forever instead of stopping.
+        // playBotTurn() needed its own matchOver guard for the same reason
+        // drawEdge() did.
+        val game = newVsBotGame(CpuDifficulty.EASY)
+        game.startMatch()
+        val s0 = game.state.value!!
+        game.state.value = s0.copy(currentPlayerIndex = 1) // force it to be the bot's turn, without finishing the board
+        assertFalse(game.state.value!!.boardOver)
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.playBotTurn()
+        assertEquals("a playBotTurn() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
     fun `matchOver resets on a new match, even after a prior endMatch -- playAgain and leaveSession never get permanently stuck`() {
         val game = newTwoHumanGame()
         game.startMatch()

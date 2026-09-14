@@ -441,6 +441,86 @@ class SudokuGameTest {
     }
 
     @Test
+    fun `setValue, clearValue, and toggleNote are all rejected once the session has ended via leaveSession, even if the board itself was not yet won`() {
+        // Found by adversarial review (ColorFloodGame.pick()'s own pass):
+        // setValue()/clearValue()/toggleNote()'s only liveness check was
+        // `s.isOver` (per-board), never `matchOver` (session-level), so a
+        // call after leaveSession() had already delivered the final
+        // GameResult could still mutate state -- including a phantom win
+        // with no second result ever reported.
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val emptyIndex = s.cells.indices.first { !s.cells[it].isGiven }
+        game.selectCell(emptyIndex)
+        game.setValue(s.solution[emptyIndex])
+        assertFalse(game.state.value!!.isOver)
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.setValue((s.solution[emptyIndex] % 9) + 1)
+        assertEquals("a setValue() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+
+        game.clearValue()
+        assertEquals("a clearValue() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+
+        game.toggleNote(1)
+        assertEquals("a toggleNote() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
+    fun `pausing twice without an intervening resume does not lose the interval between the two pauses`() {
+        // Found by adversarial review: pause() overwrote its anchor on a
+        // second call with no resume() in between (unlike resume(), which
+        // was already correctly idempotent), silently dropping the
+        // interval between the two pause() calls from totalPausedMillis
+        // and counting it as active play instead.
+        var clock = 0L
+        val game = SudokuGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val emptyIndex = s.cells.indices.first { !s.cells[it].isGiven }
+
+        clock = 100L
+        game.selectCell(emptyIndex)
+        game.setValue(s.solution[emptyIndex]) // starts the timer at t=100
+
+        clock = 110L
+        game.pause() // pausedAt = 110
+
+        clock = 200L
+        game.pause() // must be a no-op -- pausedAt should STILL be 110, not overwritten to 200
+
+        clock = 250L
+        game.resume() // totalPausedMillis += 250 - 110 = 140 (not 250 - 200 = 50)
+
+        clock = 300L
+        for (i in s.cells.indices) {
+            if (!s.cells[i].isGiven && i != emptyIndex) {
+                game.selectCell(i)
+                game.setValue(s.solution[i])
+            }
+        }
+
+        val recordedMillis = game.finishedElapsedMillis.value!!
+        assertTrue(
+            "recorded solve time was ${recordedMillis}ms -- the [110,200] interval between the two pause() calls must count as paused, not active",
+            recordedMillis < 100L
+        )
+    }
+
+    @Test
     fun `matchOver resets on a new match, even after a prior endMatch -- playAgain and leaveSession never get permanently stuck`() {
         val game = newGame(CpuDifficulty.EASY)
         game.startMatch(dailySeed = 1L)

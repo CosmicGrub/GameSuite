@@ -170,9 +170,21 @@ class DotsAndBoxesGame : GameModule {
     fun drawHorizontalEdge(row: Int, col: Int) = drawEdge(isHorizontal = true, row = row, col = col)
     fun drawVerticalEdge(row: Int, col: Int) = drawEdge(isHorizontal = false, row = row, col = col)
 
+    /**
+     * See [drawHorizontalEdge]/[drawVerticalEdge]. No-op if the board is
+     * already over, the edge is out of range or already drawn, or the whole
+     * session has already ended via [leaveSession]/[endMatch] — found
+     * missing by ColorFloodGame.pick()'s own adversarial review (only the
+     * per-board `boardOver` was checked, never `matchOver`, so a call after
+     * the final `GameResult` had already been delivered could still mutate
+     * state, including a phantom box claim/win with no second result ever
+     * reported — see that class's KDoc). Not currently reachable through
+     * this app's real screens, but a real gap worth closing defensively
+     * regardless.
+     */
     private fun drawEdge(isHorizontal: Boolean, row: Int, col: Int) {
         val s = state.value ?: return
-        if (s.boardOver) return
+        if (matchOver.value || s.boardOver) return
         if (!isValidEdge(isHorizontal, row, col, s.boxRows, s.boxCols)) return
         if (isEdgeDrawn(s, isHorizontal, row, col)) return
 
@@ -238,10 +250,19 @@ class DotsAndBoxesGame : GameModule {
      * and recurse if so. [chooseBotMove] always returns a real move while
      * the board isn't over (there's always at least one undrawn edge), so
      * this terminates once the board actually ends.
+     *
+     * Also bails out once the whole session has already ended via
+     * [leaveSession]/[endMatch], same as [drawEdge] (see that method's
+     * KDoc) — required here specifically to keep this method's own
+     * termination argument true: without it, a `matchOver` session with a
+     * still-unfinished board (`boardOver` stays false; [leaveSession] never
+     * touches it) would make every [drawEdge] call silently no-op forever
+     * while this method kept recursing, an infinite-recursion regression
+     * this guard prevents rather than one this method already had.
      */
     fun playBotTurn() {
         val s = state.value ?: return
-        if (s.boardOver) return
+        if (matchOver.value || s.boardOver) return
         val bot = s.players[s.currentPlayerIndex]
         if (!bot.isBot) return
 

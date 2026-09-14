@@ -142,9 +142,15 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
      * duration. `GameSessionManager.pause()`/`resume()` really do forward
      * from `MainActivity.onPause()`/`onResume()` — this is not a
      * theoretical/unwired path, it fires on every real backgrounding.
+     *
+     * Guarded by `pausedAtElapsedRealtime == null` so a second [pause] call
+     * with no [resume] in between is a no-op rather than silently moving the
+     * anchor forward and losing the intervening interval — the same
+     * asymmetry-with-[resume] gap found and fixed in ColorFloodGame.pause()
+     * (see that class's KDoc), closed here defensively for the same reason.
      */
     override fun pause() {
-        if (timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
+        if (pausedAtElapsedRealtime == null && timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
             pausedAtElapsedRealtime = nowMillis()
         }
     }
@@ -162,10 +168,20 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         onMatchEnd?.invoke(result)
     }
 
-    /** Presses cell [index]: toggles it and its orthogonal neighbors. No-op on an out-of-range index or an already-won board. */
+    /**
+     * Presses cell [index]: toggles it and its orthogonal neighbors. No-op
+     * on an out-of-range index, an already-won board, or once the whole
+     * session has already ended via [leaveSession]/[endMatch] — found
+     * missing by ColorFloodGame.pick()'s own adversarial review (only the
+     * per-board `isOver` was checked, never `matchOver`, so a call after the
+     * final `GameResult` had already been delivered could still mutate
+     * state, including a phantom win with no second result ever reported —
+     * see that class's KDoc). Not currently reachable through this app's
+     * real screens, but a real gap worth closing defensively regardless.
+     */
     fun press(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
 
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()

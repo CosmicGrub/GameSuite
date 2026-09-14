@@ -179,9 +179,15 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * `GameSessionManager.pause()`/`resume()` really do forward from
      * `MainActivity.onPause()`/`onResume()` — this is not a
      * theoretical/unwired path, it fires on every real backgrounding.
+     *
+     * Guarded by `pausedAtElapsedRealtime == null` so a second [pause] call
+     * with no [resume] in between is a no-op rather than silently moving the
+     * anchor forward and losing the intervening interval — the same
+     * asymmetry-with-[resume] gap found and fixed in ColorFloodGame.pause()
+     * (see that class's KDoc), closed here defensively for the same reason.
      */
     override fun pause() {
-        if (timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
+        if (pausedAtElapsedRealtime == null && timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
             pausedAtElapsedRealtime = nowMillis()
         }
     }
@@ -209,18 +215,26 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     /**
      * Sets the selected cell's value (1-9). No-op if nothing is selected,
-     * the cell is a given, or the board is already won. A wrong entry is
-     * still accepted (not blocked) and counted in [SudokuState.mistakes] —
-     * that counter is a running total of every wrong placement EVER made,
-     * not a live "currently wrong" count, so correcting a mistake afterward
-     * does not decrement it. This matches how most real Sudoku apps track
-     * mistakes (a session stat), not a strict/enforced limit — see this
-     * class's own KDoc on why there's no game-over here.
+     * the cell is a given, the board is already won, or the whole session
+     * has already ended via [leaveSession]/[endMatch] — found missing by
+     * ColorFloodGame.pick()'s own adversarial review (only the per-board
+     * `isOver` was checked, never `matchOver`, so a call after the final
+     * `GameResult` had already been delivered could still mutate state,
+     * including a phantom win with no second result ever reported — see
+     * that class's KDoc). Not currently reachable through this app's real
+     * screens, but a real gap worth closing defensively regardless. A wrong
+     * entry is still accepted (not blocked) and counted in
+     * [SudokuState.mistakes] — that counter is a running total of every
+     * wrong placement EVER made, not a live "currently wrong" count, so
+     * correcting a mistake afterward does not decrement it. This matches how
+     * most real Sudoku apps track mistakes (a session stat), not a
+     * strict/enforced limit — see this class's own KDoc on why there's no
+     * game-over here.
      */
     fun setValue(value: Int) {
         val s = state.value ?: return
         val index = s.selectedIndex ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.isGiven) return
 
@@ -245,11 +259,11 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         }
     }
 
-    /** Clears the selected cell's value only (notes are untouched). No-op on a given cell, an already-empty cell, or an already-won board. */
+    /** Clears the selected cell's value only (notes are untouched). No-op on a given cell, an already-empty cell, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). */
     fun clearValue() {
         val s = state.value ?: return
         val index = s.selectedIndex ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.isGiven || cell.value == null) return
         val cells = s.cells.toMutableList()
@@ -257,11 +271,11 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         state.value = s.copy(cells = cells)
     }
 
-    /** Toggles a pencil mark on the selected cell. No-op on a given cell, a cell that already holds a value, or an already-won board. */
+    /** Toggles a pencil mark on the selected cell. No-op on a given cell, a cell that already holds a value, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). */
     fun toggleNote(value: Int) {
         val s = state.value ?: return
         val index = s.selectedIndex ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.isGiven || cell.value != null) return
         val cells = s.cells.toMutableList()
