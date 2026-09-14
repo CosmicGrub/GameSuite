@@ -984,6 +984,59 @@ point the app's Settings → Online multiplayer server address at it
       background workflow on a brand-new engine before any user-facing report of
       "done," rather than as an ad hoc pass during a broader review sweep — worth
       noting as a process precedent, not just a one-off bugfix.
+- [x] 16. New game modules, wave 1 continued: **Lights Out**
+      (`games/lightsout/LightsOutGame.kt` + `ui/LightsOutScreen.kt`), third game of the
+      batch started at item 14. An NxN grid of lit/unlit cells; pressing one toggles it
+      and its orthogonal neighbors; clear every light to win — the smallest engine in
+      this batch, picked deliberately as the pacing game between Sudoku and the
+      upcoming Dots and Boxes. EASY/MEDIUM/HARD tiers by board size (3x3/5x5/7x7)
+      reusing `CpuDifficulty`, a `lights-out-daily` route, best-moves-and-best-time
+      persistence (`LightsOutStatsStore`, mirroring `SlidingPuzzleStatsStore`'s
+      two-metric shape — a scrambled board has a real minimum press count, unlike
+      Minesweeper/Sudoku's time-only stats). Every board is guaranteed solvable by
+      construction (scrambled by replaying random real presses from all-off; pressing
+      that same set again — GF(2) addition is commutative and self-inverse — always
+      clears it). 13 unit tests passing, including a from-scratch GF(2) linear-algebra
+      solver used to independently verify solvability and to actually WIN real boards
+      through the public API in tests, deliberately avoiding an unproven greedy
+      "press the first lit cell" heuristic that isn't known to converge for an
+      arbitrary board.
+      **Two real bugs found by a background adversarial-review workflow (this one
+      proportionally scaled down to a single review dimension, since this engine's
+      actual algorithmic risk — plain XOR toggling — is far lower than what Sudoku's
+      combinatorial solver got the full 3-dimension treatment for), one of which
+      turned out to already be shipped in two other games**:
+      1. **HIGH: the solve timer kept running through `pause()`/`resume()`.** Both
+         were empty no-ops while the timer was a raw wall-clock delta
+         (`nowMillis() - start`) — and `GameSessionManager.pause()/resume()` really do
+         forward from `MainActivity.onPause()/onResume()`, confirmed by reading that
+         wiring directly, not a theoretical/unused path. Backgrounding the app
+         mid-puzzle for any length of time silently added that entire duration to the
+         recorded solve time, corrupting the best-time record. Checking
+         `MinesweeperGame` and `SudokuGame` (items 14 and 15, both already shipped and
+         committed) confirmed they share the EXACT same pattern — fixed in all three
+         by tracking paused duration explicitly and subtracting it out at freeze time.
+         `SlidingPuzzleGame` (the original template this whole timer idiom traces back
+         to, predating this new-games effort) has the identical bug too; not fixed in
+         this pass since it lacks the injectable-clock testing seam the other three
+         already have, so a proper regression test needs a small retrofit first —
+         spawned as a separate follow-up task rather than silently expanding scope
+         further into unrelated pre-existing code.
+      2. **MEDIUM: `matchOver` was only ever reset in `init()`.** `endMatch()` sets it
+         true and nothing but a brand-new `init()` call ever cleared it, so
+         `playAgain()`/`leaveSession()` could get permanently stuck as no-ops after any
+         `endMatch()` call. Doesn't manifest through the app's actual navigation flow
+         today (leaving a game always tears down and recreates the module instance),
+         but is a real footgun reachable via the public `endMatch()` override
+         directly. Fixed the same way in all three engines: `startMatch()` now also
+         resets `matchOver.value = false`.
+      A third raised finding (`playAgain()` discards the active daily seed) was
+      investigated and correctly refuted — that's the same intentional behavior
+      Minesweeper/Sudoku already have, not a bug introduced here.
+      Both confirmed fixes are covered by new regression tests in all three engines'
+      test suites. 56 unit tests passing across the whole app (up from 39); full
+      `:app:compileDebugKotlin` verified end-to-end after wiring the new routes/menu
+      entries/strings into `MainActivity.kt`/`MainMenuScreen.kt`/`strings.xml`.
 
 ## Fixes and hardening
 

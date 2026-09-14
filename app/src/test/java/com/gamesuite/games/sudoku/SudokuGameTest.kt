@@ -391,4 +391,66 @@ class SudokuGameTest {
         val elapsedMs = (System.nanoTime() - start) / 1_000_000
         assertTrue("generating 30 puzzles took ${elapsedMs}ms, unexpectedly slow", elapsedMs < 10_000)
     }
+
+    @Test
+    fun `pausing mid-puzzle does not inflate the recorded solve time`() {
+        // Found by adversarial review during the Lights Out pass (this
+        // class shares the exact same pattern): pause()/resume() used to be
+        // no-ops while the timer was a pure wall-clock delta, so
+        // backgrounding the app mid-puzzle (which really does call
+        // pause()/resume() -- see GameSessionManager -- not merely a
+        // theoretical concern) silently added the entire background
+        // duration to the recorded solve time.
+        var clock = 0L
+        val game = SudokuGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val emptyIndex = s.cells.indices.first { !s.cells[it].isGiven }
+
+        game.selectCell(emptyIndex)
+        game.setValue(s.solution[emptyIndex]) // starts the timer
+
+        clock = 10L
+        game.pause() // e.g. the app was backgrounded here
+        clock = 600_010L // ~10 real minutes pass while backgrounded
+        game.resume()
+        clock = 600_020L
+
+        // Fill every remaining cell to win.
+        for (i in s.cells.indices) {
+            if (!s.cells[i].isGiven && i != emptyIndex) {
+                game.selectCell(i)
+                game.setValue(s.solution[i])
+            }
+        }
+
+        val recordedMillis = game.finishedElapsedMillis.value!!
+        assertTrue(
+            "recorded solve time was ${recordedMillis}ms -- should reflect only real active play, not the ~10 minutes spent paused",
+            recordedMillis < 1000L
+        )
+    }
+
+    @Test
+    fun `matchOver resets on a new match, even after a prior endMatch -- playAgain and leaveSession never get permanently stuck`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 1L)
+        game.endMatch(com.gamesuite.core.GameResult(scores = emptyList()))
+        assertTrue(game.matchOver.value)
+
+        game.startMatch(dailySeed = 2L) // a fresh puzzle should always be fully playable again
+        assertFalse("starting a new match must clear a stale matchOver flag", game.matchOver.value)
+
+        game.leaveSession()
+        assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
+    }
 }

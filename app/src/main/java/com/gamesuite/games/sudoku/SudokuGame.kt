@@ -116,6 +116,12 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var currentDailySeed: Long? = null
 
+    /** [pause]'s own nowMillis() reading, or null while not currently paused — see [pause]/[resume]'s KDoc. */
+    private var pausedAtElapsedRealtime: Long? = null
+
+    /** Total time spent paused during the CURRENT board, subtracted out in [freezeTimer] — see [pause]/[resume]'s KDoc. */
+    private var totalPausedMillis: Long = 0L
+
     /** Target clue count per tier — a floor [carvePuzzle] tries to reach, not a guarantee; see that method's KDoc. */
     private val difficultyClueTarget: Map<CpuDifficulty, Int> = mapOf(
         CpuDifficulty.EASY to 42,
@@ -145,6 +151,12 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
         timerStartElapsedRealtime.value = null
         finishedElapsedMillis.value = null
+        pausedAtElapsedRealtime = null
+        totalPausedMillis = 0L
+        // A fresh board is always playable, regardless of whether a PRIOR
+        // board's endMatch() left matchOver stuck true (see the class KDoc's
+        // note on this fix) -- found by adversarial review, see that note.
+        matchOver.value = false
         state.value = SudokuState(
             cells = List(81) { i ->
                 val v = puzzle[i]
@@ -154,8 +166,33 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         )
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /**
+     * Snapshots the current time so [resume] can measure how long the app
+     * was actually paused. FOUND BY ADVERSARIAL REVIEW (during the Lights
+     * Out pass, which shares this exact pattern) — [pause]/[resume] used to
+     * be empty no-ops while the timer was a pure wall-clock delta
+     * (`nowMillis() - start` in [freezeTimer]) — since
+     * `SystemClock.elapsedRealtime()` keeps advancing while the app is
+     * backgrounded (unlike `uptimeMillis()`), backgrounding mid-puzzle for
+     * even a few minutes silently inflated the recorded solve time (and
+     * therefore any "best time" record) by the ENTIRE background duration.
+     * `GameSessionManager.pause()`/`resume()` really do forward from
+     * `MainActivity.onPause()`/`onResume()` — this is not a
+     * theoretical/unwired path, it fires on every real backgrounding.
+     */
+    override fun pause() {
+        if (timerStartElapsedRealtime.value != null && state.value?.isOver != true) {
+            pausedAtElapsedRealtime = nowMillis()
+        }
+    }
+
+    /** Accumulates the just-finished pause's duration into [totalPausedMillis] — see [pause]'s KDoc. */
+    override fun resume() {
+        pausedAtElapsedRealtime?.let {
+            totalPausedMillis += nowMillis() - it
+            pausedAtElapsedRealtime = null
+        }
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -234,7 +271,7 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     private fun freezeTimer() {
         val start = timerStartElapsedRealtime.value ?: nowMillis()
-        finishedElapsedMillis.value = nowMillis() - start
+        finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
     }
 
     /** Called from the finished-board panel's "New Puzzle" button — keeps the running tally. */

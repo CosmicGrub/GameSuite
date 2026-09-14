@@ -41,6 +41,7 @@ import com.gamesuite.games.checkers.CheckersGame
 import com.gamesuite.games.chess.ChessGame
 import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.hangman.HangmanGame
+import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
@@ -56,6 +57,7 @@ import com.gamesuite.ui.ChessScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.HangmanScreen
+import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
 import com.gamesuite.ui.MancalaScreen
 import com.gamesuite.ui.MinesweeperScreen
@@ -468,6 +470,27 @@ class MainActivity : ComponentActivity() {
                             SudokuScreen(
                                 sessionManager = sessionManager,
                                 game = sudokuGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("lights-out") {
+                            val lightsOutGame = rememberActiveModule(sessionManager) { LightsOutGame() }
+                            LightsOutScreen(
+                                sessionManager = sessionManager,
+                                game = lightsOutGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("lights-out-daily") {
+                            // Same GameModule/screen as "lights-out" — a today's-date seed is
+                            // the only difference, so every player gets the identical board.
+                            val lightsOutGame = rememberActiveModule(sessionManager) { LightsOutGame() }
+                            LightsOutScreen(
+                                sessionManager = sessionManager,
+                                game = lightsOutGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

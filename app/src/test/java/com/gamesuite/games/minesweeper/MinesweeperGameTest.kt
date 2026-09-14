@@ -196,4 +196,58 @@ class MinesweeperGameTest {
             }
         }
     }
+
+    @Test
+    fun `pausing mid-game does not inflate the recorded solve time`() {
+        // Found by adversarial review during the Lights Out pass (this class
+        // shares the exact same pattern): pause()/resume() used to be
+        // no-ops while the timer was a pure wall-clock delta, so
+        // backgrounding the app mid-game (which really does call
+        // pause()/resume() -- see GameSessionManager -- not merely a
+        // theoretical concern) silently added the entire background
+        // duration to the recorded solve time.
+        var clock = 0L
+        val game = MinesweeperGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch()
+
+        game.revealCell(0) // starts the timer (and places mines)
+        clock = 10L
+        game.pause() // e.g. the app was backgrounded here
+        clock = 600_010L // ~10 real minutes pass while backgrounded
+        game.resume()
+        clock = 600_020L
+
+        // Reveal every remaining safe cell to win.
+        val safeIndices = game.state.value!!.cells.indices.filter { !game.state.value!!.cells[it].isMine }
+        for (i in safeIndices) game.revealCell(i)
+
+        val recordedMillis = game.finishedElapsedMillis.value!!
+        assertTrue(
+            "recorded solve time was ${recordedMillis}ms -- should reflect only real active play, not the ~10 minutes spent paused",
+            recordedMillis < 1000L
+        )
+    }
+
+    @Test
+    fun `matchOver resets on a new match, even after a prior endMatch -- playAgain and leaveSession never get permanently stuck`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch()
+        game.endMatch(com.gamesuite.core.GameResult(scores = emptyList()))
+        assertTrue(game.matchOver.value)
+
+        game.startMatch() // a fresh board should always be fully playable again
+        assertFalse("starting a new match must clear a stale matchOver flag", game.matchOver.value)
+
+        game.leaveSession()
+        assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
+    }
 }

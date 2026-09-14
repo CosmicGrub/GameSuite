@@ -217,6 +217,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("sudoku")
+            },
+            "lights-out" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("lights-out")
             }
         )
     }
@@ -334,6 +342,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("sudoku-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_lights_out_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("lights-out-daily")
                     }
                 )
             )
@@ -462,7 +478,8 @@ fun MainMenuScreen(
                     },
                     GameEntry(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() },
                     GameEntry(stringResource(R.string.game_minesweeper)) { primaryLaunch.getValue("minesweeper").invoke() },
-                    GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() }
+                    GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() },
+                    GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() }
                 )
             )
 

@@ -113,13 +113,54 @@ Checkers/Chess's own dual-mode pattern. `GameCategory.PUZZLE` or a case could be
 for `BOARD` — lean `BOARD` since it's a two-player territory-scoring game like Checkers,
 not a solo puzzle like Minesweeper/Sudoku.
 
-### Lights Out ("Brain Trainer" in Chogan's preview) — recommended, small scope
-An NxN grid of lit/unlit cells; tapping a cell toggles it and its orthogonal neighbors;
-goal is all-off. Genuinely the smallest build in this whole list — the entire rule set
-is one XOR-neighbors operation, and it's mathematically guaranteed solvable from any
-scramble reachable by legal toggles (scramble by replaying random legal toggles from the
-all-off state, same solvability-by-construction idiom as `SlidingPuzzleGame`). Good
-"fill-in" game between larger builds. `GameCategory.PUZZLE`.
+### Lights Out ("Brain Trainer" in Chogan's preview) — ✅ shipped
+`games/lightsout/LightsOutGame.kt` + `ui/LightsOutScreen.kt`. An NxN grid of lit/unlit
+cells; tapping a cell toggles it and its orthogonal neighbors; goal is all-off.
+Genuinely the smallest engine in this batch — the entire rule set is one
+XOR-neighbors operation — and mathematically guaranteed solvable from any scramble
+reachable by legal toggles (scramble by replaying random legal toggles from the
+all-off state, same solvability-by-construction idiom as `SlidingPuzzleGame`).
+EASY/MEDIUM/HARD tiers by board size (3x3/5x5/7x7) reusing `CpuDifficulty`, a
+`lights-out-daily` route, best-moves-and-best-time persistence (`LightsOutStatsStore`,
+mirroring `SlidingPuzzleStatsStore`'s two-metric shape rather than Minesweeper/Sudoku's
+time-only one — a scrambled board has a real minimum press count, so "fewest presses"
+is an honest thing to chase here too). 13 unit tests passing, including a from-scratch
+GF(2) linear-algebra solver (Gaussian elimination) that independently verifies every
+scrambled board is genuinely solvable and can actually WIN real boards through the
+public API — deliberately not a greedy "press the first lit cell" heuristic, since
+that isn't provably guaranteed to converge for an arbitrary board and using it would
+have risked a hanging test rather than a wrong one.
+
+**Two real bugs found by a (proportionally scaled-down, single-dimension) background
+adversarial-review workflow, one of which turned out to affect two ALREADY-SHIPPED
+games too**:
+- **HIGH: the solve timer kept running through `pause()`/`resume()`.** Both were empty
+  no-ops while the timer was a raw wall-clock delta (`nowMillis() - start`), and
+  `GameSessionManager.pause()/resume()` really do forward from
+  `MainActivity.onPause()/onResume()` — not a theoretical path. Backgrounding the app
+  mid-puzzle for any length of time silently added that entire duration to the
+  recorded solve time (and therefore any "best time" record). Checking `MinesweeperGame`
+  and `SudokuGame` confirmed they share the EXACT same pattern (both already shipped
+  and committed) — fixed in all three by tracking paused duration explicitly
+  (`pausedAtElapsedRealtime`/`totalPausedMillis`) and subtracting it out. `SlidingPuzzleGame`
+  (the original template this pattern came from, predating this whole new-games effort)
+  has the identical bug too; not fixed in this pass since it lacks the injectable-clock
+  seam the other three have and needs a small retrofit first — flagged as a follow-up
+  task rather than silently expanding scope further into unrelated legacy code.
+- **MEDIUM: `matchOver` was only ever reset in `init()`.** `endMatch()` sets it true and
+  nothing but a brand-new `init()` call ever cleared it, so `playAgain()`/`leaveSession()`
+  (each guarded by `if (matchOver.value) return`) could get permanently stuck as
+  no-ops after any `endMatch()` call, even though `startMatch()`/`press()` kept working
+  normally. Doesn't manifest through the app's actual navigation flow today (leaving a
+  game always tears down and recreates the module instance), but is a real API footgun
+  reachable via the public `endMatch()` override directly. Fixed the same way in all
+  three engines: `startMatch()` now also resets `matchOver.value = false`.
+
+A third raised finding (`playAgain()` discards the active daily seed, switching to a
+non-deterministic board) was investigated and correctly refuted — that's the same
+intentional behavior `MinesweeperGame`/`SudokuGame` already have (a "New Board" after
+solving today's daily gives a fresh extra puzzle, not a repeat of the shared daily
+one), not a bug introduced here.
 
 ### Color Match ("Color Puzzle" in Chogan's preview) — needs a concrete rule set chosen
 The reference material only showed a "coming soon" card, not actual gameplay, for this
@@ -242,7 +283,7 @@ games proposed above duplicate anything in the existing 13-game catalog.
 
 1. ~~Minesweeper~~ — done.
 2. ~~Sudoku~~ — done.
-3. Lights Out — smallest remaining build, good pacing between larger ones.
+3. ~~Lights Out~~ — done.
 4. Dots and Boxes — first two-player-shaped new game in this batch, exercises
    `SINGLE_DEVICE_PASS_AND_PLAY` + bot the same way Checkers/Chess do.
 5. Color Flood ("Color Puzzle") — reuses `MinesweeperGame`'s own flood-fill BFS shape.
@@ -258,6 +299,16 @@ games proposed above duplicate anything in the existing 13-game catalog.
 11. Tower Defence — own future ADR before any implementation starts; the one item here
     that may not fit this app's declarative-Compose model as comfortably as everything
     else on this list does.
+
+**Standing process note for whatever game is picked up next**: run a background
+adversarial-review workflow against any newly-written engine before calling it done,
+scaled to the engine's actual algorithmic risk (Sudoku's uniqueness-guaranteeing
+backtracking solver got a full 3-dimension review; Lights Out's much simpler XOR-toggle
+engine got a single-dimension one) — both passes found real, confirmed bugs an
+otherwise-thorough test suite missed on its own. Also worth an explicit check each
+time: does this engine share the `pause()`/`resume()`-are-no-ops-with-a-wall-clock-timer
+pattern that turned out to be latent in Minesweeper, Sudoku, Lights Out, AND
+`SlidingPuzzleGame`? If so, fix it there too rather than assuming it's already handled.
 
 This order is a recommendation, not a commitment — the project owner may reprioritize
 at any point, same as every other roadmap item in this project.

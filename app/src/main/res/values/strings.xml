@@ -40,6 +40,7 @@
     <string name="game_sliding_puzzle_daily">Sliding Puzzle — today\'s scramble</string>
     <string name="game_minesweeper_daily">Minesweeper — today\'s board</string>
     <string name="game_sudoku_daily">Sudoku — today\'s puzzle</string>
+    <string name="game_lights_out_daily">Lights Out — today\'s board</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -72,4 +73,5 @@
     <string name="game_sliding_puzzle">Sliding Puzzle</string>
     <string name="game_minesweeper">Minesweeper</string>
     <string name="game_sudoku">Sudoku</string>
+    <string name="game_lights_out">Lights Out</string>
 </resources>
