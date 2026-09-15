@@ -118,16 +118,14 @@ fun rememberPannedProceduralSfx(): (SfxKind, Float) -> Unit {
 private fun toPcm16(value: Double): Short =
     (value.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
 
-/** Builds and fires a one-shot `MODE_STATIC` [AudioTrack] for an already-
- *  rendered MONO buffer, panning it across a stereo output via the shared
- *  [equalPowerPanGains] law (the same constant-power pan law
- *  `AmbientMusicEngine.kt` uses for its own voices) and releasing the
- *  track on a short-lived daemon thread once playback has had time to
- *  finish — avoids leaking an `AudioTrack` (or a Handler/Looper callback)
- *  per play, which matters since these fire on nearly every move in
- *  normal play. */
-private fun playPcmOneShot(monoPcm: ShortArray, pan: Float = 0f) {
-    if (monoPcm.isEmpty()) return
+/** The pure mono->stereo step [playPcmOneShot] applies, pulled out so it can be unit-tested
+ *  directly -- [AudioTrack] itself has no JVM test harness in this project (the same
+ *  limitation `AmbientMusicEngine`'s own DSP loop has, per its own KDoc). Each mono sample
+ *  becomes one interleaved L+R frame pair via the shared [equalPowerPanGains] law -- the
+ *  identical constant-power pan law `AmbientMusicEngine.kt` uses for its own voices, applied
+ *  here as a simple per-channel gain multiply on an already-rendered buffer rather than at
+ *  synthesis time. */
+internal fun panToStereo(monoPcm: ShortArray, pan: Float): ShortArray {
     val gains = equalPowerPanGains(pan)
     val stereo = ShortArray(monoPcm.size * 2)
     for (i in monoPcm.indices) {
@@ -135,6 +133,18 @@ private fun playPcmOneShot(monoPcm: ShortArray, pan: Float = 0f) {
         stereo[i * 2] = (sample * gains.left).toInt().toShort()
         stereo[i * 2 + 1] = (sample * gains.right).toInt().toShort()
     }
+    return stereo
+}
+
+/** Builds and fires a one-shot `MODE_STATIC` [AudioTrack] for an already-
+ *  rendered MONO buffer, panning it across a stereo output via [panToStereo]
+ *  and releasing the track on a short-lived daemon thread once playback has
+ *  had time to finish — avoids leaking an `AudioTrack` (or a Handler/Looper
+ *  callback) per play, which matters since these fire on nearly every move
+ *  in normal play. */
+private fun playPcmOneShot(monoPcm: ShortArray, pan: Float = 0f) {
+    if (monoPcm.isEmpty()) return
+    val stereo = panToStereo(monoPcm, pan)
     val track = AudioTrack.Builder()
         .setAudioAttributes(
             AudioAttributes.Builder()
