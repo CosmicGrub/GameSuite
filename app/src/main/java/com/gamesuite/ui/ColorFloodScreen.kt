@@ -1,6 +1,8 @@
 package com.gamesuite.ui
 
 import android.os.SystemClock
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,15 +18,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.audio.MusicProfiles
+import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
+import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.colorflood.ColorFloodGame
@@ -35,7 +42,11 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.cameraShake
+import com.gamesuite.ui.effects.rememberCameraShake
+import com.gamesuite.ui.effects.rememberParticleBurst
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Renders ColorFloodGame's state reactively — same overall shape as
@@ -52,6 +63,17 @@ import kotlinx.coroutines.delay
  * (not shades of one warm tone) the same way Minesweeper's own
  * per-adjacent-count number colors already do, rather than forcing content
  * that needs contrast into a monochrome identity it can't play well in.
+ *
+ * JUICE: this puzzle has exactly ONE moment worth celebrating — flooding the
+ * whole board — so it gets the full [com.gamesuite.ui.effects.CameraShake]/
+ * [com.gamesuite.ui.effects.ParticleBurst] treatment on that single `s.won`
+ * transition (a real jolt, not the smaller mid-game nudge other games use
+ * for a lesser moment), matching the reserved-for-the-biggest-beat spirit
+ * [HapticSignal.CELEBRATION] (already wired here) already follows. The
+ * board itself is a plain `Column` of `Row`s of solid-color `Box`es, not a
+ * single `Canvas`, so the burst needs its own overlay `Canvas` sized to the
+ * grid via `onGloballyPositioned` — the same "no existing Canvas to draw
+ * into" situation [ParticleBurst]'s own KDoc calls out, solved the same way.
  */
 @Composable
 fun ColorFloodScreen(
@@ -66,12 +88,33 @@ fun ColorFloodScreen(
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
     val haptics = rememberHaptics()
+    // A separate call from `sounds` above deliberately -- CardSounds is this screen's own
+    // sample-based tap/place sound, not a general SFX vocabulary; ProceduralSfx is the ALREADY
+    // shared system TowerDefenceScreen/CheckersScreen (etc.) already use for a win chime, so
+    // reusing it here is following the existing convention, not adding a second parallel one.
+    val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.COLOR_FLOOD, enabled = musicEnabled)
     val statsStore = remember { ColorFloodStatsStore(androidContext) }
     val state by game.state
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = colorFloodPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
+    val cameraShake = rememberCameraShake()
+    val particleBurst = rememberParticleBurst()
+    // Win-moment pixel constants, converted once here (same "with(LocalDensity.current) {...}
+    // once" idiom TowerDefenceScreen's own `shakeMagnitudePx` uses) rather than re-converting
+    // inline at every use below.
+    val density = LocalDensity.current
+    val winShakeMagnitudePx = with(density) { WIN_SHAKE_MAGNITUDE_DP.dp.toPx() }
+    val winBurstMinSpeedPx = with(density) { WIN_BURST_MIN_SPEED_DP.dp.toPx() }
+    val winBurstMaxSpeedPx = with(density) { WIN_BURST_MAX_SPEED_DP.dp.toPx() }
+    val winBurstGravityPx = with(density) { WIN_BURST_GRAVITY_DP.dp.toPx() }
+    // The board's own real pixel size, captured off the grid Column below via
+    // onGloballyPositioned -- this board is a plain Column/Row of solid-color Boxes, not a
+    // single Canvas with its own normalized coordinate convention (c.f. TowerDefenceScreen's
+    // `toPx()`), so there's no existing "board space" to reuse; real pixels captured once the
+    // layout settles are the simplest correct source for "the board's center" a win-burst needs.
+    var boardSizePx by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -111,6 +154,34 @@ fun ColorFloodScreen(
             val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
             reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
             haptics(HapticSignal.CELEBRATION)
+            playSfx(SfxKind.SUCCESS_CHIME)
+
+            // Launched rather than awaited (see CheckersScreen's own capture-shake call site for
+            // the same idiom) so the shake's own ~300ms decay never delays anything else this
+            // effect does -- there's nothing sequenced after it here, but a future edit adding
+            // one shouldn't silently start waiting on a shake it doesn't need to.
+            launch { cameraShake.trigger(durationMs = WIN_SHAKE_DECAY_MS, easing = FastOutSlowInEasing) }
+
+            // The flood's own final color plus 1-2 hue-neighbors from this puzzle's own active
+            // palette (wrapping mod colorCount, not the full 6-swatch list -- a board playing
+            // with only 4 colors has no business bursting a 5th/6th color nobody ever saw) reads
+            // as "this board's own colors celebrating," not a generic confetti overlay.
+            val winIndex = s.currentColor
+            val burstColors = (listOf(winIndex) + listOf(
+                (winIndex + 1) % s.colorCount,
+                (winIndex - 1 + s.colorCount) % s.colorCount
+            ).distinct().filterNot { it == winIndex }).map { palette.colors[it] }
+
+            if (boardSizePx != Offset.Zero) {
+                particleBurst.spawn(
+                    origin = Offset(boardSizePx.x / 2f, boardSizePx.y / 2f),
+                    count = WIN_BURST_PARTICLE_COUNT,
+                    colors = burstColors,
+                    speedRange = winBurstMinSpeedPx..winBurstMaxSpeedPx,
+                    lifeRangeSeconds = 0.6f..1.1f,
+                    gravity = winBurstGravityPx
+                )
+            }
         }
     }
 
@@ -143,7 +214,15 @@ fun ColorFloodScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                // Shakes the grid AND the particle overlay below together, as one physical
+                // board -- see this file's own class KDoc JUICE paragraph for why this is the
+                // one moment in this puzzle that earns a real jolt rather than a small nudge.
+                .cameraShake(cameraShake, magnitudePx = winShakeMagnitudePx)
+                .onGloballyPositioned { boardSizePx = Offset(it.size.width.toFloat(), it.size.height.toFloat()) }
+        ) {
             val cellSize = remember(maxWidth, maxHeight, s.size) {
                 minOf(maxWidth / s.size, maxHeight / s.size, 34.dp).coerceAtLeast(14.dp)
             }
@@ -155,6 +234,22 @@ fun ColorFloodScreen(
                             ColorFloodCellView(colorIndex = s.cellColors[index], size = cellSize, palette = palette)
                         }
                     }
+                }
+            }
+
+            // Overlay-only Canvas purely for the win burst's motes -- see [ParticleBurst]'s own
+            // KDoc and this file's class KDoc JUICE paragraph for why this board (a plain
+            // Column/Row of Boxes, not a single Canvas) needs one. matchParentSize() ties its
+            // pixel space directly to the grid Column above it, so `boardSizePx` (captured off
+            // that same BoxWithConstraints) lines up with what gets drawn here with no separate
+            // conversion.
+            Canvas(modifier = Modifier.matchParentSize()) {
+                for (particle in particleBurst.particles.value) {
+                    drawCircle(
+                        color = particle.color.copy(alpha = particle.lifeFraction),
+                        radius = WIN_BURST_PARTICLE_RADIUS_DP.dp.toPx() * particle.lifeFraction.coerceAtLeast(0.3f),
+                        center = particle.pos
+                    )
                 }
             }
         }
@@ -187,6 +282,19 @@ fun ColorFloodScreen(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Win-moment JUICE tuning -- see this file's own class KDoc JUICE paragraph. Sized deliberately
+// bigger than a mid-game nudge (c.f. TowerDefenceScreen's 8dp life-lost shake, CheckersScreen's
+// 4dp capture jitter): flooding the whole board is the ONLY celebratory moment this puzzle has.
+// ---------------------------------------------------------------------------
+private const val WIN_SHAKE_MAGNITUDE_DP = 14f
+private const val WIN_SHAKE_DECAY_MS = 320
+private const val WIN_BURST_PARTICLE_COUNT = 32
+private const val WIN_BURST_PARTICLE_RADIUS_DP = 5f
+private const val WIN_BURST_MIN_SPEED_DP = 220f
+private const val WIN_BURST_MAX_SPEED_DP = 460f
+private const val WIN_BURST_GRAVITY_DP = 520f
 
 // ---------------------------------------------------------------------------
 // Warm, Chogan-inspired CHROME palette, shared tokens with the rest of this

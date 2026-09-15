@@ -1,5 +1,7 @@
 package com.gamesuite.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,15 +16,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.audio.MusicProfiles
+import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
+import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
@@ -31,6 +39,9 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.cameraShake
+import com.gamesuite.ui.effects.rememberCameraShake
+import com.gamesuite.ui.effects.rememberParticleBurst
 import kotlinx.coroutines.delay
 
 /**
@@ -52,6 +63,29 @@ import kotlinx.coroutines.delay
  * time in this batch, since ownership — which player claimed which box —
  * is the entire point of the board). Never reads `MaterialTheme.colorScheme`
  * for gameplay colors, same standing rule as every other game's board.
+ *
+ * JUICE: a consumer of the shared [com.gamesuite.ui.effects.CameraShake]/
+ * [com.gamesuite.ui.effects.ParticleBurst] utilities (see those files' own KDoc for why they
+ * exist) — this game's defining moment is completing a box (it grants an extra turn, the entire
+ * reason a single tap can chain into a long run for one player; see [DotsAndBoxesGame.drawEdge]'s
+ * own KDoc on `nextIndex`), so every HUMAN-driven box claim gets a small, modest per-box burst in
+ * the claimer's own [DotsAndBoxesPalette.player0]/[DotsAndBoxesPalette.player1] color plus a light
+ * shake nudge — deliberately restrained since a chain can fire this many times in one turn and
+ * must read as a satisfying tick, not an overwhelming wallop. The board's true biggest moment,
+ * winning the whole board, gets a proportionally bigger shake + burst + [SfxKind.SUCCESS_CHIME],
+ * layered on top of the existing [HapticSignal.CELEBRATION]/[HapticSignal.NORMAL_ACTION] pairing
+ * below rather than replacing it.
+ *
+ * KNOWN LIMITATION (accepted, not fixed — same category [TowerDefenceEnemyDeathEvent]/
+ * `BreakoutGame`'s own one-shot events already carry): [DotsAndBoxesGame.playBotTurn] chains its
+ * own recursive box-completing moves synchronously with no suspension point between them, so
+ * Compose can coalesce several real [DotsAndBoxesBoxCompletedEvent]s into one recomposition and
+ * this effect only ever observes the LAST one in a bot's own multi-box turn — ownership/score
+ * stay fully correct throughout, but an earlier box in that same chain silently loses its own
+ * burst/shake. Fixing this for real would mean turning `lastBoxCompleted` into a drained queue of
+ * pending events rather than one overwritable field, a real engine change not worth it for a
+ * purely cosmetic gap on bot turns specifically (a human's own taps are naturally frame-separated
+ * and never hit this).
  */
 @Composable
 fun DotsAndBoxesScreen(
@@ -69,6 +103,37 @@ fun DotsAndBoxesScreen(
     val state by game.state
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = dotsAndBoxesPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
+    val playSfx = rememberProceduralSfx()
+
+    // JUICE -- see this file's own class KDoc. Two separate CameraShake instances (rather than
+    // one shared magnitude) since a per-box nudge and the whole-board win shake are genuinely
+    // different weights of the SAME gesture, and CameraShake's magnitude is fixed per
+    // Modifier.cameraShake call site, not per trigger() -- chaining both modifiers on the same
+    // board container lets either (or, rarely, both at once) contribute its own offset.
+    val boxShake = rememberCameraShake()
+    val winShake = rememberCameraShake()
+    val particleBurst = rememberParticleBurst()
+    val density = LocalDensity.current
+    val boxShakeMagnitudePx = with(density) { 3.dp.toPx() }
+    val winShakeMagnitudePx = with(density) { 12.dp.toPx() }
+    // Particle speed/gravity are expressed in raw PIXELS here (this screen's own coordinate
+    // space, via BoxWithConstraints/onGloballyPositioned below) rather than ParticleBurst's own
+    // normalized-0..1-board defaults (tuned for AirHockeyGame's normalized board), so both are
+    // converted from Dp via the same [density] -- a per-box tick should travel roughly one box
+    // cell's width, the win burst noticeably further.
+    val boxBurstSpeedRange = with(density) { 40.dp.toPx()..90.dp.toPx() }
+    val boxBurstGravity = with(density) { 160.dp.toPx() }
+    val winBurstSpeedRange = with(density) { 70.dp.toPx()..160.dp.toPx() }
+    val winBurstGravity = with(density) { 200.dp.toPx() }
+
+    // Per-box-cell centers, captured once via onGloballyPositioned (see the board Composable
+    // below) relative to the board's own stable, UNshaken BoxWithConstraints frame -- so a burst
+    // spawned mid-chain still lands exactly on the claimed box even while a PRIOR box's shake is
+    // still decaying. Plain remember (not snapshot state): only ever read from inside a
+    // LaunchedEffect reacting to a real event, never from composition itself, so writes here
+    // don't need to trigger recomposition.
+    val boxCenters = remember { mutableMapOf<Int, Offset>() }
+    var boardCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -97,6 +162,41 @@ fun DotsAndBoxesScreen(
 
     LaunchedEffect(s.boardOver) {
         if (s.boardOver) haptics(if (s.winnerPlayerId != null) HapticSignal.CELEBRATION else HapticSignal.NORMAL_ACTION)
+        // JUICE: an actual win (never a tie) is this game's single biggest moment -- layered on
+        // top of the CELEBRATION haptic above rather than replacing it, matching CheckersScreen's
+        // own established win/loss SfxKind+HapticSignal pairing. A tie keeps its existing
+        // NORMAL_ACTION haptic and no extra fanfare -- there's no single claimer to celebrate.
+        if (s.boardOver && s.winnerPlayerId != null) {
+            playSfx(SfxKind.SUCCESS_CHIME)
+            val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+            val winnerColor = if (winnerIndex == 1) palette.player1 else palette.player0
+            val origin = boardCoordinates?.let { Offset(it.size.width / 2f, it.size.height / 2f) } ?: Offset.Zero
+            particleBurst.spawn(
+                origin = origin, count = 28,
+                colors = listOf(winnerColor, palette.dot),
+                speedRange = winBurstSpeedRange, lifeRangeSeconds = 0.6f..0.95f, gravity = winBurstGravity
+            )
+            winShake.trigger(durationMs = WIN_SHAKE_DECAY_MS, easing = FastOutSlowInEasing)
+        }
+    }
+
+    // JUICE: this game's actual defining moment -- see the class KDoc's JUICE section. Keyed on
+    // the event's own [seq] (not a plain non-null check) so this fires exactly once per NEW
+    // completion, never re-fires on an unrelated recomposition, and correctly does nothing while
+    // still null on a freshly dealt board -- same idiom TowerDefenceScreen's own
+    // `state.lastEnemyDeath?.seq` key already established.
+    LaunchedEffect(s.lastBoxCompleted?.seq) {
+        val event = s.lastBoxCompleted ?: return@LaunchedEffect
+        val claimerColor = if (event.playerIndex == 1) palette.player1 else palette.player0
+        for (boxIndex in event.boxIndices) {
+            val origin = boxCenters[boxIndex] ?: continue
+            particleBurst.spawn(
+                origin = origin, count = 10,
+                colors = listOf(claimerColor),
+                speedRange = boxBurstSpeedRange, lifeRangeSeconds = 0.35f..0.55f, gravity = boxBurstGravity
+            )
+        }
+        boxShake.trigger(durationMs = BOX_SHAKE_DECAY_MS, easing = FastOutSlowInEasing)
     }
 
     val isMyTurn = !s.players[s.currentPlayerIndex].isBot
@@ -112,13 +212,30 @@ fun DotsAndBoxesScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                // The board's own STABLE reference frame for boxCenters below -- deliberately NOT
+                // shaken itself, so a capture landing mid-shake still reads the box's true resting
+                // position rather than a fleeting jittered one (see boxCenters' own KDoc above).
+                .onGloballyPositioned { boardCoordinates = it }
+        ) {
             val cellSize = remember(maxWidth, maxHeight, s.boxRows, s.boxCols) {
                 minOf(maxWidth / (s.boxCols + 0.6f), maxHeight / (s.boxRows + 0.6f), 46.dp).coerceAtLeast(22.dp)
             }
             val dotSize = 7.dp
             val edgeThickness = 14.dp // generous tap target around the thinner drawn line itself
 
+            // Inner Box carries the actual shake -- both the grid AND the particle overlay below
+            // live inside it, so a shake moves the whole board as one rigid unit, the particles
+            // included. Two chained .cameraShake() calls (see boxShake/winShake's own remember
+            // site above) rather than one shared magnitude, since a per-box nudge and the
+            // whole-board win shake are genuinely different weights of the same gesture.
+            Box(
+                modifier = Modifier
+                    .cameraShake(boxShake, magnitudePx = boxShakeMagnitudePx)
+                    .cameraShake(winShake, magnitudePx = winShakeMagnitudePx)
+            ) {
             Column {
                 for (boxRow in 0..s.boxRows) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -161,12 +278,41 @@ fun DotsAndBoxesScreen(
                                 )
                                 if (boxCol < s.boxCols) {
                                     val boxIndex = boxRow * s.boxCols + boxCol
-                                    BoxCellView(owner = s.boxOwner[boxIndex], size = cellSize, palette = palette)
+                                    // Captures this box's own on-screen center, relative to the
+                                    // stable boardCoordinates frame above, purely so the
+                                    // lastBoxCompleted LaunchedEffect knows where to spawn a
+                                    // burst -- see boxCenters' own KDoc at this composable's top.
+                                    Box(
+                                        modifier = Modifier.onGloballyPositioned { coords ->
+                                            boardCoordinates?.let { parent ->
+                                                boxCenters[boxIndex] = parent.localPositionOf(
+                                                    coords, Offset(coords.size.width / 2f, coords.size.height / 2f)
+                                                )
+                                            }
+                                        }
+                                    ) {
+                                        BoxCellView(owner = s.boxOwner[boxIndex], size = cellSize, palette = palette)
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // Overlay purely for drawing the particle burst -- standard Compose pattern (see
+            // ParticleBurst's own KDoc): sits inside the SAME shaking inner Box as the grid above,
+            // after it, so a burst never sits under a still-drawing edge and shakes together with
+            // the board it's celebrating.
+            Canvas(modifier = Modifier.matchParentSize()) {
+                for (particle in particleBurst.particles.value) {
+                    drawCircle(
+                        color = particle.color.copy(alpha = particle.lifeFraction),
+                        radius = with(density) { 3.dp.toPx() } * particle.lifeFraction.coerceAtLeast(0.4f),
+                        center = particle.pos
+                    )
+                }
+            }
             }
         }
 
@@ -348,3 +494,13 @@ private fun FinishedPanel(s: DotsAndBoxesState, game: DotsAndBoxesGame, palette:
         }
     }
 }
+
+/** How long the small per-box shake nudge takes to settle back to zero -- see boxShake's own
+ *  remember site above. Short and snappy since a long chain can trigger this many times in one
+ *  turn; a lingering shake would visibly stack/lag behind the taps that caused it. */
+private const val BOX_SHAKE_DECAY_MS = 120
+
+/** How long the whole-board win shake takes to settle back to zero -- longer than
+ *  [BOX_SHAKE_DECAY_MS] since it fires exactly once per board and should read as a real
+ *  full-stop moment, not a quick tick. */
+private const val WIN_SHAKE_DECAY_MS = 320

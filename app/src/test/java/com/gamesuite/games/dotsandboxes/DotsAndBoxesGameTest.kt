@@ -128,6 +128,72 @@ class DotsAndBoxesGameTest {
     }
 
     @Test
+    fun `completing exactly one box sets lastBoxCompleted with that box's index and the mover's playerIndex`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        assertNull("a fresh board must not carry a stale lastBoxCompleted from some earlier board", game.state.value!!.lastBoxCompleted)
+        // Box (0,0)'s 4 edges: top=H(0,0), bottom=H(1,0), left=V(0,0), right=V(0,1).
+        game.drawHorizontalEdge(0, 0) // player 0
+        game.drawHorizontalEdge(1, 0) // player 1
+        game.drawVerticalEdge(0, 0) // player 0
+        val moverIndex = game.state.value!!.currentPlayerIndex
+
+        game.drawVerticalEdge(0, 1) // completes box (0,0)
+        val event = game.state.value!!.lastBoxCompleted
+        assertNotNull("completing a box must set lastBoxCompleted", event)
+        assertEquals(listOf(0), event!!.boxIndices)
+        assertEquals("the event must credit whoever actually made the completing move", moverIndex, event.playerIndex)
+        assertEquals(1L, event.seq)
+    }
+
+    @Test
+    fun `completing two boxes with one shared edge (a double-cross) sets both indices in a single event`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        // Box (0,0) needs H(0,0), H(1,0), V(0,0), V(0,1).
+        // Box (0,1) needs H(0,1), H(1,1), V(0,1), V(0,2).
+        // Draw everything except the shared edge V(0,1), which will complete BOTH at once.
+        game.drawHorizontalEdge(0, 0)
+        game.drawHorizontalEdge(1, 0)
+        game.drawVerticalEdge(0, 0)
+        game.drawHorizontalEdge(0, 1)
+        game.drawHorizontalEdge(1, 1)
+        game.drawVerticalEdge(0, 2)
+        val moverIndex = game.state.value!!.currentPlayerIndex
+
+        game.drawVerticalEdge(0, 1) // completes box (0,0) AND box (0,1) at once
+        val event = game.state.value!!.lastBoxCompleted
+        assertNotNull("a double-box completion must still set lastBoxCompleted", event)
+        assertEquals(
+            "a double-cross must name BOTH newly completed box indices in one event, not just a count",
+            listOf(0, 1),
+            event!!.boxIndices
+        )
+        assertEquals(moverIndex, event.playerIndex)
+    }
+
+    @Test
+    fun `a move that completes zero boxes leaves lastBoxCompleted's seq unchanged`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        // First, produce one real completion so there's a genuine prior event to compare against
+        // (a null-vs-null comparison would trivially "pass" without proving anything).
+        game.drawHorizontalEdge(0, 0)
+        game.drawHorizontalEdge(1, 0)
+        game.drawVerticalEdge(0, 0)
+        game.drawVerticalEdge(0, 1) // completes box (0,0)
+        val seqAfterCompletion = game.state.value!!.lastBoxCompleted!!.seq
+
+        // Now draw a plain edge elsewhere on the board that completes nothing.
+        game.drawHorizontalEdge(4, 4)
+        assertEquals(
+            "a zero-box move must carry the previous lastBoxCompleted forward unchanged, never null it out or bump its seq",
+            seqAfterCompletion,
+            game.state.value!!.lastBoxCompleted?.seq
+        )
+    }
+
+    @Test
     fun `not completing a box passes the turn to the other player`() {
         val game = newTwoHumanGame()
         game.startMatch()

@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,9 @@ import com.gamesuite.games.partytoolkit.ScorePlayer
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalMusicEnabled
+import com.gamesuite.ui.effects.cameraShake
+import com.gamesuite.ui.effects.rememberCameraShake
+import com.gamesuite.ui.effects.rememberParticleBurst
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -212,6 +216,12 @@ private data class DiceRollRecord(val sides: Int, val values: List<Int>) {
     val total: Int get() = values.sum()
 }
 
+/** A quick, small nudge for a die landing -- a "physical placement" acknowledgment, not a
+ *  full-board wallop; short decay so it reads as a snap rather than a lingering wobble. See
+ *  [CoinTossTool]'s own identical-shaped constants for the coin-landing sibling of this shake. */
+private val DICE_LANDING_SHAKE_MAGNITUDE = 4.dp
+private const val DICE_LANDING_SHAKE_DECAY_MS = 160
+
 @Composable
 private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var diceCount by remember { mutableStateOf(2) }
@@ -222,6 +232,15 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
     var dieSides by remember { mutableStateOf(6) }
     var lastRoll by remember { mutableStateOf<List<Int>>(emptyList()) }
     var rollHistory by remember { mutableStateOf<List<DiceRollRecord>>(emptyList()) }
+    // A physical die landing gets the same SOLID_THUNK+shake treatment AirHockey/Checkers-style
+    // "satisfying physical placement" moments already get elsewhere in this app (see
+    // ProceduralSfx.kt's own SfxKind.SOLID_THUNK KDoc) -- layered alongside, never replacing, the
+    // existing NORMAL_ACTION haptic below. Its own independent CameraShake/coroutine scope since
+    // this tool is its own UI region, not shared with CoinTossTool's identical-shaped rig.
+    val playSfx = rememberProceduralSfx()
+    val cameraShake = rememberCameraShake()
+    val scope = rememberCoroutineScope()
+    val diceShakeMagnitudePx = with(LocalDensity.current) { DICE_LANDING_SHAKE_MAGNITUDE.toPx() }
 
     ToolCard(palette) {
         Text("Die type", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -260,10 +279,15 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
             lastRoll = values
             rollHistory = (listOf(DiceRollRecord(dieSides, values)) + rollHistory).take(PARTY_TOOLKIT_HISTORY_LIMIT)
             haptics(HapticSignal.NORMAL_ACTION)
+            playSfx(SfxKind.SOLID_THUNK)
+            scope.launch { cameraShake.trigger(durationMs = DICE_LANDING_SHAKE_DECAY_MS) }
         }) { Text("Roll") }
         if (lastRoll.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.cameraShake(cameraShake, magnitudePx = diceShakeMagnitudePx)
+            ) {
                 for (value in lastRoll) DieFace(value, palette)
             }
             Spacer(Modifier.height(8.dp))
@@ -319,12 +343,25 @@ private fun DieFace(value: Int, palette: PartyToolkitPalette) {
 // ---------------------------------------------------------------------------
 // Coin Toss
 // ---------------------------------------------------------------------------
+/** Coin's own sibling of [DICE_LANDING_SHAKE_MAGNITUDE]/[DICE_LANDING_SHAKE_DECAY_MS] -- same
+ *  "quick physical landing" feel, kept as its own constants (not shared) since a coin and a die
+ *  are independent UI regions that could legitimately want different tuning later. */
+private val COIN_LANDING_SHAKE_MAGNITUDE = 4.dp
+private const val COIN_LANDING_SHAKE_DECAY_MS = 160
+
 @Composable
 private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var lastResult by remember { mutableStateOf<Boolean?>(null) }
     var headsCount by remember { mutableStateOf(0) }
     var tailsCount by remember { mutableStateOf(0) }
     var flipHistory by remember { mutableStateOf<List<Boolean>>(emptyList()) }
+    // See DiceTool's identical rig just above -- a coin landing is the same kind of "satisfying
+    // physical placement" moment SOLID_THUNK was built for, with its own independent
+    // CameraShake/coroutine scope since this is its own UI region.
+    val playSfx = rememberProceduralSfx()
+    val cameraShake = rememberCameraShake()
+    val scope = rememberCoroutineScope()
+    val coinShakeMagnitudePx = with(LocalDensity.current) { COIN_LANDING_SHAKE_MAGNITUDE.toPx() }
 
     ToolCard(palette) {
         Text("Flip a coin", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -335,6 +372,8 @@ private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -
             if (heads) headsCount++ else tailsCount++
             flipHistory = (listOf(heads) + flipHistory).take(PARTY_TOOLKIT_HISTORY_LIMIT)
             haptics(HapticSignal.NORMAL_ACTION)
+            playSfx(SfxKind.SOLID_THUNK)
+            scope.launch { cameraShake.trigger(durationMs = COIN_LANDING_SHAKE_DECAY_MS) }
         }) { Text("Flip") }
         lastResult?.let { heads ->
             Spacer(Modifier.height(16.dp))
@@ -342,7 +381,8 @@ private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -
                 if (heads) "Heads" else "Tails",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = palette.accent
+                color = palette.accent,
+                modifier = Modifier.cameraShake(cameraShake, magnitudePx = coinShakeMagnitudePx)
             )
             Spacer(Modifier.height(8.dp))
             Text("Heads: $headsCount · Tails: $tailsCount", color = palette.textPrimary.copy(alpha = 0.75f))
@@ -523,6 +563,21 @@ private fun LifePointsTool(store: PartyToolkitStore, palette: PartyToolkitPalett
 // ---------------------------------------------------------------------------
 // Hourglass (countdown timer)
 // ---------------------------------------------------------------------------
+/** [HourglassVisual]'s own fixed canvas footprint -- pulled out as named constants (rather than
+ *  the two bare dp literals that used to live only inside that Canvas's own modifier) so the new
+ *  wrapping [BoxWithConstraints] added below for the completion particle burst is GUARANTEED to
+ *  size identically to the visual it wraps, instead of two separately-typed magic numbers
+ *  silently drifting apart later. */
+private val HOURGLASS_VISUAL_WIDTH = 120.dp
+private val HOURGLASS_VISUAL_HEIGHT = 150.dp
+
+/** The Hourglass's own completion moment is this toolkit's single biggest beat among the tools
+ *  touched in this pass (see this file's own class-level juice notes) -- the only one of the
+ *  eight tools that stacks haptic + sound + camera shake + particle burst all at once -- so its
+ *  shake is tuned a little stronger/longer than DiceTool/CoinTossTool's quick landing nudges. */
+private val HOURGLASS_COMPLETE_SHAKE_MAGNITUDE = 7.dp
+private const val HOURGLASS_COMPLETE_SHAKE_DECAY_MS = 260
+
 /**
  * A real countdown timer per [docs/PARTY_TOOLKIT_DESIGN.md]'s Hourglass row: duration presets
  * plus a custom-minutes entry, start/pause/reset, and — since the design calls this "not a
@@ -531,7 +586,12 @@ private fun LifePointsTool(store: PartyToolkitStore, palette: PartyToolkitPalett
  * zero is both a haptic ([HapticSignal.CELEBRATION], matching every other tool's feedback) and a
  * real sound ([SfxKind.SUCCESS_CHIME] via [rememberProceduralSfx], the same one-shot-SFX idiom
  * every other game screen already uses) — the design doc's "sound+vibration alert," not haptic
- * alone.
+ * alone. A camera shake + small sand-colored particle burst now ride alongside that same moment
+ * (see [HOURGLASS_COMPLETE_SHAKE_MAGNITUDE]'s own KDoc for why this is the one tool in this pass
+ * that gets the full stack) — spawned from the hourglass visual's own fixed center, computed
+ * once from [HOURGLASS_VISUAL_WIDTH]/[HOURGLASS_VISUAL_HEIGHT] rather than a dynamically
+ * measured [BoxWithConstraints] region, since this visual (unlike FirstPlayerTool/TeamsTool's
+ * variable-length text) already has a known, fixed pixel footprint.
  */
 @Composable
 private fun HourglassTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
@@ -540,6 +600,13 @@ private fun HourglassTool(palette: PartyToolkitPalette, haptics: (HapticSignal) 
     var isRunning by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
     val playSfx = rememberProceduralSfx()
+    val cameraShake = rememberCameraShake()
+    val particleBurst = rememberParticleBurst()
+    val scope = rememberCoroutineScope()
+    val hourglassShakeMagnitudePx = with(LocalDensity.current) { HOURGLASS_COMPLETE_SHAKE_MAGNITUDE.toPx() }
+    val hourglassCenterPx = with(LocalDensity.current) {
+        Offset(HOURGLASS_VISUAL_WIDTH.toPx() / 2f, HOURGLASS_VISUAL_HEIGHT.toPx() / 2f)
+    }
 
     LaunchedEffect(isRunning) {
         if (!isRunning) return@LaunchedEffect
@@ -551,17 +618,49 @@ private fun HourglassTool(palette: PartyToolkitPalette, haptics: (HapticSignal) 
             isRunning = false
             haptics(HapticSignal.CELEBRATION)
             playSfx(SfxKind.SUCCESS_CHIME)
+            particleBurst.spawn(
+                origin = hourglassCenterPx,
+                count = 16,
+                colors = listOf(palette.accent),
+                speedRange = 0.3f..0.7f,
+                lifeRangeSeconds = 0.55f..0.85f,
+                gravity = 1.0f
+            )
+            // Launched into a separate coroutine (matching DiceTool/CoinTossTool's own idiom)
+            // rather than awaited directly, as an earlier version of this line did -- adversarial
+            // review caught that mutating `isRunning` (this LaunchedEffect's OWN key) just above,
+            // then suspending on this trigger() call, hands Compose's pending recomposition a real
+            // chance to relaunch this effect with the new key and cancel THIS exact coroutine
+            // mid-animation, freezing the shake's offset at a nonzero value instead of settling
+            // back to zero. Launching detaches the shake from this effect's own lifecycle, so it
+            // finishes its decay on its own even after isRunning's recomposition cancels the loop.
+            scope.launch { cameraShake.trigger(durationMs = HOURGLASS_COMPLETE_SHAKE_DECAY_MS) }
         }
     }
 
     ToolCard(palette) {
         Text("Hourglass", color = palette.textPrimary, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
-        HourglassVisual(
-            progress = if (totalSeconds > 0) remainingSeconds.toFloat() / totalSeconds else 0f,
-            isRunning = isRunning,
-            palette = palette
-        )
+        BoxWithConstraints(
+            modifier = Modifier
+                .size(width = HOURGLASS_VISUAL_WIDTH, height = HOURGLASS_VISUAL_HEIGHT)
+                .cameraShake(cameraShake, magnitudePx = hourglassShakeMagnitudePx)
+        ) {
+            HourglassVisual(
+                progress = if (totalSeconds > 0) remainingSeconds.toFloat() / totalSeconds else 0f,
+                isRunning = isRunning,
+                palette = palette
+            )
+            // Overlay canvas purely for the completion burst -- HourglassVisual's own Canvas stays
+            // untouched, per the shared BoxWithConstraints+overlay-Canvas pattern (see
+            // ParticleBurst.kt's own KDoc) for a container with no single pre-existing Canvas to
+            // draw the particles into directly.
+            Canvas(modifier = Modifier.matchParentSize()) {
+                for (p in particleBurst.particles.value) {
+                    drawCircle(color = p.color.copy(alpha = p.lifeFraction), radius = 4.dp.toPx(), center = p.pos)
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             "%d:%02d".format(remainingSeconds / 60, remainingSeconds % 60),
@@ -629,7 +728,7 @@ private fun HourglassTool(palette: PartyToolkitPalette, haptics: (HapticSignal) 
 @Composable
 private fun HourglassVisual(progress: Float, isRunning: Boolean, palette: PartyToolkitPalette) {
     val animatedProgress by animateFloatAsState(targetValue = progress.coerceIn(0f, 1f), label = "hourglassSand")
-    Canvas(modifier = Modifier.size(width = 120.dp, height = 150.dp)) {
+    Canvas(modifier = Modifier.size(width = HOURGLASS_VISUAL_WIDTH, height = HOURGLASS_VISUAL_HEIGHT)) {
         val w = size.width
         val h = size.height
         val neckY = h / 2f
@@ -691,18 +790,40 @@ private fun HourglassVisual(progress: Float, isRunning: Boolean, palette: PartyT
 // ---------------------------------------------------------------------------
 // First Player
 // ---------------------------------------------------------------------------
+/** Fixed footprint for [FirstPlayerTool]'s single-line revealed-name reveal area -- tall enough
+ *  to comfortably fit one headlineMedium line without needing a dynamically-measured size. Giving
+ *  [BoxWithConstraints] an explicit height here (rather than leaving it to size purely from its
+ *  content) matters because this tool lives inside PartyToolkitScreen's own `verticalScroll`
+ *  column, which hands children an effectively unbounded max-height constraint — reading
+ *  `maxHeight` there directly (to compute a burst-origin center) would otherwise read as a
+ *  huge/unbounded value, not the actual on-screen size of the reveal. See
+ *  [TEAMS_REVEAL_BURST_BOX_HEIGHT] for [TeamsTool]'s own taller sibling of this same constant. */
+private val REVEAL_BURST_BOX_HEIGHT = 72.dp
+
 /**
  * Its own independent player-name list, NOT shared with Scoreboard/Life
  * Points/Teams — a deliberate "honest MVP" scope cut. A shared roster across
  * every tool would be a genuine convenience, but adds a real cross-tool
  * state-sharing layer this first version doesn't need to earn its keep;
  * each tool re-entering its own names on first use is a small, honest cost.
+ *
+ * The reveal now also plays [SfxKind.SUCCESS_CHIME] and spawns a small celebratory particle
+ * burst from the revealed name's own displayed position, alongside the existing
+ * [HapticSignal.CELEBRATION] haptic. [revealSeq] is bumped on every real "Pick First Player"
+ * click (not just when the picked name changes) -- the same "seq-numbered one-shot event" idiom
+ * TowerDefenceGame's own engine events use ([TowerDefenceGame.TowerDefenceEnemyDeathEvent]),
+ * applied here as plain local Compose state since this tool is pure UI with no engine of its own
+ * to carry a real event field; keying on the name itself would silently miss a re-fire on the
+ * (rare but real) case of picking the same name twice in a row.
  */
 @Composable
 private fun FirstPlayerTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var names by remember { mutableStateOf(listOf<String>()) }
     var newName by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf<String?>(null) }
+    var revealSeq by remember { mutableStateOf(0) }
+    val playSfx = rememberProceduralSfx()
+    val particleBurst = rememberParticleBurst()
 
     ToolCard(palette) {
         Text("Who goes first?", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -727,12 +848,44 @@ private fun FirstPlayerTool(palette: PartyToolkitPalette, haptics: (HapticSignal
             enabled = names.isNotEmpty(),
             onClick = {
                 picked = PartyToolkitLogic.pickFirstPlayer(names)
+                revealSeq++
                 haptics(HapticSignal.CELEBRATION)
+                playSfx(SfxKind.SUCCESS_CHIME)
             }
         ) { Text("Pick First Player") }
         picked?.let {
             Spacer(Modifier.height(16.dp))
-            Text(it, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = palette.accent)
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth().height(REVEAL_BURST_BOX_HEIGHT),
+                contentAlignment = Alignment.Center
+            ) {
+                val revealCenterPx = with(LocalDensity.current) { Offset(maxWidth.toPx() / 2f, maxHeight.toPx() / 2f) }
+                // Fires exactly once per NEW pick (see this function's own KDoc for why revealSeq,
+                // not `it`/`picked`, is the key) -- deferred to here, rather than fired directly
+                // from the Button's onClick above, because revealCenterPx (this reveal area's own
+                // on-screen center) only exists once this Box has actually been composed with a
+                // real, bounded size.
+                LaunchedEffect(revealSeq) {
+                    particleBurst.spawn(
+                        origin = revealCenterPx,
+                        count = 14,
+                        colors = listOf(palette.accent, palette.textPrimary),
+                        speedRange = 0.25f..0.6f,
+                        lifeRangeSeconds = 0.45f..0.7f,
+                        gravity = 0.9f
+                    )
+                }
+                Text(it, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = palette.accent)
+                // Overlay canvas purely for the reveal burst -- see HourglassTool's own identical
+                // comment / ParticleBurst.kt's own KDoc for why this "wrap in BoxWithConstraints,
+                // draw in a sibling matchParentSize Canvas" shape is the standard, low-risk pattern
+                // for a container (here: a plain reveal Text) with no pre-existing Canvas of its own.
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    for (p in particleBurst.particles.value) {
+                        drawCircle(color = p.color.copy(alpha = p.lifeFraction), radius = 4.dp.toPx(), center = p.pos)
+                    }
+                }
+            }
         }
     }
 }
@@ -740,13 +893,36 @@ private fun FirstPlayerTool(palette: PartyToolkitPalette, haptics: (HapticSignal
 // ---------------------------------------------------------------------------
 // Teams
 // ---------------------------------------------------------------------------
-/** Its own independent player-name list — see [FirstPlayerTool]'s own KDoc for why this isn't shared with the other tools. */
+/** [TeamsTool]'s own sibling of [REVEAL_BURST_BOX_HEIGHT] -- taller since up to 4 team lines
+ *  (this tool's own `teamCount` range) can be revealed at once rather than FirstPlayerTool's
+ *  always-exactly-one line. Comfortably fits the common case; an unusually long roster wrapping
+ *  onto extra lines simply renders past this fixed box's own bottom edge (Compose's plain [Box]
+ *  never clips a child by default) rather than being cut off, at the cost of the burst's own
+ *  computed center then landing slightly above the true visual middle in that edge case -- a
+ *  small, honest approximation for "content center" per this pass's own instructions, not a
+ *  literal per-pixel measurement of the real (variable) content. */
+private val TEAMS_REVEAL_BURST_BOX_HEIGHT = 150.dp
+
+/**
+ * Its own independent player-name list — see [FirstPlayerTool]'s own KDoc for why this isn't
+ * shared with the other tools.
+ *
+ * The reveal now also plays [SfxKind.SUCCESS_CHIME] and spawns a small celebratory particle
+ * burst from the revealed teams list's own content center (multiple teams reveal at once here,
+ * so there's no single "team's own position" the way FirstPlayerTool has a single name's),
+ * alongside the existing [HapticSignal.CELEBRATION] haptic. [revealSeq] mirrors
+ * [FirstPlayerTool]'s own identical field -- see that tool's KDoc for why a seq counter, not the
+ * revealed value itself, is the right LaunchedEffect key.
+ */
 @Composable
 private fun TeamsTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var names by remember { mutableStateOf(listOf<String>()) }
     var newName by remember { mutableStateOf("") }
     var teamCount by remember { mutableStateOf(2) }
     var teams by remember { mutableStateOf<List<List<String>>>(emptyList()) }
+    var revealSeq by remember { mutableStateOf(0) }
+    val playSfx = rememberProceduralSfx()
+    val particleBurst = rememberParticleBurst()
 
     ToolCard(palette) {
         Text("Split into teams", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -776,18 +952,47 @@ private fun TeamsTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> U
             enabled = names.size >= 2,
             onClick = {
                 teams = PartyToolkitLogic.splitIntoTeams(names, teamCount)
+                revealSeq++
                 haptics(HapticSignal.CELEBRATION)
+                playSfx(SfxKind.SUCCESS_CHIME)
             }
         ) { Text("Split into Teams") }
         if (teams.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
-            for ((index, team) in teams.withIndex()) {
-                Text(
-                    "Team ${index + 1}: ${team.joinToString(", ")}",
-                    color = palette.textPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth().height(TEAMS_REVEAL_BURST_BOX_HEIGHT)
+            ) {
+                val revealCenterPx = with(LocalDensity.current) { Offset(maxWidth.toPx() / 2f, maxHeight.toPx() / 2f) }
+                // See FirstPlayerTool's identical LaunchedEffect for why revealSeq (not `teams`
+                // itself) is the key, and why this spawn is deferred to here rather than fired
+                // directly from the Button's onClick above.
+                LaunchedEffect(revealSeq) {
+                    particleBurst.spawn(
+                        origin = revealCenterPx,
+                        count = 14,
+                        colors = listOf(palette.accent, palette.textPrimary),
+                        speedRange = 0.25f..0.6f,
+                        lifeRangeSeconds = 0.45f..0.7f,
+                        gravity = 0.9f
+                    )
+                }
+                Column {
+                    for ((index, team) in teams.withIndex()) {
+                        Text(
+                            "Team ${index + 1}: ${team.joinToString(", ")}",
+                            color = palette.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+                // Overlay canvas purely for the reveal burst -- see HourglassTool/FirstPlayerTool's
+                // own identical comment for why this pattern applies here too.
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    for (p in particleBurst.particles.value) {
+                        drawCircle(color = p.color.copy(alpha = p.lifeFraction), radius = 4.dp.toPx(), center = p.pos)
+                    }
+                }
             }
         }
     }

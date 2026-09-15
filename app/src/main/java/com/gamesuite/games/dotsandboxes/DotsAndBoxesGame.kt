@@ -11,6 +11,17 @@ data class DotsAndBoxesPlayerState(
     val isBot: Boolean
 )
 
+/** One move's own completed-box payload plus a monotonic [seq] — the UI keys a one-shot effect
+ *  (a small particle burst + camera-shake nudge) off [seq] changing, same "seq-numbered event,
+ *  persists until the next one" idiom [com.gamesuite.games.towerdefence.TowerDefenceGame]'s own
+ *  `lastEnemyDeath`/`TowerDefenceEnemyDeathEvent` already use. [boxIndices] holds EVERY box a
+ *  single edge just newly completed — almost always one, but a shared edge between two adjacent
+ *  boxes can complete both at once (a "double-cross"), and the UI needs to burst at both
+ *  positions, not just one. [playerIndex] is whoever gets credit for the claim (the mover at the
+ *  time of the edge, i.e. `currentPlayerIndex` BEFORE this move's own extra-turn adjustment), so
+ *  the UI can burst in that player's own established color. */
+data class DotsAndBoxesBoxCompletedEvent(val seq: Long, val boxIndices: List<Int>, val playerIndex: Int)
+
 /**
  * [horizontalEdges] is (boxRows+1) rows x boxCols cols, row-major: entry
  * `r*boxCols+c` is the edge along the top of box (r, c) (equivalently the
@@ -34,7 +45,12 @@ data class DotsAndBoxesState(
     /** True once every box is claimed — distinct from [DotsAndBoxesGame.matchOver], which only flips once the whole session ends (the player leaves via the board-over panel's "Back to Menu" rather than "Play Again"). */
     val boardOver: Boolean = false,
     /** The winning playerId once [boardOver], or null for a genuine tie. */
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    /** The most recent move's completed-box(es), for the UI's own per-box particle-burst effect —
+     *  see [DotsAndBoxesBoxCompletedEvent]'s own KDoc. Untouched (carries the previous event
+     *  forward unchanged) on a move that completes zero boxes, same "only advance on a real new
+     *  event" idiom that event's KDoc references. */
+    val lastBoxCompleted: DotsAndBoxesBoxCompletedEvent? = null
 ) {
     val totalBoxes: Int get() = boxRows * boxCols
 }
@@ -96,6 +112,11 @@ class DotsAndBoxesGame : GameModule {
     /** Alternates who opens each new board (including across Play Again rounds), for fairness — same idiom TicTacToeGame's own Play Again uses. */
     private var nextStartingPlayerIndex = 0
 
+    /** Monotonic counter behind [DotsAndBoxesBoxCompletedEvent.seq] — same idiom as
+     *  TowerDefenceGame's own `eventSeq`, reset per fresh board in [startMatch] so a UI
+     *  effect never fires for a stale event carried over from a PRIOR board's own [state]. */
+    private var eventSeq = 0L
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -119,6 +140,7 @@ class DotsAndBoxesGame : GameModule {
         // rediscover it — see MinesweeperGame/SudokuGame/LightsOutGame's own
         // KDocs on this exact fix).
         matchOver.value = false
+        eventSeq = 0L
         state.value = DotsAndBoxesState(
             boxRows = BOX_ROWS,
             boxCols = BOX_COLS,
@@ -193,16 +215,21 @@ class DotsAndBoxesGame : GameModule {
         val affected = affectedBoxes(isHorizontal, row, col, s.boxRows, s.boxCols)
 
         val newOwner = s.boxOwner.toMutableList()
-        var completedCount = 0
+        // Collected (not just counted) so DotsAndBoxesBoxCompletedEvent can name exactly which
+        // box(es) this single edge just claimed -- almost always one, but a shared edge between
+        // two adjacent boxes can complete both at once (a "double-cross"), and the UI's own
+        // per-box particle burst needs both positions, not just a count.
+        val completedBoxIndices = mutableListOf<Int>()
         for (boxIndex in affected) {
             if (newOwner[boxIndex] != null) continue
             val br = boxIndex / s.boxCols
             val bc = boxIndex % s.boxCols
             if (countDrawnEdges(br, bc, newH, newV, s.boxCols) == 4) {
                 newOwner[boxIndex] = s.currentPlayerIndex
-                completedCount++
+                completedBoxIndices += boxIndex
             }
         }
+        val completedCount = completedBoxIndices.size
 
         val newScores = s.scores.toMutableList()
         if (completedCount > 0) newScores[s.currentPlayerIndex] = newScores[s.currentPlayerIndex] + completedCount
@@ -226,6 +253,17 @@ class DotsAndBoxesGame : GameModule {
 
         val winnerId = if (allClaimed) finishBoard(newScores, s.players) else null
 
+        // Only advance the event on a REAL new completion -- a zero-box move leaves
+        // lastBoxCompleted carrying the previous event forward unchanged, same "seq changing is
+        // the only signal, not non-null-ness" idiom DotsAndBoxesBoxCompletedEvent's own KDoc
+        // documents (mirrors TowerDefenceGame's lastEnemyDeath).
+        val boxCompletedEvent = if (completedCount > 0) {
+            eventSeq++
+            DotsAndBoxesBoxCompletedEvent(eventSeq, completedBoxIndices.toList(), s.currentPlayerIndex)
+        } else {
+            s.lastBoxCompleted
+        }
+
         state.value = s.copy(
             horizontalEdges = newH,
             verticalEdges = newV,
@@ -234,6 +272,7 @@ class DotsAndBoxesGame : GameModule {
             currentPlayerIndex = nextIndex,
             boardOver = allClaimed,
             winnerPlayerId = winnerId,
+            lastBoxCompleted = boxCompletedEvent,
             lastAction = when {
                 allClaimed && winnerId != null -> "${s.players.first { it.playerId == winnerId }.displayName} wins the board!"
                 allClaimed -> "It's a tie!"
