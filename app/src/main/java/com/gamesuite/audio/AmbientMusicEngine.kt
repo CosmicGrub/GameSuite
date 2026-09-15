@@ -484,8 +484,16 @@ class AmbientMusicEngine(private val profile: MusicProfile) {
  * chord / incoming chord) let chord changes crossfade with an equal-power
  * curve instead of yanking frequencies, which is what keeps every chord
  * change click-free without needing to time anything to a zero-crossing.
+ *
+ * `internal`, not `private` (file-private, unlike every other declaration in this file) --
+ * `docs/RUST_AUDIO_CORE_PLAN.md`'s Step 4 correctness test
+ * (`app/src/test/java/com/gamesuite/audio/RustPadSynthCorrectnessTest.kt`) constructs this
+ * directly, from a different file in the same package, to diff it sample-by-sample against
+ * [com.gamesuite.audio.RustPadSynth]. Kotlin's test source set is compiled as a "friend" of the
+ * main source set (standard Kotlin Gradle Plugin behavior for unit tests), so `internal` here is
+ * visible to that test without exposing this class outside the app module entirely.
  */
-private class PadSynthState(private val profile: MusicProfile) {
+internal class PadSynthState(private val profile: MusicProfile) {
 
     private class VoiceBank(voiceCount: Int) {
         val phase = DoubleArray(voiceCount)
@@ -567,6 +575,25 @@ private class PadSynthState(private val profile: MusicProfile) {
             out[frame * 2] = toPcm16(lastLeft * taper)
             out[frame * 2 + 1] = toPcm16(lastRight * taper)
         }
+    }
+
+    /** Test-only seam (`docs/RUST_AUDIO_CORE_PLAN.md` Step 4): [render] quantizes every sample to
+     *  a 16-bit `Short` on its way out, which would hide any per-sample drift between this class
+     *  and [com.gamesuite.audio.RustPadSynth] smaller than one quantization step (~1/32767). This
+     *  exposes the same per-frame [computeNextSample] output [render] itself writes, before that
+     *  quantization, as a freshly-allocated `DoubleArray` (allocation is fine here -- unlike
+     *  [render]/[renderFadeOut], nothing calls this from the real-time generator thread; see this
+     *  class's own KDoc on why that thread avoids allocating at all). Interleaved stereo (L,R per
+     *  frame), `frameCount * 2` doubles -- same layout as [render]'s `ShortArray`, just
+     *  unquantized and returned rather than written into a caller-owned buffer. */
+    internal fun renderF64(frameCount: Int): DoubleArray {
+        val out = DoubleArray(frameCount * 2)
+        for (frame in 0 until frameCount) {
+            computeNextSample()
+            out[frame * 2] = lastLeft
+            out[frame * 2 + 1] = lastRight
+        }
+        return out
     }
 
     private fun toPcm16(value: Double): Short =

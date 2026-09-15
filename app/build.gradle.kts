@@ -76,6 +76,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     testImplementation("junit:junit:4.13.2")
+    // Plain desktop JNA jar (not the `@aar` variant above, which only bundles Android-target
+    // natives) -- RustPadSynthCorrectnessTest.kt (docs/RUST_AUDIO_CORE_PLAN.md Step 4) needs
+    // JNA's own native jnidispatch bootstrap for THIS machine's host platform to load the
+    // gamesuite_audio host build (see cargoBuildAmbientAudioHost below) from a plain JVM unit
+    // test. Test-only: main/androidTest keep using the @aar artifact exclusively.
+    testImplementation("net.java.dev.jna:jna:5.14.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.00"))
@@ -298,6 +304,65 @@ val generateAmbientAudioUniffiBindings = tasks.register<Exec>("generateAmbientAu
         "--language", "kotlin",
         "--out-dir", uniffiAudioBindingsOutDir.absolutePath
     )
+}
+
+// ---------------------------------------------------------------------------
+// Host-native build of rust/gamesuite-audio for JVM unit tests
+// (docs/RUST_AUDIO_CORE_PLAN.md Step 4). cargoNdkBuildAmbientAudio above
+// cross-compiles ONLY Android-target .so's (arm64-v8a/armeabi-v7a/
+// x86_64-linux-android, all built against Android's own Bionic libc) --
+// none of which a plain JVM unit test running on this machine's host JVM
+// can load. RustPadSynthCorrectnessTest.kt needs to call the REAL Rust DSP
+// from a JVM unit test to do its actual job (diffing real output against
+// Kotlin's PadSynthState, not a stand-in), so this task instead does a
+// plain `cargo build --release` -- no cargo-ndk, no `-t`/`-P` -- producing a
+// native library for whatever platform Gradle itself is running on (a
+// `.dll` here, since local dev/test on this project runs on Windows)
+// straight into the `rust/target/release` directory cargo already uses for
+// ordinary host builds. Wired only into Test tasks -- the app's own
+// debug/release builds never need this host artifact, only local unit
+// tests do.
+// ---------------------------------------------------------------------------
+
+/** `<name>.dll` / `lib<name>.so` / `lib<name>.dylib` depending on what platform Gradle itself is
+ *  running on -- `crate-type = ["cdylib"]` produces the platform-native shared-library naming
+ *  convention automatically, this just has to know which one to look for. */
+fun hostCdylibFileName(baseName: String): String {
+    val osName = System.getProperty("os.name").lowercase()
+    return when {
+        osName.contains("win") -> "$baseName.dll"
+        osName.contains("mac") -> "lib$baseName.dylib"
+        else -> "lib$baseName.so"
+    }
+}
+
+val hostAudioSharedLib = rustDir.resolve("target/release/${hostCdylibFileName("gamesuite_audio")}")
+
+val cargoBuildAmbientAudioHost = tasks.register<Exec>("cargoBuildAmbientAudioHost") {
+    group = "rust"
+    description = "Builds rust/gamesuite-audio for this machine's own host platform (not Android) " +
+        "so RustPadSynthCorrectnessTest.kt's JVM unit test can load the real native DSP via UniFFI/JNA."
+
+    inputs.dir(audioCrateDir.resolve("src"))
+    inputs.file(audioCrateDir.resolve("Cargo.toml"))
+    inputs.file(rustDir.resolve("Cargo.toml"))
+    inputs.file(rustDir.resolve("Cargo.lock"))
+    outputs.file(hostAudioSharedLib)
+
+    workingDir = audioCrateDir
+    commandLine("cargo", "build", "--release")
+}
+
+/** `findLibraryName(componentName)` in the generated Kotlin bindings
+ *  (`app/build/generated/source/uniffi-audio/kotlin/.../gamesuite_audio.kt`) checks exactly this
+ *  system property before falling back to a bare `"gamesuite_audio"` library-name search -- see
+ *  that generated file's own `findLibraryName` function. Pointing it straight at the host .dll's
+ *  absolute path sidesteps relying on JNA's own `jna.library.path` search order working out. */
+val uniffiAudioLibraryOverrideProperty = "uniffi.component.gamesuite_audio.libraryOverride"
+
+tasks.withType<Test>().configureEach {
+    dependsOn(cargoBuildAmbientAudioHost)
+    systemProperty(uniffiAudioLibraryOverrideProperty, hostAudioSharedLib.absolutePath)
 }
 
 android.sourceSets.getByName("main") {
