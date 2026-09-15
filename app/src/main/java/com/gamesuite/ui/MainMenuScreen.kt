@@ -319,6 +319,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("mastermind")
+            },
+            "word-guess" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("word-guess")
             }
         )
     }
@@ -492,6 +500,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("mastermind-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_word_guess_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("word-guess-daily")
                     }
                 )
             )
@@ -620,7 +636,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_hangman)) { primaryLaunch.getValue("hangman").invoke() },
                     GameEntry(stringResource(R.string.game_word_search)) { primaryLaunch.getValue("word-search").invoke() },
                     GameEntry(stringResource(R.string.game_crossword)) { primaryLaunch.getValue("crossword").invoke() },
-                    GameEntry(stringResource(R.string.game_word_tiles_vs_cpu)) { primaryLaunch.getValue("word-tiles").invoke() }
+                    GameEntry(stringResource(R.string.game_word_tiles_vs_cpu)) { primaryLaunch.getValue("word-tiles").invoke() },
+                    GameEntry(stringResource(R.string.game_word_guess)) { primaryLaunch.getValue("word-guess").invoke() }
                 )
             )
 

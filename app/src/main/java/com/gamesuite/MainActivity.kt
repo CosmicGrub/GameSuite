@@ -49,6 +49,7 @@ import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.kakuro.KakuroGame
 import com.gamesuite.games.kenken.KenKenGame
 import com.gamesuite.games.mastermind.MastermindGame
+import com.gamesuite.games.wordguess.WordGuessGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
@@ -76,6 +77,7 @@ import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.KakuroScreen
 import com.gamesuite.ui.KenKenScreen
 import com.gamesuite.ui.MastermindScreen
+import com.gamesuite.ui.WordGuessScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
 import com.gamesuite.ui.MancalaScreen
@@ -674,6 +676,27 @@ class MainActivity : ComponentActivity() {
                             MastermindScreen(
                                 sessionManager = sessionManager,
                                 game = mastermindGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("word-guess") {
+                            val wordGuessGame = rememberActiveModule(sessionManager) { WordGuessGame() }
+                            WordGuessScreen(
+                                sessionManager = sessionManager,
+                                game = wordGuessGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("word-guess-daily") {
+                            // Same GameModule/screen as "word-guess" -- a today's-date seed is the
+                            // only difference, so every player gets the identical word.
+                            val wordGuessGame = rememberActiveModule(sessionManager) { WordGuessGame() }
+                            WordGuessScreen(
+                                sessionManager = sessionManager,
+                                game = wordGuessGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

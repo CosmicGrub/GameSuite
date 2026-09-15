@@ -30,7 +30,7 @@ into the nearest shape.
 
 ## Word / daily-challenge picks
 
-### Word Guess (Wordle-style)
+### ~~Word Guess~~ (Wordle-style) — shipped (README item 29)
 A hidden 5-letter word, 6 guesses, per-letter feedback (correct spot / wrong spot / not in word).
 **Why now**: this genre didn't exist when wave 1 scoped Word Search/Crossword/Hangman/Word Tiles,
 and it's become one of the most-played casual word-game shapes on mobile — a real, current gap,
@@ -38,13 +38,14 @@ not an oversight from before. **Architecture fit**: solo puzzle, and an unusuall
 app already has a `startMatch(dailySeed)` convention on nearly every solo puzzle, and Word Guess's
 own genre convention (one puzzle per day, everyone gets the same word) is a more natural fit for
 that mechanism than almost anything else in the catalog; the daily seed IS the whole point here,
-not an add-on. **Real design question**: an unlimited-replay mode (like every other solo puzzle's
-"New Puzzle" button) sits oddly next to the genre's own "one guess-word per day" convention — worth
-deciding whether non-daily play picks a fresh random word each time (this app's own established
-idiom) or is deliberately left out in favor of daily-only, a genuine departure from every other
-solo puzzle here. **Generation risk**: low — a curated common-word list (reusing Word Search's own
-dictionary-curation precedent) plus a straightforward per-letter comparison; no uniqueness-proving
-generator risk the way Sudoku/Nonogram/Kakuro had.
+not an add-on. **Real design question, resolved**: the unlimited-replay-vs-daily-only fork this
+entry flagged was settled in favor of matching this app's own established convention (unlimited
+replay alongside a daily-seeded entry, no once-per-day lock) rather than real Wordle's own
+stricter, unprecedented-for-this-app restriction — see README item 29's own writeup for the full
+reasoning. **Generation risk**: low, as scoped — but built with a real two-tier word source
+(broad `WordDictionary` for guess validation, a small curated 2,314-word answer list for the
+secret) rather than a single list, matching real Wordle's own actual design more closely than
+this entry's own original "one curated list" framing anticipated.
 
 ### ~~Mastermind~~ — shipped (README item 28)
 A hidden sequence of 4-6 colored pegs; guess it within a limited number of tries, getting

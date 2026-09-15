@@ -1746,6 +1746,77 @@ point the app's Settings → Online multiplayer server address at it
       revealed secret's feedback against what was shown on screen (matched
       exactly), and confirmed HARD's own 5-position/8-color board renders without
       layout overflow even on a tablet-width screen.
+- [x] 29. New game modules, Wave 3 pick 2: **Word Guess**
+      (`games/wordguess/WordGuessGame.kt` + `ui/WordGuessScreen.kt`,
+      `docs/NEW_GAMES_BRAINSTORM_WAVE_3.md`) — a hidden 5-letter word, guessed within a
+      limited number of tries, with per-letter feedback (right spot / wrong spot /
+      not in the word) after each guess — the Wordle-style genre this catalog didn't
+      have before this pick. **Two-tier word source**, the same real design real
+      Wordle itself uses: guess VALIDATION goes through this app's existing
+      general-purpose `WordDictionary` (~359k words, already shared by Word Search/
+      Crossword/Word Tiles) restricted to 5 letters — any real English word is an
+      acceptable guess, zero new data needed for that half. The SECRET, by contrast,
+      comes from a small curated `assets/word_guess_answers.txt` (2,314 common
+      words, the actual real published NYT Wordle answer list — a widely-reused,
+      well-vetted set, not an arbitrary independent selection) — deliberately
+      separate from the huge dictionary, which is sourced for breadth and contains
+      plenty of words too obscure to be a fair "word of the day."
+      **A real design question this pick's own brainstorm entry flagged before any
+      code was written**: real Wordle's defining restriction is exactly one attempt
+      per day, locked afterward — this engine does NOT reproduce that. It follows
+      this app's own universal daily-challenge convention instead (an unlimited-
+      replay `startMatch()` sitting alongside a `startMatch(dailySeed)` variant),
+      the same "same puzzle for everyone today, but nothing stops you from playing
+      more" shape every other daily-seeded solo puzzle here already has — copying
+      real Wordle's own stricter, unprecedented-for-this-app lock would have been a
+      genuinely new restriction to invent, not a neutral choice.
+      EASY/MEDIUM/HARD scale the guess allowance (8/6/5) while word length stays
+      fixed at 5 for every tier — that fixed length is the whole cultural reference
+      point this pick exists for, not something to dilute for a difficulty knob.
+      **Testability**: secret selection and guess validation are both injectable
+      seams (`pickSecret`/`isValidGuess`), the same reasoning every engine's own
+      `nowMillis` seam already established — their real implementations both need
+      an Android `Context` to read an assets file, which throws under plain JUnit
+      (no Robolectric in this project). Tests inject a small fixed fake word pool
+      instead of touching either real asset-backed store.
+      **The one real algorithmic care point**: the standard two-pass scoring
+      algorithm (exact-position matches consumed out of both words first, then a
+      left-to-right pass assigns PRESENT off whatever's left) is what stops a
+      repeated guess letter from being marked PRESENT more times than it actually
+      appears in the secret. Verified with both a from-scratch independent
+      aggregate re-derivation (a full letter-multiset intersection, run against 80
+      random trials, checking every exact-position match plus the total
+      correct+present count) AND several hand-worked FULL feedback lists — including
+      one specifically designed to catch a class of bug the aggregate check alone
+      could miss (assigning PRESENT to the wrong one of two candidate positions
+      while still getting the total right: secret="lemon", guess="lolly" must score
+      exactly `[CORRECT, PRESENT, ABSENT, ABSENT, ABSENT]`, not just "1 correct, 1
+      present" in some other arrangement). Custom on-screen QWERTY keyboard (not the
+      system IME), matching HangmanScreen's own established precedent — each key's
+      color reflects the best feedback seen for that letter across every past
+      guess, the genre's own standard convention and genuinely useful ruled-out-
+      letters information, not just decoration. Best-guess-count / best-time stats
+      keyed by tier, same two-metric shape as Mastermind/Edge Match.
+      A real bug was caught and fixed in the test file itself before any engine
+      bug: the first draft's hand-verified scoring tests submitted guess words
+      ("lolly", "brown") that weren't in the test's own small fixed validation
+      vocabulary, so `submitGuess` correctly rejected them as invalid — silently
+      leaving `guesses` empty and failing the assertions with an unrelated
+      `NoSuchElementException` rather than the intended scoring check. Fixed by
+      adding an `acceptAnyGuess` bypass to the test helper for scoring-focused
+      tests that don't care about vocabulary membership.
+      15 unit tests (284 passing app-wide), full `:app:compileDebugKotlin`
+      verified, and played live on a real device: typed a real guess via the
+      on-screen keyboard, confirmed its tile colors and keyboard-key colors updated
+      correctly against a REAL secret drawn from the curated asset file, and
+      confirmed the real `WordDictionary`-backed validation correctly rejects a
+      non-word ("wwwww") without counting it as a guess while leaving the typed
+      letters in place to edit. (Verification was cut a little short partway
+      through by the shared physical test device showing signs of concurrent use
+      from elsewhere — stopped touching it immediately rather than risk
+      interfering; the parts not re-confirmed live, backspace-clearing and a full
+      win/loss playthrough, are both already covered by the unit suite, including
+      hand-verified exact-match and out-of-guesses cases.)
 
 ## Fixes and hardening
 

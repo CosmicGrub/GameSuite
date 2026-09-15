@@ -48,6 +48,7 @@
     <string name="game_kakuro_daily">Kakuro — today\'s puzzle</string>
     <string name="game_kenken_daily">KenKen — today\'s puzzle</string>
     <string name="game_mastermind_daily">Mastermind — today\'s secret</string>
+    <string name="game_word_guess_daily">Word Guess — today\'s word</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -77,6 +78,7 @@
     <string name="game_word_search">Word Search</string>
     <string name="game_crossword">Crossword</string>
     <string name="game_word_tiles_vs_cpu">Word Tiles (vs CPU)</string>
+    <string name="game_word_guess">Word Guess</string>
 
     <!-- Arcade & puzzles -->
     <string name="game_air_hockey_vs_cpu">Air Hockey (vs CPU)</string>
