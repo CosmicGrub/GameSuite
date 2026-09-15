@@ -112,6 +112,43 @@ class AmbientMusicEngineTest {
         assertEquals(customSpread, voicePan(voiceIndex = 1, voiceCount = 2, spread = customSpread), 1e-9)
     }
 
+    /**
+     * The four-voice test above pins exact endpoint values plus symmetry/monotonicity/even-
+     * spacing structurally rather than as hardcoded literals for the interior voices -- the same
+     * structural check, applied here to every voice count from 5 through 8 (the real ceiling this
+     * app's chords use), closing the gap where only [voicePan never exceeds the requested spread
+     * in magnitude] (a much weaker bound-only check) covered that range before.
+     */
+    @Test
+    fun `voicePan is evenly spaced, symmetric, and monotonically increasing for every voice count from five to eight`() {
+        val spread = STEREO_SPREAD
+        for (voiceCount in 5..8) {
+            val pans = (0 until voiceCount).map { voicePan(voiceIndex = it, voiceCount = voiceCount) }
+
+            assertEquals("voiceCount=$voiceCount leftmost voice", -spread, pans.first(), 1e-9)
+            assertEquals("voiceCount=$voiceCount rightmost voice", spread, pans.last(), 1e-9)
+
+            for (i in 1 until pans.size) {
+                assertTrue(
+                    "voiceCount=$voiceCount: voicePan must be strictly increasing by voice index",
+                    pans[i] > pans[i - 1]
+                )
+            }
+
+            // Symmetric around center: voice i and its mirror (count-1-i) are exact opposites.
+            for (i in pans.indices) {
+                val mirror = pans[pans.size - 1 - i]
+                assertEquals("voiceCount=$voiceCount voice $i vs its mirror", -pans[i], mirror, 1e-9)
+            }
+
+            // Evenly spaced -- consecutive gaps are all equal.
+            val gaps = (1 until pans.size).map { pans[it] - pans[it - 1] }
+            for (i in 1 until gaps.size) {
+                assertEquals("voiceCount=$voiceCount gap $i vs gap 0", gaps[0], gaps[i], 1e-9)
+            }
+        }
+    }
+
     @Test
     fun `voicePan never exceeds the requested spread in magnitude`() {
         val spread = STEREO_SPREAD
