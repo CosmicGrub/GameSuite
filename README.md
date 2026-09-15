@@ -1609,6 +1609,56 @@ point the app's Settings → Online multiplayer server address at it
       `logcat` throughout — reinstalled and relaunched clean again after the
       projectile fix. This closes out every item on the original new-games roadmap
       (Minesweeper through Tower Defence, items 14-25).
+- [x] 26. New game modules, first post-roadmap pick: **Edge Match Custom Game Builder
+      (phase 1)** (`games/edgematch/EdgeMatchGame.kt` + `ui/EdgeMatchScreen.kt`,
+      `docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md`) — with the original 25-item roadmap
+      fully shipped, this picks up the one item both `docs/NEW_GAMES_BRAINSTORM.md`
+      and `docs/EDGE_MATCH_DESIGN.md` name as still explicitly unstarted: Edge Match's
+      deferred generative "Custom game" builder (multiple tiling geometries including
+      Penrose, adjustable piece-count sliders, a constraint-solver-backed generator).
+      That ask bundles three wildly different-cost pieces of work — configurable
+      parameters on the existing mechanic (low risk), a second tiling geometry
+      (bigger but tractable), true Penrose/aperiodic tiling with a solver-backed
+      generator (a serious, open-ended algorithmic problem, its own ADR before any
+      code) — presented to the project owner as a real fork rather than guessed at.
+      **Decision: build the first piece only, this pass**; a second geometry and
+      Penrose tiling remain explicitly deferred, un-promoted future phases.
+      A "Custom" tab joins the existing EASY/MEDIUM/HARD tabs, opening a config panel
+      with two sliders (board size 2-10, color count 2-8) and a "Start Custom Game"
+      button. **No engine changes were needed at all** — `generateSolvedGrid`/
+      `scrambleRotations`/`generatePuzzle` were already generic over size/colorCount,
+      so `EdgeMatchGame.startCustomMatch(size, colorCount)` is purely an additional
+      entry point (values clamped, not rejected, into bounds) alongside the existing
+      tiered `startMatch()`; `selectDifficultyTier()` is the only supported way back
+      to a fixed tier, since it clears `customConfig` (a bare `difficulty = tier`
+      assignment would leave a stale custom config in place and silently keep
+      generating custom boards). Same reasoning means no new adversarial-review pass
+      was warranted — the generation risk is identical to what already shipped and
+      was reviewed for the tiered version. `EdgeMatchStatsStore` was generalized from
+      a closed `CpuDifficulty`-keyed record map to an open string-keyed one
+      (`"EASY"`/`"MEDIUM"`/`"HARD"` unchanged, `"CUSTOM_{size}x{colorCount}"` new) so
+      a custom configuration a player returns to gets its own real best-moves/
+      best-time record instead of nothing. The color palette grew from 6 to 8 wedge
+      colors (added teal and slate) to cover the new `MAX_COLORS` ceiling.
+      **A real pre-existing bug found and fixed while making this change**:
+      `EdgeMatchScreen`'s one-time-solve-recording guard was `remember`'d keyed on
+      `(s.tiles.size, game.difficulty)` — both constant across every "New Puzzle"
+      click within the same tier — so only the FIRST solved puzzle per tier per
+      screen visit ever actually got recorded; every later solve in that tier
+      silently skipped `recordSolve()` (and the finished panel kept showing the first
+      solve's stale "new best" flags). Custom mode's own key would have inherited the
+      identical gap, so it was closed directly: the guard is now keyed on
+      `(game.statsKey(), s.tiles)`, the tile list being unique per generation and
+      stable only while a solved board stays on screen. 7 new unit tests (232 unit
+      tests passing app-wide), full `:app:compileDebugKotlin` verified, and played
+      live on a real device via `adb`/`uiautomator`: dragged both sliders to a 9×9/
+      7-color board and to the 2×2/2-color floor, confirmed tapping a tier tab
+      correctly exits Custom mode (and re-tapping "Custom" reopens the panel
+      pre-filled with the last configuration), then brute-force-solved two
+      consecutive 2×2 custom puzzles in a row via exhaustive rotation search — the
+      second solve's finished panel correctly showed the FIRST solve's real 21-move/
+      0:37 best rather than silently skipping the record or showing stale data,
+      directly confirming the bug fix.
 
 ## Fixes and hardening
 

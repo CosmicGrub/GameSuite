@@ -312,4 +312,100 @@ class EdgeMatchGameTest {
         game.leaveSession()
         assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
     }
+
+    // -------------------------------------------------------------------
+    // Custom Game Builder (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md) --
+    // deliberately reuses every generation-correctness check above (a fresh
+    // puzzle is never already-solved, rotation-0 is always a valid solution)
+    // against custom sizes/color counts too, since the whole point of this
+    // phase is that it's the SAME generator, just parameterized directly.
+    // -------------------------------------------------------------------
+
+    @Test
+    fun `startCustomMatch uses the exact size and colorCount requested, within bounds`() {
+        for ((size, colorCount) in listOf(3 to 3, 5 to 7, EdgeMatchGame.MIN_SIZE to EdgeMatchGame.MIN_COLORS, EdgeMatchGame.MAX_SIZE to EdgeMatchGame.MAX_COLORS)) {
+            val game = newGame()
+            game.startCustomMatch(size, colorCount)
+            val s = game.state.value!!
+            assertEquals("size=$size colors=$colorCount", size, s.size)
+            assertEquals("size=$size colors=$colorCount", colorCount, s.colorCount)
+            assertEquals(size * size, s.tiles.size)
+            for (tile in s.tiles) for (edge in tile.canonicalEdges) {
+                assertTrue("size=$size colors=$colorCount: every edge color must be in 0 until $colorCount", edge in 0 until colorCount)
+            }
+        }
+    }
+
+    @Test
+    fun `startCustomMatch clamps out-of-range size and colorCount instead of crashing`() {
+        val tooSmall = newGame()
+        tooSmall.startCustomMatch(size = 0, colorCount = 0)
+        assertEquals(EdgeMatchGame.MIN_SIZE, tooSmall.state.value!!.size)
+        assertEquals(EdgeMatchGame.MIN_COLORS, tooSmall.state.value!!.colorCount)
+
+        val tooBig = newGame()
+        tooBig.startCustomMatch(size = 999, colorCount = 999)
+        assertEquals(EdgeMatchGame.MAX_SIZE, tooBig.state.value!!.size)
+        assertEquals(EdgeMatchGame.MAX_COLORS, tooBig.state.value!!.colorCount)
+    }
+
+    @Test
+    fun `a freshly generated custom puzzle is never already solved, at the size bounds`() {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, EdgeMatchGame.MAX_SIZE)) {
+            repeat(8) {
+                val game = newGame()
+                game.startCustomMatch(size, EdgeMatchGame.MIN_COLORS)
+                assertFalse("size=$size", game.state.value!!.solved)
+            }
+        }
+    }
+
+    @Test
+    fun `resetting every tile's own rotation to 0 always solves a freshly generated custom puzzle`() {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, 5, EdgeMatchGame.MAX_SIZE)) {
+            repeat(5) { trial ->
+                val game = newGame()
+                game.startCustomMatch(size, colorCount = 6)
+                val s = game.state.value!!
+                assertTrue(
+                    "size=$size trial=$trial: the generator's own solved arrangement does not actually satisfy every adjacency",
+                    allTilesAtRotationZeroAreSolved(s.tiles, s.size)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a daily seed makes a custom puzzle reproducible too`() {
+        val gameA = newGame()
+        gameA.startCustomMatch(size = 7, colorCount = 5, dailySeed = 99L)
+        val gameB = newGame()
+        gameB.startCustomMatch(size = 7, colorCount = 5, dailySeed = 99L)
+        assertEquals(gameA.state.value!!.tiles, gameB.state.value!!.tiles)
+    }
+
+    @Test
+    fun `statsKey is the tier name for a normal game and CUSTOM_SizexColors for a custom one`() {
+        val tiered = newGame(CpuDifficulty.HARD)
+        tiered.startMatch()
+        assertEquals("HARD", tiered.statsKey())
+
+        val custom = newGame()
+        custom.startCustomMatch(size = 6, colorCount = 4)
+        assertEquals("CUSTOM_6x4", custom.statsKey())
+    }
+
+    @Test
+    fun `selectDifficultyTier clears customConfig so startMatch reverts to the fixed tier`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startCustomMatch(size = 9, colorCount = 8)
+        assertEquals(9, game.state.value!!.size)
+        assertTrue(game.customConfig != null)
+
+        game.selectDifficultyTier(CpuDifficulty.HARD)
+        assertNull("selectDifficultyTier must clear customConfig", game.customConfig)
+        game.startMatch()
+        assertEquals("startMatch after selectDifficultyTier must use HARD's own size, not the stale custom one", 8, game.state.value!!.size)
+        assertEquals("HARD", game.statsKey())
+    }
 }

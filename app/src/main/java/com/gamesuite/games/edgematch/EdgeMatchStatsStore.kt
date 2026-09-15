@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.gamesuite.settings.CpuDifficulty
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -34,12 +33,16 @@ data class EdgeMatchSolveResult(
 )
 
 /**
- * Self-contained best-move-count / best-time persistence for Edge Match, keyed by
- * [CpuDifficulty] tier since grid size (and therefore what's achievable) differs per
- * tier — same shape and reasoning as ColorFloodStatsStore/LightsOutStatsStore/
- * SlidingPuzzleStatsStore. Move count is a genuine, real skill dimension here (fewer
- * rotations to solve), so this gets the two-metric shape rather than
- * Minesweeper/Sudoku's time-only one.
+ * Self-contained best-move-count / best-time persistence for Edge Match, keyed by a
+ * config string — `"EASY"`/`"MEDIUM"`/`"HARD"` for a fixed tier, or
+ * `"CUSTOM_{size}x{colorCount}"` for a Custom Game Builder configuration (see
+ * [EdgeMatchGame.statsKey] and docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md's Stats
+ * section) — since grid size (and therefore what's achievable) differs per
+ * configuration, same shape and reasoning as ColorFloodStatsStore/LightsOutStatsStore/
+ * SlidingPuzzleStatsStore, generalized from a closed tier enum to an open string so a
+ * custom configuration a player returns to gets its own real best, not nothing. Move
+ * count is a genuine, real skill dimension here (fewer rotations to solve), so this
+ * gets the two-metric shape rather than Minesweeper/Sudoku's time-only one.
  *
  * Never read/write DataStore directly from a @Composable — EdgeMatchScreen collects
  * [records] as state and calls [recordSolve] from inside the effect that reacts to a
@@ -51,31 +54,32 @@ class EdgeMatchStatsStore(private val context: Context) {
         val RECORDS_JSON = stringPreferencesKey("records_json")
     }
 
-    /** All-tier records, keyed by [CpuDifficulty.name]; a tier with no entry has never been solved. */
+    /** All records, keyed by [EdgeMatchGame.statsKey]; a config with no entry has never been solved. */
     val records: Flow<Map<String, EdgeMatchRecord>> = context.edgeMatchStatsDataStore.data.map { prefs ->
         decode(prefs[Keys.RECORDS_JSON])
     }
 
     /**
-     * Records one solved puzzle for [difficulty]: [moves] the final move count and
-     * [timeMillis] the stopwatch reading. A tier with no prior record counts its
-     * first-ever solve as a new best in both columns. The before/after comparison
-     * happens inside the same `DataStore.edit` transaction that persists the update,
-     * so a win that races another read/write can't compare against a stale value.
+     * Records one solved puzzle for [configKey] (see [EdgeMatchGame.statsKey]): [moves]
+     * the final move count and [timeMillis] the stopwatch reading. A config with no
+     * prior record counts its first-ever solve as a new best in both columns. The
+     * before/after comparison happens inside the same `DataStore.edit` transaction
+     * that persists the update, so a win that races another read/write can't compare
+     * against a stale value.
      */
-    suspend fun recordSolve(difficulty: CpuDifficulty, moves: Int, timeMillis: Long): EdgeMatchSolveResult {
+    suspend fun recordSolve(configKey: String, moves: Int, timeMillis: Long): EdgeMatchSolveResult {
         var isNewBestMoves = false
         var isNewBestTimeMillis = false
         context.edgeMatchStatsDataStore.edit { prefs ->
             val current = decode(prefs[Keys.RECORDS_JSON])
-            val existing = current[difficulty.name] ?: EdgeMatchRecord()
+            val existing = current[configKey] ?: EdgeMatchRecord()
             isNewBestMoves = existing.bestMoves == null || moves < existing.bestMoves
             isNewBestTimeMillis = existing.bestTimeMillis == null || timeMillis < existing.bestTimeMillis
             val updated = existing.copy(
                 bestMoves = if (isNewBestMoves) moves else existing.bestMoves,
                 bestTimeMillis = if (isNewBestTimeMillis) timeMillis else existing.bestTimeMillis
             )
-            prefs[Keys.RECORDS_JSON] = Json.encodeToString(current + (difficulty.name to updated))
+            prefs[Keys.RECORDS_JSON] = Json.encodeToString(current + (configKey to updated))
         }
         return EdgeMatchSolveResult(isNewBestMoves, isNewBestTimeMillis)
     }

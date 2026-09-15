@@ -49,6 +49,17 @@ data class EdgeMatchState(
 )
 
 /**
+ * A player-chosen board size + color count from the Custom Game Builder's
+ * first phase (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md), overriding
+ * [EdgeMatchGame]'s fixed-tier [EdgeMatchGame.difficultyConfig] when set —
+ * see [EdgeMatchGame.startCustomMatch]. Always clamped into
+ * [EdgeMatchGame.MIN_SIZE]/[EdgeMatchGame.MAX_SIZE]/[EdgeMatchGame.MIN_COLORS]/
+ * [EdgeMatchGame.MAX_COLORS] at construction, so no other code needs to
+ * re-validate it.
+ */
+data class EdgeMatchCustomConfig(val size: Int, val colorCount: Int)
+
+/**
  * Edge Match (roadmap item 7, the fixed-board half of the Tessel-inspired
  * tile edge-matching entry — see docs/EDGE_MATCH_DESIGN.md, approved by the
  * project owner via brainstorming, for the full scoping writeup this class
@@ -98,6 +109,19 @@ data class EdgeMatchState(
  * for an unproductive one" idiom LightsOutGame.press() already follows.
  * There's a real minimum move count to reach solved (0-3 rotations per
  * tile), which is the actual skill metric [EdgeMatchStatsStore] tracks.
+ *
+ * CUSTOM GAME BUILDER (phase 1 — see docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md):
+ * [startCustomMatch] lets a player pick size/colorCount directly instead of
+ * one of the fixed tiers, via the exact same generation algorithm above — it
+ * was already generic over both parameters, so this is purely an additional
+ * entry point, not a new code path. [customConfig] non-null is what
+ * [statsKey] and every subsequent [startMatch] read off; [selectDifficultyTier]
+ * is the only supported way back to a fixed tier, since it clears
+ * [customConfig] as part of switching (a bare `difficulty = tier` assignment
+ * would leave a stale [customConfig] in place and silently keep generating
+ * custom boards). Deliberately still square-grid only — a second tiling
+ * geometry and true Penrose/aperiodic tiling remain separate, unstarted
+ * future phases per that doc.
  */
 class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
     override val gameId = "edge-match"
@@ -121,6 +145,17 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /**
+     * Non-null iff the CURRENT (or next) match should use a player-chosen size/
+     * color count instead of [difficulty]'s fixed tier — see [startCustomMatch]/
+     * [selectDifficultyTier] and the class KDoc's CUSTOM GAME BUILDER section.
+     * Private setter: the only supported ways to change it are those two methods,
+     * so it's never possible to leave it stale relative to what the UI thinks is
+     * selected.
+     */
+    var customConfig: EdgeMatchCustomConfig? = null
+        private set
 
     /**
      * Snapshot of the puzzle's arrangement as first generated, captured once in
@@ -159,7 +194,9 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** See the class KDoc / SlidingPuzzleGame.startMatch(dailySeed)'s KDoc for what [dailySeed] is for. */
     fun startMatch(dailySeed: Long?) {
-        val (size, colorCount) = difficultyConfig[difficulty] ?: difficultyConfig.getValue(CpuDifficulty.MEDIUM)
+        val (size, colorCount) = customConfig?.let { it.size to it.colorCount }
+            ?: difficultyConfig[difficulty]
+            ?: difficultyConfig.getValue(CpuDifficulty.MEDIUM)
         timerStartElapsedRealtime.value = null
         solvedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
@@ -173,6 +210,49 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         state.value = EdgeMatchState(size = size, colorCount = colorCount, tiles = tiles)
         initialArrangement = tiles
     }
+
+    /**
+     * Starts a fresh puzzle using a player-chosen [size]/[colorCount] instead of
+     * one of the fixed EASY/MEDIUM/HARD tiers — the Custom Game Builder's first,
+     * deliberately modest phase (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md): same
+     * square-grid rotate-in-place mechanic, same generation algorithm already
+     * shipped for the tiered version, just parameterized directly instead of
+     * looked up from [difficultyConfig]. Values are CLAMPED into [MIN_SIZE]..
+     * [MAX_SIZE] / [MIN_COLORS]..[MAX_COLORS] rather than rejected — a slider-
+     * driven UI can't produce an out-of-range value anyway, so this is a
+     * defensive floor, not user-facing validation. Setting [customConfig] here
+     * is what [statsKey] and every later [startMatch] call read off, until
+     * [selectDifficultyTier] switches back.
+     */
+    fun startCustomMatch(size: Int, colorCount: Int, dailySeed: Long? = null) {
+        customConfig = EdgeMatchCustomConfig(
+            size = size.coerceIn(MIN_SIZE, MAX_SIZE),
+            colorCount = colorCount.coerceIn(MIN_COLORS, MAX_COLORS)
+        )
+        startMatch(dailySeed)
+    }
+
+    /**
+     * Switches back to a fixed EASY/MEDIUM/HARD tier, clearing [customConfig] —
+     * the only correct way to leave Custom mode. A bare `difficulty = tier`
+     * assignment without this would leave [customConfig] set, and [startMatch]
+     * would keep silently generating custom boards instead of honoring the new
+     * tier. Does NOT itself start a new puzzle, matching [startMatch]'s own
+     * "caller decides when" convention.
+     */
+    fun selectDifficultyTier(tier: CpuDifficulty) {
+        customConfig = null
+        difficulty = tier
+    }
+
+    /**
+     * The [EdgeMatchStatsStore] record key for whatever match is CURRENTLY
+     * active: the tier name for a normal game, or `"CUSTOM_{size}x{colorCount}"`
+     * for a custom one — see docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md's Stats
+     * section for why records are kept per-exact-configuration rather than not
+     * tracked at all for custom games.
+     */
+    fun statsKey(): String = customConfig?.let { "CUSTOM_${it.size}x${it.colorCount}" } ?: difficulty.name
 
     /**
      * Snapshots the current time so [resume] can measure how long the app was
@@ -373,5 +453,16 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         const val RIGHT = 1
         const val BOTTOM = 2
         const val LEFT = 3
+
+        // Custom Game Builder bounds (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md) --
+        // MIN_SIZE=2 because a 1x1 board has zero interior seams (always trivially
+        // "solved", not a puzzle); MIN_COLORS=2 because with a single color every
+        // edge always matches. The upper bounds are a UI/legibility ceiling, not an
+        // algorithmic one -- see that doc's UI section for why MAX_COLORS needed a
+        // palette change to support.
+        const val MIN_SIZE = 2
+        const val MAX_SIZE = 10
+        const val MIN_COLORS = 2
+        const val MAX_COLORS = 8
     }
 }

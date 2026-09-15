@@ -407,10 +407,20 @@ games proposed above duplicate anything in the existing 13-game catalog.
     entry that needed one.
 
 This closes out every item on the original new-games roadmap (Minesweeper through Tower
-Defence). What remains unstarted from this document: the generative Custom-game builder
+Defence). What remained unstarted from this document: the generative Custom-game builder
 (including Penrose tiling) mentioned under Edge Match's own entry above, and the
 Boardgame Pal utility toolkit's own future ideas — both explicitly scoped as later
 phases, not part of this build order.
+
+13. ~~Edge Match Custom Game Builder, phase 1 (configurable size/colors, still
+    square-grid)~~ — done, shipped (README item 26,
+    `docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md`). Presented to the project owner as a
+    real fork between three wildly different-cost slices of the original ask; only
+    the configurable-parameters slice was built this pass. **Still unstarted**: a
+    second tiling geometry, and true Penrose/aperiodic tiling with a
+    constraint-solver-backed generator — both remain explicitly deferred future
+    phases, same as before. The Boardgame Pal toolkit's own future ideas also remain
+    untouched.
 
 **Standing process note for whatever game is picked up next**: run a background
 adversarial-review workflow against any newly-written engine before calling it done,

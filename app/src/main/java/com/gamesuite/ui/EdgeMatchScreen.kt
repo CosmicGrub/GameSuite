@@ -10,6 +10,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,7 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
  * Renders EdgeMatchGame's state reactively — same overall shape as
@@ -95,8 +97,18 @@ fun EdgeMatchScreen(
     val s = state ?: return
 
     val allRecords by statsStore.records.collectAsState(initial = emptyMap())
-    val record = allRecords[game.difficulty.name]
-    var reportedResult by remember(s.tiles.size, game.difficulty) { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
+    val record = allRecords[game.statsKey()]
+    // Keyed on the actual tile list (unique per puzzle generation, stable across
+    // taps of the SAME puzzle) rather than on difficulty/size -- an earlier version
+    // of this keyed only on (s.tiles.size, game.difficulty), which stays constant
+    // across successive same-tier puzzles and so only ever recorded the FIRST solve
+    // per tier per screen visit; every later "New Puzzle" solve in that tier was
+    // silently skipped. Found and fixed directly while wiring statsKey() for Custom
+    // mode below, which would have inherited the same gap.
+    var reportedResult by remember(game.statsKey(), s.tiles) { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
+    var showCustomPanel by remember { mutableStateOf(false) }
+    var draftSize by remember { mutableStateOf(game.customConfig?.size ?: 6) }
+    var draftColors by remember { mutableStateOf(game.customConfig?.colorCount ?: 4) }
 
     // Live "Time: M:SS" display -- same idiom as every other solo puzzle's own live-timer LaunchedEffect.
     var liveElapsedMillis by remember(s.size, s.moves == 0) { mutableStateOf(0L) }
@@ -115,7 +127,7 @@ fun EdgeMatchScreen(
     LaunchedEffect(s.solved) {
         if (s.solved && reportedResult == null) {
             val finalTime = game.solvedElapsedMillis.value ?: liveElapsedMillis
-            val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
+            val result = statsStore.recordSolve(game.statsKey(), s.moves, finalTime)
             reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
             haptics(HapticSignal.CELEBRATION)
         }
@@ -130,68 +142,94 @@ fun EdgeMatchScreen(
     ) {
         DifficultyTabsEdgeMatch(
             current = game.difficulty,
+            isCustomActive = game.customConfig != null,
             palette = palette,
-            onSelect = { tier ->
-                if (tier != game.difficulty) {
-                    game.difficulty = tier
+            onSelectTier = { tier ->
+                showCustomPanel = false
+                if (tier != game.difficulty || game.customConfig != null) {
+                    game.selectDifficultyTier(tier)
                     game.startMatch()
                 }
+            },
+            onSelectCustom = {
+                // Pre-fill from whatever custom config is already active (reconfiguring),
+                // or leave the last-drafted values alone (first time opening the panel) --
+                // see docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md's UI section.
+                game.customConfig?.let {
+                    draftSize = it.size
+                    draftColors = it.colorCount
+                }
+                showCustomPanel = true
             }
         )
 
         Spacer(Modifier.height(10.dp))
 
-        EdgeMatchStatusRow(
-            moves = s.moves,
-            elapsedMillis = game.solvedElapsedMillis.value ?: liveElapsedMillis,
-            palette = palette
-        )
+        if (showCustomPanel) {
+            EdgeMatchCustomPanel(
+                size = draftSize,
+                colorCount = draftColors,
+                onSizeChange = { draftSize = it },
+                onColorCountChange = { draftColors = it },
+                onStart = {
+                    game.startCustomMatch(draftSize, draftColors)
+                    showCustomPanel = false
+                },
+                palette = palette
+            )
+        } else {
+            EdgeMatchStatusRow(
+                moves = s.moves,
+                elapsedMillis = game.solvedElapsedMillis.value ?: liveElapsedMillis,
+                palette = palette
+            )
 
-        Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(14.dp))
 
-        BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
-            val cellSize = remember(maxWidth, maxHeight, s.size) {
-                minOf(maxWidth / s.size, maxHeight / s.size, 76.dp).coerceAtLeast(20.dp)
-            }
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(palette.boardFrame)
-                    .padding(3.dp)
-            ) {
-                for (row in 0 until s.size) {
-                    Row {
-                        for (col in 0 until s.size) {
-                            val index = row * s.size + col
-                            EdgeMatchTileView(
-                                tile = s.tiles[index],
-                                matching = game.matchingDirections(index),
-                                tileSize = cellSize,
-                                palette = palette,
-                                onTap = {
-                                    game.tapTile(index)
-                                    sounds.playTap()
-                                    haptics(HapticSignal.NORMAL_ACTION)
-                                }
-                            )
+            BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+                val cellSize = remember(maxWidth, maxHeight, s.size) {
+                    minOf(maxWidth / s.size, maxHeight / s.size, 76.dp).coerceAtLeast(20.dp)
+                }
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(palette.boardFrame)
+                        .padding(3.dp)
+                ) {
+                    for (row in 0 until s.size) {
+                        Row {
+                            for (col in 0 until s.size) {
+                                val index = row * s.size + col
+                                EdgeMatchTileView(
+                                    tile = s.tiles[index],
+                                    matching = game.matchingDirections(index),
+                                    tileSize = cellSize,
+                                    palette = palette,
+                                    onTap = {
+                                        game.tapTile(index)
+                                        sounds.playTap()
+                                        haptics(HapticSignal.NORMAL_ACTION)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (s.solved) {
-            Spacer(Modifier.height(16.dp))
-            EdgeMatchFinishedPanel(
-                moves = s.moves,
-                record = record,
-                isNewBestMoves = reportedResult?.first ?: false,
-                isNewBestTime = reportedResult?.second ?: false,
-                onNewPuzzle = { game.startMatch() },
-                onReset = { game.resetToInitial() },
-                onBackToMenu = { game.leaveSession() },
-                palette = palette
-            )
+            if (s.solved) {
+                Spacer(Modifier.height(16.dp))
+                EdgeMatchFinishedPanel(
+                    moves = s.moves,
+                    record = record,
+                    isNewBestMoves = reportedResult?.first ?: false,
+                    isNewBestTime = reportedResult?.second ?: false,
+                    onNewPuzzle = { game.startMatch() },
+                    onReset = { game.resetToInitial() },
+                    onBackToMenu = { game.leaveSession() },
+                    palette = palette
+                )
+            }
         }
     }
 }
@@ -210,7 +248,7 @@ private data class EdgeMatchPalette(
     val boardFrame: Color,
     /** Live match-highlight stroke color, drawn on any wedge EdgeMatchGame.matchingDirections() reports as currently matching its neighbor. */
     val matchGlow: Color,
-    /** index 0..5 -- sized for HARD's own color count (6, the largest of the three tiers, see EdgeMatchGame.difficultyConfig). */
+    /** index 0..7 -- sized for EdgeMatchGame.MAX_COLORS (8), the Custom Game Builder's own ceiling (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md), 2 wider than the fixed tiers ever need (HARD tops out at 6). */
     val edgePatterns: List<Color>
 )
 
@@ -230,7 +268,9 @@ private fun edgeMatchPalette(isDark: Boolean): EdgeMatchPalette = if (!isDark) {
             Color(0xFF5B9A5B), // leaf green
             Color(0xFF3E7A9E), // ocean blue
             Color(0xFF8A5FA0), // plum purple
-            Color(0xFFC9628F)  // warm rose
+            Color(0xFFC9628F), // warm rose
+            Color(0xFF3E9E96), // teal (Custom Game Builder's 7th color)
+            Color(0xFF6E7A8A)  // slate (Custom Game Builder's 8th color)
         )
     )
 } else {
@@ -248,34 +288,114 @@ private fun edgeMatchPalette(isDark: Boolean): EdgeMatchPalette = if (!isDark) {
             Color(0xFF7ECB98),
             Color(0xFF7FA6D9),
             Color(0xFFB399D9),
-            Color(0xFFE099B8)
+            Color(0xFFE099B8),
+            Color(0xFF5CC9C0), // teal (Custom Game Builder's 7th color)
+            Color(0xFF9AA8BA)  // slate (Custom Game Builder's 8th color)
         )
     )
 }
 
+/**
+ * The EASY/MEDIUM/HARD tier chips plus a 4th "Custom" chip for the Custom Game
+ * Builder (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md). [isCustomActive] (rather
+ * than trying to represent "Custom" as a [CpuDifficulty] value, which it isn't)
+ * is what decides whether a tier chip or the Custom chip is the highlighted one.
+ * Tapping an already-selected tier is still forwarded to [onSelectTier] (unlike
+ * a no-op tap on an unrelated already-selected chip elsewhere in this app) so
+ * that tapping e.g. "Medium" while a custom game is active reliably switches
+ * back to it — see the call site's own reasoning.
+ */
 @Composable
-private fun DifficultyTabsEdgeMatch(current: CpuDifficulty, palette: EdgeMatchPalette, onSelect: (CpuDifficulty) -> Unit) {
+private fun DifficultyTabsEdgeMatch(
+    current: CpuDifficulty,
+    isCustomActive: Boolean,
+    palette: EdgeMatchPalette,
+    onSelectTier: (CpuDifficulty) -> Unit,
+    onSelectCustom: () -> Unit
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (tier in CpuDifficulty.entries) {
-            val selected = tier == current
             val label = when (tier) {
                 CpuDifficulty.EASY -> "Easy"
                 CpuDifficulty.MEDIUM -> "Medium"
                 CpuDifficulty.HARD -> "Hard"
             }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (selected) palette.accent else palette.chipBackground)
-                    .clickable { onSelect(tier) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    label,
-                    color = if (selected) palette.textOnAccent else palette.textPrimary,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                )
+            EdgeMatchTab(
+                label = label,
+                selected = tier == current && !isCustomActive,
+                palette = palette,
+                onClick = { onSelectTier(tier) }
+            )
+        }
+        EdgeMatchTab(label = "Custom", selected = isCustomActive, palette = palette, onClick = onSelectCustom)
+    }
+}
+
+@Composable
+private fun EdgeMatchTab(label: String, selected: Boolean, palette: EdgeMatchPalette, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) palette.accent else palette.chipBackground)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) palette.textOnAccent else palette.textPrimary,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+/**
+ * The Custom Game Builder's config panel (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md):
+ * two integer sliders (board size, color count) and a commit button. Deliberately
+ * does NOT regenerate a board on every drag tick — only [onStart] (a single
+ * deliberate tap, same as picking a fixed tier) actually starts a puzzle; dragging
+ * the sliders only updates the live "N×N, C colors" preview text.
+ */
+@Composable
+private fun EdgeMatchCustomPanel(
+    size: Int,
+    colorCount: Int,
+    onSizeChange: (Int) -> Unit,
+    onColorCountChange: (Int) -> Unit,
+    onStart: () -> Unit,
+    palette: EdgeMatchPalette
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Custom Game",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary
+            )
+            Spacer(Modifier.height(12.dp))
+
+            Text("Board size: ${size}×$size", color = palette.textPrimary)
+            Slider(
+                value = size.toFloat(),
+                onValueChange = { onSizeChange(it.roundToInt()) },
+                valueRange = EdgeMatchGame.MIN_SIZE.toFloat()..EdgeMatchGame.MAX_SIZE.toFloat(),
+                steps = EdgeMatchGame.MAX_SIZE - EdgeMatchGame.MIN_SIZE - 1
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text("Colors: $colorCount", color = palette.textPrimary)
+            Slider(
+                value = colorCount.toFloat(),
+                onValueChange = { onColorCountChange(it.roundToInt()) },
+                valueRange = EdgeMatchGame.MIN_COLORS.toFloat()..EdgeMatchGame.MAX_COLORS.toFloat(),
+                steps = EdgeMatchGame.MAX_COLORS - EdgeMatchGame.MIN_COLORS - 1
+            )
+
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onStart) { Text("Start Custom Game") }
             }
         }
     }
