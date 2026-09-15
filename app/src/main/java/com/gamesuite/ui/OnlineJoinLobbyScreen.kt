@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -46,6 +47,14 @@ fun OnlineJoinLobbyScreen(
     val clientPlayerId = remember { "p-" + UUID.randomUUID().toString() }
     var roomCodeInput by remember { mutableStateOf("") }
     var hasJoined by remember { mutableStateOf(false) }
+    // Set only by the Watch button below -- distinguishes a deliberate spectator join (where
+    // this client is legitimately absent from GameStart's own roster, see server/index.js's
+    // playerList()/broadcastToRoom KDoc: "real seats only, never spectators") from the
+    // pre-existing "roster didn't include us" guard below, which exists for a genuine bug, not
+    // this. OnlineTransport.joinRoom's own spectator param and GameSessionManager's
+    // localPlayerIndex == -1 convention (see its localOutcomeFor KDoc) already fully support
+    // this end-to-end -- audited finding: only this screen never offered the option.
+    var joinedAsSpectator by remember { mutableStateOf(false) }
     // Set from OkHttp's WebSocket callback thread (see the raw-message listener below)
     // -- deliberately NOT acted on there. A plain Compose state write is thread-safe
     // (the same reason `hasJoined` above already worked correctly from that thread),
@@ -64,10 +73,16 @@ fun OnlineJoinLobbyScreen(
     LaunchedEffect(pendingGameStart) {
         val message = pendingGameStart ?: return@LaunchedEffect
         val myIndex = message.players.indexOfFirst { it.playerId == clientPlayerId }
-        if (myIndex < 0) return@LaunchedEffect // roster didn't include us — ignore rather than crash
+        // A spectator is legitimately absent from the roster (server-side playerList() excludes
+        // spectators by design) -- only bail for a non-spectator guest genuinely missing, which
+        // would be a real bug, not this.
+        if (myIndex < 0 && !joinedAsSpectator) return@LaunchedEffect // roster didn't include us — ignore rather than crash
         sessionManager.launchGame(
             mode = PlayMode.ONLINE,
             players = message.players,
+            // -1 for a spectator -- GameSessionManager.localOutcomeFor and every GameModule's
+            // own humanIndex() (see e.g. UnoScreen.kt) already treat that as "no seat, watch
+            // only," so no further plumbing is needed past this call.
             localPlayerIndex = myIndex,
             transport = transport
         )
@@ -104,9 +119,18 @@ fun OnlineJoinLobbyScreen(
     ) {
         when {
             hasJoined -> {
-                Text("Connected!", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    if (joinedAsSpectator) "Watching!" else "Connected!",
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 Spacer(Modifier.height(8.dp))
-                Text("Waiting for the host to start the game...")
+                Text(
+                    if (joinedAsSpectator) {
+                        "Waiting for the host to start the game — you'll watch, not play."
+                    } else {
+                        "Waiting for the host to start the game..."
+                    }
+                )
             }
             else -> {
                 Text("Join an online game", style = MaterialTheme.typography.headlineSmall)
@@ -129,15 +153,34 @@ fun OnlineJoinLobbyScreen(
                     )
                 }
                 Spacer(Modifier.height(16.dp))
-                Button(
-                    enabled = roomCodeInput.length == ROOM_CODE_LENGTH,
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                    onClick = {
-                        transport.clearError()
-                        transport.joinRoom(roomCodeInput, clientPlayerId, "Guest (${Build.MODEL})")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        enabled = roomCodeInput.length == ROOM_CODE_LENGTH,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        onClick = {
+                            transport.clearError()
+                            joinedAsSpectator = false
+                            transport.joinRoom(roomCodeInput, clientPlayerId, "Guest (${Build.MODEL})")
+                        }
+                    ) {
+                        Text("Join")
                     }
-                ) {
-                    Text("Join")
+                    // Read-only seat -- OnlineTransport.joinRoom's own spectator param and the
+                    // relay's dedicated room.spectators roster (server/index.js) already fully
+                    // support this; this button and the spectator-aware LaunchedEffect above are
+                    // what actually let a player reach it (audited finding: the option existed
+                    // everywhere except this screen).
+                    OutlinedButton(
+                        enabled = roomCodeInput.length == ROOM_CODE_LENGTH,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        onClick = {
+                            transport.clearError()
+                            joinedAsSpectator = true
+                            transport.joinRoom(roomCodeInput, clientPlayerId, "Spectator (${Build.MODEL})", spectator = true)
+                        }
+                    ) {
+                        Text("Watch")
+                    }
                 }
             }
         }

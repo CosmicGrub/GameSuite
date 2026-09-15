@@ -64,7 +64,11 @@ class CardSounds(context: Context) {
         }
     }
 
-    fun playPlace() = play(placeId)
+    /** [rate] pitch-shifts the same sample (SoundPool's own play(rate=...), 0.5-2.0 typical range) --
+     *  real distinct-per-event feel without a new audio asset per event, the same reasoning
+     *  UnoScreen.kt's own layeredPlace/layeredChime already apply by staggering this clip instead
+     *  of adding new ones. Defaults to 1f (unpitched) so every existing caller is unaffected. */
+    fun playPlace(rate: Float = 1f) = play(placeId, rate = rate)
     fun playDraw() = play(drawId)
     fun playShuffle() = play(shuffleId, volume = 0.8f)
     /** Generic short feedback tap — reused by any board game placing a piece (Tic-Tac-Toe, Dominoes, Mancala). */

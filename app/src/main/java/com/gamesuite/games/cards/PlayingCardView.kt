@@ -95,6 +95,18 @@ fun PlayingCardView(
                     modifier = Modifier.align(Alignment.TopStart).padding(4.dp)
                 )
             }
+            // Colorblind-safe mode's actual on-card fix (see colorblindGlyph's own KDoc) --
+            // opposite corner from cornerIndex so the two never collide, drawn at the same
+            // size/weight as that corner mark for a consistent "two marks, one card" language.
+            if (card.colorblindGlyph != null) {
+                Text(
+                    card.colorblindGlyph,
+                    color = card.textColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = labelFontSize * 0.6f,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                )
+            }
             Text(
                 card.label,
                 color = card.textColor,

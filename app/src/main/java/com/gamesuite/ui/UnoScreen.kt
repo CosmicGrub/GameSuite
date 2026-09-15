@@ -55,7 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -204,6 +206,10 @@ fun UnoScreen(
     // hand-reveal) applies it explicitly here, since PlayingCardView itself
     // deliberately does not scale on its own (see CardScale.kt's KDoc for why).
     val cardScale = LocalCardScale.current
+    // Read once here, same "one source of truth, passed down explicitly" convention as
+    // cardScale directly above -- see unoCardToVisual's own KDoc for the audited gap this
+    // closes (colorblind mode previously only worked inside the Wild color-choice dialog).
+    val colorblindMode = LocalColorblindMode.current
 
     // "Hot streak" tension identity (premium 2026 vision pitch, UNO section):
     // a purely cosmetic tier derived from hand sizes and the pending-draw
@@ -275,6 +281,7 @@ fun UnoScreen(
         showChallengeHand = false
         delay(650) // "CHALLENGE!" alone first, same beat as the reference
         showChallengeHand = true
+        sounds.playTap() // the reveal's own resolution beat -- distinct single tap vs. the declaration's layeredChime above
         delay(1300) // then the accused hand lays face-up before resolving for real
         game.resolveChallenge(accept = false)
         challengeReveal = null
@@ -389,7 +396,15 @@ fun UnoScreen(
             actionFlash = rank
         }
         if (rank == UnoRank.WILD_DRAW_FOUR) {
-            haptics(HapticSignal.CELEBRATION) // timed to the hit-stop above
+            // STRONG_ACTION, not CELEBRATION -- CELEBRATION's own KDoc reserves it for
+            // "genuinely rare events... using this for anything routine defeats the whole
+            // point of having it," and a Wild Draw Four can land many times in one match
+            // (audited finding: every +4 play felt identical to the actual match win, which
+            // fires CELEBRATION separately above at this composable's own top via
+            // `LaunchedEffect(s.matchOver)`). STRONG_ACTION's own KDoc ("a significant
+            // action — a capture, a big play, a scored point") is the exact fit for the
+            // biggest beat short of the win itself.
+            haptics(HapticSignal.STRONG_ACTION) // timed to the hit-stop above
         }
         if (rank == UnoRank.REVERSE) {
             // Always fires regardless of `enhanced` -- this is the same haptic
@@ -546,23 +561,52 @@ fun UnoScreen(
                         translationY = cameraShakeY.value
                     }
             ) {
-                // Opponents summary — horizontally scrollable since UNO supports up to 10
-                // players and an unweighted, unscrolled Row would push later tiles off-screen
-                // on narrow devices.
-                Row(
+                // Opponents arranged along a real arc, not a flat row — the round-table fix.
+                // The audit that flagged this named it directly: "the single biggest gap
+                // against the round-table ask... seats arranged in a straight (scrollable)
+                // row, never around a rim." The decorative elliptical tint and the table-tilt/
+                // camera-punch work added since both explicitly left this exact gap open (see
+                // this Column's own drawBehind/tablePerspectiveTilt comments above — neither
+                // repositions a single seat). This does: angle=0 (the center-most seat) sits
+                // furthest from the viewer (highest on screen, smallest y-offset magnitude...
+                // largest, actually — see below), and seats toward either edge curve down and
+                // outward — the same "far side of an oval table, you anchored at the bottom"
+                // shape every benchmarked UNO video game uses (2006 Xbox Live Arcade, Ubisoft's
+                // 2016+ release, UNO! Mobile — see the audit's own video-game research). Still
+                // horizontally scrollable for the same "UNO supports up to 10 players" reason
+                // the old Row was — an arc that's wider than the viewport just scrolls instead
+                // of clipping, exactly like the row it replaces.
+                val seatCount = s.players.size
+                val maxArcAngleDeg = if (seatCount <= 1) 0f else 55f
+                val seatRadiusX = (56.dp + 20.dp * (seatCount - 1).coerceAtLeast(0)) * cardScale
+                val seatRadiusY = 40.dp * cardScale
+                val seatFootprint = 104.dp * cardScale // per-seat width budget for the container's own size
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    // spacedBy's Alignment overload centers the whole group when it's
-                    // narrower than the available width (typical case, few players) while
-                    // still just spacing-then-scrolling once content actually overflows
-                    // (many players) — plain spacedBy always left-packs regardless of
-                    // leftover space, which looked stuck-to-the-edge on a wide tablet
-                    // layout even after AdaptiveTwoPane centers the pane itself.
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                    contentAlignment = Alignment.TopCenter
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .width(seatFootprint + seatRadiusX * 2)
+                            .height(seatFootprint + seatRadiusY),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
                     s.players.forEachIndexed { index, p ->
                         val isTurn = index == s.currentPlayerIndex
+                        // Arc placement: angle sweeps evenly from -maxArcAngleDeg to
+                        // +maxArcAngleDeg across every seat (a single seat stays centered at
+                        // angle 0). yOffset is 0 at the center seat (furthest back / highest on
+                        // screen, since this whole arc sits at the TOP of its own Box) and grows
+                        // toward the edges — an oval's near-side curvature bowing toward the
+                        // viewer, not a full circle (that would put edge seats ABOVE center,
+                        // backwards for a "sitting at a table" read).
+                        val seatAngleDeg = if (seatCount <= 1) 0f
+                            else -maxArcAngleDeg + (2f * maxArcAngleDeg) * (index / (seatCount - 1).toFloat())
+                        val seatAngleRad = Math.toRadians(seatAngleDeg.toDouble())
+                        val seatXOffset = seatRadiusX * sin(seatAngleRad).toFloat()
+                        val seatYOffset = seatRadiusY * (1f - cos(seatAngleRad).toFloat())
                         // Team tint -- confirmed real gap: teamId already exists on
                         // UnoPlayerState and the end screens already dedupe/group by
                         // it (distinctBy teamId), but the live opponents row never
@@ -589,7 +633,11 @@ fun UnoScreen(
                         // pending draw (confirmed by reading that file before writing this),
                         // so this is the exact condition, not an approximation.
                         val owesDraw = index == s.currentPlayerIndex && s.pendingDraw > 0
-                        Box {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(x = seatXOffset, y = seatYOffset)
+                        ) {
                         Column(
                             modifier = Modifier
                                 .widthIn(min = 72.dp)
@@ -649,7 +697,13 @@ fun UnoScreen(
                                                 it.catchWindowClosesAfterPlayerIndex == live.currentPlayerIndex
                                         } == true
                                         game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
-                                        if (caught) haptics(HapticSignal.STRONG_ACTION)
+                                        // Audited gap: a successful Catch previously had this
+                                        // haptic but no sound at all -- the only outcome-changing
+                                        // tap on this whole screen that stayed silent.
+                                        if (caught) {
+                                            haptics(HapticSignal.STRONG_ACTION)
+                                            sounds.playTap()
+                                        }
                                     },
                                     // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
                                     // §4c) -- purely additive, no effect on touch.
@@ -672,6 +726,7 @@ fun UnoScreen(
                             )
                         }
                         }
+                    }
                     }
                 }
 
@@ -746,7 +801,7 @@ fun UnoScreen(
                                 }
                             ) { _ ->
                                 PlayingCardView(
-                                    card = unoCardToVisual(s.topCard, overrideColor = s.currentColor),
+                                    card = unoCardToVisual(s.topCard, overrideColor = s.currentColor, colorblindMode = colorblindMode),
                                     width = 72.dp * cardScale,
                                     height = 104.dp * cardScale,
                                     showThickness = card3D,
@@ -908,7 +963,7 @@ fun UnoScreen(
                 FannedHand(
                     items = myHand,
                     idOf = { it.instanceId },
-                    visualOf = { unoCardToVisual(it) },
+                    visualOf = { unoCardToVisual(it, colorblindMode = colorblindMode) },
                     enabled = myTurn,
                     // Jump-in (audited finding: fully engine-complete in UnoGame.jumpIn() since
                     // the original build, but with no UI path at all, so turning the house rule
@@ -927,11 +982,11 @@ fun UnoScreen(
                         // (including re-checking rules.jumpIn) before touching state, so this
                         // routing is a convenience, not the actual authority.
                         if (myTurn) game.playCard(myIndex, card) else game.jumpIn(myIndex, card)
-                        layeredPlace(sounds, scope)
+                        layeredPlace(sounds, scope, rate = placeRateFor(card.rank))
                         // Haptic vocabulary via the shared Haptics.kt (see
                         // haptics/Haptics.kt) -- LIGHT_TICK for a plain number
                         // card, NORMAL_ACTION/STRONG_ACTION for an action card.
-                        // Wild Draw Four gets no haptic here: its CELEBRATION
+                        // Wild Draw Four gets no haptic here: its own STRONG_ACTION
                         // fires from the topCard-change effect above, timed to
                         // the new hit-stop rather than the instant of the tap.
                         when {
@@ -981,6 +1036,11 @@ fun UnoScreen(
             onAccept = { game.resolveChallenge(accept = true) },
             onChallenge = {
                 if (playedBy != null) {
+                    // Audited gap: the whole Challenge flow (declaration through
+                    // reveal-resolves) previously had a dedicated haptic-free visual
+                    // beat (ChallengeFlashOverlay) but no sound at all. layeredChime,
+                    // not layeredPlace -- this is a declaration, not a card landing.
+                    layeredChime(sounds, scope)
                     challengeReveal = ChallengeRevealSnapshot(playedBy.displayName, playedBy.hand)
                 } else {
                     game.resolveChallenge(accept = false)
@@ -990,7 +1050,7 @@ fun UnoScreen(
     }
 
     challengeReveal?.let { snapshot ->
-        ChallengeFlashOverlay(snapshot = snapshot, showHand = showChallengeHand, cardScale = cardScale, use3D = card3D)
+        ChallengeFlashOverlay(snapshot = snapshot, showHand = showChallengeHand, cardScale = cardScale, use3D = card3D, colorblindMode = colorblindMode)
     }
 
     if (showUnoCallout) {
@@ -1015,7 +1075,8 @@ fun UnoScreen(
             target = handAreaPosition,
             progress = drawFlightProgress.value,
             cardScale = cardScale,
-            use3D = card3D
+            use3D = card3D,
+            colorblindMode = colorblindMode
         )
     }
 
@@ -1025,10 +1086,32 @@ fun UnoScreen(
     }
 }
 
-private fun unoCardToVisual(card: UnoCard, overrideColor: UnoColor? = null): CardVisual = CardVisual(
+/**
+ * [colorblindMode] threads Settings -> Accessibility -> Colorblind-safe mode through explicitly
+ * (read once via `LocalColorblindMode.current` by whichever @Composable actually calls this,
+ * same "one source of truth, passed down" convention [LocalCardScale]'s own KDoc already
+ * establishes for `cardScale` on this screen) rather than reading the CompositionLocal in here
+ * directly — this stays a plain, non-@Composable function precisely so every existing call site
+ * keeps working unchanged. Audited finding: colorblind mode previously only drew a glyph inside
+ * [ColorPickerDialog]'s own four swatches -- every other card on screen (hand, discard pile,
+ * opponent plays) relied on hue alone for the rest of a match, the worst case for exactly the
+ * red/green confusion this setting exists to cover. [colorblindGlyph] carries no entry for
+ * [UnoColor.WILD] (a neutral dark gray, never one of the four confusable suit colors), so an
+ * unresolved Wild correctly never gets a glyph regardless of this flag.
+ */
+private fun unoCardToVisual(card: UnoCard, overrideColor: UnoColor? = null, colorblindMode: Boolean = false): CardVisual = CardVisual(
     id = card.instanceId,
     label = card.displayLabel(),
-    backgroundColor = colorFor(overrideColor ?: card.color)
+    backgroundColor = colorFor(overrideColor ?: card.color),
+    // Small top-left corner index mirroring the real card's own printed corner mark --
+    // PlayingCardView already draws this whenever non-null (see its own cornerIndex
+    // rendering), this was simply never wired here (the audited "cards read as color
+    // swatches with a big center pip, missing every UNO-in-hand deck's actual corner
+    // index" gap). Same glyph as the big centered label -- unoNumberWords' own KDoc
+    // already anticipated this exact reuse ("a single glyph... for the compact on-card
+    // corner index").
+    cornerIndex = card.displayLabel(),
+    colorblindGlyph = if (colorblindMode) colorblindGlyph[overrideColor ?: card.color] else null
 )
 
 /** Spoken-out-loud form of [UnoRank]'s number ranks — [UnoCard.displayLabel] only
@@ -1490,7 +1573,7 @@ private fun tumbleTurnsFor(rank: UnoRank): Float = when (rank) {
  * the two faces at the same progress point instead of a hard cut.
  */
 @Composable
-private fun DrawPileFlightOverlay(card: UnoCard, start: Offset, target: Offset, progress: Float, cardScale: Float, use3D: Boolean) {
+private fun DrawPileFlightOverlay(card: UnoCard, start: Offset, target: Offset, progress: Float, cardScale: Float, use3D: Boolean, colorblindMode: Boolean = false) {
     val eased = 1f - (1f - progress) * (1f - progress)
     val x = start.x + (target.x - start.x) * eased
     val arc = -30f * 4f * eased * (1f - eased)
@@ -1504,7 +1587,7 @@ private fun DrawPileFlightOverlay(card: UnoCard, start: Offset, target: Offset, 
     // to land, the same beat a real draw has.
     val revealStart = 0.65f
     val revealProgress = ((progress - revealStart) / (1f - revealStart)).coerceIn(0f, 1f)
-    val faceVisual = unoCardToVisual(card)
+    val faceVisual = unoCardToVisual(card, colorblindMode = colorblindMode)
 
     Box(
         modifier = Modifier
@@ -1574,7 +1657,7 @@ private fun ActionCardFlashOverlay(rank: UnoRank) {
  * drives [showHand] and the eventual resolveChallenge() call in UnoScreen.
  */
 @Composable
-private fun ChallengeFlashOverlay(snapshot: ChallengeRevealSnapshot, showHand: Boolean, cardScale: Float, use3D: Boolean) {
+private fun ChallengeFlashOverlay(snapshot: ChallengeRevealSnapshot, showHand: Boolean, cardScale: Float, use3D: Boolean, colorblindMode: Boolean = false) {
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
         contentAlignment = Alignment.Center
@@ -1599,7 +1682,7 @@ private fun ChallengeFlashOverlay(snapshot: ChallengeRevealSnapshot, showHand: B
                     ) {
                         snapshot.hand.forEach { card ->
                             PlayingCardView(
-                                card = unoCardToVisual(card),
+                                card = unoCardToVisual(card, colorblindMode = colorblindMode),
                                 width = 36.dp * cardScale,
                                 height = 52.dp * cardScale,
                                 modifier = Modifier.specularSweep(enabled = use3D && card.isWild, tint = panelGold)
@@ -1738,12 +1821,31 @@ private fun approxLegalPlayCount(hand: List<UnoCard>, state: com.gamesuite.games
  * from lining up the same way twice -- the actual "not the same clip every
  * time" goal this pass is after, reachable from this bundle alone.
  */
-private fun layeredPlace(sounds: CardSounds, scope: CoroutineScope) {
-    sounds.playPlace()
+/** [rate] pitch-shifts both layered plays together (see CardSounds.playPlace's own KDoc) --
+ *  lets a rank matter to how a play SOUNDS, not just which haptic fires, still with no new
+ *  audio asset. Defaults to 1f so every pre-existing call site is unaffected. */
+private fun layeredPlace(sounds: CardSounds, scope: CoroutineScope, rate: Float = 1f) {
+    sounds.playPlace(rate)
     scope.launch {
         delay((16L..42L).random())
-        sounds.playPlace()
+        sounds.playPlace(rate)
     }
+}
+
+/** Per-rank pitch for [layeredPlace] -- a plain number card stays at the
+ *  unpitched baseline, action cards (the same four ranks UnoScreen.kt's own
+ *  haptic `when` below already singles out) pitch down slightly so a played
+ *  action card is audibly, not just haptically, distinct from an ordinary
+ *  number card. Wild Draw Four sits lowest/weightiest, matching it already
+ *  being the single strongest haptic and the only rank with its own
+ *  hit-stop/camera-punch treatment above (audited finding: previously every
+ *  rank shared one identical, unpitched clip). */
+private fun placeRateFor(rank: UnoRank): Float = when (rank) {
+    UnoRank.WILD_DRAW_FOUR -> 0.78f
+    UnoRank.DRAW_TWO -> 0.86f
+    UnoRank.SKIP, UnoRank.REVERSE -> 0.92f
+    UnoRank.WILD -> 1.08f
+    else -> 1f
 }
 
 /** Same layering technique as [layeredPlace], reused for the UNO! callout's
@@ -1860,6 +1962,31 @@ private fun OpponentHandFan(count: Int, playerName: String, scale: Float, modifi
                     card = CardVisual(id = i, label = "", backgroundColor = Color.Transparent, faceDown = true),
                     width = 24.dp * scale,
                     height = 36.dp * scale
+                )
+            }
+        }
+        // The fan's own cap silently hides everything past 8 cards -- this player's
+        // real count is still fully correct in `description` above (screen readers
+        // are unaffected), but a sighted player watching the table had no visual tell
+        // that a wide fan is actually undercounting once someone hoards a big hand
+        // (audited finding). A neutral dark badge, not the red/orange this seat's own
+        // hand-danger border and PendingDrawBadge already use just above -- those mean
+        // "close to winning" / "owes a draw"; this means something else entirely
+        // ("more cards than fit"), and reusing their color would read as the same signal.
+        if (count > displayCount) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF2B2B2B))
+                    .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    "+${count - displayCount}",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 9.sp
                 )
             }
         }
