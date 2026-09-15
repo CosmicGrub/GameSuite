@@ -2,6 +2,7 @@ package com.gamesuite.ui
 
 import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -373,7 +374,13 @@ private fun ColorSwatch(color: Color, palette: MastermindPalette, onTap: () -> U
     )
 }
 
-/** One past guess: its own peg colors, plus up to [MastermindGuess.blackPegs] black dots followed by up to [MastermindGuess.whitePegs] white dots (the rest left as empty placeholders) -- the standard genre feedback-peg layout. */
+/** One past guess: its own peg colors, plus up to [MastermindGuess.blackPegs] black dots followed by up to [MastermindGuess.whitePegs] white dots (the rest left as empty placeholders) -- the standard genre feedback-peg layout.
+ *
+ * The feedback dots always get a thin [MastermindPalette.slotBorder] ring -- without it, the
+ * white-peg fill color sits almost indistinguishable from this screen's own light-theme
+ * background (both near-white/cream), which defeats the entire point of that dot (telling a
+ * white peg apart from an empty placeholder or the page behind it). The border keeps every dot
+ * legible in both themes rather than relying on fill-color contrast alone. */
 @Composable
 private fun GuessHistoryRow(guess: MastermindGuess, palette: MastermindPalette) {
     Row(
@@ -404,6 +411,7 @@ private fun GuessHistoryRow(guess: MastermindGuess, palette: MastermindPalette) 
                         .size(12.dp)
                         .clip(CircleShape)
                         .background(color)
+                        .border(1.dp, palette.slotBorder, CircleShape)
                 )
             }
         }
