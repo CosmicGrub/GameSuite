@@ -27,6 +27,20 @@ import kotlin.math.sin
  * Compose-friendly entry point ([rememberAmbientMusic]) that owns the
  * platform object's lifecycle so call sites never touch [AudioTrack]
  * directly.
+ *
+ * STEREO: genuinely spatial, not "mono duplicated to two channels" (which
+ * would sound bit-for-bit identical to the old mono output, just double the
+ * data). Each of a chord's own [MusicProfile.voiceCount] voices is placed at
+ * its own fixed position across a moderate stereo field via [voicePan] — see
+ * that function's own KDoc — so a 3-voice chord genuinely has its root/3rd/
+ * 5th sitting at different points in the stereo image, the same way a real
+ * multi-instrument arrangement would, rather than one mono blob. The
+ * plucked arpeggio layer stays dead center (a single melodic line, not a
+ * chord, has no "spread" to give it). [equalPowerPanGains]/[voicePan] are
+ * the two testable pure-math pieces of this (see [AmbientMusicEngineTest]);
+ * the surrounding DSP loop itself stays untested like the rest of this
+ * real-time audio engine always has been (no Robolectric/AudioTrack-capable
+ * test harness in this project).
  */
 
 private const val SAMPLE_RATE = 44100
@@ -43,6 +57,42 @@ private const val FADE_OUT_SECONDS = 0.25
 /** Ramped in once at startup so the very first sample isn't a jump straight
  *  from silence to full amplitude. */
 private const val STARTUP_FADE_SECONDS = 0.35
+
+/** How far a pad's own voices spread across the stereo field, as a fraction of full hard-left/
+ *  hard-right (1.0). Deliberately moderate, not 1.0 — a fully hard-panned pad can read as
+ *  several disconnected mono blobs rather than one cohesive chord with real width. Shared
+ *  default for [voicePan]; [ProceduralSfx]'s one-shot pans are a separate, per-call concern and
+ *  don't use this constant. */
+internal const val STEREO_SPREAD = 0.6
+
+/** Left/right gain pair from an equal-power ("constant power") pan law — keeps perceived
+ *  loudness constant as a sound moves from hard left ([pan] = -1) through center (0) to hard
+ *  right (+1), unlike a naive linear pan which audibly dips in the middle (`left^2 + right^2`
+ *  is exactly 1.0 for every pan value — see [AmbientMusicEngineTest]). Shared by this file's own
+ *  per-voice spatial placement ([voicePan]) and [ProceduralSfx]'s one-shot directional playback
+ *  — both are in this same `com.gamesuite.audio` package, so no cross-package API was needed for
+ *  this to be reused rather than written twice.
+ */
+internal data class PanGains(val left: Double, val right: Double)
+
+internal fun equalPowerPanGains(pan: Float): PanGains {
+    val clamped = pan.coerceIn(-1f, 1f).toDouble()
+    val angle = (clamped + 1.0) * (PI / 4.0)
+    return PanGains(cos(angle), sin(angle))
+}
+
+/**
+ * Where voice [voiceIndex] of [voiceCount] total voices sits across the stereo field, as a pan
+ * value in `-spread..spread` (see [STEREO_SPREAD]) — evenly spaced, symmetric around center, so
+ * voice 0 is always the leftmost and the last voice always the rightmost. A single voice
+ * ([voiceCount] <= 1 — no shipped [MusicProfile] actually uses this, but every profile's own
+ * chord-tone math stays well-defined for it) stays dead center rather than dividing by zero.
+ */
+internal fun voicePan(voiceIndex: Int, voiceCount: Int, spread: Double = STEREO_SPREAD): Double {
+    if (voiceCount <= 1) return 0.0
+    val fraction = voiceIndex.toDouble() / (voiceCount - 1) // 0..1 across the voices
+    return (fraction * 2.0 - 1.0) * spread // -spread..+spread
+}
 
 /**
  * A fully declarative description of one game's ambient pad — no game-
@@ -338,15 +388,17 @@ class AmbientMusicEngine(private val profile: MusicProfile) {
     fun start() {
         if (state != State.STOPPED) return
 
+        // Stereo now (2 shorts/frame, interleaved L/R) -- see the class KDoc's STEREO section.
+        // CHUNK_FRAMES * 4 = CHUNK_FRAMES frames * 2 channels * 2 bytes/short.
         val minBufferBytes = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
-            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.CHANNEL_OUT_STEREO,
             AudioFormat.ENCODING_PCM_16BIT
-        ).coerceAtLeast(CHUNK_FRAMES * 2)
+        ).coerceAtLeast(CHUNK_FRAMES * 4)
         // Generous headroom (several chunks' worth) so a slow GC pause or a
         // scheduler hiccup on the generator thread empties into slack
         // buffer rather than an underrun glitch.
-        val bufferBytes = maxOf(minBufferBytes, CHUNK_FRAMES * 2 * 6)
+        val bufferBytes = maxOf(minBufferBytes, CHUNK_FRAMES * 4 * 6)
 
         val track = AudioTrack.Builder()
             .setAudioAttributes(
@@ -359,7 +411,7 @@ class AmbientMusicEngine(private val profile: MusicProfile) {
                 AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                     .build()
             )
             .setBufferSizeInBytes(bufferBytes)
@@ -391,7 +443,8 @@ class AmbientMusicEngine(private val profile: MusicProfile) {
 
     private fun runGeneratorLoop(track: AudioTrack) {
         val synth = PadSynthState(profile)
-        val chunk = ShortArray(CHUNK_FRAMES)
+        // * 2: interleaved stereo shorts (L,R per frame), not CHUNK_FRAMES frames of mono.
+        val chunk = ShortArray(CHUNK_FRAMES * 2)
         while (state == State.PLAYING) {
             synth.render(chunk)
             val written = track.write(chunk, 0, chunk.size, AudioTrack.WRITE_BLOCKING)
@@ -399,7 +452,7 @@ class AmbientMusicEngine(private val profile: MusicProfile) {
         }
         if (state == State.STOPPING) {
             val fadeFrames = (SAMPLE_RATE * FADE_OUT_SECONDS).toInt().coerceAtLeast(1)
-            val fadeChunk = ShortArray(fadeFrames)
+            val fadeChunk = ShortArray(fadeFrames * 2)
             synth.renderFadeOut(fadeChunk)
             track.write(fadeChunk, 0, fadeChunk.size, AudioTrack.WRITE_BLOCKING)
         }
@@ -435,8 +488,21 @@ private class PadSynthState(private val profile: MusicProfile) {
     private var envelopeGain = 0.0 // startup fade-in, 0..1
     private val envelopeStep = 1.0 / (SAMPLE_RATE * STARTUP_FADE_SECONDS)
 
-    private var lowpassState = 0.0
+    // Independent per-channel lowpass state -- each channel now carries genuinely different
+    // content (per-voice panning below), so sharing one filter's memory between them would
+    // incorrectly bleed one channel's signal into the other through the filter itself.
+    private var lowpassStateLeft = 0.0
+    private var lowpassStateRight = 0.0
     private val lowpassCoeff = 1.0 - exp(-2.0 * PI * profile.lowpassCutoffHz / sampleRateD)
+
+    // Each voice's own fixed stereo position (see voicePan's own KDoc) -- computed once here,
+    // not per-sample, since voice count/spread never changes for the life of this synth
+    // instance. Read every sample in computeNextSample(); never allocates in the hot path.
+    private val voiceLeftGain = DoubleArray(profile.voiceCount)
+    private val voiceRightGain = DoubleArray(profile.voiceCount)
+
+    private var lastLeft = 0.0
+    private var lastRight = 0.0
 
     // Arpeggio layer (only used when profile.arpeggioEnabled).
     private val arpSamplesPerNote = if (profile.arpeggioEnabled) {
@@ -452,30 +518,50 @@ private class PadSynthState(private val profile: MusicProfile) {
 
     init {
         writeChordFrequencies(current, chordIndex)
+        for (v in 0 until profile.voiceCount) {
+            val gains = equalPowerPanGains(voicePan(v, profile.voiceCount).toFloat())
+            voiceLeftGain[v] = gains.left
+            voiceRightGain[v] = gains.right
+        }
     }
 
+    /** [out] is interleaved stereo (L,R per frame) — `out.size / 2` frames. */
     fun render(out: ShortArray) {
-        for (i in out.indices) out[i] = toPcm16(nextSample())
+        var i = 0
+        while (i < out.size) {
+            computeNextSample()
+            out[i] = toPcm16(lastLeft)
+            out[i + 1] = toPcm16(lastRight)
+            i += 2
+        }
     }
 
     /** Renders a short linear-taper-to-silence tail, reusing whatever the
      *  live chord/breathing/arp state currently sounds like so the fade
-     *  reads as a natural decay rather than an abrupt cutoff. */
+     *  reads as a natural decay rather than an abrupt cutoff. [out] is
+     *  interleaved stereo, same as [render]. */
     fun renderFadeOut(out: ShortArray) {
-        val n = out.size
-        for (i in out.indices) {
-            val taper = 1.0 - (i.toDouble() / n)
-            out[i] = toPcm16(nextSample() * taper)
+        val frameCount = out.size / 2
+        for (frame in 0 until frameCount) {
+            val taper = 1.0 - (frame.toDouble() / frameCount)
+            computeNextSample()
+            out[frame * 2] = toPcm16(lastLeft * taper)
+            out[frame * 2 + 1] = toPcm16(lastRight * taper)
         }
     }
 
     private fun toPcm16(value: Double): Short =
         (value.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
 
-    private fun nextSample(): Double {
+    /** Advances every DSP stage by exactly one audio frame and leaves the result in
+     *  [lastLeft]/[lastRight] — a pair of instance fields rather than a return value, so this
+     *  runs allocation-free at 44.1kHz on the generator thread (no boxed `Pair<Double,Double>`
+     *  or data-class instance created per sample). */
+    private fun computeNextSample() {
         maybeStartChordChange()
 
-        var chordMix = 0.0
+        var leftMix = 0.0
+        var rightMix = 0.0
         val voiceGain = 1.0 / profile.voiceCount
         if (crossfading) {
             val progress = 1.0 - (crossfadeRemaining.toDouble() / crossfadeSamples.toDouble())
@@ -484,8 +570,14 @@ private class PadSynthState(private val profile: MusicProfile) {
             val outGain = cos(progress * PI / 2.0)
             val inGain = sin(progress * PI / 2.0)
             for (v in 0 until profile.voiceCount) {
-                chordMix += oscillatorSample(current, v) * outGain * voiceGain
-                chordMix += oscillatorSample(incoming, v) * inGain * voiceGain
+                // Both banks' contributions for voice v share voice v's own fixed stereo
+                // position (a chord tone doesn't move position mid-crossfade, only its pitch/
+                // gain blend does), so the pan gain is applied once to their combined value —
+                // algebraically identical to applying it to each term separately and summing.
+                val combined = oscillatorSample(current, v) * outGain * voiceGain +
+                    oscillatorSample(incoming, v) * inGain * voiceGain
+                leftMix += combined * voiceLeftGain[v]
+                rightMix += combined * voiceRightGain[v]
             }
             crossfadeRemaining--
             if (crossfadeRemaining <= 0) {
@@ -496,25 +588,38 @@ private class PadSynthState(private val profile: MusicProfile) {
             }
         } else {
             for (v in 0 until profile.voiceCount) {
-                chordMix += oscillatorSample(current, v) * voiceGain
+                val sample = oscillatorSample(current, v) * voiceGain
+                leftMix += sample * voiceLeftGain[v]
+                rightMix += sample * voiceRightGain[v]
             }
             samplesUntilChordChange--
         }
 
-        // Slow amplitude "breathing" LFO for an organic, non-static feel.
+        // Slow amplitude "breathing" LFO for an organic, non-static feel -- one shared
+        // phase/envelope for both channels, so the pad breathes as one cohesive whole rather
+        // than two decorrelated channels swelling out of sync.
         breathingPhase += profile.breathingRateHz / sampleRateD
         if (breathingPhase > 1.0) breathingPhase -= floor(breathingPhase)
         val breathing = 1.0 - profile.breathingDepth + profile.breathingDepth * sin(2.0 * PI * breathingPhase)
+        leftMix *= breathing
+        rightMix *= breathing
 
-        var mix = chordMix * breathing
-        if (profile.arpeggioEnabled) mix += nextArpeggioSample()
+        // The plucked arpeggio layer stays dead center -- see the class KDoc's STEREO section.
+        if (profile.arpeggioEnabled) {
+            val arp = nextArpeggioSample()
+            leftMix += arp
+            rightMix += arp
+        }
 
-        // One-pole low-pass "warmth" smoothing on the combined signal.
-        lowpassState += lowpassCoeff * (mix - lowpassState)
+        // One-pole low-pass "warmth" smoothing, independently per channel (see the field's own
+        // KDoc for why this can't share one filter state across channels anymore).
+        lowpassStateLeft += lowpassCoeff * (leftMix - lowpassStateLeft)
+        lowpassStateRight += lowpassCoeff * (rightMix - lowpassStateRight)
 
         if (envelopeGain < 1.0) envelopeGain = (envelopeGain + envelopeStep).coerceAtMost(1.0)
 
-        return lowpassState * profile.baseVolume * envelopeGain
+        lastLeft = lowpassStateLeft * profile.baseVolume * envelopeGain
+        lastRight = lowpassStateRight * profile.baseVolume * envelopeGain
     }
 
     private fun maybeStartChordChange() {

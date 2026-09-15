@@ -25,6 +25,17 @@ import kotlin.random.Random
  *
  * Mirrors [com.gamesuite.haptics.HapticSignal]/`performHaptic`'s shape: a
  * small enum vocabulary plus a plain `play(context, kind)` function.
+ *
+ * STEREO: every [SfxKind] is still synthesized as a single mono signal (a one-shot click/chime/
+ * buzz has no internal voices to spatially spread the way [AmbientMusicEngine]'s own pad chords
+ * do) — [playProceduralSfx]'s optional [pan] parameter places that finished mono signal at a
+ * point across the stereo field via the same [equalPowerPanGains] law `AmbientMusicEngine.kt`
+ * already established, defaulting to dead center (0f) so every one of this app's existing call
+ * sites keeps compiling and sounding exactly as before. [rememberPannedProceduralSfx] is a
+ * separate opt-in entry point for the few screens that actually have positional data worth
+ * panning toward (e.g. where on a board an event happened) — [rememberProceduralSfx]'s own
+ * returned lambda type is untouched rather than widened, so no existing call site needed to
+ * change.
  */
 
 private const val SFX_SAMPLE_RATE = 44100
@@ -55,10 +66,14 @@ enum class SfxKind {
  * every other SFX call site in the app already respects (see that
  * property's own KDoc), so this needs no CompositionLocal or new plumbing
  * of its own to obey the existing master sound toggle.
+ *
+ * [pan] places the finished mono signal across the stereo field via the
+ * shared [equalPowerPanGains] law, from -1 (hard left) through 0 (center,
+ * the default — identical output on both channels) to +1 (hard right).
  */
-fun playProceduralSfx(context: Context, kind: SfxKind) {
+fun playProceduralSfx(context: Context, kind: SfxKind, pan: Float = 0f) {
     if (!CardSounds.soundEnabled) return
-    playPcmOneShot(renderPcm(kind))
+    playPcmOneShot(renderPcm(kind), pan)
 }
 
 /**
@@ -70,6 +85,11 @@ fun playProceduralSfx(context: Context, kind: SfxKind) {
  * context.
  *
  * Usage: `val playSfx = rememberProceduralSfx(); ...; playSfx(SfxKind.SUCCESS_CHIME)`
+ *
+ * Always plays dead-center — see [rememberPannedProceduralSfx] for the
+ * opt-in directional variant. Kept as its own unchanged `(SfxKind) -> Unit`
+ * shape rather than widened to take a pan, so none of this app's ~25
+ * existing call sites needed to change for stereo to land.
  */
 @Composable
 fun rememberProceduralSfx(): (SfxKind) -> Unit {
@@ -79,16 +99,42 @@ fun rememberProceduralSfx(): (SfxKind) -> Unit {
     }
 }
 
+/**
+ * The directional sibling of [rememberProceduralSfx] — for the few screens
+ * that have real positional data worth panning toward (e.g. which side of
+ * a board an event happened on). Returns a stable `(SfxKind, Float) -> Unit`
+ * where the pan argument follows [playProceduralSfx]'s own -1..+1 convention.
+ *
+ * Usage: `val playSfx = rememberPannedProceduralSfx(); ...; playSfx(SfxKind.SOLID_THUNK, -0.6f)`
+ */
+@Composable
+fun rememberPannedProceduralSfx(): (SfxKind, Float) -> Unit {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember(context) {
+        { kind: SfxKind, pan: Float -> playProceduralSfx(context, kind, pan) }
+    }
+}
+
 private fun toPcm16(value: Double): Short =
     (value.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
 
 /** Builds and fires a one-shot `MODE_STATIC` [AudioTrack] for an already-
- *  rendered buffer, releasing it on a short-lived daemon thread once
- *  playback has had time to finish — avoids leaking an `AudioTrack` (or a
- *  Handler/Looper callback) per play, which matters since these fire on
- *  nearly every move in normal play. */
-private fun playPcmOneShot(pcm: ShortArray) {
-    if (pcm.isEmpty()) return
+ *  rendered MONO buffer, panning it across a stereo output via the shared
+ *  [equalPowerPanGains] law (the same constant-power pan law
+ *  `AmbientMusicEngine.kt` uses for its own voices) and releasing the
+ *  track on a short-lived daemon thread once playback has had time to
+ *  finish — avoids leaking an `AudioTrack` (or a Handler/Looper callback)
+ *  per play, which matters since these fire on nearly every move in
+ *  normal play. */
+private fun playPcmOneShot(monoPcm: ShortArray, pan: Float = 0f) {
+    if (monoPcm.isEmpty()) return
+    val gains = equalPowerPanGains(pan)
+    val stereo = ShortArray(monoPcm.size * 2)
+    for (i in monoPcm.indices) {
+        val sample = monoPcm[i].toDouble()
+        stereo[i * 2] = (sample * gains.left).toInt().toShort()
+        stereo[i * 2 + 1] = (sample * gains.right).toInt().toShort()
+    }
     val track = AudioTrack.Builder()
         .setAudioAttributes(
             AudioAttributes.Builder()
@@ -100,16 +146,19 @@ private fun playPcmOneShot(pcm: ShortArray) {
             AudioFormat.Builder()
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                 .setSampleRate(SFX_SAMPLE_RATE)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                 .build()
         )
-        .setBufferSizeInBytes(pcm.size * 2)
+        .setBufferSizeInBytes(stereo.size * 2)
         .setTransferMode(AudioTrack.MODE_STATIC)
         .build()
-    track.write(pcm, 0, pcm.size)
+    track.write(stereo, 0, stereo.size)
     track.play()
 
-    val durationMillis = (pcm.size * 1000L) / SFX_SAMPLE_RATE
+    // Duration is driven by the mono frame count, not the doubled stereo
+    // array size — each mono sample became one L+R frame pair, not two
+    // sequential frames, so playback time is unchanged by panning.
+    val durationMillis = (monoPcm.size * 1000L) / SFX_SAMPLE_RATE
     thread(name = "ProceduralSfx", isDaemon = true) {
         try {
             Thread.sleep(durationMillis + 150L)
