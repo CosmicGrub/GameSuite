@@ -41,3 +41,9 @@ app/*.txt
 # Playwright/ffmpeg demo-capture tooling and its generated stills/video output
 # (scratch work for producing marketing/demo material, not app source)
 _showcase/
+
+# Rust simulation core (rust/gamesuite-sim) — Cargo's own build cache, plus the
+# cross-compiled .so files and generated UniFFI Kotlin bindings it produces,
+# all reproducible from source via the app/build.gradle.kts cargo-ndk tasks.
+rust/target/
+app/src/main/jniLibs/

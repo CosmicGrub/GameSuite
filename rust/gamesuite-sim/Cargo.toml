@@ -1,0 +1,23 @@
+[package]
+name = "gamesuite-sim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "GameSuite real-time simulation core (Air Hockey pilot) — no-GC physics tick, exposed to Kotlin via UniFFI."
+
+[lib]
+name = "gamesuite_sim"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Deliberately WITHOUT the "cli" feature — that pulls in a heavy dependency
+# tree (askama, clap, goblin, uniffi_bindgen itself...) needed only to
+# generate bindings, never at runtime. Splitting the generator into its own
+# ../uniffi-bindgen workspace crate keeps that tree out of this crate's build
+# entirely, including its Android cross-compiles (see that crate's src/main.rs
+# for the full story — this combination briefly OOM'd rustc/LLVM under this
+# workspace's fat-LTO release profile before the split).
+uniffi = "0.32.1"
+# Standard, widely-used RNG crate — the direct equivalent of Kotlin's
+# kotlin.random.Random used in AirHockeyGame.kt for serve/reset direction.
+rand = "0.8.5"

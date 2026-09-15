@@ -23,6 +23,7 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.NamedTheme
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.settings.ThemeMode
+import com.gamesuite.ui.effects.DialogBackdropBlur
 
 /**
  * App-wide settings only — per-game settings (UNO house rules, per-game
@@ -240,7 +241,11 @@ fun SettingsScreen(
     if (showResetConfirmation) {
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
-            title = { Text("Reset all settings?") },
+            // AGSL deepening (backdrop blur half): real OS-compositor blur behind this
+            // dialog's own window, see DialogBackdropBlur's own doc for why this needs
+            // to run inside a dialog content slot rather than as a modifier out on the
+            // calling screen.
+            title = { DialogBackdropBlur(); Text("Reset all settings?") },
             text = { Text("This can't be undone.") },
             confirmButton = {
                 TextButton(

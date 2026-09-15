@@ -38,6 +38,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.victoryGlow
 import kotlinx.coroutines.delay
 
 /**
@@ -133,6 +134,13 @@ fun MastermindScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
+            // AGSL deepening: the same shared "big win" glow every other flagship
+            // screen now shows, timed to the exact solve moment the CELEBRATION
+            // haptic just above already fires from. Gated on reducedMotion, same
+            // as UnoScreen's own ConfettiOverlay ("enhanced" = LocalEnhancedAnimations
+            // && !reducedMotion) -- the haptic above stays unconditional, only this
+            // visual flourish is suppressed.
+            .victoryGlow(trigger = s.solved && !settings.reducedMotion, tint = palette.accent)
             .padding(12.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally

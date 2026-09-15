@@ -36,7 +36,7 @@ import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.stats.StatsViewModel
 import com.gamesuite.theme.AppTheme
-import com.gamesuite.games.airhockey.AirHockeyGame
+import com.gamesuite.games.airhockey.AirHockeyRustGame
 import com.gamesuite.games.breakout.BreakoutGame
 import com.gamesuite.games.checkers.CheckersGame
 import com.gamesuite.games.chess.ChessGame
@@ -438,7 +438,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("air-hockey") {
-                            val airHockeyGame = rememberActiveModule(sessionManager) { AirHockeyGame() }
+                            // Rust-backed sim core pilot (rust/gamesuite-sim via UniFFI) — see
+                            // AirHockeyRustGame's KDoc and the project's Rust-core migration
+                            // report for why this route constructs it instead of the shared
+                            // module's AirHockeyGame (still used, unchanged, by the desktop
+                            // target — see shared/src/desktopMain/kotlin/Main.kt).
+                            val airHockeyGame = rememberActiveModule(sessionManager) { AirHockeyRustGame() }
                             AirHockeyScreen(
                                 sessionManager = sessionManager,
                                 game = airHockeyGame,

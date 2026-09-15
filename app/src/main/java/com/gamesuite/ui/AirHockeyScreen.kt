@@ -45,6 +45,7 @@ import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.airhockey.AirHockeyGame
 import com.gamesuite.games.airhockey.AirHockeyGame.AirHockeyMotionTier
 import com.gamesuite.games.airhockey.AirHockeyPrefsStore
+import com.gamesuite.games.airhockey.AirHockeyRustGame
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
@@ -102,7 +103,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AirHockeyScreen(
     sessionManager: GameSessionManager,
-    game: AirHockeyGame,
+    game: AirHockeyRustGame,
     settingsViewModel: SettingsViewModel,
     onMatchEnded: () -> Unit
 ) {

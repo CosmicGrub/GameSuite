@@ -35,6 +35,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.victoryGlow
 import kotlinx.coroutines.delay
 
 /**
@@ -141,6 +142,10 @@ fun WordGuessScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
+            // AGSL deepening: same shared "big win" glow as MastermindScreen, timed to
+            // the same s.solved moment the CELEBRATION haptic above fires from, gated
+            // on reducedMotion to match UnoScreen's ConfettiOverlay precedent.
+            .victoryGlow(trigger = s.solved && !settings.reducedMotion, tint = palette.accent)
             .padding(12.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally

@@ -72,6 +72,7 @@ import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.specularSweep
+import com.gamesuite.ui.effects.victoryGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.sin
@@ -259,7 +260,15 @@ fun ChessScreen(
             ChessResult.IN_PROGRESS -> ""
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            // AGSL deepening: same shared "big win" glow as the other flagship screens,
+            // gated on isCheckmate specifically (a draw gets this same panel but no
+            // glow) and on reducedMotion. This panel is only ever composed once the
+            // result is already final, so the no-arg victoryGlow() (fires once on
+            // entering composition) fits here, same as UnoScreen's MatchOverContent.
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .let { if (isCheckmate && !reducedMotion) it.victoryGlow() else it },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {

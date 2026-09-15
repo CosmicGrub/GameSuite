@@ -23,6 +23,7 @@ import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.meshGradientBackground
 import com.gamesuite.stats.StatsViewModel
 
 /**
@@ -339,7 +340,25 @@ fun MainMenuScreen(
     // the same modifier chain — the reverse order (fillMaxWidth THEN widthIn(max)) is
     // the no-op documented in AdaptiveTwoPane.kt, since fillMaxWidth would already lock
     // min=max=full width before the cap ever ran.
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    // AGSL deepening: a softly drifting mesh gradient replaces the previous flat
+    // background behind the whole library screen -- the first thing every user sees on
+    // launch, so it's the highest-visibility single place for this pass. Tints come from
+    // the active MaterialTheme's own container colors (never hardcoded literals), so it
+    // automatically follows theme/dynamic-color/high-contrast exactly like every other
+    // piece of chrome on this screen. Suppressed under Reduced Motion, same as every
+    // other non-essential animation (see AppSettings.reducedMotion's own doc).
+    val colorScheme = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .meshGradientBackground(
+                enabled = !settings.reducedMotion,
+                colorA = colorScheme.primaryContainer,
+                colorB = colorScheme.secondaryContainer,
+                colorC = colorScheme.tertiaryContainer
+            ),
+        contentAlignment = Alignment.TopCenter
+    ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 840.dp)

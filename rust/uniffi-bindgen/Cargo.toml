@@ -1,0 +1,9 @@
+[package]
+name = "uniffi-bindgen"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Host-only UniFFI Kotlin bindings generator for gamesuite-sim — deliberately a separate workspace crate (see src/main.rs) so its heavy \"cli\"-feature dependency tree never enters gamesuite-sim's own build, including its Android cross-compiles."
+
+[dependencies]
+uniffi = { version = "0.32.1", features = ["cli"] }

@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.gamesuite.stats.GameStats
 import com.gamesuite.stats.StatsViewModel
+import com.gamesuite.ui.effects.DialogBackdropBlur
 
 /**
  * "My Stats" — the fix for the audited finding that every game already computes a correct
@@ -128,7 +129,11 @@ fun StatsScreen(
     if (confirmingReset) {
         AlertDialog(
             onDismissRequest = { confirmingReset = false },
-            title = { Text("Reset all stats?") },
+            // AGSL deepening (backdrop blur half): real OS-compositor blur behind this
+            // dialog's own window, see DialogBackdropBlur's own doc for why this needs
+            // to run inside a dialog content slot rather than as a modifier out on the
+            // calling screen.
+            title = { DialogBackdropBlur(); Text("Reset all stats?") },
             text = { Text("This permanently clears every game's win/loss record. This can't be undone.") },
             confirmButton = {
                 TextButton(

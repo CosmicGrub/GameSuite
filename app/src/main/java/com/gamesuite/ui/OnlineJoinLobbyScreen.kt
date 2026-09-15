@@ -46,7 +46,33 @@ fun OnlineJoinLobbyScreen(
     val clientPlayerId = remember { "p-" + UUID.randomUUID().toString() }
     var roomCodeInput by remember { mutableStateOf("") }
     var hasJoined by remember { mutableStateOf(false) }
+    // Set from OkHttp's WebSocket callback thread (see the raw-message listener below)
+    // -- deliberately NOT acted on there. A plain Compose state write is thread-safe
+    // (the same reason `hasJoined` above already worked correctly from that thread),
+    // but the navigation this eventually triggers is NOT: NavController.navigate
+    // requires the main thread, and WebSocketListener.onMessage runs on OkHttp's own
+    // dispatcher, never Main. OnlineHostLobbyScreen's identical onGameStarted call only
+    // ever worked because it fires from a Button's onClick, which Compose always runs
+    // on Main -- there is no such guarantee here. Calling navigate() off-thread doesn't
+    // crash or log anything; it just silently never happens, which is exactly what left
+    // every guest stuck on "Connected! Waiting for the host to start the game..."
+    // forever. The LaunchedEffect below performs the actual navigation from the
+    // composition's own main-thread-bound coroutine scope instead.
+    var pendingGameStart by remember { mutableStateOf<OnlineLobbyMessage.GameStart?>(null) }
     val connectionError by transport.connectionError.collectAsState()
+
+    LaunchedEffect(pendingGameStart) {
+        val message = pendingGameStart ?: return@LaunchedEffect
+        val myIndex = message.players.indexOfFirst { it.playerId == clientPlayerId }
+        if (myIndex < 0) return@LaunchedEffect // roster didn't include us — ignore rather than crash
+        sessionManager.launchGame(
+            mode = PlayMode.ONLINE,
+            players = message.players,
+            localPlayerIndex = myIndex,
+            transport = transport
+        )
+        onGameStarted(message.gameRoute)
+    }
 
     DisposableEffect(transport) {
         transport.onJoined { _, _ -> hasJoined = true }
@@ -55,15 +81,7 @@ fun OnlineJoinLobbyScreen(
                 Json.decodeFromString<OnlineLobbyMessage>(String(payload, Charsets.UTF_8))
             }.getOrNull()
             if (message is OnlineLobbyMessage.GameStart) {
-                val myIndex = message.players.indexOfFirst { it.playerId == clientPlayerId }
-                if (myIndex < 0) return@onRawMessageReceived // roster didn't include us — ignore rather than crash
-                sessionManager.launchGame(
-                    mode = PlayMode.ONLINE,
-                    players = message.players,
-                    localPlayerIndex = myIndex,
-                    transport = transport
-                )
-                onGameStarted(message.gameRoute)
+                pendingGameStart = message
             }
         }
         onDispose {

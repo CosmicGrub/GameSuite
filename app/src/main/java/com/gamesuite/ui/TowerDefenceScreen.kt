@@ -47,6 +47,7 @@ import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.cameraShake
 import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.ui.effects.rememberParticleBurst
+import com.gamesuite.ui.effects.victoryGlow
 import kotlin.math.roundToInt
 
 /**
@@ -188,10 +189,18 @@ fun TowerDefenceScreen(
         }
     }
 
+    // AGSL deepening: the same shared "big win" glow every other flagship screen now
+    // shows, timed to a real run actually being WON (not just any run ending -- a loss
+    // gets FAILURE haptic above and no glow, matching that same branch). Gated on
+    // reducedMotion like UnoScreen's ConfettiOverlay; independent of and layered on top
+    // of the existing cameraShake/particleBurst effects below, not a replacement for them.
+    val victoryTrigger = state.runResult == TowerDefenceGame.TowerDefenceRunResult.WON
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
+            .victoryGlow(trigger = victoryTrigger && !settings.reducedMotion, tint = palette.accent)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

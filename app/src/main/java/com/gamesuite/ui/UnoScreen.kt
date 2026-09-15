@@ -85,6 +85,7 @@ import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.shakeSteps
 import com.gamesuite.ui.effects.specularSweep
+import com.gamesuite.ui.effects.victoryGlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -1153,7 +1154,18 @@ private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: ()
     // LaunchedEffect(s.matchOver)) but no sound of any kind accompanies it.
     val playSfx = rememberProceduralSfx()
     LaunchedEffect(Unit) { playSfx(SfxKind.SUCCESS_CHIME) }
-    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(
+        // AGSL deepening: the same shared "big win" glow every other flagship screen now
+        // shows, gated on the same `enhanced` flag (LocalEnhancedAnimations && !reducedMotion)
+        // as the confetti right below -- this panel only exists while the match is actually
+        // over, so the no-arg victoryGlow() (fires once on entering composition) fits better
+        // here than the boolean-trigger overload the still-mounted screens above use.
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .let { if (enhanced) it.victoryGlow() else it },
+        contentAlignment = Alignment.Center
+    ) {
         // The match win gets the bigger celebration -- two waves instead of
         // round-over's one -- since it's the actual end of the game, not just
         // one hand of it (Xbox 360 UNO / modern mobile UNO both save their
@@ -1612,11 +1624,22 @@ private fun winnerLabel(s: com.gamesuite.games.uno.UnoState, suffix: String): St
  *    never act, since turn-gating requires currentPlayerIndex == myIndex and myIndex
  *    was frozen at 0. Nothing had exercised a full 4-player/2v2 pass-and-play match
  *    to the point of a later player's turn before this.
+ *  - ONLINE: same fixed-seat-per-device shape as LOCAL_AD_HOC — context.localPlayerIndex,
+ *    assigned once by OnlineHostLobbyScreen (always 0)/OnlineJoinLobbyScreen (resolved from
+ *    the GameStart roster) at lobby time. This case was simply missing — ONLINE fell through
+ *    to the same "first non-bot player" branch SINGLE_PLAYER_VS_BOT uses below, which is
+ *    exactly the bug this KDoc already documents LOCAL_AD_HOC once had: every device's own
+ *    human is non-bot, so "first non-bot" resolved to the SAME seat (whichever player joined
+ *    first, i.e. the host) on every device, regardless of which one was actually running.
+ *    Found via a real two-device Online match: the guest read the host's own hand off
+ *    UnoState.players[0] — which UnoGame.redactHandsExcept correctly blanks to placeholder
+ *    WILD cards for every recipient except the seat it's addressed to — so the guest saw
+ *    seven identical "Wild" cards instead of its own real, varied hand.
  *  - SINGLE_PLAYER_VS_BOT (default): the one human seat — first non-bot player.
  */
 private fun humanIndex(s: com.gamesuite.games.uno.UnoState, context: com.gamesuite.core.GameContext): Int =
     when (context.activeMode) {
-        com.gamesuite.core.PlayMode.LOCAL_AD_HOC -> context.localPlayerIndex
+        com.gamesuite.core.PlayMode.LOCAL_AD_HOC, com.gamesuite.core.PlayMode.ONLINE -> context.localPlayerIndex
         com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY -> s.currentPlayerIndex
         else -> s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else 0 }
     }
