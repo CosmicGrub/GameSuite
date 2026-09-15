@@ -360,6 +360,33 @@ class EdgeMatchGameTest {
         }
     }
 
+    /**
+     * Regression test for a real, confirmed bug: at size=[EdgeMatchGame.MIN_SIZE]/
+     * colorCount=[EdgeMatchGame.MIN_COLORS] -- only reachable via the Custom Builder,
+     * below the old fixed EASY tier's own 4x4/4-color floor -- there is a real (~1/2048)
+     * chance every one of the generator's random seam/border color draws happens to land
+     * on the SAME single color. When that happens every tile ends up individually
+     * monochrome, so EVERY possible rotation vector already satisfies the win check --
+     * an unbounded "re-roll rotations against the same solved grid until it's not
+     * already solved" loop can never find one and hangs forever (an ANR, since the real
+     * call site runs on the UI thread). 5,000 trials gives strong (~91%) odds of
+     * actually rolling that exact degenerate seam-color combination at least once during
+     * this test; `@Test(timeout)` is what actually proves the fix holds -- if the
+     * generator's fallback to regenerate genuinely fresh seam colors (not just fresh
+     * rotations) were ever removed, this test would hang past its timeout and fail, not
+     * just run slow.
+     */
+    @Test(timeout = 15_000)
+    fun `generating many puzzles at the smallest possible custom bounds never hangs, even when seam colors could otherwise roll all-identical`() {
+        repeat(5_000) { trial ->
+            val game = newGame()
+            game.startCustomMatch(EdgeMatchGame.MIN_SIZE, EdgeMatchGame.MIN_COLORS)
+            val s = game.state.value!!
+            assertEquals("trial=$trial", EdgeMatchGame.MIN_SIZE * EdgeMatchGame.MIN_SIZE, s.tiles.size)
+            assertFalse("trial=$trial: a freshly generated puzzle must never already be solved", s.solved)
+        }
+    }
+
     @Test
     fun `resetting every tile's own rotation to 0 always solves a freshly generated custom puzzle`() {
         for (size in listOf(EdgeMatchGame.MIN_SIZE, 5, EdgeMatchGame.MAX_SIZE)) {

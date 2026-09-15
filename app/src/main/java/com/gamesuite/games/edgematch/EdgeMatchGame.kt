@@ -433,19 +433,40 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
      * instead of using `kotlin.random.Random`'s unseeded default — see the class
      * KDoc for why this file takes a seed value rather than deriving one from the
      * clock itself.
+     *
+     * Two-level reject-and-reroll, not one: the inner loop re-rolls only ROTATIONS
+     * against the same solved grid (belt-and-suspenders -- a tile with
+     * rotationally-symmetric colors could land on a nonzero rotation and still happen
+     * to match everywhere, the same guard SlidingPuzzleGame/LightsOutGame's own
+     * generators use), but that alone isn't a real fix at the Custom Builder's new
+     * minimum bounds: at size=[MIN_SIZE]/colorCount=[MIN_COLORS] there's a real
+     * (~1/2048), non-negligible chance every seam/border color draw in
+     * [generateSolvedGrid] happens to land on the SAME single color -- every tile ends
+     * up individually monochrome, which makes EVERY possible rotation vector satisfy
+     * [isBoardSolved]. Re-rolling rotations against that same `solved` grid can then
+     * never find a non-solved one no matter how many times it's tried, since there
+     * isn't one -- an unbounded version of this loop hangs forever (an ANR, since the
+     * caller runs on the UI thread). [MAX_ROTATION_REROLLS] bounds that inner loop and,
+     * once exhausted, the outer loop generates a genuinely FRESH `solved` grid (new
+     * random seam colors, not just new rotations) and tries again -- [MAX_GENERATION_ATTEMPTS]
+     * bounds that in turn, the same "never guess past an unbounded budget" discipline
+     * every generator in this batch follows (see KakuroGame/KenKenGame), even though
+     * reaching it here would require rolling a monochrome grid over and over, itself
+     * astronomically unlikely.
      */
     private fun generatePuzzle(size: Int, colorCount: Int, dailySeed: Long?): List<EdgeMatchTile> {
         val random = if (dailySeed != null) Random(dailySeed) else Random
-        val solved = generateSolvedGrid(size, colorCount, random)
-        var scrambled = scrambleRotations(solved, random)
-        // Belt-and-suspenders: a tile with rotationally-symmetric colors could land
-        // on a nonzero rotation and still happen to match everywhere -- never ship a
-        // "shuffled" puzzle that's actually already solved, same guard
-        // SlidingPuzzleGame/LightsOutGame's own generators use.
-        while (isBoardSolved(scrambled, size)) {
-            scrambled = scrambleRotations(solved, random)
+        repeat(MAX_GENERATION_ATTEMPTS) {
+            val solved = generateSolvedGrid(size, colorCount, random)
+            var scrambled = scrambleRotations(solved, random)
+            var rotationRerolls = 0
+            while (isBoardSolved(scrambled, size) && rotationRerolls < MAX_ROTATION_REROLLS) {
+                scrambled = scrambleRotations(solved, random)
+                rotationRerolls++
+            }
+            if (!isBoardSolved(scrambled, size)) return scrambled
         }
-        return scrambled
+        error("Edge Match generation failed to find a genuinely-scrambled puzzle for size=$size colorCount=$colorCount after $MAX_GENERATION_ATTEMPTS attempts")
     }
 
     companion object {
@@ -464,5 +485,21 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         const val MAX_SIZE = 10
         const val MIN_COLORS = 2
         const val MAX_COLORS = 8
+
+        // generatePuzzle()'s two-level generation-attempt cap -- see that function's own
+        // KDoc for why a single unbounded rotation-reroll loop can hang forever at the
+        // Custom Builder's widened minimum bounds (2x2 / 2 colors). MAX_ROTATION_REROLLS
+        // only needs to be large enough that a GENUINELY low-probability accidental match
+        // (astronomically rarer than this, even at the smallest board) doesn't trip the
+        // fallback -- not large enough to ever actually exhaust it against a board that's
+        // deterministically unsolvable-by-rotation-alone, which fails on its very first
+        // check. MAX_GENERATION_ATTEMPTS (re-rolling the seam colors themselves, the same
+        // "regenerate the actual input, not just retry the same one" idiom
+        // KakuroGame/KenKenGame's own generators use) exists only as the same
+        // "never guess past an unverified/unbounded budget" backstop those generators
+        // apply -- reaching it here would mean rolling a monochrome board repeatedly,
+        // itself astronomically unlikely.
+        const val MAX_ROTATION_REROLLS = 64
+        const val MAX_GENERATION_ATTEMPTS = 1_000
     }
 }
