@@ -204,6 +204,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gamesuite-audio"
+version = "0.1.0"
+dependencies = [
+ "uniffi",
+]
+
+[[package]]
 name = "gamesuite-sim"
 version = "0.1.0"
 dependencies = [

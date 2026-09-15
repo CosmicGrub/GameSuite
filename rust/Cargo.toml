@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["gamesuite-sim", "uniffi-bindgen"]
+members = ["gamesuite-sim", "gamesuite-audio", "uniffi-bindgen"]
 
 # Shared release profile for the cdylib shipped to Android — small, no GC pauses,
 # and no debug-assert overhead in the physics loop this exists to speed up.

@@ -1,0 +1,20 @@
+[package]
+name = "gamesuite-audio"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "GameSuite real-time audio DSP core (AmbientMusicEngine pilot) — allocation-free synth, exposed to Kotlin via UniFFI."
+
+[lib]
+name = "gamesuite_audio"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Same UniFFI version as gamesuite-sim (rust/gamesuite-sim/Cargo.toml) — reuse
+# exactly, don't drift; see docs/RUST_AUDIO_CORE_PLAN.md's coordination-check
+# note and rust/uniffi-bindgen/src/main.rs for why the "cli" feature stays out
+# of this crate too (kept in the shared, separate uniffi-bindgen crate).
+uniffi = "0.32.1"
+# No rand dependency: unlike gamesuite-sim's serve-direction RNG, PadSynthState
+# (the Kotlin source this crate will eventually port — see Step 2 of
+# docs/RUST_AUDIO_CORE_PLAN.md) has no randomness anywhere in its DSP.

@@ -166,7 +166,6 @@ val cargoNdkBuildAirHockeySim = tasks.register<Exec>("cargoNdkBuildAirHockeySim"
     inputs.file(simCrateDir.resolve("uniffi.toml"))
     inputs.file(rustDir.resolve("Cargo.toml"))
     inputs.file(rustDir.resolve("Cargo.lock"))
-    outputs.dir(jniLibsDir)
 
     // Exec's own commandLine()/environment() values aren't part of Gradle's up-to-date
     // snapshot by default -- registered explicitly as inputs.property(...) here so changing
@@ -178,6 +177,15 @@ val cargoNdkBuildAirHockeySim = tasks.register<Exec>("cargoNdkBuildAirHockeySim"
     inputs.property("androidNdkHome", ndkHome)
     inputs.property("cargoNdkTargets", cargoNdkTargets)
     inputs.property("cargoNdkPlatform", cargoNdkPlatform)
+
+    // Declares only the specific .so files THIS task writes, not the whole shared jniLibsDir --
+    // cargoNdkBuildAmbientAudio (below) writes its own differently-named .so's into the same
+    // per-ABI directories (both native libs must live under one jniLibs tree for Android's
+    // packaging to find them), and declaring the shared parent dir as this task's own output
+    // makes Gradle treat every other task reading anywhere under it as having an undeclared
+    // dependency on this one -- exactly the "implicit dependency" validation error this caused
+    // in practice once a second cargoNdkBuild* task existed alongside this one.
+    outputs.files(cargoNdkTargets.map { jniLibsDir.resolve("$it/libgamesuite_sim.so") })
 
     workingDir = simCrateDir
     environment("ANDROID_NDK_HOME", ndkHome)
@@ -213,19 +221,107 @@ val generateAirHockeySimUniffiBindings = tasks.register<Exec>("generateAirHockey
     )
 }
 
+// ---------------------------------------------------------------------------
+// Rust audio DSP core (rust/gamesuite-audio) build plumbing — Step 1 of
+// docs/RUST_AUDIO_CORE_PLAN.md. Structurally identical Exec-task pair to the
+// gamesuite-sim wiring above (cargoNdkBuildAirHockeySim /
+// generateAirHockeySimUniffiBindings): cargo-ndk cross-compiles the cdylib
+// into the SAME app/src/main/jniLibs tree (both native libs must land under
+// the same per-ABI jniLibs/<abi>/ directories for Android's packaging to pick
+// both up), and the shared rust/uniffi-bindgen binary (see that crate's own
+// src/main.rs — deliberately generic, reads whatever --library <path> it's
+// pointed at) generates this crate's Kotlin bindings into their own output
+// dir, kept separate from the sim crate's so the two generated-source trees
+// never collide.
+// ---------------------------------------------------------------------------
+
+val audioCrateDir = rustDir.resolve("gamesuite-audio")
+val uniffiAudioBindingsOutDir = layout.buildDirectory.dir("generated/source/uniffi-audio/kotlin").get().asFile
+// Same rationale as referenceSharedLib above: arm64-v8a is what every
+// physical test device in this project uses; bindgen only parses the .so's
+// metadata section, never executes it, so the specific ABI doesn't affect
+// the generated Kotlin.
+val referenceAudioSharedLib = jniLibsDir.resolve("arm64-v8a/libgamesuite_audio.so")
+
+val cargoNdkBuildAmbientAudio = tasks.register<Exec>("cargoNdkBuildAmbientAudio") {
+    group = "rust"
+    description = "Cross-compiles rust/gamesuite-audio to arm64-v8a/armeabi-v7a/x86_64 .so files via cargo-ndk."
+
+    // Same Cargo.lock-as-input / inputs.property(...) coverage as
+    // cargoNdkBuildAirHockeySim above (see that task's own comments for the
+    // full rationale) — included here from day one, not a fix-later gap.
+    inputs.dir(audioCrateDir.resolve("src"))
+    inputs.file(audioCrateDir.resolve("Cargo.toml"))
+    inputs.file(audioCrateDir.resolve("uniffi.toml"))
+    inputs.file(rustDir.resolve("Cargo.toml"))
+    inputs.file(rustDir.resolve("Cargo.lock"))
+
+    val ndkHome = resolveAndroidNdkHome()
+    val cargoNdkTargets = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+    val cargoNdkPlatform = "26" // matches app/build.gradle.kts' minSdk
+    inputs.property("androidNdkHome", ndkHome)
+    inputs.property("cargoNdkTargets", cargoNdkTargets)
+    inputs.property("cargoNdkPlatform", cargoNdkPlatform)
+
+    // Same non-overlapping-outputs reasoning as cargoNdkBuildAirHockeySim's own outputs.files(...)
+    // above -- declares only this task's own .so's, not the whole shared jniLibsDir.
+    outputs.files(cargoNdkTargets.map { jniLibsDir.resolve("$it/libgamesuite_audio.so") })
+
+    workingDir = audioCrateDir
+    environment("ANDROID_NDK_HOME", ndkHome)
+    commandLine(
+        listOf("cargo", "ndk") +
+            cargoNdkTargets.flatMap { listOf("-t", it) } +
+            listOf("-P", cargoNdkPlatform, "-o", jniLibsDir.absolutePath, "build", "--release")
+    )
+}
+
+val generateAmbientAudioUniffiBindings = tasks.register<Exec>("generateAmbientAudioUniffiBindings") {
+    group = "rust"
+    description = "Generates the UniFFI Kotlin bindings for gamesuite-audio from the compiled cdylib (library mode, no .udl)."
+    dependsOn(cargoNdkBuildAmbientAudio)
+
+    inputs.file(referenceAudioSharedLib)
+    inputs.file(audioCrateDir.resolve("uniffi.toml"))
+    inputs.dir(rustDir.resolve("uniffi-bindgen/src"))
+    inputs.file(rustDir.resolve("uniffi-bindgen/Cargo.toml"))
+    outputs.dir(uniffiAudioBindingsOutDir)
+
+    // Runs from the workspace root, same as generateAirHockeySimUniffiBindings —
+    // uniffi-bindgen is the one shared sibling crate both cdylibs point at.
+    workingDir = rustDir
+    doFirst { uniffiAudioBindingsOutDir.mkdirs() }
+    commandLine(
+        "cargo", "run", "--bin", "uniffi-bindgen", "--",
+        "generate",
+        "--library", referenceAudioSharedLib.absolutePath,
+        "--language", "kotlin",
+        "--out-dir", uniffiAudioBindingsOutDir.absolutePath
+    )
+}
+
 android.sourceSets.getByName("main") {
     // Kotlin sources are picked up from java.srcDirs too (standard Android
     // Kotlin plugin behavior) — avoids depending on KGP's own `kotlin.srcDir`
     // extension accessor, which has moved across AGP/KGP versions.
     java.srcDir(uniffiBindingsOutDir)
+    java.srcDir(uniffiAudioBindingsOutDir)
 }
 
 // preBuild covers the general case (unit tests, lint, IDE sync); the explicit
 // compile/merge task matching below is belt-and-suspenders so this can't
 // silently race a variant's own Kotlin compile or native-lib merge step on an
 // AGP version where preBuild's ordering guarantee is looser than expected.
-tasks.named("preBuild") { dependsOn(generateAirHockeySimUniffiBindings) }
+//
+// Both crates' generate*/cargoNdkBuild* tasks are listed explicitly in each
+// dependsOn(...) below — the tasks.matching{...} predicates only pattern-match
+// the CONSUMING task's name (compileDebugKotlin, mergeDebugJniLibFolders,
+// etc.), not a second producer task; adding a new crate's tasks doesn't wire
+// them in automatically; each call site needs the new task added by hand.
+tasks.named("preBuild") {
+    dependsOn(generateAirHockeySimUniffiBindings, generateAmbientAudioUniffiBindings)
+}
 tasks.matching { it.name.startsWith("compile") && it.name.contains("Kotlin") }
-    .configureEach { dependsOn(generateAirHockeySimUniffiBindings) }
+    .configureEach { dependsOn(generateAirHockeySimUniffiBindings, generateAmbientAudioUniffiBindings) }
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
-    .configureEach { dependsOn(cargoNdkBuildAirHockeySim) }
+    .configureEach { dependsOn(cargoNdkBuildAirHockeySim, cargoNdkBuildAmbientAudio) }
