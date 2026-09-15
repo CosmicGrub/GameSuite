@@ -88,6 +88,11 @@ class TowerDefenceGameTest {
 
     // -- startMatch / difficulty scaling --
 
+    /** Starting gold per tier, mirroring `difficultyConfig`'s own (private) literals -- the same
+     *  "hardcode the expected values matching the source's own map" idiom this batch's other
+     *  difficulty-table tests already use (e.g. MastermindGameTest's EASY/MEDIUM/HARD table). */
+    private val EXPECTED_STARTING_GOLD = mapOf(CpuDifficulty.EASY to 150, CpuDifficulty.MEDIUM to 100, CpuDifficulty.HARD to 70)
+
     @Test
     fun `startMatch initializes wave 1 with empty entities and the difficulty's starting gold`() {
         for (difficulty in CpuDifficulty.entries) {
@@ -97,12 +102,44 @@ class TowerDefenceGameTest {
             assertEquals(1, s.waveNumber)
             assertEquals(TowerDefenceGame.TOTAL_WAVES, s.totalWaves)
             assertEquals(TowerDefenceGame.STARTING_LIVES, s.lives)
+            assertEquals("difficulty=$difficulty", EXPECTED_STARTING_GOLD.getValue(difficulty), s.gold)
             assertEquals(TowerDefenceGame.INTER_WAVE_SECONDS, s.interWaveCooldown)
             assertTrue(s.enemies.isEmpty())
             assertTrue(s.towers.isEmpty())
             assertTrue(s.projectiles.isEmpty())
             assertFalse(s.paused)
             assertNull(s.runResult)
+        }
+    }
+
+    /**
+     * The test above only checks RELATIVE ordering (HARD's enemy HP/speed/count each exceed
+     * MEDIUM's, which exceeds EASY's) -- a regression that changed a multiplier's actual
+     * MAGNITUDE while preserving that ordering would slip through undetected. This independently
+     * re-derives the exact wave-1 values from the public formula constants
+     * ([TowerDefenceGame.BASE_ENEMY_HP] etc.) and the same per-tier multipliers `difficultyConfig`
+     * uses (hardcoded here, mirroring that private map's own literals).
+     */
+    @Test
+    fun `wave 1 enemy stats match the exact documented formula and multipliers per difficulty tier`() {
+        val hpMultiplier = mapOf(CpuDifficulty.EASY to 0.75f, CpuDifficulty.MEDIUM to 1.0f, CpuDifficulty.HARD to 1.4f)
+        val speedMultiplier = mapOf(CpuDifficulty.EASY to 0.85f, CpuDifficulty.MEDIUM to 1.0f, CpuDifficulty.HARD to 1.2f)
+        val countMultiplier = mapOf(CpuDifficulty.EASY to 0.8f, CpuDifficulty.MEDIUM to 1.0f, CpuDifficulty.HARD to 1.3f)
+
+        for (difficulty in CpuDifficulty.entries) {
+            val game = newGame(difficulty, SHORT_LEAK_LEVEL)
+            game.startMatch()
+            tickUntil(game) { game.state.value.enemies.isNotEmpty() }
+            val enemy = game.state.value.enemies.first()
+            val totalWave1Count = game.state.value.enemiesRemainingToSpawn + game.state.value.enemies.size
+
+            val expectedHp = TowerDefenceGame.BASE_ENEMY_HP * hpMultiplier.getValue(difficulty)
+            val expectedSpeed = TowerDefenceGame.BASE_ENEMY_SPEED * speedMultiplier.getValue(difficulty)
+            val expectedCount = (TowerDefenceGame.BASE_ENEMY_COUNT * countMultiplier.getValue(difficulty)).let { kotlin.math.round(it).toInt() }.coerceAtLeast(1)
+
+            assertEquals("difficulty=$difficulty wave-1 enemy HP", expectedHp, enemy.maxHp, 1e-4f)
+            assertEquals("difficulty=$difficulty wave-1 enemy speed", expectedSpeed, enemy.speed, 1e-6f)
+            assertEquals("difficulty=$difficulty wave-1 enemy count", expectedCount, totalWave1Count)
         }
     }
 
@@ -320,6 +357,41 @@ class TowerDefenceGameTest {
         assertNull("a leaked enemy must not be reported as a kill", leakGame.state.value.lastEnemyDeath)
     }
 
+    /**
+     * The orphaned-projectile test below only covers a target that ALREADY didn't exist when its
+     * own projectile was processed. This covers the different, same-tick race: two projectiles
+     * targeting the SAME enemy, both close enough to land a hit in ONE tick -- the first kills it
+     * and removes it from the tick's own local `enemyById` map mid-loop, so the second must find
+     * its target already gone and drop safely, not double-award gold or crash.
+     */
+    @Test
+    fun `two projectiles killing the same enemy in the same tick award gold only once and drop the second safely`() {
+        val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        val enemy = TowerDefenceGame.TowerDefenceEnemy(id = 42, distanceTraveled = 0f, hp = 1f, maxHp = 1f, speed = 0f, goldReward = 10)
+        // Both projectiles already sit exactly on the enemy's own position -- both resolve as a
+        // hit (distance 0 <= PROJECTILE_HIT_EPSILON) the very first tick they're processed in.
+        val p1 = TowerDefenceGame.TowerDefenceProjectile(id = 1, position = Offset(0f, 0f), targetEnemyId = 42, damage = 10f)
+        val p2 = TowerDefenceGame.TowerDefenceProjectile(id = 2, position = Offset(0f, 0f), targetEnemyId = 42, damage = 10f)
+        game.state.value = game.state.value.copy(
+            enemies = listOf(enemy), projectiles = listOf(p1, p2),
+            enemiesRemainingToSpawn = 0, interWaveCooldown = 999f
+        )
+        val goldBefore = game.state.value.gold
+
+        game.tick(0.05f) // must not throw
+
+        assertTrue("the enemy must be removed exactly once", game.state.value.enemies.isEmpty())
+        assertEquals(
+            "gold must be awarded exactly once for a same-tick double kill, not twice",
+            goldBefore + enemy.goldReward, game.state.value.gold
+        )
+        assertTrue(
+            "both projectiles (the one that landed the kill and the now-orphaned second one) must be gone, not left dangling",
+            game.state.value.projectiles.isEmpty()
+        )
+    }
+
     @Test
     fun `a projectile whose target already died is dropped without side effects`() {
         val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
@@ -407,13 +479,19 @@ class TowerDefenceGameTest {
     fun `matchOver guard blocks every gameplay-mutating method`() {
         val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
         game.startMatch()
+        game.state.value = game.state.value.copy(gold = 10_000)
+        game.placeTower(0) // so upgradeTower below has a real tower id to target
+        val towerId = game.state.value.towers.first().id
         game.leaveSession()
         assertTrue(game.matchOver.value)
 
         val frozen = game.state.value
         game.tick(0.05f)
-        game.placeTower(0)
+        game.placeTower(1)
+        game.upgradeTower(towerId)
         game.togglePause()
+        game.pause()
+        game.resume()
         game.playAgain()
         assertSame("every gameplay-mutating method must no-op once matchOver", frozen, game.state.value)
     }
@@ -462,6 +540,152 @@ class TowerDefenceGameTest {
         assertEquals(TowerDefenceGame.LEVELS[1].id, s.level.id)
     }
 
+    /**
+     * The test above only checks runSeq/waveNumber/runResult/difficulty/level -- this drives a
+     * REAL run with real gold spent, real towers placed, and real enemies/projectiles in flight
+     * before ending it, so playAgain's full reset (gold back to the tier's starting amount,
+     * lives back to full, every tower/enemy/projectile actually cleared -- not just left over
+     * from the previous run) is genuinely exercised, not just inferred.
+     */
+    @Test
+    fun `playAgain fully resets gold, lives, and every leftover tower, enemy, and projectile from the previous run`() {
+        val game = newGame(CpuDifficulty.HARD, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        game.state.value = game.state.value.copy(gold = 10_000)
+        game.placeTower(0)
+        game.placeTower(1)
+        assertEquals(2, game.state.value.towers.size)
+
+        // Manufacture leftover enemies/projectiles/spent lives directly, then end the run --
+        // isolates "does playAgain clear leftover entities" from needing a real, lengthy loss.
+        val leftoverEnemy = TowerDefenceGame.TowerDefenceEnemy(id = 900, distanceTraveled = 0.5f, hp = 50f, maxHp = 50f, speed = 0f, goldReward = 10)
+        val leftoverProjectile = TowerDefenceGame.TowerDefenceProjectile(id = 900, position = Offset(0.4f, 0f), targetEnemyId = 900, damage = 5f)
+        game.state.value = game.state.value.copy(
+            enemies = listOf(leftoverEnemy), projectiles = listOf(leftoverProjectile),
+            lives = 1, runResult = TowerDefenceRunResult.LOST
+        )
+        assertTrue(game.state.value.runOver)
+
+        game.playAgain()
+        val s = game.state.value
+        assertEquals("playAgain must restore HARD's own starting gold, not leave the spent amount", EXPECTED_STARTING_GOLD.getValue(CpuDifficulty.HARD), s.gold)
+        assertEquals("playAgain must restore full lives", TowerDefenceGame.STARTING_LIVES, s.lives)
+        assertTrue("leftover towers from the previous run must be cleared", s.towers.isEmpty())
+        assertTrue("leftover enemies from the previous run must be cleared", s.enemies.isEmpty())
+        assertTrue("leftover projectiles from the previous run must be cleared", s.projectiles.isEmpty())
+    }
+
+    /**
+     * `leaveSession`'s own test above only exercises a LOST run, per its own explicit comment
+     * ("no run in this session ever reached WON"), leaving `isWinner=true` completely
+     * unexercised despite `everWonThisSession` existing specifically to report it.
+     */
+    @Test
+    fun `leaveSession reports isWinner true once any run this session has actually been won`() {
+        val game = newGame(CpuDifficulty.EASY, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        game.state.value = game.state.value.copy(gold = 10_000)
+        for (zoneIndex in CLUSTERED_DEFENSE_LEVEL.towerZones.indices) game.placeTower(zoneIndex)
+
+        val won = tickUntil(game) { game.state.value.runOver }
+        assertTrue(won)
+        assertEquals(TowerDefenceRunResult.WON, game.state.value.runResult)
+
+        var reportedResult: com.gamesuite.core.GameResult? = null
+        game.setOnMatchEnd { reportedResult = it }
+        game.leaveSession()
+
+        val score = reportedResult!!.scores.single()
+        assertTrue("a session with a genuine WON run must report isWinner=true", score.isWinner)
+        assertEquals(TowerDefenceGame.TOTAL_WAVES, score.score)
+    }
+
+    /**
+     * `bestWaveThisSession` is a SESSION-level tally across every `playAgain` restart, not just
+     * the most recent run -- this proves a worse SECOND run doesn't silently overwrite a better
+     * EARLIER one: run 1 wins outright (reaching the last wave), run 2 (after playAgain, same
+     * level, deliberately undefended this time) loses much earlier, and `leaveSession` must still
+     * report the better first result, not the second.
+     */
+    @Test
+    fun `leaveSession reports the furthest wave across every playAgain restart this session, not just the most recent run`() {
+        val game = newGame(CpuDifficulty.EASY, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        game.state.value = game.state.value.copy(gold = 10_000)
+        for (zoneIndex in CLUSTERED_DEFENSE_LEVEL.towerZones.indices) game.placeTower(zoneIndex)
+
+        val won = tickUntil(game) { game.state.value.runOver }
+        assertTrue("run 1 should win outright", won)
+        assertEquals(TowerDefenceRunResult.WON, game.state.value.runResult)
+        assertEquals(TowerDefenceGame.TOTAL_WAVES, game.state.value.waveNumber)
+
+        game.playAgain() // same level, fresh state -- towers are cleared, deliberately not re-placed
+        assertTrue("run 2 must start fully undefended", game.state.value.towers.isEmpty())
+        val lostWorse = tickUntil(game) { game.state.value.runOver }
+        assertTrue("run 2 should lose within the step budget", lostWorse)
+        assertEquals(TowerDefenceRunResult.LOST, game.state.value.runResult)
+        assertTrue("run 2 must lose well before the last wave, or this test isn't proving anything", game.state.value.waveNumber < TowerDefenceGame.TOTAL_WAVES)
+
+        var reportedResult: com.gamesuite.core.GameResult? = null
+        game.setOnMatchEnd { reportedResult = it }
+        game.leaveSession()
+
+        val score = reportedResult!!.scores.single()
+        assertEquals(
+            "the better EARLIER result (run 1's full clear) must survive a worse later restart, not get overwritten",
+            TowerDefenceGame.TOTAL_WAVES, score.score
+        )
+        assertTrue("isWinner must still be true even though the SECOND run lost", score.isWinner)
+    }
+
+    // -- Spawn pacing --
+
+    /**
+     * Every other test either checks a single snapshot (the first spawned enemy's own stats) or
+     * drives the whole wave to completion without ever checking the CADENCE spawning happens at
+     * -- this proves enemies spawn strictly one at a time, never a burst of more than one in a
+     * single tick, and never faster than [TowerDefenceGame.SPAWN_INTERVAL_SECONDS] apart, until
+     * the whole wave has spawned. Uses [CLUSTERED_DEFENSE_LEVEL]'s own long path (~11s to leak at
+     * wave-1 speed) so nothing leaks or otherwise disappears during this window and no towers are
+     * placed so nothing gets killed either -- spawning is the only thing changing the population.
+     */
+    @Test
+    fun `enemies spawn one at a time at SPAWN_INTERVAL_SECONDS cadence, never more than one per interval`() {
+        val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        tickUntil(game) { game.state.value.enemiesRemainingToSpawn > 0 || game.state.value.enemies.isNotEmpty() }
+
+        val totalThisWave = game.state.value.enemiesRemainingToSpawn + game.state.value.enemies.size
+        assertTrue("wave 1 should spawn more than one enemy so pacing is actually observable", totalThisWave > 1)
+        assertEquals(
+            "exactly one enemy should have spawned the instant spawning starts (spawnCooldown begins at 0)",
+            totalThisWave - 1, game.state.value.enemiesRemainingToSpawn
+        )
+
+        var spawnedSoFar = 1
+        var stepsSinceLastSpawn = 0
+        val step = 0.05f
+        val maxStepsPerInterval = ((TowerDefenceGame.SPAWN_INTERVAL_SECONDS / step) + 5).toInt() // real cadence, plus slack for the dt clamp
+
+        while (game.state.value.enemiesRemainingToSpawn > 0) {
+            game.tick(step)
+            stepsSinceLastSpawn++
+            val spawnedNow = totalThisWave - game.state.value.enemiesRemainingToSpawn
+            if (spawnedNow > spawnedSoFar) {
+                assertEquals("spawning must add exactly one enemy at a time, never a burst", spawnedSoFar + 1, spawnedNow)
+                assertTrue(
+                    "a new spawn arrived faster than SPAWN_INTERVAL_SECONDS since the last one",
+                    stepsSinceLastSpawn * step >= TowerDefenceGame.SPAWN_INTERVAL_SECONDS - (step + 1e-3f)
+                )
+                spawnedSoFar = spawnedNow
+                stepsSinceLastSpawn = 0
+            } else {
+                assertTrue("a new spawn is overdue -- pacing must not stall", stepsSinceLastSpawn <= maxStepsPerInterval)
+            }
+        }
+        assertEquals("the whole wave should eventually finish spawning", totalThisWave, spawnedSoFar)
+    }
+
     // -- positionAlongPath geometry --
 
     @Test
@@ -485,5 +709,46 @@ class TowerDefenceGameTest {
             assertTrue("level ${level.id} needs at least one tower zone", level.towerZones.isNotEmpty())
         }
         assertEquals(3, TowerDefenceGame.LEVELS.map { it.id }.distinct().size)
+    }
+
+    /**
+     * The test above only checks structural sanity (non-degenerate counts). This checks the
+     * actual GEOMETRY every level's own hand-authored coordinates need to satisfy: every path
+     * waypoint and tower zone lands within this app's own normalized 0f..1f coordinate
+     * convention (see the class KDoc), no path segment is degenerate (two consecutive waypoints
+     * at the identical point -- a zero-length segment `positionAlongPath` would still handle
+     * safely per its own `segmentLength > 0f` guard, but is never something a hand-authored path
+     * should actually contain), and every tower zone sits within [TowerDefenceGame.BASE_TOWER_RANGE]
+     * of at least one point along the path -- a zone that can never reach the path at any upgrade
+     * level would be real, silent dead weight in a hand-authored level no structural check alone
+     * would catch.
+     */
+    @Test
+    fun `every built-in level's coordinates are normalized, non-degenerate, and every tower zone can actually reach the path`() {
+        for (level in TowerDefenceGame.LEVELS) {
+            for (point in level.path) {
+                assertTrue("level ${level.id}: path point $point must be within 0f..1f on x", point.x in 0f..1f)
+                assertTrue("level ${level.id}: path point $point must be within 0f..1f on y", point.y in 0f..1f)
+            }
+            for (zone in level.towerZones) {
+                assertTrue("level ${level.id}: tower zone $zone must be within 0f..1f on x", zone.x in 0f..1f)
+                assertTrue("level ${level.id}: tower zone $zone must be within 0f..1f on y", zone.y in 0f..1f)
+            }
+            for (i in 1 until level.path.size) {
+                assertTrue(
+                    "level ${level.id}: path segment $i is degenerate -- waypoints ${level.path[i - 1]} and ${level.path[i]} coincide",
+                    (level.path[i] - level.path[i - 1]).getDistance() > 0f
+                )
+            }
+            for ((zoneIndex, zone) in level.towerZones.withIndex()) {
+                val reachesPath = (0..1000).any { step ->
+                    val t = step / 1000f
+                    val totalLength = (1 until level.path.size).sumOf { i -> (level.path[i] - level.path[i - 1]).getDistance().toDouble() }.toFloat()
+                    val pos = TowerDefenceGame.positionAlongPath(level.path, t * totalLength)
+                    pos != null && (pos - zone).getDistance() <= TowerDefenceGame.BASE_TOWER_RANGE
+                }
+                assertTrue("level ${level.id}: tower zone $zoneIndex ($zone) can never reach the path at even the base range -- dead weight", reachesPath)
+            }
+        }
     }
 }
