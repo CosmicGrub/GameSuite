@@ -96,9 +96,18 @@ above) name lists, worth remembering across app restarts.
 
 - ~~Dice is d6-only~~ — a die-type picker was added in a later polish pass; see **The 8 tools**
   above for what shipped.
-- **No flip/roll history** for Coin Toss or Dice beyond the current result — a real feature some
-  players might want, but adds a second piece of state (and persistence question) to two tools
-  that are otherwise deliberately stateless. Left for a later pass if requested.
+- ~~No flip/roll history~~ — added in a later polish pass. **The persistence question this cut
+  named, resolved**: in-memory only, reset when the tool is left (switching tabs and back clears
+  it), the same "deliberately stateless-between-visits" convention Dice/Coin Toss/Random Letter's
+  own `lastResult` already followed — not persisted via `PartyToolkitStore` the way Scoreboard/Life
+  Points are. A history of recent dice rolls is genuinely useful mid-game-night ("wait, was that
+  three rolls ago a 6 or an 8?"); it is not useful across app restarts days later the way a running
+  Scoreboard total is, so it doesn't earn the same persistence cost/DataStore schema Scoreboard's
+  own real "survive a broken game night" requirement does. Bounded to the last 10 results per tool
+  (`PARTY_TOOLKIT_HISTORY_LIMIT`) — enough to actually be useful, not an unbounded list that grows
+  all session. Coin Toss's own already-kept running heads/tails tally (a pre-existing, harmless
+  scope departure — see **The 8 tools** above) is unaffected; the flip history is a separate,
+  additional record of the last 10 individual results, not a replacement for that tally.
 - **No custom/weighted Random Letter modes** (excluding rare letters, non-English alphabets) —
   uniform A–Z is the honest, unsurprising default a tool literally named "Random Letter" should
   have; anything more specific is a real, separate feature request, not an oversight.

@@ -197,6 +197,21 @@ private fun partyToolkitPalette(isDark: Boolean): PartyToolkitPalette = if (!isD
 /** The die-type chips offered — the standard polyhedral-dice set real board/tabletop games actually use, not an arbitrary or exhaustive list. */
 private val DICE_TYPES = listOf(4, 6, 8, 10, 12, 20)
 
+/**
+ * Recent-history cap for Dice/Coin Toss — long enough to be useful mid-game-night ("wait, was
+ * that three rolls ago a 6 or an 8?"), not an unbounded list that grows all session. In-memory
+ * only, reset when the tool is left (switching tabs and back clears it) — the same "deliberately
+ * stateless-between-visits" convention every non-persisted tool here already follows; see
+ * docs/PARTY_TOOLKIT_DESIGN.md's own resolved persistence-question scope cut for why this doesn't
+ * earn `PartyToolkitStore`'s real cross-app-restart persistence the way Scoreboard/Life Points do.
+ */
+private const val PARTY_TOOLKIT_HISTORY_LIMIT = 10
+
+/** One past dice roll: which die type it actually used (independent of whatever's CURRENTLY selected — switching die type never retroactively relabels history) plus its real values. */
+private data class DiceRollRecord(val sides: Int, val values: List<Int>) {
+    val total: Int get() = values.sum()
+}
+
 @Composable
 private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var diceCount by remember { mutableStateOf(2) }
@@ -206,6 +221,7 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
     // than replacing the sensible default.
     var dieSides by remember { mutableStateOf(6) }
     var lastRoll by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var rollHistory by remember { mutableStateOf<List<DiceRollRecord>>(emptyList()) }
 
     ToolCard(palette) {
         Text("Die type", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -224,7 +240,10 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
                             dieSides = sides
                             // Switching die type invalidates whatever's on screen -- a
                             // stale d6 roll sitting under a newly-picked d20 chip would
-                            // misleadingly look like it belongs to it.
+                            // misleadingly look like it belongs to it. rollHistory is
+                            // NOT cleared here -- it's a log of what actually happened,
+                            // each entry keeping its own die type label, not a "current
+                            // state for this die type" display.
                             lastRoll = emptyList()
                         }
                     }
@@ -237,7 +256,9 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
         Stepper(value = diceCount, range = 1..6, onChange = { diceCount = it }, palette = palette)
         Spacer(Modifier.height(16.dp))
         Button(onClick = {
-            lastRoll = PartyToolkitLogic.rollDice(diceCount, dieSides)
+            val values = PartyToolkitLogic.rollDice(diceCount, dieSides)
+            lastRoll = values
+            rollHistory = (listOf(DiceRollRecord(dieSides, values)) + rollHistory).take(PARTY_TOOLKIT_HISTORY_LIMIT)
             haptics(HapticSignal.NORMAL_ACTION)
         }) { Text("Roll") }
         if (lastRoll.isNotEmpty()) {
@@ -247,6 +268,19 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
             }
             Spacer(Modifier.height(8.dp))
             Text("Total: ${lastRoll.sum()}", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+        }
+        if (rollHistory.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            Text("Recent rolls", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (record in rollHistory) {
+                    Text(
+                        "d${record.sides}: ${record.values.joinToString(", ")} = ${record.total}",
+                        color = palette.textPrimary.copy(alpha = 0.75f)
+                    )
+                }
+            }
         }
     }
 }
@@ -290,6 +324,7 @@ private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -
     var lastResult by remember { mutableStateOf<Boolean?>(null) }
     var headsCount by remember { mutableStateOf(0) }
     var tailsCount by remember { mutableStateOf(0) }
+    var flipHistory by remember { mutableStateOf<List<Boolean>>(emptyList()) }
 
     ToolCard(palette) {
         Text("Flip a coin", color = palette.textPrimary, fontWeight = FontWeight.Bold)
@@ -298,6 +333,7 @@ private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -
             val heads = PartyToolkitLogic.flipCoin()
             lastResult = heads
             if (heads) headsCount++ else tailsCount++
+            flipHistory = (listOf(heads) + flipHistory).take(PARTY_TOOLKIT_HISTORY_LIMIT)
             haptics(HapticSignal.NORMAL_ACTION)
         }) { Text("Flip") }
         lastResult?.let { heads ->
@@ -311,6 +347,36 @@ private fun CoinTossTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -
             Spacer(Modifier.height(8.dp))
             Text("Heads: $headsCount · Tails: $tailsCount", color = palette.textPrimary.copy(alpha = 0.75f))
         }
+        if (flipHistory.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            Text("Recent flips", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (heads in flipHistory) FlipHistoryBadge(heads, palette)
+            }
+        }
+    }
+}
+
+/** One small badge per past flip in [CoinTossTool]'s recent-flips row, newest first. */
+@Composable
+private fun FlipHistoryBadge(heads: Boolean, palette: PartyToolkitPalette) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(palette.chipBackground),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            if (heads) "H" else "T",
+            color = palette.textPrimary,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 

@@ -2042,7 +2042,7 @@ starter.
   extracted; there's no infrastructure blocker left, only the repetitive
   work of applying this same pattern screen by screen.
 
-### Party Toolkit Dice (`games/partytoolkit/PartyToolkitGame.kt`, `ui/PartyToolkitScreen.kt`)
+### Party Toolkit Dice and Coin Toss (`games/partytoolkit/PartyToolkitGame.kt`, `ui/PartyToolkitScreen.kt`)
 - Added a die-type picker (d4/d6/d8/d10/d12/d20 — the standard polyhedral-dice
   set, not an arbitrary or exhaustive list) to the Dice tool, closing out
   `docs/PARTY_TOOLKIT_DESIGN.md`'s own named "reasonable future addition."
@@ -2055,6 +2055,26 @@ starter.
   where it would misleadingly look like it belonged to the new type. Verified
   live on a real device: rolled a d20 (values stayed in 1–20), switched to
   d4 (stale roll correctly cleared), rolled again (values stayed in 1–4).
+- Added a bounded (last 10) recent-history list to both Dice and Coin Toss,
+  closing out the design doc's other named-but-deferred idea. **The
+  persistence question that cut was originally deferred on, resolved**:
+  in-memory only, reset when the tool is left (switching tabs and back clears
+  it) — the same "deliberately stateless-between-visits" convention these
+  tools' own `lastResult` already followed, not `PartyToolkitStore`'s real
+  cross-app-restart persistence the way Scoreboard/Life Points earn (a recent-
+  rolls list is useful mid-game-night, not useful days later the way a
+  running score total is). Each Dice history entry records its own die type
+  independently of whichever type is currently selected, so switching types
+  mid-session never retroactively relabels earlier entries — verified live by
+  rolling several d6es, switching to d20, rolling again, and confirming the
+  history correctly showed the d6 entries unchanged with the new d20 entry on
+  top. Coin Toss's own already-kept heads/tails running tally is unrelated
+  and unaffected — the flip history is an additional record of individual
+  results, not a replacement for it. Verified live on a real device end to
+  end: both histories populate correctly (newest first), Dice's mixed-type
+  history behaves exactly as designed, and switching tabs away and back
+  correctly resets both tools to a clean slate (result, tally, and history
+  all cleared).
 
 ## Design notes worth remembering
 
