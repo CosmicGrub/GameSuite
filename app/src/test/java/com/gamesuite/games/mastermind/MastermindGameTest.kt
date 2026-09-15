@@ -301,4 +301,74 @@ class MastermindGameTest {
         assertFalse(s.solved)
         assertFalse(s.outOfGuesses)
     }
+
+    /**
+     * The mirror of "repeated colors are never double-counted" above: here the SECRET has the
+     * repeat (two 1's) and the guess has only ONE occurrence of that color, in a position that's
+     * an exact match for NEITHER of the secret's two 1's -- the lower-risk over-counting
+     * direction (nothing in the guess to over-credit against), but worth its own dedicated
+     * exact-value check rather than leaving it to chance inside the random property test, the
+     * same reasoning `WordGuessGameTest`'s own mirror-case test gives for the identical class of
+     * risk in that sibling puzzle.
+     */
+    @Test
+    fun `hand-verified scoring -- a guess color with only one occurrence still scores one white peg even when the secret has two of that color`() {
+        val game = newGame()
+        game.startMatch()
+        game.state.value = game.state.value!!.copy(secret = listOf(1, 1, 2, 3))
+        game.submitGuess(listOf(0, 0, 1, 0)) // color 1 appears once, at position 2 -- not an exact match for either secret 1
+        val recorded = game.state.value!!.guesses.single()
+        assertEquals(0, recorded.blackPegs)
+        assertEquals(1, recorded.whitePegs)
+    }
+
+    /**
+     * A guess color that drastically outnumbers its own count in the secret must still only
+     * register as many total pegs (black+white combined) as the secret actually has of that
+     * color -- never more. secret=[1,2,3,4] has exactly one '1'; guess=[1,1,1,1] repeats '1' four
+     * times. A naive, non-consuming "does this guess color appear anywhere in the secret"
+     * per-position check would credit all four positions (1 black + 3 white = 4), since '1' really
+     * is "in the secret" from every position's own point of view -- the two-pass consuming
+     * algorithm must correctly cap this at exactly 1 total peg, matching the secret's true single
+     * occurrence.
+     */
+    @Test
+    fun `hand-verified scoring -- a guess color that outnumbers its secret count is capped at the secret's true occurrence count, not counted per guess position`() {
+        val game = newGame()
+        game.startMatch()
+        game.state.value = game.state.value!!.copy(secret = listOf(1, 2, 3, 4))
+        game.submitGuess(listOf(1, 1, 1, 1))
+        val recorded = game.state.value!!.guesses.single()
+        assertEquals("only position 0's exact match should count", 1, recorded.blackPegs)
+        assertEquals("the other three guessed 1's must NOT each score a white peg -- the secret only has one '1' total", 0, recorded.whitePegs)
+        assertTrue("black+white must never exceed the sequence length", recorded.blackPegs + recorded.whitePegs <= 4)
+    }
+
+    @Test
+    fun `matchOver guard blocks playAgain, the same as submitGuess`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch()
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+
+        val frozen = game.state.value
+        game.playAgain()
+        assertEquals("playAgain() after leaveSession() must be a total no-op", frozen, game.state.value)
+    }
+
+    @Test
+    fun `leaveSession is idempotent -- a second call does not re-invoke onMatchEnd or mutate state further`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch()
+        var invocations = 0
+        game.setOnMatchEnd { invocations++ }
+
+        game.leaveSession()
+        assertEquals(1, invocations)
+        val stateAfterFirstLeave = game.state.value
+
+        game.leaveSession()
+        assertEquals("a second leaveSession() must not re-invoke the listener", 1, invocations)
+        assertEquals("a second leaveSession() must not mutate state further", stateAfterFirstLeave, game.state.value)
+    }
 }
