@@ -311,6 +311,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("tower-defence")
+            },
+            "mastermind" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("mastermind")
             }
         )
     }
@@ -476,6 +484,14 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("kenken-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_mastermind_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("mastermind-daily")
                     }
                 )
             )
@@ -636,6 +652,7 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() },
                     GameEntry(stringResource(R.string.game_kakuro)) { primaryLaunch.getValue("kakuro").invoke() },
                     GameEntry(stringResource(R.string.game_kenken)) { primaryLaunch.getValue("kenken").invoke() },
+                    GameEntry(stringResource(R.string.game_mastermind)) { primaryLaunch.getValue("mastermind").invoke() },
                     GameEntry(stringResource(R.string.game_tower_defence)) { primaryLaunch.getValue("tower-defence").invoke() }
                 )
             )

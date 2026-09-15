@@ -48,6 +48,7 @@ import com.gamesuite.games.edgematch.EdgeMatchGame
 import com.gamesuite.games.hangman.HangmanGame
 import com.gamesuite.games.kakuro.KakuroGame
 import com.gamesuite.games.kenken.KenKenGame
+import com.gamesuite.games.mastermind.MastermindGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
@@ -74,6 +75,7 @@ import com.gamesuite.ui.EdgeMatchScreen
 import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.KakuroScreen
 import com.gamesuite.ui.KenKenScreen
+import com.gamesuite.ui.MastermindScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
 import com.gamesuite.ui.MancalaScreen
@@ -651,6 +653,27 @@ class MainActivity : ComponentActivity() {
                             KenKenScreen(
                                 sessionManager = sessionManager,
                                 game = kenkenGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("mastermind") {
+                            val mastermindGame = rememberActiveModule(sessionManager) { MastermindGame() }
+                            MastermindScreen(
+                                sessionManager = sessionManager,
+                                game = mastermindGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("mastermind-daily") {
+                            // Same GameModule/screen as "mastermind" -- a today's-date seed is the
+                            // only difference, so every player gets the identical secret.
+                            val mastermindGame = rememberActiveModule(sessionManager) { MastermindGame() }
+                            MastermindScreen(
+                                sessionManager = sessionManager,
+                                game = mastermindGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()

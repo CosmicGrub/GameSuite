@@ -1709,6 +1709,43 @@ point the app's Settings → Online multiplayer server address at it
       pre-tap screenshot), and a 2x2/2-color hex board was brute-force-solved via
       exhaustive rotation search, correctly reaching the finished panel with a new
       best-moves/best-time record under hex's own distinct stats key.
+- [x] 28. New game modules, Wave 3 pick 1: **Mastermind**
+      (`games/mastermind/MastermindGame.kt` + `ui/MastermindScreen.kt`,
+      `docs/NEW_GAMES_BRAINSTORM_WAVE_3.md`) — the top-recommended pick from a fresh
+      brainstorm pass once the entire prior roadmap plus the Custom Game Builder
+      effort closed out. Guess a hidden color sequence within 10 tries, using
+      black-peg (right color, right spot) / white-peg (right color, wrong spot)
+      feedback after each guess to narrow it down. **Genuinely the lowest-risk
+      generator in this whole app**: a uniformly random secret, nothing more — no
+      uniqueness question to verify at all, unlike every other puzzle here
+      (Sudoku/Nonogram/Kakuro/KenKen/Edge Match), since the player never sees a
+      pre-scrambled board the way those generators have to guarantee a
+      *guess-free* solution path for. EASY/MEDIUM/HARD scale positions AND color
+      count together (4/4, 4/6, 5/8, MEDIUM being the genre's own classic
+      configuration) — the same lever ColorFloodGame/EdgeMatchGame already use;
+      every tier keeps the genre's standard 10-guess allowance rather than scaling
+      it too. The one real piece of algorithmic care this engine needed: scoring a
+      guess without double-counting a repeated color. The standard two-pass
+      method (count exact-position matches as black pegs first, consuming those
+      positions out of both sequences entirely, THEN count the remaining color
+      multiset intersection as white pegs) is what prevents that — verified with
+      both a from-scratch independent re-derivation (a genuinely different
+      computation — full-multiset-intersection-minus-black rather than
+      remove-then-intersect — proven mathematically equivalent for every input,
+      not just spot-checked, in the test file's own KDoc) run against 150 random
+      trials across all three tiers, and several hand-worked edge cases (repeated
+      colors, an exact match, fully disjoint colors, every color right but every
+      position wrong). Best-guess-count / best-time stats keyed by tier, same
+      two-metric shape as Edge Match/Lights Out. A new input shape for this app:
+      tap color swatches to fill empty peg slots, tap a filled slot to clear it —
+      the first genuinely new input idiom since Edge Match's own tap-to-rotate.
+      14 unit tests (254 passing app-wide), full `:app:compileDebugKotlin`
+      verified, and played live on a real device end to end: filled and cleared
+      peg slots, submitted a real guess and confirmed its feedback dots, ran a
+      round all the way to "Out of guesses" and independently hand-verified the
+      revealed secret's feedback against what was shown on screen (matched
+      exactly), and confirmed HARD's own 5-position/8-color board renders without
+      layout overflow even on a tablet-width screen.
 
 ## Fixes and hardening
 

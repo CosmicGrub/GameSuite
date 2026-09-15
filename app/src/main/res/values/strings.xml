@@ -47,6 +47,7 @@
     <string name="game_nonogram_daily">Nonogram — today\'s puzzle</string>
     <string name="game_kakuro_daily">Kakuro — today\'s puzzle</string>
     <string name="game_kenken_daily">KenKen — today\'s puzzle</string>
+    <string name="game_mastermind_daily">Mastermind — today\'s secret</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -90,6 +91,7 @@
     <string name="game_nonogram">Nonogram</string>
     <string name="game_kakuro">Kakuro</string>
     <string name="game_kenken">KenKen</string>
+    <string name="game_mastermind">Mastermind</string>
     <string name="game_tower_defence">Tower Defence</string>
     <string name="game_party_toolkit">Open Toolkit</string>
 </resources>
