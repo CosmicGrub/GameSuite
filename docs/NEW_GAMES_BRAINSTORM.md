@@ -421,9 +421,23 @@ phases, not part of this build order.
     (README item 27, same design doc's own Phase 2 section). A rhombus grid of
     axial-coordinate hex tiles, reachable only through Custom mode. **Still
     unstarted**: true Penrose/aperiodic tiling with a constraint-solver-backed
-    generator — remains its own explicitly deferred future phase, realistically
-    needing its own ADR before any code, same as always. The Boardgame Pal
-    toolkit's own future ideas also remain untouched.
+    generator — remains its own explicitly deferred future phase. The Boardgame
+    Pal toolkit's own future ideas also remain untouched.
+15. ~~Penrose/aperiodic tiling~~ — **retired, will not be built.** ADR complete
+    (`docs/EDGE_MATCH_PENROSE_TILING_ADR.md`): the feasibility analysis this
+    item's own deferral always called for found something the original
+    "constraint-solver-backed generator" framing got importantly wrong in both
+    directions — real Penrose tiling generation is a solved, deterministic
+    problem (no constraint solver needed at all), but the two real Penrose
+    tile-shape systems are NOT equally compatible with this app's own
+    tap-to-rotate-in-place mechanic: kite/dart tiles have no valid rotation at
+    all (ruled out), and even the workable rhombus-based system only supports
+    a 2-state (correct/flipped) rotation per tile, a real downgrade from
+    square's 4-state / hex's 6-state puzzle richness. Put to the project owner
+    directly as a 3-way fork (build it anyway / build a simpler non-aperiodic
+    rhombus stand-in instead / retire this item); **their call: retire it.**
+    **This closes out the Edge Match Custom Game Builder entirely** — square
+    (item 26) and hex (item 27) are its final scope, both shipped.
 
 **Standing process note for whatever game is picked up next**: run a background
 adversarial-review workflow against any newly-written engine before calling it done,
