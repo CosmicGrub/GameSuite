@@ -437,7 +437,15 @@ class UnoGame : GameModule {
             return
         }
         val s = state.value ?: return
-        if (s.roundOver || s.matchOver || s.awaitingColorChoice || s.awaitingChallenge || playerIndex != s.currentPlayerIndex) return
+        // s.awaitingDrawDecision guards the exact hole an audit found: without it, a player who
+        // just drew a playable card (turn stays on them, awaitingDrawDecision=true -- see this
+        // function's own KDoc) could call drawCard() again before resolving that play-or-keep
+        // decision, since none of the OTHER guard flags below change from drawing. Nothing else
+        // enforces "at most one draw per turn" -- the UI's Draw button has no separate turn-state
+        // gate of its own, and a networked DrawCard intent reaches here after only a sender-identity
+        // check in applyIntent(), not a decision-state one. keepDrawnCard() already requires this
+        // same flag to be true to proceed; drawCard() must require the opposite.
+        if (s.roundOver || s.matchOver || s.awaitingColorChoice || s.awaitingChallenge || s.awaitingDrawDecision || playerIndex != s.currentPlayerIndex) return
 
         val player = s.players[playerIndex]
         val updatedPlayers = s.players.toMutableList()

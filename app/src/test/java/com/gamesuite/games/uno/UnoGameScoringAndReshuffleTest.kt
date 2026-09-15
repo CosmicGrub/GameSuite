@@ -6,6 +6,7 @@ import com.gamesuite.core.PlayerInfo
 import com.gamesuite.transport.LocalPassAndPlayTransport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -216,5 +217,62 @@ class UnoGameScoringAndReshuffleTest {
         assertEquals("no card existed to draw, so the actor's hand must be unchanged", handSizeBefore, after.players[actor].hand.size)
         assertTrue("turn should still advance to a different player even though nothing was drawn", after.currentPlayerIndex != actor)
         assertEquals(108, totalCards())
+    }
+
+    /** Audit finding: drawCard()'s own top-level guard never checked awaitingDrawDecision, so a
+     *  player who just drew a card that turned out to be playable (turn stays on them per this
+     *  function's own KDoc, awaiting a play-or-keep decision) could call drawCard() again before
+     *  resolving that decision -- silently drawing a second, third, etc. card in the same turn.
+     *  Reachable both locally (the UI's Draw button has no turn-state gate of its own beyond
+     *  whose turn it is) and over the network (a DrawCard intent reaches drawCard() after only a
+     *  sender-identity check in applyIntent(), never a decision-state one). Fix: added
+     *  s.awaitingDrawDecision to the guard, mirroring keepDrawnCard()'s own (inverse) check of
+     *  the same flag.
+     *
+     *  This test drives real turns until a draw happens to land on a playable card -- roughly
+     *  30% of the 108-card deck (all 8 wilds plus same-color cards) is playable against any
+     *  single current color, so this reliably happens well within the iteration budget -- then
+     *  confirms a second drawCard() call for that same player is now a no-op. */
+    @Test
+    fun `drawing again while a draw decision is pending does not draw a second card`() {
+        val game = newGame(teamPlay = false)
+
+        var iterations = 0
+        while (iterations < 300) {
+            iterations++
+            val s = game.state.value!!
+            if (s.roundOver || s.matchOver) break
+            if (s.awaitingColorChoice) {
+                // Rare (only the very first discard can land here, and only if it's a non-Wild-
+                // Draw-Four Wild -- flipInitialCard() always redraws a Wild Draw Four): resolve
+                // it exactly like a real player would so the loop can keep making progress.
+                game.chooseColor(UnoColor.RED)
+                continue
+            }
+
+            val playerIndex = s.currentPlayerIndex
+            game.drawCard(playerIndex)
+            val afterDraw = game.state.value!!
+
+            if (afterDraw.awaitingDrawDecision) {
+                // Found the exact state the bug targets: playerIndex just drew a playable card
+                // and the turn is still theirs, awaiting a play-or-keep decision.
+                val handSizeBefore = afterDraw.players[playerIndex].hand.size
+
+                game.drawCard(playerIndex) // <-- the regression: must now be a no-op
+
+                val after = game.state.value!!
+                assertEquals(
+                    "a second draw must not add a card while a draw decision is still pending",
+                    handSizeBefore, after.players[playerIndex].hand.size
+                )
+                assertTrue("turn must stay on the same player", after.currentPlayerIndex == playerIndex)
+                assertTrue("still awaiting the original draw decision", after.awaitingDrawDecision)
+                return
+            }
+            // Not playable -- drawCard() already advanced the turn on its own; loop continues.
+        }
+
+        fail("test never hit a playable draw within the iteration budget -- can't confirm the fix this way")
     }
 }
