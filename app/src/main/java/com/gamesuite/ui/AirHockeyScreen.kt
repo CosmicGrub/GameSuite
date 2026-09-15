@@ -229,7 +229,13 @@ fun AirHockeyScreen(
         // quirk of a FIXED maxLife (0.75f) independent of each particle's own randomized
         // starting life — a shorter-lived particle starts already partway faded, unchanged
         // from the pre-migration behavior.
-        goalParticleBurst.particles.value = goalParticleBurst.particles.value + List(particleCount) {
+        // Replaces the list outright (not appended to whatever's still animating from a very
+        // recent prior goal) -- the pre-migration behavior this effect is meant to preserve
+        // exactly. GOAL_FREEZE_FRAMES' hit-stop (~160ms) is far shorter than a particle's own
+        // 0.5-0.75s life, so an appending version would let two closely-spaced goals visibly
+        // overlap bursts -- a real, undisclosed behavior change an independent audit caught
+        // that this migration's own commit message didn't mention.
+        goalParticleBurst.particles.value = List(particleCount) {
             val angle = Random.nextFloat() * (Math.PI.toFloat() * 2f)
             val spd = 0.35f + Random.nextFloat() * 0.5f
             BurstParticle(
