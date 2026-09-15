@@ -1458,6 +1458,83 @@ point the app's Settings → Online multiplayer server address at it
       unrelated stale-incremental-build APK crash — `NoClassDefFoundError` on
       `androidx.startup.R$string` — hit mid-session and resolved by a clean
       `:app:clean :app:assembleDebug`, not a code defect).
+- [x] 24. New game modules, wave 2 continued: **Kakuro** and **KenKen**
+      (`games/kakuro/KakuroGame.kt` + `ui/KakuroScreen.kt`, and
+      `games/kenken/KenKenGame.kt` + `ui/KenKenScreen.kt`) — the batch's own "Kakuro /
+      KenKen" entry, always one bundled roadmap pick, built together and in parallel
+      via two isolated background agents (one per game, each its own git worktree so
+      neither could collide with the other or with any other concurrent session in
+      this shared checkout) rather than sequentially.
+      **Kakuro** followed a real, already-approved `docs/KAKURO_DESIGN.md`: black
+      cells carry down/across sum clues, white cells fill 1-9 with no repeated digit
+      within a run. Procedural run-topology generation was explicitly cut as a
+      separate, much harder combinatorial problem (the same "honest MVP" call Edge
+      Match's own rotate-only decision made) — a small set of fixed, hand-authored
+      black/white templates per tier (EASY ~6x6, MEDIUM ~9x9, HARD ~12x12) with row 0
+      / column 0 always black, digit-filled fresh via `AllDifferent`-per-run
+      backtracking, verified genuinely uniquely solvable via a real backtracking
+      solver under a hard call-budget ceiling — reject-and-retry, never guessing past
+      an inconclusive result, same discipline `SudokuGame.countSolutions` established.
+      **A real empirical finding, not an assumption, caught by actually running the
+      generator rather than just compiling it**: templates authored to the doc's own
+      literal "every run ≥2 cells" rule technically validated but had a near-zero
+      real chance of ever generating a uniquely-solvable puzzle — a random
+      `AllDifferent` fill's derived sums almost never pin down that exact fill once a
+      run gets past 3-4 cells, since Kakuro's sums are a much weaker per-cell signal
+      than Sudoku's own direct given digits (`docs/KAKURO_DESIGN.md` itself is
+      revised with the full writeup). Fixed by re-authoring every shipped template so
+      every run is exactly length 2 (raising the per-attempt uniqueness rate to
+      roughly 0.2%-2%) and raising the generation-attempt ceiling to 20,000 (vs. 500
+      for Sudoku/Nonogram) to match — verified empirically, not assumed: 45 puzzles
+      (15/tier) generated and independently reverified in well under a second.
+      Select-then-act input (tap a cell, then a digit or a notes toggle) and
+      Sudoku-style mistake counting (a wrong digit is accepted, not blocked, compared
+      against the known solution, tallied as a running non-decrementing count) mirror
+      `SudokuGame` exactly, per the design doc's own call. Time-only stats
+      (`KakuroStatsStore`).
+      **KenKen** had no design doc going in — `docs/KAKURO_DESIGN.md` itself
+      explicitly flags KenKen as "NOT covered by this doc... gets its own scoping
+      pass, not an assumed clone" — so real, deliberate scope decisions were made
+      fresh and documented in the engine's own KDoc rather than copying Kakuro's
+      approach wholesale, since the two puzzles are mechanically different in ways
+      that matter for a generator: KenKen's board is a plain N×N Latin square (digit
+      1..N exactly once per row AND column, no box constraint) partitioned into
+      free-form orthogonally-connected cages (not Kakuro's straight axis-aligned
+      runs) carrying an arithmetic target (+, −, ×, ÷) with NO independent per-cage
+      AllDifferent rule — two cells in the same cage may legally repeat a digit
+      unless they also happen to share a row or column. EASY 4x4 / MEDIUM 6x6 / HARD
+      9x9, 3 hand-authored fixed cage templates per tier (same "fixed templates, not
+      procedural topology" call as Kakuro's own, for the identical reason), a
+      single-cell cage reveals its value directly (normal, common KenKen — explicitly
+      NOT the "degenerate, avoid it" case Kakuro's own doc calls length-1 runs, a
+      real distinction the engine's KDoc calls out so it's clear this was checked,
+      not missed), 3+-cell cages restricted to +/× only (a real, documented KenKen
+      convention — − and ÷ are only well-defined on an ordered pair of two values).
+      **Another real empirical finding, independently discovered the same way**: the
+      first MEDIUM/HARD cage templates (axis-aligned strips) had a 0% uniqueness rate
+      at 6x6 — an ADD/MUL clue spanning an entire row or column is a mathematical
+      no-op, since the sum/product of any permutation of 1..N is the same fixed
+      constant, so those clues added zero real information beyond the Latin-square
+      constraint itself. Fixed by redesigning every template with bent/branching
+      cages (not confined to one row/column) plus a higher proportion of single-cell
+      cages, re-verified empirically before shipping. Input/mistakes/stats/session
+      shape mirror `SudokuGame` exactly (confirmed to actually match, not just
+      assumed, by cross-checking against the real `docs/KAKURO_DESIGN.md` once both
+      games were merged together) with one genuine KenKen-specific difference: no
+      given cells at all — even a single-cell cage's answer has to be entered by the
+      player, unlike Sudoku's pre-filled givens.
+      Both engines share the same standard solo-puzzle `GameModule` shape this whole
+      batch established (`matchOver` reset in both `init()` and `startMatch()`,
+      every mutating method checks `matchOver` before the per-board `isOver`,
+      idempotent `pause()`/`resume()`), daily-seed routes (`kakuro-daily`/
+      `kenken-daily`), and independent-reimplementation uniqueness-verification tests
+      (a fresh solver written in the test file itself, never trusting the engine's
+      own solver to check itself) — 19 tests for Kakuro, 23 for KenKen. 207 unit
+      tests passing app-wide, full `:app:compileDebugKotlin` + `:app:assembleDebug`
+      verified after merging both branches together, and both played live on a real
+      device: real digit entry with correct immediate mistake-highlighting on both
+      (including confirming a single-cell KenKen cage's clue really is checked as
+      that cell's own required value), clean `logcat` throughout.
 
 ## Fixes and hardening
 

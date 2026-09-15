@@ -287,6 +287,22 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("nonogram")
+            },
+            "kakuro" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("kakuro")
+            },
+            "kenken" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("kenken")
             }
         )
     }
@@ -436,6 +452,22 @@ fun MainMenuScreen(
                             localPlayerIndex = 0
                         )
                         onNavigateToGame("nonogram-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_kakuro_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("kakuro-daily")
+                    },
+                    GameEntry(stringResource(R.string.game_kenken_daily)) {
+                        sessionManager.launchGame(
+                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                            localPlayerIndex = 0
+                        )
+                        onNavigateToGame("kenken-daily")
                     }
                 )
             )
@@ -593,7 +625,9 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
                     GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() },
                     GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() },
-                    GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() }
+                    GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() },
+                    GameEntry(stringResource(R.string.game_kakuro)) { primaryLaunch.getValue("kakuro").invoke() },
+                    GameEntry(stringResource(R.string.game_kenken)) { primaryLaunch.getValue("kenken").invoke() }
                 )
             )
 

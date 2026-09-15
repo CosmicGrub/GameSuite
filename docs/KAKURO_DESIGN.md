@@ -1,6 +1,9 @@
 # Kakuro — Design
 
-**Status:** Approved by the project owner via brainstorming, ready for an implementation plan
+**Status:** Approved by the project owner via brainstorming — implemented and shipped as
+`games/kakuro/KakuroGame.kt` + `ui/KakuroScreen.kt` (README Roadmap item 24), with one real
+finding from implementation revising this doc's own template-authoring guidance — see
+**Topology & generation**'s own update below.
 **Date:** September 2026
 **Deciders:** the project owner
 
@@ -37,6 +40,23 @@ rotate-only decision established for an analogous two-part generation problem:
   1-9 digits and no repeat past that) — both are hard constraints template authoring must respect,
   not just style guidance; templates should be authored/vetted by hand for both properties once,
   not generated.
+  **Revised during implementation, a real empirical finding, not an assumption**: "run length ≥2"
+  turned out to be a necessary but nowhere-NEAR-sufficient bound for `≥1`-attempt generation
+  success. The first templates authored to this literal rule (runs of 4-5+ cells, otherwise
+  satisfying every stated constraint) had a near-zero real-world chance of ever producing a
+  uniquely-solvable puzzle — a random `AllDifferent` fill's derived sum clues almost never pin
+  down that exact fill uniquely once a run gets that long, since there are simply too many other
+  valid digit-sets summing to the same target. Sudoku's own "carve a known-valid grid" technique
+  doesn't transfer here the way first assumed: Sudoku's given DIGITS are a direct, strong signal;
+  Kakuro's derived SUMS are a much weaker one. Diagnosed by actually running the generator (every
+  tier exhausted its attempt budget outright), not just by compiling. **Fixed by re-authoring every
+  actual shipped template so every run is length EXACTLY 2** (the tightest possible run shape,
+  not just "≥2") — empirically measured to raise the per-attempt uniqueness hit rate to roughly
+  0.2%-2% across all three tiers (compensated by raising the generation-attempt ceiling well past
+  what Sudoku/Nonogram need — see README item 24 for the exact number), rather than the
+  near-zero rate longer runs produced. The ≥2/≤9 rule above stays correct as a hard *validity*
+  constraint (every shipped template still satisfies it), it just isn't the real *generation
+  success* lever — length-exactly-2 is.
 - **Digit generation**: backtracking-fill the CHOSEN template's white cells with 1-9 per cell such
   that every run (horizontal and vertical) has no repeated digit — the same technique
   `SudokuGame.generateSolvedGrid` already uses for its own row/column/box `AllDifferent`

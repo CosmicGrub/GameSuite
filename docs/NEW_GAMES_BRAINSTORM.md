@@ -353,10 +353,18 @@ catalog or already listed above.
   the full build writeup, including a real input bug (`PointerInputChange.changedToDown()`
   reading false against this exact touch path, fixed with manual press-state tracking)
   caught and fixed during on-device verification.
-- **Kakuro / KenKen** — numeric grid puzzles in the Sudoku family (Kakuro: crossword-
-  shaped sum clues; KenKen: irregular "cage" regions with an arithmetic-target clue).
-  Lower priority than Nonogram/Sudoku — genuinely niche relative to the other picks here,
-  worth mentioning for completeness rather than near-term scheduling.
+- **Kakuro / KenKen** — ✅ **Shipped** as Kakuro (`games/kakuro/`, README item 24) and
+  KenKen (`games/kenken/`, same item 24 — always one bundled roadmap pick). Numeric grid
+  puzzles in the Sudoku family (Kakuro: crossword-shaped sum clues; KenKen: irregular
+  "cage" regions with an arithmetic-target clue), built in parallel via two isolated
+  background agents. `docs/KAKURO_DESIGN.md` (approved via brainstorming) settled
+  Kakuro's own scope in full; it explicitly does NOT cover KenKen ("gets its own scoping
+  pass, not an assumed clone"), so KenKen's real scope decisions (Latin-square + free-form
+  cages, no per-cage AllDifferent, single-cell cages are normal not degenerate) were made
+  fresh and documented in its own engine KDoc. See README item 24 for the full build
+  writeup, including two independently-discovered empirical generation findings (Kakuro's
+  run-length-2 requirement, KenKen's bent-cage requirement) neither doc anticipated ahead
+  of time.
 
 ## Cross-reference against existing scope decisions
 
@@ -381,12 +389,14 @@ games proposed above duplicate anything in the existing 13-game catalog.
    later phase — not started).
 8. ~~Party Toolkit (Boardgame Pal set)~~ — done, shipped as Party Toolkit.
 9. ~~Breakout~~ — done, shipped as Breakout.
-10. ~~Nonogram~~ — done, shipped as Nonogram. Kakuro / KenKen remain — later; genuinely
-    niche relative to the other picks in this batch, worth mentioning for completeness
-    rather than near-term scheduling.
-11. Tower Defence — own future ADR before any implementation starts; the one item here
+10. ~~Nonogram~~ — done, shipped as Nonogram.
+11. ~~Kakuro / KenKen~~ — done, shipped as both, built in parallel.
+12. Tower Defence — own future ADR before any implementation starts; the one item here
     that may not fit this app's declarative-Compose model as comfortably as everything
-    else on this list does.
+    else on this list does. (A design/ADR pass on this appears to already be underway
+    in a concurrent session as of this writing — check `docs/` for a Tower Defence
+    design doc/ADR before starting independent work here, same discipline this whole
+    batch has followed throughout.)
 
 **Standing process note for whatever game is picked up next**: run a background
 adversarial-review workflow against any newly-written engine before calling it done,

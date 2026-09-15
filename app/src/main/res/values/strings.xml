@@ -45,6 +45,8 @@
     <string name="game_color_flood_daily">Color Flood — today\'s board</string>
     <string name="game_edge_match_daily">Edge Match — today\'s puzzle</string>
     <string name="game_nonogram_daily">Nonogram — today\'s puzzle</string>
+    <string name="game_kakuro_daily">Kakuro — today\'s puzzle</string>
+    <string name="game_kenken_daily">KenKen — today\'s puzzle</string>
 
     <!-- Board games -->
     <string name="game_tictactoe_vs_cpu">Tic-Tac-Toe (vs CPU)</string>
@@ -86,5 +88,7 @@
     <string name="game_edge_match">Edge Match</string>
     <string name="game_breakout">Breakout</string>
     <string name="game_nonogram">Nonogram</string>
+    <string name="game_kakuro">Kakuro</string>
+    <string name="game_kenken">KenKen</string>
     <string name="game_party_toolkit">Open Toolkit</string>
 </resources>

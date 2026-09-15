@@ -46,6 +46,8 @@ import com.gamesuite.games.dominoes.DominoGame
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
 import com.gamesuite.games.edgematch.EdgeMatchGame
 import com.gamesuite.games.hangman.HangmanGame
+import com.gamesuite.games.kakuro.KakuroGame
+import com.gamesuite.games.kenken.KenKenGame
 import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
@@ -69,6 +71,8 @@ import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.DotsAndBoxesScreen
 import com.gamesuite.ui.EdgeMatchScreen
 import com.gamesuite.ui.HangmanScreen
+import com.gamesuite.ui.KakuroScreen
+import com.gamesuite.ui.KenKenScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
 import com.gamesuite.ui.MancalaScreen
@@ -606,6 +610,48 @@ class MainActivity : ComponentActivity() {
                                 game = breakoutGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("kakuro") {
+                            val kakuroGame = rememberActiveModule(sessionManager) { KakuroGame() }
+                            KakuroScreen(
+                                sessionManager = sessionManager,
+                                game = kakuroGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("kakuro-daily") {
+                            // Same GameModule/screen as "kakuro" -- a today's-date seed is the
+                            // only difference, so every player gets the identical puzzle.
+                            val kakuroGame = rememberActiveModule(sessionManager) { KakuroGame() }
+                            KakuroScreen(
+                                sessionManager = sessionManager,
+                                game = kakuroGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("kenken") {
+                            val kenkenGame = rememberActiveModule(sessionManager) { KenKenGame() }
+                            KenKenScreen(
+                                sessionManager = sessionManager,
+                                game = kenkenGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("kenken-daily") {
+                            // Same GameModule/screen as "kenken" -- a today's-date seed is the
+                            // only difference, so every player gets the identical puzzle.
+                            val kenkenGame = rememberActiveModule(sessionManager) { KenKenGame() }
+                            KenKenScreen(
+                                sessionManager = sessionManager,
+                                game = kenkenGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
                     }
