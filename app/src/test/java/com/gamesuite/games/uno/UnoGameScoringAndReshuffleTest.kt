@@ -9,13 +9,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Two narrowly-scoped regression tests for the two highest-priority bugs found in the UNO
- * deep audit and fixed in this same pass — NOT a general [UnoGame] test suite (the audit's
- * own finding that one doesn't exist yet is still true; the engine's turn-order, Challenge,
- * stacking, and house-rule logic remain untested by any file). This one covers exactly the
- * two fixes made here, so a future refactor can't silently reintroduce either.
+ * Narrowly-scoped regression tests for bugs found in the UNO deep audit and fixed across this
+ * and a following pass — NOT a general [UnoGame] test suite (the audit's own finding that one
+ * doesn't exist yet is still true; the engine's turn-order, Challenge, stacking, and
+ * house-rule logic remain untested by any file). These exist so a future refactor can't
+ * silently reintroduce any of the specific bugs they cover.
  *
- * Both tests drive [UnoGame] through its real public API (`playCard`/`drawCard`/
+ * All three tests drive [UnoGame] through its real public API (`playCard`/`drawCard`/
  * `keepDrawnCard`) against a [LocalPassAndPlayTransport] — the same transport
  * `SINGLE_DEVICE_PASS_AND_PLAY` uses in the real app — rather than reaching into private
  * internals, so they exercise the exact code path a real match runs.
@@ -151,5 +151,70 @@ class UnoGameScoringAndReshuffleTest {
         }
 
         assertTrue("test never actually reached a reshuffle -- loop bound needs adjusting", sawReshuffle)
+    }
+
+    /** Regression test for the crash the reshuffle test above deliberately stops short of:
+     *  drawCard()'s single-draw branch used to call drawFromPile(1).first(), which throws
+     *  NoSuchElementException once the draw pile AND the discard pile (which would otherwise
+     *  reshuffle back in) are both genuinely exhausted -- an earlier, more aggressive version
+     *  of the reshuffle test above hit this directly. Fixed by passing the turn with nothing
+     *  drawn instead of crashing -- the same "can't give what doesn't exist" outcome every
+     *  other drawFromPile() caller already tolerates silently. This test drives a real deck
+     *  all the way to that exact terminal state and confirms the game keeps working. */
+    @Test
+    fun `drawing with nothing left anywhere passes the turn instead of crashing`() {
+        val game = newGame(teamPlay = false)
+
+        fun totalCards(): Int {
+            val st = game.state.value!!
+            return st.discardPile.size + st.drawPileSize + st.players.sumOf { it.hand.size }
+        }
+
+        // Unlike the reshuffle test above, this one always KEEPS the drawn card, never plays
+        // it -- every draw permanently removes exactly one card from circulation into a hand,
+        // and the discard pile never receives a new card, so it stays at its single starting
+        // card the whole time. That makes depletion fully deterministic (no dependence on
+        // which cards happen to get drawn): the ~78-80 cards outside hands after the initial
+        // deal shrink by exactly one per draw, reliably reaching true exhaustion (draw pile
+        // empty AND the discard pile down to just that one live top card, nothing left
+        // anywhere to reshuffle) well within the iteration budget below.
+        var reachedExhaustion = false
+        var iterations = 0
+        while (iterations < 150 && !reachedExhaustion) {
+            iterations++
+            val s = game.state.value!!
+            if (s.roundOver || s.matchOver) break
+
+            val playerIndex = s.currentPlayerIndex
+            game.drawCard(playerIndex)
+            val afterDraw = game.state.value!!
+            if (afterDraw.awaitingDrawDecision) game.keepDrawnCard(playerIndex)
+            assertEquals(
+                "total card count drifted after a draw",
+                108, totalCards()
+            )
+
+            val now = game.state.value!!
+            if (now.drawPileSize == 0 && now.discardPile.size <= 1) reachedExhaustion = true
+        }
+
+        assertTrue(
+            "test never actually reached true exhaustion within the iteration budget -- can't confirm the crash fix this way",
+            reachedExhaustion
+        )
+
+        // The actual regression check: drawing again from this exact exhausted state used to
+        // throw NoSuchElementException. It must not, the actor's hand must be unchanged (there
+        // was nothing to draw), and the turn must still move on rather than getting stuck.
+        val before = game.state.value!!
+        val actor = before.currentPlayerIndex
+        val handSizeBefore = before.players[actor].hand.size
+
+        game.drawCard(actor) // <-- must not throw
+
+        val after = game.state.value!!
+        assertEquals("no card existed to draw, so the actor's hand must be unchanged", handSizeBefore, after.players[actor].hand.size)
+        assertTrue("turn should still advance to a different player even though nothing was drawn", after.currentPlayerIndex != actor)
+        assertEquals(108, totalCards())
     }
 }

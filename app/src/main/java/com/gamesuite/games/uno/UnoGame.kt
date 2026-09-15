@@ -461,7 +461,27 @@ class UnoGame : GameModule {
             return
         }
 
-        val drawn = drawFromPile(1).first()
+        val drawn = drawFromPile(1).firstOrNull()
+        if (drawn == null) {
+            // Truly nothing left to draw -- the draw pile AND the discard pile (which would
+            // otherwise reshuffle back in, see ensureDrawPile()) are both exhausted. An
+            // extremely rare state (every one of the deck's 108 cards would need to be either
+            // in a hand or the single live top-of-discard card at once), but a real one:
+            // this used to call drawFromPile(1).first(), which throws
+            // NoSuchElementException on an empty result and crashes the app. Passing the
+            // turn with nothing drawn -- the same "can't give what doesn't exist" outcome
+            // every other drawFromPile() caller already tolerates silently -- is the only
+            // sane alternative to a crash.
+            commitState(
+                s.copy(
+                    discardPile = currentDiscardPile(),
+                    currentPlayerIndex = advanceIndex(playerIndex, s.direction, s.players.size),
+                    drawPileSize = drawPile.size,
+                    lastAction = "${player.displayName} couldn't draw — no cards left"
+                )
+            )
+            return
+        }
         val newHand = player.hand + drawn
         updatedPlayers[playerIndex] = player.copy(hand = newHand, calledUno = false)
 
