@@ -91,6 +91,13 @@ class AirHockeyRustGame : GameModule {
         this.context = context
         topPaddleIsBot = context.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT
         sim.setTopPaddleIsBot(topPaddleIsBot)
+        // matchTarget's own property initializer (line below) never runs its custom setter --
+        // Kotlin property initializers assign the backing field directly, bypassing `set(value)`
+        // entirely, so `sim.setMatchTarget()` would otherwise never fire for whatever value
+        // matchTarget holds unless some caller happens to explicitly reassign it later (nothing
+        // in this app does today). Pushed explicitly here so the Rust side is never left on its
+        // own independently-hardcoded default -- found by an audit of this freshly-committed file.
+        sim.setMatchTarget(matchTarget)
         sim.init()
     }
 
@@ -143,16 +150,29 @@ class AirHockeyRustGame : GameModule {
         sim.close()
     }
 
-    /** Mirrors the score-reporting block inline in [AirHockeyGame.tick]'s `scored` branch. */
+    /**
+     * Mirrors the score-reporting block inline in [AirHockeyGame.tick]'s `scored` branch --
+     * with one deliberate improvement over a literal transliteration: uses [s]'s own
+     * `winnerIsPlayer` (computed once, correctly, inside Rust's `tick_impl` and synced via
+     * [toAirHockeyState]) rather than re-deriving `isWinner` a second time from the local
+     * [matchTarget] field. [AirHockeyGame.kt]'s original can safely recompute
+     * `playerScore >= matchTarget` inline since it's the ONE place that value lives; here,
+     * with two independently-maintained copies of match-target state (this class's own field,
+     * and Rust's `match_target`), redundantly re-deriving the same boolean a second Kotlin-side
+     * way is exactly the kind of duplication a future divergence between the two copies could
+     * silently break -- trusting the single already-synced source of truth instead removes
+     * that whole risk class, not just today's specific instance of it (see [init]'s own
+     * comment on why the two copies could drift in the first place).
+     */
     private fun fireMatchEnd() {
         val s = state.value
         val scores = mutableListOf<PlayerScore>()
         context.players.getOrNull(context.localPlayerIndex)?.let {
-            scores += PlayerScore(playerId = it.playerId, score = s.playerScore, isWinner = s.playerScore >= matchTarget)
+            scores += PlayerScore(playerId = it.playerId, score = s.playerScore, isWinner = s.winnerIsPlayer)
         }
         if (!topPaddleIsBot) {
             context.players.getOrNull(1 - context.localPlayerIndex)?.let {
-                scores += PlayerScore(playerId = it.playerId, score = s.cpuScore, isWinner = s.cpuScore >= matchTarget)
+                scores += PlayerScore(playerId = it.playerId, score = s.cpuScore, isWinner = !s.winnerIsPlayer)
             }
         }
         endMatch(GameResult(scores = scores))

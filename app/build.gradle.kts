@@ -155,22 +155,36 @@ val cargoNdkBuildAirHockeySim = tasks.register<Exec>("cargoNdkBuildAirHockeySim"
     // Rebuild only when the crate's own sources/manifests change — cargo's own
     // incremental cache (rust/target) makes a no-op invocation fast regardless,
     // but this lets Gradle skip shelling out to cargo at all when nothing moved.
+    //
+    // Cargo.lock is a real Gradle input, not just Cargo.toml/uniffi.toml -- without it, a
+    // `cargo update` that bumps a transitive dependency (touching only the lockfile, not any
+    // declared input above) would leave this task marked UP-TO-DATE on the next build,
+    // silently shipping a native .so built against stale dependency versions. Found by an
+    // audit of this freshly-committed build script.
     inputs.dir(simCrateDir.resolve("src"))
     inputs.file(simCrateDir.resolve("Cargo.toml"))
     inputs.file(simCrateDir.resolve("uniffi.toml"))
     inputs.file(rustDir.resolve("Cargo.toml"))
+    inputs.file(rustDir.resolve("Cargo.lock"))
     outputs.dir(jniLibsDir)
 
+    // Exec's own commandLine()/environment() values aren't part of Gradle's up-to-date
+    // snapshot by default -- registered explicitly as inputs.property(...) here so changing
+    // the ABI list, the platform level, or which NDK gets resolved genuinely invalidates the
+    // cache too, not just source/manifest changes. Same audit finding as Cargo.lock above.
+    val ndkHome = resolveAndroidNdkHome()
+    val cargoNdkTargets = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+    val cargoNdkPlatform = "26" // matches app/build.gradle.kts' minSdk
+    inputs.property("androidNdkHome", ndkHome)
+    inputs.property("cargoNdkTargets", cargoNdkTargets)
+    inputs.property("cargoNdkPlatform", cargoNdkPlatform)
+
     workingDir = simCrateDir
-    environment("ANDROID_NDK_HOME", resolveAndroidNdkHome())
+    environment("ANDROID_NDK_HOME", ndkHome)
     commandLine(
-        "cargo", "ndk",
-        "-t", "arm64-v8a",
-        "-t", "armeabi-v7a",
-        "-t", "x86_64",
-        "-P", "26", // matches app/build.gradle.kts' minSdk
-        "-o", jniLibsDir.absolutePath,
-        "build", "--release"
+        listOf("cargo", "ndk") +
+            cargoNdkTargets.flatMap { listOf("-t", it) } +
+            listOf("-P", cargoNdkPlatform, "-o", jniLibsDir.absolutePath, "build", "--release")
     )
 }
 
