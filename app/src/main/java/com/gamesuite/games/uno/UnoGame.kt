@@ -198,16 +198,19 @@ class UnoGame : GameModule {
             calledUno = if (newHand.size != 1) false else player.calledUno
         )
 
-        val newDiscard = s.discardPile + card
         var newColor = if (card.isWild) s.currentColor else card.color
         var newPendingDraw = s.pendingDraw
 
         // Resolve non-color-choice effects immediately; wild cards pause for color choice.
+        // Built from currentDiscardPile(), not a pre-draw snapshot -- see ensureDrawPile()'s
+        // own comment. No draw has happened yet on this branch, so currentDiscardPile() here
+        // is just s.discardPile, same as before; using it anyway keeps this in lockstep with
+        // the branch below rather than relying on two different-looking but equivalent reads.
         if (card.isWild) {
             commitState(
                 s.copy(
                     players = updatedPlayers,
-                    discardPile = newDiscard,
+                    discardPile = currentDiscardPile() + card,
                     awaitingColorChoice = true,
                     pendingDraw = if (card.rank == UnoRank.WILD_DRAW_FOUR) {
                         if (rules.stackDraw) s.pendingDraw + 4 else 4
@@ -281,7 +284,10 @@ class UnoGame : GameModule {
         commitState(
             s.copy(
                 players = updatedPlayers,
-                discardPile = newDiscard,
+                // currentDiscardPile(), not the pre-draw `s.discardPile` -- the DRAW_TWO
+                // branch above may have triggered a reshuffle via drawFromPile(2); this must
+                // observe that, not silently revert it. See ensureDrawPile()'s own comment.
+                discardPile = currentDiscardPile() + card,
                 currentColor = newColor,
                 currentPlayerIndex = nextIndex,
                 direction = direction,
@@ -386,6 +392,10 @@ class UnoGame : GameModule {
         commitState(
             s.copy(
                 players = updatedPlayers,
+                // currentDiscardPile(), not the implicit pre-draw `s.discardPile` a bare
+                // copy() would inherit -- every branch above drew via drawFromPile(), which
+                // may have reshuffled. See ensureDrawPile()'s own comment.
+                discardPile = currentDiscardPile(),
                 awaitingChallenge = false,
                 challengeVictimIndex = null,
                 challengePlayedByIndex = null,
@@ -439,6 +449,9 @@ class UnoGame : GameModule {
             commitState(
                 s.copy(
                     players = updatedPlayers,
+                    // currentDiscardPile() -- drawFromPile(s.pendingDraw) above may have
+                    // reshuffled. See ensureDrawPile()'s own comment.
+                    discardPile = currentDiscardPile(),
                     pendingDraw = 0,
                     currentPlayerIndex = nextIndex,
                     drawPileSize = drawPile.size,
@@ -465,6 +478,9 @@ class UnoGame : GameModule {
         commitState(
             s.copy(
                 players = updatedPlayers,
+                // currentDiscardPile() -- drawFromPile(1) above may have reshuffled.
+                // See ensureDrawPile()'s own comment.
+                discardPile = currentDiscardPile(),
                 currentPlayerIndex = if (advanceTurn) advanceIndex(playerIndex, s.direction, s.players.size) else playerIndex,
                 drawPileSize = drawPile.size,
                 lastAction = "${player.displayName} drew a card"
@@ -526,6 +542,9 @@ class UnoGame : GameModule {
         commitState(
             s.copy(
                 players = updated,
+                // currentDiscardPile() -- drawFromPile(2) above may have reshuffled.
+                // See ensureDrawPile()'s own comment.
+                discardPile = currentDiscardPile(),
                 drawPileSize = drawPile.size,
                 lastAction = "${s.players[accuserIndex].displayName} caught ${target.displayName} — draw 2 penalty"
             )
@@ -862,13 +881,23 @@ class UnoGame : GameModule {
         val reshuffled = s.discardPile.dropLast(1).toMutableList()
         reshuffled.shuffle()
         drawPile.addAll(reshuffled)
-        // Deliberately NOT routed through commitState: this is an intermediate mutation
-        // inside a larger operation whose caller commits the real final state itself
-        // once it's done (which — pre-existing behavior, not something this pass
-        // introduces — already doesn't preserve this exact reshuffle in every caller;
-        // out of scope for the networking retrofit to fix).
+        // This intermediate mutation happens mid-function inside every caller of
+        // drawFromPile() -- each of them captured its own `val s = state.value` BEFORE
+        // calling drawFromPile(), then finishes with commitState(s.copy(...)) built from
+        // that now-stale snapshot. Since Kotlin's copy() falls back to the RECEIVER's own
+        // field for anything not explicitly named, a caller whose final .copy(...) doesn't
+        // explicitly set `discardPile` silently inherits the pre-reshuffle discardPile --
+        // overwriting the collapse this function just performed and leaving specific card
+        // instances listed in both the (never-actually-shrinking) discard pile AND back in
+        // a player's hand. Every caller MUST read currentDiscardPile() (below), not its own
+        // locally-captured pre-draw `s.discardPile`, when building that final commit.
         state.value = s.copy(discardPile = listOf(top))
     }
+
+    /** The discard pile as of the most recent commit/reshuffle -- read this, never a
+     *  pre-draw local `s.discardPile`, when building a commitState(...) call that happens
+     *  after any drawFromPile() in the same function. See ensureDrawPile()'s own comment. */
+    private fun currentDiscardPile(): List<UnoCard> = state.value?.discardPile.orEmpty()
 
     private fun flipInitialCard(): UnoCard {
         // Redraw if the flipped card is a Wild Draw Four (official rule); otherwise keep it, even Wild.
@@ -892,6 +921,11 @@ class UnoGame : GameModule {
                 commitState(
                     s.copy(
                         players = updated,
+                        // currentDiscardPile() for consistency with every other drawFromPile()
+                        // call site -- a reshuffle is practically unreachable here (the draw
+                        // pile was just freshly dealt from in dealNewRound()), but there's no
+                        // reason for this one site to be the odd one out. See ensureDrawPile().
+                        discardPile = currentDiscardPile(),
                         currentPlayerIndex = advanceIndex(0, 1, s.players.size),
                         drawPileSize = drawPile.size
                     )
