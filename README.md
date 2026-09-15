@@ -2042,6 +2042,20 @@ starter.
   extracted; there's no infrastructure blocker left, only the repetitive
   work of applying this same pattern screen by screen.
 
+### Party Toolkit Dice (`games/partytoolkit/PartyToolkitGame.kt`, `ui/PartyToolkitScreen.kt`)
+- Added a die-type picker (d4/d6/d8/d10/d12/d20 — the standard polyhedral-dice
+  set, not an arbitrary or exhaustive list) to the Dice tool, closing out
+  `docs/PARTY_TOOLKIT_DESIGN.md`'s own named "reasonable future addition."
+  `PartyToolkitLogic.rollDice(count, sides)` already took a `sides` parameter
+  from day one (defaulting to 6) — this was purely a UI addition (a row of
+  chips above the existing roll-count stepper), zero engine change, zero new
+  risk; the existing `rollDice` test coverage already exercised exactly this
+  die-type set. Switching die type mid-tool clears the current roll rather
+  than leaving a stale result sitting under a newly-picked die-type chip,
+  where it would misleadingly look like it belonged to the new type. Verified
+  live on a real device: rolled a d20 (values stayed in 1–20), switched to
+  d4 (stale roll correctly cleared), rolled again (values stayed in 1–4).
+
 ## Design notes worth remembering
 
 - **A game never touches networking or dual-screen code directly** — only

@@ -193,18 +193,51 @@ private fun partyToolkitPalette(isDark: Boolean): PartyToolkitPalette = if (!isD
 // ---------------------------------------------------------------------------
 // Dice
 // ---------------------------------------------------------------------------
+
+/** The die-type chips offered — the standard polyhedral-dice set real board/tabletop games actually use, not an arbitrary or exhaustive list. */
+private val DICE_TYPES = listOf(4, 6, 8, 10, 12, 20)
+
 @Composable
 private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Unit) {
     var diceCount by remember { mutableStateOf(2) }
+    // d6 stays the default -- same "covers the vast majority of real board-game
+    // dice needs" reasoning docs/PARTY_TOOLKIT_DESIGN.md gave for being d6-only
+    // originally; this just ADDS the other standard types as an option rather
+    // than replacing the sensible default.
+    var dieSides by remember { mutableStateOf(6) }
     var lastRoll by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     ToolCard(palette) {
+        Text("Die type", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (sides in DICE_TYPES) {
+                DieTypeChip(
+                    sides = sides,
+                    selected = sides == dieSides,
+                    palette = palette,
+                    onClick = {
+                        if (sides != dieSides) {
+                            dieSides = sides
+                            // Switching die type invalidates whatever's on screen -- a
+                            // stale d6 roll sitting under a newly-picked d20 chip would
+                            // misleadingly look like it belongs to it.
+                            lastRoll = emptyList()
+                        }
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         Text("Roll how many dice?", color = palette.textPrimary, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Stepper(value = diceCount, range = 1..6, onChange = { diceCount = it }, palette = palette)
         Spacer(Modifier.height(16.dp))
         Button(onClick = {
-            lastRoll = PartyToolkitLogic.rollDice(diceCount)
+            lastRoll = PartyToolkitLogic.rollDice(diceCount, dieSides)
             haptics(HapticSignal.NORMAL_ACTION)
         }) { Text("Roll") }
         if (lastRoll.isNotEmpty()) {
@@ -215,6 +248,24 @@ private fun DiceTool(palette: PartyToolkitPalette, haptics: (HapticSignal) -> Un
             Spacer(Modifier.height(8.dp))
             Text("Total: ${lastRoll.sum()}", color = palette.textPrimary, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+@Composable
+private fun DieTypeChip(sides: Int, selected: Boolean, palette: PartyToolkitPalette, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) palette.accent else palette.chipBackground)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "d$sides",
+            color = if (selected) palette.textOnAccent else palette.textPrimary,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 

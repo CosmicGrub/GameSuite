@@ -70,10 +70,16 @@ Teams' own lists do not, resetting whenever the tool is revisited.
 | **First Player** | Its own player list; tap to randomly reveal one name. | In-memory only |
 | **Teams** | Its own player list; a team-count stepper; tap to randomly shuffle every player into that many groups as evenly as possible (shuffle-then-round-robin-deal, so no team differs from any other's size by more than 1). | In-memory only |
 
-Dice deliberately stays d6-only rather than adding a die-type picker (d4/d8/d10/d12/d20) — covers
-the vast majority of real board-game dice needs with a simpler, more focused UI; a
-configurable-die-type version is a reasonable future addition, not required for a correct first
-version.
+**Update (post-launch polish pass)**: Dice originally shipped d6-only, deliberately, to cover the
+vast majority of real board-game dice needs with a simpler, more focused first-version UI. A
+die-type picker (d4/d6/d8/d10/d12/d20 — the standard polyhedral-dice set, not an arbitrary or
+exhaustive list) was added afterward as exactly the "reasonable future addition" this doc's
+original cut anticipated: `PartyToolkitLogic.rollDice(count, sides)` already took a `sides`
+parameter from day one (defaulting to 6), so this was purely a UI addition — a row of chips above
+the existing roll-count stepper, defaulting to d6 — with zero engine change and zero new risk.
+Switching die type mid-tool clears the current roll rather than leaving a stale result sitting
+under a newly-selected die-type chip, where it would misleadingly look like it belonged to the new
+type.
 
 ## Persistence
 
@@ -88,7 +94,8 @@ above) name lists, worth remembering across app restarts.
 
 ## Deliberate scope cuts (honest MVP, same spirit as every other game's own documented cuts)
 
-- **Dice is d6-only** — see **The 8 tools** above.
+- ~~Dice is d6-only~~ — a die-type picker was added in a later polish pass; see **The 8 tools**
+  above for what shipped.
 - **No flip/roll history** for Coin Toss or Dice beyond the current result — a real feature some
   players might want, but adds a second piece of state (and persistence question) to two tools
   that are otherwise deliberately stateless. Left for a later pass if requested.
