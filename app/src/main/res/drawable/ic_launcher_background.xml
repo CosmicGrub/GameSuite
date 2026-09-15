@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon BACKGROUND layer (108x108dp canvas). Full-bleed solid fill —
+  the launcher mask (circle/squircle/rounded-square depending on device) crops
+  this layer itself, so it deliberately has no safe-zone content of its own,
+  per Android's adaptive-icon spec.
+
+  Color is this app's own established dark warm-chrome background token, not
+  an invented new color: #1C1712 is PartyToolkitPalette's (and every other
+  game screen sharing this batch's warm Chogan-inspired chrome tokens, e.g.
+  ConnectFourScreen's own dark palette) dark-theme `background`. See
+  PartyToolkitScreen.kt's `partyToolkitPalette(isDark = true)`.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#1C1712" />
+</vector>

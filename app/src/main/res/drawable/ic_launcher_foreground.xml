@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon FOREGROUND layer (108x108dp canvas). A single bold six-sided
+  die showing a "5" face, tilted at a jaunty angle: this app's own most
+  game-agnostic, most recurring physical object (Party Toolkit's Dice tool;
+  see PartyToolkitScreen.kt's DiceTool/DieFace) rather than any one specific
+  game's own piece, since GameSuite is a suite of 28+ unrelated games and the
+  mark needs to read as "a suite of tabletop games," not any single title.
+
+  Deliberately ONE die, not a cluster: simple geometry holds up at 48dp
+  launcher size; a multi-die cluster's pips blur together at that size.
+
+  All fills below are this app's own already-established warm Chogan-inspired
+  chrome tokens (see PartyToolkitPalette / ConnectFourScreen's light palette
+  in PartyToolkitScreen.kt / ConnectFourScreen.kt), not a new invented
+  palette:
+    - die body   #FBF1E6  (light-theme `background`)
+    - die rim    #E08D4B  (light-theme `accent`)
+    - pips       #3A2E22  (light-theme `textPrimary`)
+
+  Geometry stays inside Android's adaptive-icon safe zone (the inner ~66dp of
+  the 108dp canvas, i.e. roughly x/y 21..87) with real margin: the die's
+  rotated bounding box only reaches ~27dp from center on each axis, leaving
+  ~6dp of clearance before the 33dp safe-zone edge on every side, verified by
+  rendering an SVG equivalent of this exact path data (circle + squircle mask
+  simulation, plus 32/40/48/64px scaled renders) in a browser preview.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:name="die"
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-8">
+
+        <!-- Soft drop shadow twin, offset down-right, for a little lift/depth
+             behind the die body. Plain translucent black, not a new hue. -->
+        <path
+            android:pathData="M41,34 L73,34 A8,8 0 0 1 81,42 L81,74 A8,8 0 0 1 73,82 L41,82 A8,8 0 0 1 33,74 L33,42 A8,8 0 0 1 41,34 Z"
+            android:fillColor="#33000000" />
+
+        <!-- Die body: rounded-square, hand-authored path (M/L/A commands, no
+             icon-library glyph). -->
+        <path
+            android:pathData="M38,30 L70,30 A8,8 0 0 1 78,38 L78,70 A8,8 0 0 1 70,78 L38,78 A8,8 0 0 1 30,70 L30,38 A8,8 0 0 1 38,30 Z"
+            android:fillColor="#FBF1E6" />
+
+        <!-- Die rim: same rounded-square outline, stroked in the app's accent
+             orange for a bit of warmth/brand tie-in. -->
+        <path
+            android:pathData="M38,30 L70,30 A8,8 0 0 1 78,38 L78,70 A8,8 0 0 1 70,78 L38,78 A8,8 0 0 1 30,70 L30,38 A8,8 0 0 1 38,30 Z"
+            android:fillColor="#00000000"
+            android:strokeColor="#E08D4B"
+            android:strokeWidth="2.5" />
+
+        <!-- Five pips: classic four-corners-plus-center die face, each drawn
+             as a real circle (two 180-degree arcs), radius 4.5. -->
+        <path android:pathData="M49.5,54 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" android:fillColor="#3A2E22" />
+        <path android:pathData="M37.5,42 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" android:fillColor="#3A2E22" />
+        <path android:pathData="M61.5,42 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" android:fillColor="#3A2E22" />
+        <path android:pathData="M37.5,66 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" android:fillColor="#3A2E22" />
+        <path android:pathData="M61.5,66 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" android:fillColor="#3A2E22" />
+    </group>
+</vector>
