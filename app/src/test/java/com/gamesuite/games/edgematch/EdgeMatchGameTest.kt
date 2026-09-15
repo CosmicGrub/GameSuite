@@ -110,13 +110,22 @@ class EdgeMatchGameTest {
         }
     }
 
+    /**
+     * NOTE: this deliberately does NOT check `state.value!!.solved` -- that field defaults to
+     * `false` in [EdgeMatchState] and is only ever computed by `tapTile()`, so asserting it right
+     * after generation would be trivially true regardless of what the generator actually
+     * produced (a real, independently-caught test-coverage gap: it would pass even against a
+     * broken generator that handed back an already-matched board). The genuine check is running
+     * [isSolvedIndependently] directly against the freshly generated tiles.
+     */
     @Test
     fun `a freshly generated puzzle is never already solved`() {
         for (difficulty in CpuDifficulty.entries) {
             repeat(8) {
                 val game = newGame(difficulty)
                 game.startMatch()
-                assertFalse("difficulty=$difficulty", game.state.value!!.solved)
+                val s = game.state.value!!
+                assertFalse("difficulty=$difficulty", isSolvedIndependently(s.tiles, s.size))
             }
         }
     }
@@ -374,13 +383,15 @@ class EdgeMatchGameTest {
         assertEquals(EdgeMatchGame.MAX_COLORS, tooBig.state.value!!.colorCount)
     }
 
+    /** See the square-tier test's own KDoc above for why this checks [isSolvedIndependently] against the real tiles rather than `state.value!!.solved` (which is always `false` right after generation regardless of generator correctness). */
     @Test
     fun `a freshly generated custom puzzle is never already solved, at the size bounds`() {
         for (size in listOf(EdgeMatchGame.MIN_SIZE, EdgeMatchGame.MAX_SIZE)) {
             repeat(8) {
                 val game = newGame()
                 game.startCustomMatch(size, EdgeMatchGame.MIN_COLORS)
-                assertFalse("size=$size", game.state.value!!.solved)
+                val s = game.state.value!!
+                assertFalse("size=$size", isSolvedIndependently(s.tiles, s.size))
             }
         }
     }
@@ -488,14 +499,38 @@ class EdgeMatchGameTest {
         }
     }
 
+    /** See the square-tier "never already solved" test's own KDoc for why this checks [isHexSolvedIndependently] against the real tiles rather than `state.value!!.solved`. */
     @Test
     fun `a freshly generated hex puzzle is never already solved, at the size bounds`() {
         for (size in listOf(EdgeMatchGame.MIN_SIZE, 5, EdgeMatchGame.MAX_SIZE)) {
             repeat(8) {
                 val game = newGame()
                 game.startCustomMatch(size, EdgeMatchGame.MIN_COLORS, geometry = EdgeMatchGeometry.HEX)
-                assertFalse("size=$size", game.state.value!!.solved)
+                val s = game.state.value!!
+                assertFalse("size=$size", isHexSolvedIndependently(s.tiles, s.size))
             }
+        }
+    }
+
+    /**
+     * Hex's own equivalent of the square-board generation-hang regression test above --
+     * `generatePuzzle` is geometry-generic (the SAME two-level reject-and-reroll loop, the SAME
+     * [MAX_ROTATION_REROLLS]/[MAX_GENERATION_ATTEMPTS] bounds, dispatching to
+     * `generateSolvedHexGrid` instead of `generateSolvedGrid` only for the initial seam
+     * assignment), so the identical degenerate-all-monochrome risk at the smallest bounds applies
+     * here too -- but hex has its own genuinely different seam-assignment algorithm, so this is
+     * a real, separate regression test, not redundant with the square one. Same reasoning as that
+     * test's own KDoc: 5,000 trials for strong odds of actually rolling the degenerate case, with
+     * `@Test(timeout)` as what actually proves the fallback still works.
+     */
+    @Test(timeout = 15_000)
+    fun `generating many hex puzzles at the smallest possible custom bounds never hangs, even when seam colors could otherwise roll all-identical`() {
+        repeat(5_000) { trial ->
+            val game = newGame()
+            game.startCustomMatch(EdgeMatchGame.MIN_SIZE, EdgeMatchGame.MIN_COLORS, geometry = EdgeMatchGeometry.HEX)
+            val s = game.state.value!!
+            assertEquals("trial=$trial", EdgeMatchGame.MIN_SIZE * EdgeMatchGame.MIN_SIZE, s.tiles.size)
+            assertFalse("trial=$trial: a freshly generated hex puzzle must never already be solved", isHexSolvedIndependently(s.tiles, s.size))
         }
     }
 
@@ -516,12 +551,29 @@ class EdgeMatchGameTest {
 
     @Test
     fun `rotating every scrambled hex tile back to its own original orientation solves a real generated puzzle through the public API`() {
-        for (size in listOf(EdgeMatchGame.MIN_SIZE, 4, 7)) {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, 4, 7, EdgeMatchGame.MAX_SIZE)) {
             for (seed in 1L..5L) {
                 val game = newGame()
                 game.startCustomMatch(size, colorCount = 6, geometry = EdgeMatchGeometry.HEX, dailySeed = seed)
                 rotateEveryTileBackToItsOwnZero(game)
                 assertTrue("size=$size seed=$seed", game.state.value!!.solved)
+                assertEquals("size=$size seed=$seed", 1, game.puzzlesSolved.value)
+            }
+        }
+    }
+
+    /** The test above pins `colorCount = 6` throughout; this drives the same real
+     *  public-API solve at the color-count BOUNDS instead, so MIN_COLORS/MAX_COLORS aren't only
+     *  ever checked by the shallow "edge value is in range" structural test. */
+    @Test
+    fun `rotating every scrambled hex tile back to its own orientation solves a real generated puzzle at the color-count bounds too`() {
+        for (colorCount in listOf(EdgeMatchGame.MIN_COLORS, EdgeMatchGame.MAX_COLORS)) {
+            for (seed in 1L..5L) {
+                val game = newGame()
+                game.startCustomMatch(size = 5, colorCount = colorCount, geometry = EdgeMatchGeometry.HEX, dailySeed = seed)
+                rotateEveryTileBackToItsOwnZero(game)
+                assertTrue("colorCount=$colorCount seed=$seed", game.state.value!!.solved)
+                assertEquals("colorCount=$colorCount seed=$seed", 1, game.puzzlesSolved.value)
             }
         }
     }
@@ -560,6 +612,44 @@ class EdgeMatchGameTest {
     private val hexTile1 = EdgeMatchTile(canonicalEdges = listOf(94, 95, 96, 10, 12, 13)) // E=94(border) NE=95(border) NW=96(border) W=10 SW=12 SE=13
     private val hexTile2 = EdgeMatchTile(canonicalEdges = listOf(14, 12, 11, 97, 98, 99)) // E=14 NE=12 NW=11 W=97(border) SW=98(border) SE=99(border)
     private val hexTile3 = EdgeMatchTile(canonicalEdges = listOf(100, 101, 13, 14, 102, 103)) // E=100(border) NE=101(border) NW=13 W=14 SW=102(border) SE=103(border)
+
+    /**
+     * Switching geometry on the SAME game instance (hex -> square -> hex again) must never leave
+     * stale per-tile state from the previous geometry -- e.g. a leftover 6-edge tile or a rotation
+     * value in 4..5 (valid for hex, invalid for a 4-edge square tile) surviving into a square
+     * board. `startCustomMatch`/`startMatch` always rebuild `tiles` entirely from scratch via
+     * `generatePuzzle`, so this is expected to be safe by construction -- but nothing in the
+     * suite previously exercised the actual switch to prove it, only single-geometry sessions.
+     */
+    @Test
+    fun `switching geometry on the same game instance never leaves stale tiles from the previous geometry`() {
+        val game = newGame()
+
+        game.startCustomMatch(size = 5, colorCount = 6, geometry = EdgeMatchGeometry.HEX)
+        val hexState = game.state.value!!
+        assertEquals(EdgeMatchGeometry.HEX, hexState.geometry)
+        for (tile in hexState.tiles) {
+            assertEquals("a hex tile must have exactly 6 edges", 6, tile.canonicalEdges.size)
+            assertTrue("a hex tile's rotation must be in 0..5", tile.rotation in 0..5)
+        }
+
+        game.startCustomMatch(size = 5, colorCount = 6, geometry = EdgeMatchGeometry.SQUARE)
+        val squareState = game.state.value!!
+        assertEquals(EdgeMatchGeometry.SQUARE, squareState.geometry)
+        for (tile in squareState.tiles) {
+            assertEquals("a square tile must have exactly 4 edges, not a leftover hex one", 4, tile.canonicalEdges.size)
+            assertTrue("a square tile's rotation must be in 0..3, not a leftover hex value (4 or 5)", tile.rotation in 0..3)
+        }
+
+        // And back to hex again, to prove this isn't just "the first switch happens to be clean".
+        game.startCustomMatch(size = 5, colorCount = 6, geometry = EdgeMatchGeometry.HEX)
+        val hexAgainState = game.state.value!!
+        assertEquals(EdgeMatchGeometry.HEX, hexAgainState.geometry)
+        for (tile in hexAgainState.tiles) {
+            assertEquals(6, tile.canonicalEdges.size)
+            assertTrue(tile.rotation in 0..5)
+        }
+    }
 
     @Test
     fun `matchingDirections on a hand-built hex board reports exactly the geometrically-real neighbor directions`() {
