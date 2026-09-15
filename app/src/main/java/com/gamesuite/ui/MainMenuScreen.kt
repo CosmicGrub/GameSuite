@@ -303,6 +303,14 @@ fun MainMenuScreen(
                     localPlayerIndex = 0
                 )
                 onNavigateToGame("kenken")
+            },
+            "tower-defence" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("tower-defence")
             }
         )
     }
@@ -627,7 +635,8 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() },
                     GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() },
                     GameEntry(stringResource(R.string.game_kakuro)) { primaryLaunch.getValue("kakuro").invoke() },
-                    GameEntry(stringResource(R.string.game_kenken)) { primaryLaunch.getValue("kenken").invoke() }
+                    GameEntry(stringResource(R.string.game_kenken)) { primaryLaunch.getValue("kenken").invoke() },
+                    GameEntry(stringResource(R.string.game_tower_defence)) { primaryLaunch.getValue("tower-defence").invoke() }
                 )
             )
 

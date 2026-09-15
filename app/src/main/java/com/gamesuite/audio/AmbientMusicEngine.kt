@@ -289,6 +289,29 @@ object MusicProfiles {
      *  SFX") describes Breakout's exact identity almost word for word. Genre/energy match wins
      *  over player-count here, not the other way around. */
     val BREAKOUT = AIR_HOCKEY
+
+    /** A bespoke profile, not an alias of AIR_HOCKEY or PUZZLE_FOCUS — Tower Defence's own
+     *  identity is neither of theirs. It isn't calm turn-based reasoning (PUZZLE_FOCUS) since
+     *  waves are real-time and lives are genuinely at stake, but it also isn't AIR_HOCKEY's
+     *  fast reflex-arcade energy (its own pace is set by wave timers and economy decisions, not
+     *  split-second reaction). Minor-leaning like CHESS/CHECKERS for real stakes/tension, but a
+     *  faster chord length and a light rhythmic arpeggio (the "wave is coming" pulse) sit it
+     *  between those two families rather than copying either. */
+    val TOWER_DEFENCE = MusicProfile(
+        rootNoteHz = 138.59f, // C#3
+        scaleIntervals = NATURAL_MINOR,
+        chordProgressionDegrees = listOf(0, 3, 4, 3), // i - iv - v - iv, a rising-tension loop
+        chordDurationSeconds = 8f,
+        voiceCount = 3,
+        baseVolume = 0.12f,
+        waveformBrightness = 0.24f,
+        lowpassCutoffHz = 3800f,
+        breathingRateHz = 0.15f,
+        breathingDepth = 0.18f,
+        arpeggioEnabled = true,
+        arpeggioRateHz = 1.6f,
+        arpeggioVolume = 0.13f
+    )
 }
 
 /**

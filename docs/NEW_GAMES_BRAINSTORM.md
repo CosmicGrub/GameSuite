@@ -256,18 +256,27 @@ fold Penrose-tiling support into what's shipped. See README Roadmap item 20 for 
 build writeup (generation-by-construction rather than a solver, the select/rotate/swap
 interaction, difficulty scaling, verification).
 
-### Tower Defence — large scope, defer
+### Tower Defence — ✅ Shipped, after a real ADR settled the architecture question first
 Real-time enemy waves, pathing, tower placement/upgrades/targeting, and an economy loop
-is a different genre of build than everything else in this catalog (which is turn-based
-or simple-input-driven). It's the one item on this whole list that could plausibly want
-more than Compose's declarative-recomposition model comfortably gives for a real-time
-loop with many simultaneously-animating entities (Air Hockey's frame-stepped
-`withFrameNanos` physics is the closest existing precedent, but Tower Defence has an
-order of magnitude more moving parts — enemies, projectiles, towers, path-following —
-at once). Recommend treating this as its own future ADR-scoped decision (worth
-revisiting whether it's the one place a lighter-weight canvas/game-loop library earns
-its way in) rather than queuing it as a same-shaped `GameModule` alongside the puzzle
-games above. Not started, not scaffolded.
+was flagged here as the one item on this whole list that could plausibly want more than
+Compose's declarative-recomposition model comfortably gives for a real-time loop with
+many simultaneously-animating entities. That question was settled properly, not
+assumed, in `docs/TOWER_DEFENCE_ADR.md` (approved): direct inspection showed Air
+Hockey/Breakout already use a "one state blob, one `tick(dtSeconds)`, one `Canvas`"
+shape architecturally close to a dedicated game-loop library, and a real on-device
+stress test (100 enemies, 30 towers, 60 projectiles) measured 11.13ms average frame
+time — comfortable headroom, no new engine dependency needed. Gameplay was then scoped
+separately in `docs/TOWER_DEFENCE_DESIGN.md` (approved): fixed paths (no
+pathfinding), 3 hand-designed levels, exactly 1 upgradeable tower type, difficulty
+scales enemy stats/gold while lives stay constant, and a genuinely new-shaped real
+in-game pause (a `paused` flag `tick()` checks, distinct from every other real-time
+game's own empty no-op `pause()`/`resume()` — since think-under-pressure pausing is a
+real genre expectation here that it isn't for Air Hockey/Breakout). Shipped as
+`games/towerdefence/TowerDefenceGame.kt` + `ui/TowerDefenceScreen.kt`, README Roadmap
+item 25. See README item 25 for the full build writeup, including a real targeting bug
+(towers clustered near a spawn point kept re-targeting fresh spawns instead of the
+runner closest to leaking) caught by this engine's own test suite before it ever
+reached a device.
 
 ### Boardgame Pal's utility toolkit — architecturally distinct, recommend one bundled entry
 Dice, Coin Toss, Random Letter, Scoreboard, Life Points, Hourglass, First Player, and
@@ -391,12 +400,17 @@ games proposed above duplicate anything in the existing 13-game catalog.
 9. ~~Breakout~~ — done, shipped as Breakout.
 10. ~~Nonogram~~ — done, shipped as Nonogram.
 11. ~~Kakuro / KenKen~~ — done, shipped as both, built in parallel.
-12. Tower Defence — own future ADR before any implementation starts; the one item here
-    that may not fit this app's declarative-Compose model as comfortably as everything
-    else on this list does. (A design/ADR pass on this appears to already be underway
-    in a concurrent session as of this writing — check `docs/` for a Tower Defence
-    design doc/ADR before starting independent work here, same discipline this whole
-    batch has followed throughout.)
+12. ~~Tower Defence~~ — done, shipped as Tower Defence. The ADR this item called for
+    landed first (`docs/TOWER_DEFENCE_ADR.md`), then a separate gameplay design pass
+    (`docs/TOWER_DEFENCE_DESIGN.md`), then the implementation — same "architecture
+    decision, then design doc, then build" order this whole batch has used for every
+    entry that needed one.
+
+This closes out every item on the original new-games roadmap (Minesweeper through Tower
+Defence). What remains unstarted from this document: the generative Custom-game builder
+(including Penrose tiling) mentioned under Edge Match's own entry above, and the
+Boardgame Pal utility toolkit's own future ideas — both explicitly scoped as later
+phases, not part of this build order.
 
 **Standing process note for whatever game is picked up next**: run a background
 adversarial-review workflow against any newly-written engine before calling it done,

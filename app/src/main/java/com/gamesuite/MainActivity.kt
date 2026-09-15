@@ -56,6 +56,7 @@ import com.gamesuite.games.partytoolkit.PartyToolkitGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.sudoku.SudokuGame
+import com.gamesuite.games.towerdefence.TowerDefenceGame
 import com.gamesuite.games.uno.UnoGame
 import com.gamesuite.games.wordgames.crossword.CrosswordGame
 import com.gamesuite.games.wordgames.tiles.TileGame
@@ -92,6 +93,7 @@ import com.gamesuite.ui.SudokuScreen
 import com.gamesuite.ui.StatsScreen
 import com.gamesuite.ui.TicTacToeScreen
 import com.gamesuite.ui.TileGameScreen
+import com.gamesuite.ui.TowerDefenceScreen
 import com.gamesuite.ui.UnoHouseRulesScreen
 import com.gamesuite.ui.UnoScreen
 import com.gamesuite.ui.WordSearchScreen
@@ -652,6 +654,15 @@ class MainActivity : ComponentActivity() {
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
+                            )
+                        }
+                        composable("tower-defence") {
+                            val towerDefenceGame = rememberActiveModule(sessionManager) { TowerDefenceGame() }
+                            TowerDefenceScreen(
+                                sessionManager = sessionManager,
+                                game = towerDefenceGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
                     }

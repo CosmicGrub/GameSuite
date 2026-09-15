@@ -1535,6 +1535,80 @@ point the app's Settings → Online multiplayer server address at it
       device: real digit entry with correct immediate mistake-highlighting on both
       (including confirming a single-cell KenKen cage's clue really is checked as
       that cell's own required value), clean `logcat` throughout.
+- [x] 25. New game modules, wave 2 concluded: **Tower Defence**
+      (`games/towerdefence/TowerDefenceGame.kt` + `ui/TowerDefenceScreen.kt`) — the
+      last item on the original new-games roadmap, and the one entry in this whole
+      batch flagged from the start as needing its own dedicated architecture decision
+      before any gameplay design, since real-time enemy waves, tower
+      placement/targeting, and an economy loop are a genuinely different genre of
+      build than everything else here (turn-based or simple-input-driven).
+      **Architecture, settled first and separately (`docs/TOWER_DEFENCE_ADR.md`,
+      approved)**: direct inspection of the real code, not assumption, showed
+      `AirHockeyGame`/`BreakoutGame` already use a "one state blob, one
+      `tick(dtSeconds)`, one `Canvas`" shape architecturally close to a dedicated
+      canvas/game-loop library rather than Compose's naive per-entity-composable
+      pattern the brainstorm doc's own concern worried about. A temporary diagnostic
+      pilot mirroring that exact shape — deliberately stress-tested past any realistic
+      scenario (100 enemies, 30 towers each doing naive O(towers × enemies) targeting,
+      60 live projectiles) — was built, run on a real connected device, and removed
+      once measured: 11.13ms average frame time, only 0.5% of 599 frames over the
+      60fps budget. Decision: stay on Compose `Canvas` + `withFrameNanos`, no new
+      engine or game-loop dependency.
+      **Gameplay, settled second (`docs/TOWER_DEFENCE_DESIGN.md`, approved via
+      brainstorming)**: a fixed path per level (no real-time pathfinding — a
+      player-editable maze was explicitly considered and rejected as a separately-risky
+      bigger lift the ADR's own measurement didn't cover), 3 hand-designed levels (the
+      low end of the doc's own "3-5" range, an honest-MVP call), exactly 1 upgradeable
+      tower type (gold earned per kill, spent on placing or upgrading — real strategic
+      depth even at minimum variety, explicitly flagged for revisit to 3 types once
+      played), difficulty scales enemy HP/speed/count and starting gold while lives
+      stay constant across every tier (level choice is a fully separate axis from
+      difficulty, since these are fixed maps, not procedurally-sized boards),
+      furthest-wave-reached stats tracked per (level, difficulty) — the same "arcade
+      high score" shape `BreakoutStatsStore` established, adapted from points to
+      waves — and a genuinely new-shaped real in-game **Pause**: a `paused` flag
+      `tick()` checks and returns early on, distinct from every other real-time game's
+      own empty no-op `pause()`/`resume()` (Air Hockey/Breakout have no genre
+      expectation of pausing mid-play; Tower Defence's think-under-pressure pacing
+      does), deliberately NOT blocking tower placement/upgrades — reviewing the board
+      and acting on it while paused is the entire point.
+      **A real bug this engine's own test suite caught before it ever reached a
+      device**: an early "overwhelming defense should never lose a life" test failed
+      with lives at 13/20, not 20/20. Root cause: plain nearest-to-tower-distance
+      targeting means a cluster of towers near a level's spawn point keeps
+      re-targeting each freshly-spawned enemy (physically closest) while an older
+      runner already deep into the path walks past unmolested toward the exit — a real
+      failure mode, not a test bug. Fixed by targeting whichever in-range enemy has
+      traveled FURTHEST along the path instead ("First" in genre terms, the standard
+      Tower Defense default) — `docs/TOWER_DEFENCE_ADR.md`'s own "nearest-in-range"
+      phrase described only its throwaway stress-test pilot's targeting, not a
+      gameplay commitment.
+      `matchOver`/run-over guards built into every gameplay-mutating method from the
+      start (per the design doc's own explicit call-out, not found after the fact
+      the way every earlier engine in this batch needed).
+      **A second real bug, this time caught by a background adversarial-review
+      workflow rather than hand-written tests**: a projectile's homing step toward
+      its target used an uncapped fixed magnitude (`PROJECTILE_SPEED * dt`) with no
+      `min(step, distance)` clamp. Whenever a target sat strictly between
+      `PROJECTILE_HIT_EPSILON` and that step's own magnitude away — reachable at the
+      engine's own worst-case `dt` of 0.05s — the projectile would overshoot past it
+      and land on the far side at the same offset, a period-2 orbit that could stay
+      outside the hit window far longer than one tick (a real enemy's own forward
+      movement eventually breaks the symmetry, but only after an avoidable delay —
+      confirmed via an independent Python re-simulation that also showed the
+      unclamped version genuinely diverges from a clamped one in real multi-wave
+      play, costing lives and gold). Fixed by clamping the step to
+      `min(PROJECTILE_SPEED * dt, distance)`; verified both ways — a regression test
+      reproducing the exact danger-band scenario was confirmed to FAIL against the
+      pre-fix code before being checked in passing against the fix.
+      17 new tests (224 unit tests passing app-wide), full `:app:compileDebugKotlin`
+      + `:app:assembleDebug` verified, and played live on a real device via `adb`/
+      `uiautomator` (text-based UI dumps and coordinate taps, never a screenshot of
+      the user's personal device): placing a tower deducted exactly the right gold,
+      wave 1 correctly advanced to wave 2, lives dropped from real leaks, clean
+      `logcat` throughout — reinstalled and relaunched clean again after the
+      projectile fix. This closes out every item on the original new-games roadmap
+      (Minesweeper through Tower Defence, items 14-25).
 
 ## Fixes and hardening
 

@@ -90,5 +90,6 @@
     <string name="game_nonogram">Nonogram</string>
     <string name="game_kakuro">Kakuro</string>
     <string name="game_kenken">KenKen</string>
+    <string name="game_tower_defence">Tower Defence</string>
     <string name="game_party_toolkit">Open Toolkit</string>
 </resources>
