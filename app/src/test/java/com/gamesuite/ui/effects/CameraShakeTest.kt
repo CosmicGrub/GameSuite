@@ -63,4 +63,27 @@ class CameraShakeTest {
             )
         }
     }
+
+    /** The invariant check above (non-increasing magnitude, ends at zero) would still pass if two
+     *  entries were transposed -- pin the exact per-index values too, matching UNO's own
+     *  `jitterShake` shape this pattern generalizes: a fast overshoot jolt, a smaller rebound in
+     *  the opposite direction, decaying to rest. */
+    @Test
+    fun `DEFAULT_SHAKE_STEP_PATTERN has the exact literal values UNO's own jitterShake shape uses`() {
+        assertEquals(listOf(1f, -0.7f, 0.4f, -0.2f, 0f), DEFAULT_SHAKE_STEP_PATTERN)
+    }
+
+    @Test
+    fun `cameraShakeOffsetFor applies the same formula outside the normal 0-1 shake range, without clamping`() {
+        // trigger()/CameraShake.value only ever produce shake in [0,1] in real use, but the pure
+        // function itself has no clamp -- confirm it just keeps applying the same formula rather
+        // than silently clamping or producing something inconsistent (e.g. NaN) past that range.
+        val beyondPeak = cameraShakeOffsetFor(shake = 2f, magnitudePx = 10f, frequencyX = 47f, frequencyY = 39f)
+        assertEquals(10f * 2f * sin(2f * 47f), beyondPeak.x, 1e-4f)
+        assertEquals(10f * 2f * cos(2f * 39f), beyondPeak.y, 1e-4f)
+
+        val negative = cameraShakeOffsetFor(shake = -0.5f, magnitudePx = 10f, frequencyX = 47f, frequencyY = 39f)
+        assertEquals(10f * -0.5f * sin(-0.5f * 47f), negative.x, 1e-4f)
+        assertEquals(10f * -0.5f * cos(-0.5f * 39f), negative.y, 1e-4f)
+    }
 }

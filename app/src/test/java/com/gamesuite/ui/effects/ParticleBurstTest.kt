@@ -76,6 +76,32 @@ class ParticleBurstTest {
         assertEquals(before.life - 0.1f, after.life, 1e-5f)
     }
 
+    /** The single-tick test above pins gravity/velocity/position integration for exactly one
+     *  call; a bug that only manifests through ACCUMULATION (e.g. re-reading the pre-tick
+     *  velocity instead of the post-gravity one on a later tick, or an off-by-one in which tick's
+     *  velocity a position integrates from) wouldn't necessarily show up in just one call. This
+     *  pins the exact position/velocity/life after three successive ticks by hand. */
+    @Test
+    fun `tick accumulates gravity, velocity, and position correctly across multiple successive calls`() {
+        val burst = ParticleBurst(random = Random(1))
+        burst.spawn(
+            origin = Offset(0f, 0f), count = 1, colors = listOf(Color.White),
+            speedRange = 0.5f..0.5f, lifeRangeSeconds = 10f..10f, gravity = 2f,
+            angleRangeRadians = 0f..0f // angle 0 -> vel = (speed, 0)
+        )
+
+        burst.tick(0.1f) // vel.y = 0 + 2*0.1 = 0.2; pos = (0.05, 0.02)
+        burst.tick(0.1f) // vel.y = 0.2 + 2*0.1 = 0.4; pos = (0.10, 0.02 + 0.04) = (0.10, 0.06)
+        burst.tick(0.1f) // vel.y = 0.4 + 2*0.1 = 0.6; pos = (0.15, 0.06 + 0.06) = (0.15, 0.12)
+
+        val after = burst.particles.value.single()
+        assertEquals("vel.x is never touched by gravity", 0.5f, after.vel.x, 1e-5f)
+        assertEquals(0.6f, after.vel.y, 1e-5f)
+        assertEquals(0.15f, after.pos.x, 1e-5f)
+        assertEquals(0.12f, after.pos.y, 1e-5f)
+        assertEquals(10f - 0.3f, after.life, 1e-5f)
+    }
+
     @Test
     fun `tick removes a particle exactly when its life reaches zero, not one frame early or late`() {
         val burst = ParticleBurst()
