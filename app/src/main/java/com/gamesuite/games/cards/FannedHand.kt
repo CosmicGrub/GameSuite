@@ -41,7 +41,10 @@ import kotlinx.coroutines.delay
  * plain tap (short drag / no drag) also invoking onPlay, so it stays usable
  * without a deliberate drag.
  *
- * enabled=false (not this player's turn) disables both drag and tap.
+ * enabled=false (not this player's turn) disables both drag and tap for
+ * every card, EXCEPT any item [alsoEnabledFor] returns true for — see that
+ * parameter's own KDoc (UNO's jump-in house rule is the first, and so far
+ * only, consumer of this).
  *
  * [descriptionOf], when supplied, gives each rendered card a screen-reader
  * contentDescription (e.g. "Red Seven") at the render call site — optional and
@@ -83,7 +86,17 @@ fun <T> FannedHand(
     // the card already renders there). null (default) means no entrance ever
     // plays, so every existing caller is unaffected. See UnoScreen.kt for the
     // first consumer (initial deal / new round).
-    dealTrigger: Any? = null
+    dealTrigger: Any? = null,
+    // Per-card exception to the blanket `enabled` gate — null (default) means no exception,
+    // exactly today's all-or-nothing behavior for every existing/future caller that doesn't
+    // supply one. UNO's jump-in house rule needs exactly this shape: normally only the current
+    // player's hand is interactive at all, but jump-in specifically lets ANY player act
+    // out-of-turn with the one card that's an exact match of the pile's top card, while every
+    // other card in every other hand (including their own non-matching cards) stays inert. Kept
+    // as a targeted addition rather than widening `enabled` itself to a per-item predicate, since
+    // every other existing behavior (drag physics, deal-in, hover cursor) should keep reading one
+    // simple boolean rather than re-deriving it per item.
+    alsoEnabledFor: ((T) -> Boolean)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     // Settings -> Accessibility -> Reduced Motion (see settings/LocalReducedMotion.kt) — the
@@ -129,6 +142,11 @@ fun <T> FannedHand(
                 val centerOffset = index - (items.size - 1) / 2f
                 val rotationDeg = centerOffset * 4f
                 val liftForArc = -(centerOffset.absoluteValue) * 3f
+                // See alsoEnabledFor's own KDoc above -- every other line below that reads
+                // `enabled` for interactivity purposes now reads this instead, so an exception
+                // card behaves exactly as if the WHOLE hand were enabled, without weakening the
+                // blanket gate for every other, non-exempt card in this same hand.
+                val itemEnabled = enabled || alsoEnabledFor?.invoke(item) == true
 
                 var dragOffsetY by remember(idOf(item)) { mutableFloatStateOf(0f) }
                 var isDragging by remember(idOf(item)) { mutableStateOf(false) }
@@ -176,14 +194,15 @@ fun <T> FannedHand(
                         .onGloballyPositioned { cardRootPosition = it.positionInRoot() }
                         // Mouse/trackpad hover cursor (Tab S9 DeX windowed mode / keyboard-cover
                         // scenario, doc section 4c) -- a hand cursor over each card that is
-                        // actually this player's own, playable card, matching the same `enabled`
-                        // gate the drag/tap gestures below already use so a card that can't
-                        // currently be played (not this player's turn) doesn't falsely invite a
-                        // click. Purely additive: has zero effect on touch/stylus-without-hover
-                        // input, so it can't regress existing tap/drag play on any device.
-                        .then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier)
-                        .pointerInput(enabled, idOf(item)) {
-                            if (!enabled) return@pointerInput
+                        // actually this player's own, playable card, matching the same
+                        // `itemEnabled` gate the drag/tap gestures below already use so a card
+                        // that can't currently be played (not this player's turn, and not a
+                        // jump-in exception) doesn't falsely invite a click. Purely additive: has
+                        // zero effect on touch/stylus-without-hover input, so it can't regress
+                        // existing tap/drag play on any device.
+                        .then(if (itemEnabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier)
+                        .pointerInput(itemEnabled, idOf(item)) {
+                            if (!itemEnabled) return@pointerInput
                             detectDragGestures(
                                 onDragStart = { isDragging = true },
                                 onDrag = { change, dragAmount ->
@@ -216,7 +235,7 @@ fun <T> FannedHand(
                         rotationDeg = rotationDeg,
                         width = scaledCardWidth,
                         height = scaledCardHeight,
-                        onTap = if (enabled) { { play() } } else null,
+                        onTap = if (itemEnabled) { { play() } } else null,
                         description = descriptionOf?.invoke(item)
                     )
                 }

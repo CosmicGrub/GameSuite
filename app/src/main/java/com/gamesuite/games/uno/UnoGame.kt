@@ -506,7 +506,10 @@ class UnoGame : GameModule {
         commitState(s.copy(players = updated, lastAction = "${updated[playerIndex].displayName} called UNO!"))
     }
 
-    /** Any player may catch another who has 1 card and never called UNO — penalty: draw 2. */
+    /** Any player may catch another who has 1 card and never called UNO — penalty: draw 2.
+     *  Official rule: this is only enforceable before the next player in turn order begins their
+     *  own turn, not indefinitely — see [UnoPlayerState.catchWindowClosesAfterPlayerIndex]'s own
+     *  KDoc for how that window is tracked and closed. */
     fun catchUnoFailure(accuserIndex: Int, targetIndex: Int) {
         if (isNetworked && !isHost) {
             sendIntent(UnoIntentPayload.CatchUnoFailure(accuserIndex, targetIndex))
@@ -516,6 +519,7 @@ class UnoGame : GameModule {
         if (accuserIndex == targetIndex) return
         val target = s.players[targetIndex]
         if (target.hand.size != 1 || target.calledUno) return
+        if (target.catchWindowClosesAfterPlayerIndex != s.currentPlayerIndex) return
 
         val updated = s.players.toMutableList()
         updated[targetIndex] = target.copy(hand = target.hand + drawFromPile(2), calledUno = false)
@@ -586,12 +590,52 @@ class UnoGame : GameModule {
      *  single-draw branch gets it reset for free without needing to remember to do so
      *  on every individual `s.copy(...)` call site. */
     private fun commitState(newState: UnoState, awaitingDrawDecision: Boolean = false) {
-        val finalState = newState.copy(awaitingDrawDecision = awaitingDrawDecision)
+        val finalState = applyCatchWindowBookkeeping(newState.copy(awaitingDrawDecision = awaitingDrawDecision))
         state.value = finalState
         if (isNetworked && isHost) {
             stateVersion++
             broadcastState(finalState, toPlayerId = null)
         }
+    }
+
+    /** Stamps/clears [UnoPlayerState.catchWindowClosesAfterPlayerIndex] on every commit, purely
+     *  as a function of the final state's own shape — deliberately not special-cased per calling
+     *  branch (playCard/jumpIn/chooseColor/resolveChallenge all funnel through the one
+     *  [commitState] this runs inside of), so a hand reaching one card via ANY path (a normal
+     *  play, a jump-in, a 7-0 swap/rotate landing someone else at one card) gets the exact same
+     *  correct treatment for free.
+     *
+     *  Deliberately skipped entirely while [UnoState.awaitingColorChoice] or
+     *  [UnoState.awaitingChallenge] is true: a Wild/Wild Draw Four's own color pick (and, for a
+     *  non-stacked Wild Draw Four, the challenge decision after it) can take one or two more
+     *  commits before [UnoState.currentPlayerIndex] reflects who ACTUALLY plays next — stamping
+     *  early would record the wrong seat as "the next player" and let the window close too soon,
+     *  or never really open at all. The first commit that reaches a clean, fully-resolved state
+     *  is what actually stamps the deadline, whichever card/rule chain produced it.
+     *
+     *  Once stamped, a player's own window is left untouched on every later commit (the `else`
+     *  branch below) for as long as they stay at exactly one card without having called — this is
+     *  what makes the window actually EXPIRE rather than perpetually re-opening: only the very
+     *  first clean commit after they reach one card ever writes a value, so once
+     *  [UnoState.currentPlayerIndex] moves on to someone else, [catchUnoFailure]'s own equality
+     *  check on the still-stale stored value correctly starts failing. */
+    private fun applyCatchWindowBookkeeping(newState: UnoState): UnoState {
+        if (newState.awaitingColorChoice || newState.awaitingChallenge) return newState
+        var changed = false
+        val updatedPlayers = newState.players.map { p ->
+            when {
+                p.hand.size != 1 || p.calledUno -> {
+                    if (p.catchWindowClosesAfterPlayerIndex == null) p
+                    else { changed = true; p.copy(catchWindowClosesAfterPlayerIndex = null) }
+                }
+                p.catchWindowClosesAfterPlayerIndex == null -> {
+                    changed = true
+                    p.copy(catchWindowClosesAfterPlayerIndex = newState.currentPlayerIndex)
+                }
+                else -> p
+            }
+        }
+        return if (changed) newState.copy(players = updatedPlayers) else newState
     }
 
     private fun broadcastState(s: UnoState, toPlayerId: String?) {
@@ -738,7 +782,17 @@ class UnoGame : GameModule {
         val s = state.value ?: return
         val winner = s.players[playerIndex]
 
-        val roundPoints = s.players.filter { it.playerId != winner.playerId }
+        // Official team-UNO scoring awards a team only the OPPOSING team's remaining card
+        // values, never a value inflated by the winner's own partner's leftover hand — so in
+        // team play this must exclude the whole winning team (teamId match), not just the one
+        // player who happened to empty their hand first. Excluding by playerId alone (the old
+        // behavior) folded the winner's own teammate's hand into a score credited right back to
+        // that same team. Non-team games are unaffected: every player's teamId is forced to -1
+        // outside team play (see dealNewRound()), so filtering by teamId there would incorrectly
+        // exclude everyone — playerId is still the right (and only) filter when rules.teamPlay
+        // is false.
+        val roundPoints = s.players
+            .filter { if (rules.teamPlay) it.teamId != winner.teamId else it.playerId != winner.playerId }
             .sumOf { it.hand.sumOf { c -> c.scoreValue } }
 
         val newCumulative = s.cumulativeScores.toMutableMap()

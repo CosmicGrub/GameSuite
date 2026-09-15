@@ -626,16 +626,28 @@ fun UnoScreen(
                                 scale = cardScale
                             )
                             // index != myIndex: never let the human catch themselves for a self-inflicted penalty.
-                            if (index != myIndex && p.hand.size == 1 && !p.calledUno) {
+                            // catchWindowClosesAfterPlayerIndex: the audited "catch window never
+                            // closes" fix -- official rule only allows a catch before the next
+                            // player's own turn begins, not indefinitely (see that field's own
+                            // KDoc). Checked here too, not just engine-side, so the button itself
+                            // disappears the instant it would no longer do anything, rather than
+                            // sitting there as a dead tap with no feedback.
+                            if (index != myIndex && p.hand.size == 1 && !p.calledUno &&
+                                p.catchWindowClosesAfterPlayerIndex == s.currentPlayerIndex
+                            ) {
                                 TextButton(
                                     onClick = {
                                         // Check the live state at the moment of the tap, not the
-                                        // composition's captured `p` -- a bot can call UNO in the
-                                        // gap between this button rendering and being tapped, and
-                                        // the "successful Catch" haptic below should only fire for
-                                        // an actual catch.
-                                        val caught = game.state.value?.players?.getOrNull(index)
-                                            ?.let { it.hand.size == 1 && !it.calledUno } == true
+                                        // composition's captured `p` -- a bot can call UNO (or the
+                                        // window can close as the turn moves on) in the gap between
+                                        // this button rendering and being tapped, and the
+                                        // "successful Catch" haptic below should only fire for an
+                                        // actual catch.
+                                        val live = game.state.value
+                                        val caught = live?.players?.getOrNull(index)?.let {
+                                            it.hand.size == 1 && !it.calledUno &&
+                                                it.catchWindowClosesAfterPlayerIndex == live.currentPlayerIndex
+                                        } == true
                                         game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
                                         if (caught) haptics(HapticSignal.STRONG_ACTION)
                                     },
@@ -898,8 +910,23 @@ fun UnoScreen(
                     idOf = { it.instanceId },
                     visualOf = { unoCardToVisual(it) },
                     enabled = myTurn,
+                    // Jump-in (audited finding: fully engine-complete in UnoGame.jumpIn() since
+                    // the original build, but with no UI path at all, so turning the house rule
+                    // on in UnoHouseRulesScreen never actually did anything a player could act
+                    // on). Mirrors UnoGame.jumpIn()'s own guard conditions so a card only lights
+                    // up as jump-in-able when the engine would actually accept it -- an exact
+                    // color+rank match of the top card, off-turn, and not mid color-choice/
+                    // challenge (where no seat's normal input is accepted anyway).
+                    alsoEnabledFor = { card ->
+                        game.rules.jumpIn && !myTurn && !s.awaitingColorChoice && !s.awaitingChallenge &&
+                            card.color == s.topCard.color && card.rank == s.topCard.rank
+                    },
                     onPlay = { card ->
-                        game.playCard(myIndex, card)
+                        // myTurn is already known false for any card that only became tappable
+                        // via alsoEnabledFor above -- jumpIn() itself re-validates everything
+                        // (including re-checking rules.jumpIn) before touching state, so this
+                        // routing is a convenience, not the actual authority.
+                        if (myTurn) game.playCard(myIndex, card) else game.jumpIn(myIndex, card)
                         layeredPlace(sounds, scope)
                         // Haptic vocabulary via the shared Haptics.kt (see
                         // haptics/Haptics.kt) -- LIGHT_TICK for a plain number

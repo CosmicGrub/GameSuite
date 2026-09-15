@@ -12,7 +12,17 @@ data class UnoPlayerState(
     val teamId: Int,
     val hand: List<UnoCard>,
     /** Whether this player has declared "UNO" since last reaching hand size 1. Reset on draw/new card. */
-    val calledUno: Boolean = false
+    val calledUno: Boolean = false,
+    /** Non-null while this player is still catchable for a missed "UNO" call at hand size one —
+     *  official rule caps the catch window at "before the next player begins their turn," not
+     *  indefinitely (audited finding: this engine previously let anyone catch a missed call any
+     *  number of turns later, as long as the target hadn't personally drawn/played since). Set
+     *  once, the first time this player reaches hand size 1 without having called, to whichever
+     *  seat is about to act next; [UnoGame.catchUnoFailure] only succeeds while
+     *  [UnoState.currentPlayerIndex] still equals this value. Cleared the moment hand size moves
+     *  away from 1 or [calledUno] becomes true, so a fresh window can open the next time this
+     *  player reaches one card. See [UnoGame]'s own `applyCatchWindowBookkeeping`. */
+    val catchWindowClosesAfterPlayerIndex: Int? = null
 )
 
 @Serializable
