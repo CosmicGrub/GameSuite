@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -30,7 +31,9 @@ import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.edgematch.EdgeMatchGame
+import com.gamesuite.games.edgematch.EdgeMatchGeometry
 import com.gamesuite.games.edgematch.EdgeMatchRecord
+import com.gamesuite.games.edgematch.EdgeMatchState
 import com.gamesuite.games.edgematch.EdgeMatchStatsStore
 import com.gamesuite.games.edgematch.EdgeMatchTile
 import com.gamesuite.haptics.HapticSignal
@@ -39,7 +42,10 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
 import kotlinx.coroutines.delay
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Renders EdgeMatchGame's state reactively — same overall shape as
@@ -109,6 +115,7 @@ fun EdgeMatchScreen(
     var showCustomPanel by remember { mutableStateOf(false) }
     var draftSize by remember { mutableStateOf(game.customConfig?.size ?: 6) }
     var draftColors by remember { mutableStateOf(game.customConfig?.colorCount ?: 4) }
+    var draftGeometry by remember { mutableStateOf(game.customConfig?.geometry ?: EdgeMatchGeometry.SQUARE) }
 
     // Live "Time: M:SS" display -- same idiom as every other solo puzzle's own live-timer LaunchedEffect.
     var liveElapsedMillis by remember(s.size, s.moves == 0) { mutableStateOf(0L) }
@@ -158,6 +165,7 @@ fun EdgeMatchScreen(
                 game.customConfig?.let {
                     draftSize = it.size
                     draftColors = it.colorCount
+                    draftGeometry = it.geometry
                 }
                 showCustomPanel = true
             }
@@ -169,10 +177,12 @@ fun EdgeMatchScreen(
             EdgeMatchCustomPanel(
                 size = draftSize,
                 colorCount = draftColors,
+                geometry = draftGeometry,
                 onSizeChange = { draftSize = it },
                 onColorCountChange = { draftColors = it },
+                onGeometryChange = { draftGeometry = it },
                 onStart = {
-                    game.startCustomMatch(draftSize, draftColors)
+                    game.startCustomMatch(draftSize, draftColors, draftGeometry)
                     showCustomPanel = false
                 },
                 palette = palette
@@ -186,31 +196,37 @@ fun EdgeMatchScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
-                val cellSize = remember(maxWidth, maxHeight, s.size) {
-                    minOf(maxWidth / s.size, maxHeight / s.size, 76.dp).coerceAtLeast(20.dp)
-                }
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(palette.boardFrame)
-                        .padding(3.dp)
-                ) {
-                    for (row in 0 until s.size) {
-                        Row {
-                            for (col in 0 until s.size) {
-                                val index = row * s.size + col
-                                EdgeMatchTileView(
-                                    tile = s.tiles[index],
-                                    matching = game.matchingDirections(index),
-                                    tileSize = cellSize,
-                                    palette = palette,
-                                    onTap = {
-                                        game.tapTile(index)
-                                        sounds.playTap()
-                                        haptics(HapticSignal.NORMAL_ACTION)
-                                    }
-                                )
+            val onTapTile: (Int) -> Unit = { index ->
+                game.tapTile(index)
+                sounds.playTap()
+                haptics(HapticSignal.NORMAL_ACTION)
+            }
+
+            if (s.geometry == EdgeMatchGeometry.HEX) {
+                HexEdgeMatchBoard(modifier = Modifier.weight(1f, fill = false), state = s, game = game, palette = palette, onTapTile = onTapTile)
+            } else {
+                BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+                    val cellSize = remember(maxWidth, maxHeight, s.size) {
+                        minOf(maxWidth / s.size, maxHeight / s.size, 76.dp).coerceAtLeast(20.dp)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(palette.boardFrame)
+                            .padding(3.dp)
+                    ) {
+                        for (row in 0 until s.size) {
+                            Row {
+                                for (col in 0 until s.size) {
+                                    val index = row * s.size + col
+                                    EdgeMatchTileView(
+                                        tile = s.tiles[index],
+                                        matching = game.matchingDirections(index),
+                                        tileSize = cellSize,
+                                        palette = palette,
+                                        onTap = { onTapTile(index) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -351,17 +367,20 @@ private fun EdgeMatchTab(label: String, selected: Boolean, palette: EdgeMatchPal
 
 /**
  * The Custom Game Builder's config panel (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md):
- * two integer sliders (board size, color count) and a commit button. Deliberately
- * does NOT regenerate a board on every drag tick — only [onStart] (a single
- * deliberate tap, same as picking a fixed tier) actually starts a puzzle; dragging
- * the sliders only updates the live "N×N, C colors" preview text.
+ * a geometry toggle (Phase 2), two integer sliders (board size, color count), and a
+ * commit button. Deliberately does NOT regenerate a board on every drag tick — only
+ * [onStart] (a single deliberate tap, same as picking a fixed tier) actually starts
+ * a puzzle; dragging the sliders (or tapping a geometry chip) only updates the live
+ * preview text.
  */
 @Composable
 private fun EdgeMatchCustomPanel(
     size: Int,
     colorCount: Int,
+    geometry: EdgeMatchGeometry,
     onSizeChange: (Int) -> Unit,
     onColorCountChange: (Int) -> Unit,
+    onGeometryChange: (EdgeMatchGeometry) -> Unit,
     onStart: () -> Unit,
     palette: EdgeMatchPalette
 ) {
@@ -373,6 +392,14 @@ private fun EdgeMatchCustomPanel(
                 fontWeight = FontWeight.Bold,
                 color = palette.textPrimary
             )
+            Spacer(Modifier.height(12.dp))
+
+            Text("Shape", color = palette.textPrimary)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EdgeMatchTab(label = "Square", selected = geometry == EdgeMatchGeometry.SQUARE, palette = palette, onClick = { onGeometryChange(EdgeMatchGeometry.SQUARE) })
+                EdgeMatchTab(label = "Hex", selected = geometry == EdgeMatchGeometry.HEX, palette = palette, onClick = { onGeometryChange(EdgeMatchGeometry.HEX) })
+            }
             Spacer(Modifier.height(12.dp))
 
             Text("Board size: ${size}×$size", color = palette.textPrimary)
@@ -445,6 +472,107 @@ private fun EdgeMatchTileView(tile: EdgeMatchTile, matching: Set<Int>, tileSize:
                 EdgeMatchGame.BOTTOM to Path().apply { moveTo(w, h); lineTo(0f, h); lineTo(cx, cy); close() },
                 EdgeMatchGame.LEFT to Path().apply { moveTo(0f, h); lineTo(0f, 0f); lineTo(cx, cy); close() }
             )
+            for ((direction, path) in wedges) {
+                drawPath(path, color = palette.edgePatterns[tile.currentEdge(direction)])
+            }
+            for ((direction, path) in wedges) {
+                if (direction in matching) {
+                    drawPath(path, color = palette.matchGlow, style = Stroke(width = strokeWidth))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Lays out a HEX geometry board (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md, Phase 2):
+ * a rhombus grid of axial `(q, r)` hex tiles, positioned via the standard pointy-top
+ * axial->pixel formula (`x = R√3(q + r/2)`, `y = 1.5Rr`) with absolute per-tile offsets
+ * in a `Box` — a staggered hex grid doesn't fit `Row`/`Column` nesting the way an
+ * unstaggered square grid does (see [EdgeMatchTileView]'s own call site). [hexRadius]
+ * (center-to-vertex) is sized down from the available space the same way square's
+ * own `cellSize` is, capped so tiles stay comfortably tappable.
+ */
+@Composable
+private fun HexEdgeMatchBoard(modifier: Modifier = Modifier, state: EdgeMatchState, game: EdgeMatchGame, palette: EdgeMatchPalette, onTapTile: (Int) -> Unit) {
+    BoxWithConstraints(modifier = modifier) {
+        val n = state.size
+        val sqrt3 = sqrt(3f)
+        // Bounding box (in units of hexRadius) for an n x n axial rhombus of
+        // pointy-top hexagons -- see the class KDoc's formula.
+        val widthFactor = sqrt3 * (1.5f * (n - 1) + 1f)
+        val heightFactor = 1.5f * (n - 1) + 2f
+        val hexRadius = remember(maxWidth, maxHeight, n) {
+            minOf(maxWidth / widthFactor, maxHeight / heightFactor, 38.dp).coerceAtLeast(10.dp)
+        }
+        val boardWidth = hexRadius * widthFactor
+        val boardHeight = hexRadius * heightFactor
+
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(palette.boardFrame)
+                .padding(6.dp)
+        ) {
+            Box(modifier = Modifier.width(boardWidth).height(boardHeight)) {
+                for (r in 0 until n) {
+                    for (q in 0 until n) {
+                        val index = r * n + q
+                        val centerX = hexRadius * sqrt3 * (q + r / 2f) + hexRadius * sqrt3 / 2f
+                        val centerY = hexRadius * 1.5f * r + hexRadius
+                        HexEdgeMatchTileView(
+                            tile = state.tiles[index],
+                            matching = game.matchingDirections(index),
+                            radius = hexRadius,
+                            palette = palette,
+                            modifier = Modifier.offset(x = centerX - hexRadius, y = centerY - hexRadius),
+                            onTap = { onTapTile(index) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One HEX tile, drawn as 6 triangular wedges (one per [EdgeMatchGame.E]/[EdgeMatchGame.NE]/
+ * [EdgeMatchGame.NW]/[EdgeMatchGame.W]/[EdgeMatchGame.SW]/[EdgeMatchGame.SE]) meeting at its
+ * center, in a pointy-top hexagon (a vertex at top/bottom, flat sides facing E/NE/NW/W/SW/SE).
+ * Vertex `i` sits at angle `60i - 90` degrees; direction `d`'s own wedge spans from vertex
+ * `edgeIdx(d)` to vertex `edgeIdx(d) + 1`, where `edgeIdx(d) = (1 - d) mod 6` — worked out from
+ * that same vertex-angle formula so a direction's wedge always faces the SAME real-world side a
+ * neighbor laid out via [HexEdgeMatchBoard]'s own axial->pixel formula actually touches (see
+ * docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md's Rendering section). Same "wedge = one edge's color,
+ * meeting at center" idiom [EdgeMatchTileView] already uses, just 6 wedges instead of 4.
+ */
+@Composable
+private fun HexEdgeMatchTileView(tile: EdgeMatchTile, matching: Set<Int>, radius: Dp, palette: EdgeMatchPalette, modifier: Modifier = Modifier, onTap: () -> Unit) {
+    Box(
+        modifier = modifier
+            .size(radius * 2)
+            .clickable(onClick = onTap)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = this.size.width / 2f
+            val cy = this.size.height / 2f
+            // A small inset from the tile's own bounding box so adjacent hexes show a
+            // visible gap/border, the same visual role square's own 2.dp Box padding plays.
+            val r = this.size.minDimension / 2f * 0.94f
+            val strokeWidth = r * 0.08f
+
+            fun vertex(i: Int): Offset {
+                val angle = Math.toRadians(60.0 * i - 90.0)
+                return Offset(cx + r * cos(angle).toFloat(), cy + r * sin(angle).toFloat())
+            }
+
+            val directions = intArrayOf(EdgeMatchGame.E, EdgeMatchGame.NE, EdgeMatchGame.NW, EdgeMatchGame.W, EdgeMatchGame.SW, EdgeMatchGame.SE)
+            val wedges = directions.map { d ->
+                val edgeIdx = ((1 - d) % 6 + 6) % 6
+                val v1 = vertex(edgeIdx)
+                val v2 = vertex((edgeIdx + 1) % 6)
+                d to Path().apply { moveTo(v1.x, v1.y); lineTo(v2.x, v2.y); lineTo(cx, cy); close() }
+            }
             for ((direction, path) in wedges) {
                 drawPath(path, color = palette.edgePatterns[tile.currentEdge(direction)])
             }

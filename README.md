@@ -1659,6 +1659,56 @@ point the app's Settings → Online multiplayer server address at it
       second solve's finished panel correctly showed the FIRST solve's real 21-move/
       0:37 best rather than silently skipping the record or showing stale data,
       directly confirming the bug fix.
+- [x] 27. New game modules, Custom Game Builder phase 2: **Hex geometry**
+      (`games/edgematch/EdgeMatchGame.kt` + `ui/EdgeMatchScreen.kt`,
+      `docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md`) — item 2 of the 3-way fork item 26's
+      own scoping split out ("yes, go ahead with the second geometry"): a hex-grid
+      variant of the same rotate-in-place mechanic, reachable only through Custom
+      mode (the fixed EASY/MEDIUM/HARD tiers stay square-only). A geometry toggle
+      (Square/Hex) joins the existing size/color sliders in the Custom panel.
+      **Board shape**: a rhombus (parallelogram) grid using axial coordinates
+      `(q, r)`, both `0 until size` — deliberately NOT a "hexagon of hexagons"
+      overall shape, which would need a different tile count per row and break the
+      `size x size` slider semantics every other geometry shares (the same
+      honest-MVP trade as Edge Match's own rotate-vs-swap and Tower Defence's fixed
+      paths). `EdgeMatchTile` generalized from a hardcoded `% 4` to
+      `% canonicalEdges.size` (fully backward-compatible) so a hex tile's 6 edges
+      and 0..5 (60°-step) rotation work through the exact same `currentEdge`/
+      `rotatedClockwise` code square already used. Hex's generator walks every tile
+      once and, for exactly 3 of its 6 directions (one per opposite-pair), either
+      reads an already-assigned neighbor color or assigns a fresh one and mirrors
+      it into that neighbor's own opposite slot — since every direction's opposite
+      falls in the complementary 3-direction set, this single pass visits every
+      interior seam in the whole grid exactly once, the hex equivalent of square's
+      two explicit seam arrays (which don't generalize cleanly to a 6-neighbor
+      topology). Hex tiles render as true 6-sided polygons (pointy-top, 6 wedges
+      meeting at center) laid out via the standard axial->pixel formula with
+      absolute per-tile offsets in a `Box`, since a staggered hex grid doesn't fit
+      `Row`/`Column` nesting the way square's unstaggered one does. Hex custom
+      games get their own stats-key prefix (`"CUSTOM_HEX_{size}x{colorCount}"`,
+      distinct from square's `"CUSTOM_{size}x{colorCount}"`) since a hex and a
+      square board at the same size/colors are genuinely different puzzles, not
+      the same difficulty. **Verification leaned harder on independent tests than
+      usual for a hex geometry's own topology**: beyond the same
+      never-already-solved/rotation-0-always-solves/daily-seed-reproducible checks
+      square already has, a hand-built 2x2 hex board (colors chosen by hand from
+      independently-worked-out geometry, not by reusing the engine's own
+      delta-array algorithm) directly proves `matchingDirections` reports exactly
+      the geometrically-real neighbor set per tile — not just that whatever pairs
+      the engine happens to check are internally consistent with each other. Also
+      found, while wiring the engine's own generation reject-loop for its widened
+      minimum bounds, a real pre-existing ANR risk a concurrent session had
+      already fixed in the working tree by the time this phase started (a
+      two-level generation-attempt cap, since an unbounded rotation-reroll loop
+      could hang forever if a genuinely monochrome seam draw made every rotation
+      satisfy the win check) — built on top of that fix rather than duplicating
+      it. 8 new unit tests (240 passing app-wide), full `:app:compileDebugKotlin`
+      verified, and played live on a real device: a 4x4/7-color hex board render
+      confirmed the correct staggered rhombus layout and live match-highlighting,
+      a tap correctly rotated a tile by 60° (visually confirmed against the
+      pre-tap screenshot), and a 2x2/2-color hex board was brute-force-solved via
+      exhaustive rotation search, correctly reaching the finished panel with a new
+      best-moves/best-time record under hex's own distinct stats key.
 
 ## Fixes and hardening
 

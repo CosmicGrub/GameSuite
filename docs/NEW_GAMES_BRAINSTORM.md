@@ -416,11 +416,14 @@ phases, not part of this build order.
     square-grid)~~ — done, shipped (README item 26,
     `docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md`). Presented to the project owner as a
     real fork between three wildly different-cost slices of the original ask; only
-    the configurable-parameters slice was built this pass. **Still unstarted**: a
-    second tiling geometry, and true Penrose/aperiodic tiling with a
-    constraint-solver-backed generator — both remain explicitly deferred future
-    phases, same as before. The Boardgame Pal toolkit's own future ideas also remain
-    untouched.
+    the configurable-parameters slice was built this pass.
+14. ~~Edge Match Custom Game Builder, phase 2 (hex geometry)~~ — done, shipped
+    (README item 27, same design doc's own Phase 2 section). A rhombus grid of
+    axial-coordinate hex tiles, reachable only through Custom mode. **Still
+    unstarted**: true Penrose/aperiodic tiling with a constraint-solver-backed
+    generator — remains its own explicitly deferred future phase, realistically
+    needing its own ADR before any code, same as always. The Boardgame Pal
+    toolkit's own future ideas also remain untouched.
 
 **Standing process note for whatever game is picked up next**: run a background
 adversarial-review workflow against any newly-written engine before calling it done,

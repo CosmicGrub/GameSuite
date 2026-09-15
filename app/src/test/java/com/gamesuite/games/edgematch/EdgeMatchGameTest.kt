@@ -55,14 +55,39 @@ class EdgeMatchGameTest {
     private fun allTilesAtRotationZeroAreSolved(tiles: List<EdgeMatchTile>, size: Int): Boolean =
         isSolvedIndependently(tiles.map { it.copy(rotation = 0) }, size)
 
-    /** Drives a REAL generated puzzle to solved through the real public `tapTile()` API: for each tile, taps it exactly enough times to bring its rotation back to 0 (`(4 - rotation) % 4`), relying on nothing but the generator's own "rotation 0 is always a solution" guarantee. */
+    /** Drives a REAL generated puzzle to solved through the real public `tapTile()` API: for each tile, taps it exactly enough times to bring its rotation back to 0 (`(sides - rotation) % sides`, `sides` being that tile's OWN edge count -- 4 for square, 6 for hex), relying on nothing but the generator's own "rotation 0 is always a solution" guarantee. */
     private fun rotateEveryTileBackToItsOwnZero(game: EdgeMatchGame) {
         val s0 = game.state.value!!
         for (i in s0.tiles.indices) {
-            val neededTaps = (4 - s0.tiles[i].rotation) % 4
+            val sides = s0.tiles[i].canonicalEdges.size
+            val neededTaps = (sides - s0.tiles[i].rotation) % sides
             repeat(neededTaps) { game.tapTile(i) }
         }
     }
+
+    /** Independent re-derivation of the HEX win check (own axial deltas, own loop -- never calling EdgeMatchGame's own private isBoardSolved/neighborIndex), only checking each interior seam once (E/NE/NW, one per opposite pair) same as the engine's own [forwardDirectionsFor]-equivalent choice. */
+    private fun isHexSolvedIndependently(tiles: List<EdgeMatchTile>, size: Int): Boolean {
+        val deltaQ = intArrayOf(1, 1, 0) // E, NE, NW
+        val deltaR = intArrayOf(0, -1, -1)
+        for (r in 0 until size) {
+            for (q in 0 until size) {
+                val i = r * size + q
+                for (dir in 0..2) {
+                    val nq = q + deltaQ[dir]
+                    val nr = r + deltaR[dir]
+                    if (nq in 0 until size && nr in 0 until size) {
+                        val ni = nr * size + nq
+                        val opposite = (dir + 3) % 6
+                        if (tiles[i].currentEdge(dir) != tiles[ni].currentEdge(opposite)) return false
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    private fun allHexTilesAtRotationZeroAreSolved(tiles: List<EdgeMatchTile>, size: Int): Boolean =
+        isHexSolvedIndependently(tiles.map { it.copy(rotation = 0) }, size)
 
     @Test
     fun `difficulty controls grid size and color count -- EASY 4x4x4, MEDIUM 6x6x5, HARD 8x8x6`() {
@@ -434,5 +459,118 @@ class EdgeMatchGameTest {
         game.startMatch()
         assertEquals("startMatch after selectDifficultyTier must use HARD's own size, not the stale custom one", 8, game.state.value!!.size)
         assertEquals("HARD", game.statsKey())
+    }
+
+    // -------------------------------------------------------------------
+    // Custom Game Builder Phase 2: HEX geometry
+    // (docs/EDGE_MATCH_CUSTOM_BUILDER_DESIGN.md) -- same generation-
+    // correctness checks as square above, plus a hand-built board proving
+    // the axial neighbor TOPOLOGY itself is right (not just that whatever
+    // pairs the engine happens to check are internally consistent).
+    // -------------------------------------------------------------------
+
+    @Test
+    fun `startCustomMatch with HEX geometry uses the exact size and colorCount requested, with 6-edge tiles`() {
+        for ((size, colorCount) in listOf(EdgeMatchGame.MIN_SIZE to EdgeMatchGame.MIN_COLORS, 5 to 6, EdgeMatchGame.MAX_SIZE to EdgeMatchGame.MAX_COLORS)) {
+            val game = newGame()
+            game.startCustomMatch(size, colorCount, geometry = EdgeMatchGeometry.HEX)
+            val s = game.state.value!!
+            assertEquals("size=$size colors=$colorCount", EdgeMatchGeometry.HEX, s.geometry)
+            assertEquals(size, s.size)
+            assertEquals(colorCount, s.colorCount)
+            assertEquals(size * size, s.tiles.size)
+            for (tile in s.tiles) {
+                assertEquals("every hex tile must have exactly 6 edges", 6, tile.canonicalEdges.size)
+                for (edge in tile.canonicalEdges) {
+                    assertTrue("size=$size colors=$colorCount: every edge color must be in 0 until $colorCount", edge in 0 until colorCount)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a freshly generated hex puzzle is never already solved, at the size bounds`() {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, 5, EdgeMatchGame.MAX_SIZE)) {
+            repeat(8) {
+                val game = newGame()
+                game.startCustomMatch(size, EdgeMatchGame.MIN_COLORS, geometry = EdgeMatchGeometry.HEX)
+                assertFalse("size=$size", game.state.value!!.solved)
+            }
+        }
+    }
+
+    @Test
+    fun `resetting every hex tile's own rotation to 0 always solves a freshly generated hex puzzle`() {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, 5, EdgeMatchGame.MAX_SIZE)) {
+            repeat(5) { trial ->
+                val game = newGame()
+                game.startCustomMatch(size, colorCount = 6, geometry = EdgeMatchGeometry.HEX)
+                val s = game.state.value!!
+                assertTrue(
+                    "size=$size trial=$trial: the hex generator's own solved arrangement does not actually satisfy every adjacency",
+                    allHexTilesAtRotationZeroAreSolved(s.tiles, s.size)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `rotating every scrambled hex tile back to its own original orientation solves a real generated puzzle through the public API`() {
+        for (size in listOf(EdgeMatchGame.MIN_SIZE, 4, 7)) {
+            for (seed in 1L..5L) {
+                val game = newGame()
+                game.startCustomMatch(size, colorCount = 6, geometry = EdgeMatchGeometry.HEX, dailySeed = seed)
+                rotateEveryTileBackToItsOwnZero(game)
+                assertTrue("size=$size seed=$seed", game.state.value!!.solved)
+            }
+        }
+    }
+
+    @Test
+    fun `a daily seed makes a hex custom puzzle reproducible too`() {
+        val gameA = newGame()
+        gameA.startCustomMatch(size = 6, colorCount = 5, geometry = EdgeMatchGeometry.HEX, dailySeed = 77L)
+        val gameB = newGame()
+        gameB.startCustomMatch(size = 6, colorCount = 5, geometry = EdgeMatchGeometry.HEX, dailySeed = 77L)
+        assertEquals(gameA.state.value!!.tiles, gameB.state.value!!.tiles)
+    }
+
+    @Test
+    fun `statsKey uses the CUSTOM_HEX prefix for a hex custom game, distinct from square's CUSTOM prefix`() {
+        val hex = newGame()
+        hex.startCustomMatch(size = 6, colorCount = 4, geometry = EdgeMatchGeometry.HEX)
+        assertEquals("CUSTOM_HEX_6x4", hex.statsKey())
+
+        val square = newGame()
+        square.startCustomMatch(size = 6, colorCount = 4)
+        assertEquals("a square and a hex custom game at the same size/colors must NOT share a stats key", "CUSTOM_6x4", square.statsKey())
+    }
+
+    /**
+     * A hand-built 2x2 (q,r in 0..1) hex board, fully solved by construction, with every
+     * shared value chosen BY HAND from independently-worked-out geometry (see the
+     * comment above each tile) -- not by reusing the engine's own delta-array algorithm,
+     * so this actually exercises whether the real axial neighbor TOPOLOGY is right, not
+     * just whether the engine's own comparisons are internally consistent with each other.
+     * Real neighbor pairs (worked out by hand): (0,1) via E/W, (0,2) via SE/NW,
+     * (1,2) via SW/NE, (1,3) via SE/NW, (2,3) via E/W -- 5 edges total, matching the
+     * combinatorial count for a 2x2 rhombus (2 E-links + 1 NE-link + 2 NW-links).
+     */
+    private val hexTile0 = EdgeMatchTile(canonicalEdges = listOf(10, 90, 91, 92, 93, 11)) // E=10 NE=90(border) NW=91(border) W=92(border) SW=93(border) SE=11
+    private val hexTile1 = EdgeMatchTile(canonicalEdges = listOf(94, 95, 96, 10, 12, 13)) // E=94(border) NE=95(border) NW=96(border) W=10 SW=12 SE=13
+    private val hexTile2 = EdgeMatchTile(canonicalEdges = listOf(14, 12, 11, 97, 98, 99)) // E=14 NE=12 NW=11 W=97(border) SW=98(border) SE=99(border)
+    private val hexTile3 = EdgeMatchTile(canonicalEdges = listOf(100, 101, 13, 14, 102, 103)) // E=100(border) NE=101(border) NW=13 W=14 SW=102(border) SE=103(border)
+
+    @Test
+    fun `matchingDirections on a hand-built hex board reports exactly the geometrically-real neighbor directions`() {
+        val game = newGame()
+        game.startCustomMatch(size = 2, colorCount = 20, geometry = EdgeMatchGeometry.HEX)
+        val s = game.state.value!!
+        game.state.value = s.copy(tiles = listOf(hexTile0, hexTile1, hexTile2, hexTile3))
+
+        assertEquals("tile0 (corner): only E and SE are real neighbors", setOf(EdgeMatchGame.E, EdgeMatchGame.SE), game.matchingDirections(0))
+        assertEquals("tile1: W, SW, and SE are real neighbors", setOf(EdgeMatchGame.W, EdgeMatchGame.SW, EdgeMatchGame.SE), game.matchingDirections(1))
+        assertEquals("tile2: E, NE, and NW are real neighbors", setOf(EdgeMatchGame.E, EdgeMatchGame.NE, EdgeMatchGame.NW), game.matchingDirections(2))
+        assertEquals("tile3 (corner): only NW and W are real neighbors", setOf(EdgeMatchGame.NW, EdgeMatchGame.W), game.matchingDirections(3))
     }
 }

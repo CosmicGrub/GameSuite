@@ -1,6 +1,7 @@
-# Edge Match — Custom Game Builder (Phase 1) — Design
+# Edge Match — Custom Game Builder — Design
 
-**Status:** Approved by the project owner via a direct scoping choice (see below) — implemented
+**Status:** Phase 1 (configurable square grid) approved and implemented; Phase 2 (hex geometry)
+approved and implemented — see that section below for its own scoping.
 **Date:** September 2026
 **Deciders:** the project owner
 
@@ -124,3 +125,102 @@ board is on screen.
 
 Single-pass build (engine + stats store + UI + tests together) — this is a small, additive change
 to an already-shipped, already-reviewed engine, not a new module needing its own two-pass rhythm.
+
+---
+
+## Phase 2: Hex geometry
+
+**Status:** Approved by the project owner ("yes, go ahead with the second geometry", after Phase
+1's own scoping question named this as the recommended next step) — implemented.
+
+### Scope
+
+The second of the three pieces Phase 1's own Context section identified: a hex-grid variant of
+the same rotate-in-place edge-matching mechanic, reachable **only through Custom mode** — the
+fixed EASY/MEDIUM/HARD tiers stay square-grid-only, untouched. A geometry toggle (Square/Hex)
+joins the two existing sliders in the Custom panel. Same bounds apply to both geometries (size
+`2..10`, colors `2..8`) — no new reason to give hex its own range.
+
+**Everything else about the mechanic is unchanged**: tap-to-rotate in place, live match
+highlighting, solved-by-construction generation with no uniqueness search, border-facing edges
+unconstrained/cosmetic. Only the tile SHAPE and neighbor topology differ.
+
+### Board shape: rhombus, not a "hexagon of hexagons"
+
+A true hexagonal-OVERALL-shape board (the classic "big hexagon made of little hexagons") needs a
+different tile count per row — row lengths grow then shrink — which would break the simple `size
+× size` slider semantics and the flat 2D array every other geometry in this app uses. Instead:
+a **rhombus (parallelogram) grid using axial coordinates** `(q, r)`, both ranging over `0 until
+size` — exactly `size × size` tiles, same as square, same flat row-major array, same slider
+meaning. This is the same "honest MVP" trade Edge Match's own rotate-vs-swap and Tower Defence's
+fixed-paths cuts made: the visually "cleaner" hexagonal overall shape is real, avoidable
+complexity that buys nothing for the puzzle's actual difficulty or fairness.
+
+### Tile shape and rotation
+
+A hex tile has **6 edges** (not 4), so `EdgeMatchTile` was generalized from a hardcoded `% 4` to
+`% canonicalEdges.size` throughout (`currentEdge`/`rotatedClockwise`) — a fully backward-compatible
+change, since a 4-edge square tile's own modulus is still 4. `rotation` for a hex tile ranges
+`0..5` (60° steps) instead of `0..3` (90° steps); `tapTile()` and the move-counting logic are
+completely unchanged, since they only ever call `rotatedClockwise()` and never hardcode "4."
+
+### Neighbor topology
+
+Axial-coordinate hexes have 6 neighbors at fixed offsets, named here to match compass-ish
+intuition (not geographic accuracy): `E=(+1,0)`, `NE=(+1,-1)`, `NW=(0,-1)`, `W=(-1,0)`,
+`SW=(-1,+1)`, `SE=(0,+1)` — indices 0-5 in that order. Each direction's opposite is `(d+3) % 6`
+(E↔W, NE↔SW, NW↔SE) — the same "opposite pairs are half a turn apart" shape square's TOP↔BOTTOM/
+RIGHT↔LEFT (`(d+2) % 4`) already has, just for a hexagon's 3 opposite pairs instead of a square's
+2. A neighbor is only real if both its `q` and `r` land inside `0 until size` — exactly the same
+bounds check as square's row/col, just against 2 coordinates instead of row-only or col-only.
+
+### Generation: one seam-assignment pass, not two arrays
+
+Square's generator uses two explicit seam arrays (`horizontalSeam`/`verticalSeam`) because a
+square tile's 4 neighbors split cleanly into "the one above" and "the one to the left" when
+walking row-major. A hex tile's 6 neighbors don't split as cleanly, so the generator instead walks
+every tile once and, for exactly 3 of its 6 directions (`E`/`NE`/`NW` — one from each opposite
+pair), either reads that neighbor's already-assigned color or assigns a fresh one and mirrors it
+into the neighbor's own opposite-direction slot. Because every direction's opposite is in the
+complementary 3-direction set (`W`/`SW`/`SE`), this single pass — walking only `E`/`NE`/`NW` per
+tile — visits every interior seam in the whole grid exactly once, from exactly one side, with the
+other side's slot filled in as a side effect. A final pass fills any slot still empty after that
+(a tile with no real neighbor in that direction) with an independent random color, exactly like
+square's own border-edge fill. Verified in tests the same way square's generator is: an
+independent, from-scratch re-derivation of "is every tile's rotation-0 arrangement actually
+solved," never trusting the engine's own solved-check to grade itself.
+
+### Rendering
+
+Hex tiles render as true 6-sided polygons (pointy-top orientation — vertex at top/bottom, flat
+sides facing E/NE/NW/W/SW/SE), each split into 6 triangular wedges from center to each edge's pair
+of corners, the same "wedge = one edge's color, meeting at center" idiom the square tile view
+already uses, just with 6 wedges instead of 4. Board layout uses the standard axial→pixel
+formula (`x = size × √3 × (q + r/2)`, `y = size × 1.5 × r`) positioned via absolute per-tile
+offsets in a `Box`, rather than square's `Row`/`Column` nesting — a staggered hex grid doesn't fit
+a simple row/column layout the way an unstaggered square one does. The existing 8-color
+`edgePatterns` palette (already widened for Phase 1's `MAX_COLORS = 8`) is reused as-is; no new
+colors needed since the ceiling didn't change.
+
+### Stats
+
+Hex custom games get their own key prefix, `"CUSTOM_HEX_{size}x{colorCount}"`, distinct from
+square custom's existing `"CUSTOM_{size}x{colorCount}"` — a 6×5 hex board and a 6×5 square board
+are genuinely different puzzles (different neighbor count, different generation), so sharing one
+key would silently blend two unrelated difficulty curves into one "best." This keeps every
+existing key (`"EASY"`/`"MEDIUM"`/`"HARD"`/`"CUSTOM_{size}x{colorCount}"`) working exactly as
+before — purely additive, same as Phase 1's own stats generalization was relative to the original
+tier-only version.
+
+### Deliberate scope cuts
+
+- **Hex is Custom-only** — no EASY/MEDIUM/HARD hex tiers. The fixed tiers exist to hand a new
+  player a zero-decision default; a second geometry is an opt-in exploration, not a new default
+  path, so it lives entirely behind the same slider panel that already gates every other
+  non-default choice.
+- **No hex daily-challenge route** — daily challenges pin one deterministic seed per game per day
+  app-wide; Custom mode (both geometries) already has no daily route of its own from Phase 1, and
+  hex doesn't reopen that.
+- **Still no third geometry, still no Penrose tiling** — this phase closes out item 2 of Phase 1's
+  three-way fork; item 3 (true aperiodic tiling, its own ADR) remains exactly as deferred as
+  before.
