@@ -318,4 +318,124 @@ class WordGuessGameTest {
         assertFalse(s.solved)
         assertFalse(s.outOfGuesses)
     }
+
+    /**
+     * The single most double-counting-prone shape of all: the secret has exactly ONE occurrence
+     * of a letter, and the guess repeats that same letter at TWO positions, NEITHER of which is
+     * the correct spot -- so unlike every other duplicate-letter test in this file, no CORRECT
+     * feedback is involved anywhere, meaning pass 1 never protects anything and pass 2's own
+     * consume-one-then-ABSENT-the-rest logic is exercised completely on its own. A naive
+     * "does this letter appear anywhere in the secret" check (with no consumption) would mark
+     * BOTH guessed occurrences PRESENT here, which is wrong -- "apple" only has one real 'e'.
+     */
+    @Test
+    fun `hand-verified scoring -- a repeated guess letter with only ONE real occurrence and NO exact match marks just the leftmost one PRESENT`() {
+        val game = newGame(acceptAnyGuess = true)
+        game.startMatch()
+        withSecret(game, "apple") // one 'e', at index 4
+        game.submitGuess("eebbb") // 'e' at index 0 and 1, both wrong positions; 'b' not in secret at all
+        val feedback = game.state.value!!.guesses.single().feedback
+        assertEquals(
+            listOf(LetterFeedback.PRESENT, LetterFeedback.ABSENT, LetterFeedback.ABSENT, LetterFeedback.ABSENT, LetterFeedback.ABSENT),
+            feedback
+        )
+    }
+
+    /** The mirror of the case above: the secret has TWO occurrences of a letter, the guess has only ONE (in the wrong spot) -- the lower-risk direction (nothing to over-count against), but still worth a dedicated exact-value check rather than leaving it to chance inside the random property test. */
+    @Test
+    fun `hand-verified scoring -- a guess letter with only one occurrence still scores PRESENT even when the secret has two of that letter`() {
+        val game = newGame(acceptAnyGuess = true)
+        game.startMatch()
+        withSecret(game, "sweet") // two 'e's, at index 2 and 3
+        game.submitGuess("xexxx") // one 'e', at index 1 -- wrong position for either secret 'e'
+        val feedback = game.state.value!!.guesses.single().feedback
+        assertEquals(
+            listOf(LetterFeedback.ABSENT, LetterFeedback.PRESENT, LetterFeedback.ABSENT, LetterFeedback.ABSENT, LetterFeedback.ABSENT),
+            feedback
+        )
+    }
+
+    /**
+     * CORRECT and PRESENT coexisting for the SAME letter within one guess: the secret has two
+     * occurrences of a letter, one guess position exactly matches one of them (CORRECT, consumed
+     * in pass 1) and a DIFFERENT guess position of that same letter is genuinely present-but-
+     * misplaced against the secret's OTHER occurrence (PRESENT in pass 2). Proves pass 1's
+     * consumption correctly protects the exact match from also being available to pass 2, without
+     * incorrectly blocking the secret's remaining, still-unmatched occurrence either.
+     */
+    @Test
+    fun `hand-verified scoring -- an exact match and a present-but-misplaced match of the SAME letter coexist correctly in one guess`() {
+        val game = newGame(acceptAnyGuess = true)
+        game.startMatch()
+        withSecret(game, "sweet") // two 'e's, at index 2 and 3
+        game.submitGuess("exexx") // index 2's 'e' is an exact match; index 0's 'e' is present-but-misplaced against the secret's OTHER 'e'
+        val feedback = game.state.value!!.guesses.single().feedback
+        assertEquals(
+            listOf(LetterFeedback.PRESENT, LetterFeedback.ABSENT, LetterFeedback.CORRECT, LetterFeedback.ABSENT, LetterFeedback.ABSENT),
+            feedback
+        )
+    }
+
+    @Test
+    fun `matchOver guard blocks playAgain, the same as submitGuess`() {
+        val game = newGame()
+        game.startMatch()
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+
+        val frozen = game.state.value
+        game.playAgain()
+        assertEquals("playAgain() after leaveSession() must be a total no-op", frozen, game.state.value)
+    }
+
+    @Test
+    fun `leaveSession is idempotent -- a second call does not re-invoke onMatchEnd or mutate state further`() {
+        val game = newGame()
+        game.startMatch()
+        var invocations = 0
+        game.setOnMatchEnd { invocations++ }
+
+        game.leaveSession()
+        assertEquals(1, invocations)
+        val stateAfterFirstLeave = game.state.value
+
+        game.leaveSession()
+        assertEquals("a second leaveSession() must not re-invoke the listener", 1, invocations)
+        assertEquals("a second leaveSession() must not mutate state further", stateAfterFirstLeave, game.state.value)
+    }
+
+    /**
+     * Proves the two-tier word source is genuinely two separate pools, not the same restricted
+     * list backing both purposes (which every other test in this file's default [newGame] helper
+     * can't distinguish, since it backs pickSecret and isValidGuess with the identical [TEST_WORDS]
+     * list by default) -- a guess drawn only from the broader validation pool, never from the
+     * small secret pool, must still be accepted.
+     */
+    @Test
+    fun `guess validation genuinely accepts a word outside the small secret pool`() {
+        val secretPool = listOf("apple")
+        val broaderValidWords = setOf("apple", "zebra", "sound")
+        var fakeClock = 0L
+        val game = WordGuessGame(
+            nowMillis = { fakeClock++ },
+            pickSecret = { random -> secretPool.random(random) },
+            isValidGuess = { it in broaderValidWords }
+        )
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.startMatch()
+
+        game.submitGuess("zebra") // never in secretPool, only in the broader valid-guess set
+        assertEquals(
+            "a guess outside the secret pool but inside the broader validation pool must be accepted",
+            1,
+            game.state.value!!.guesses.size
+        )
+    }
 }
