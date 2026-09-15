@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,9 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.cameraShake
+import com.gamesuite.ui.effects.rememberCameraShake
+import com.gamesuite.ui.effects.rememberParticleBurst
 import kotlin.math.roundToInt
 
 /**
@@ -66,6 +70,16 @@ import kotlin.math.roundToInt
  * tower zones, enemies, and projectiles are the one deliberate exception, same "authentic
  * exception" reasoning as every other real-time/arcade game's own play-element colors in this
  * batch (Breakout's ball/paddle/bricks, Color Flood's cells, Edge Match's edges).
+ *
+ * JUICE: the first real consumer of the shared [com.gamesuite.ui.effects.CameraShake]/
+ * [com.gamesuite.ui.effects.ParticleBurst] utilities — see those files' own KDoc for why they
+ * exist (generalizing five independent hand-rolled camera-shake implementations and three
+ * independent particle systems already shipped elsewhere in this app into two shared
+ * primitives). A life lost jolts the whole board briefly (paired with the existing FAILURE
+ * haptic/buzz); a kill spawns a small burst of motes at the enemy's own death position (paired
+ * with the gold it just earned). This screen had none of this before — a natural, low-risk
+ * first wiring since it's new polish on a game with zero prior juice, not a migration of an
+ * already-shipped, already-tuned effect.
  */
 @Composable
 fun TowerDefenceScreen(
@@ -86,6 +100,9 @@ fun TowerDefenceScreen(
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = towerDefencePalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
     val textMeasurer = rememberTextMeasurer()
+    val cameraShake = rememberCameraShake()
+    val particleBurst = rememberParticleBurst()
+    val shakeMagnitudePx = with(LocalDensity.current) { 8.dp.toPx() }
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -128,8 +145,24 @@ fun TowerDefenceScreen(
         if (state.lives < previousLives) {
             haptics(HapticSignal.FAILURE)
             playSfx(SfxKind.INVALID_BUZZ)
+            cameraShake.trigger()
         }
         previousLives = state.lives
+    }
+
+    // A kill spawns a small burst of motes at the enemy's own death position -- see
+    // TowerDefenceGame.TowerDefenceEnemyDeathEvent's own KDoc for why this is keyed on `seq`
+    // rather than a plain non-null check (the event persists across ticks where nothing new
+    // died, same idiom BreakoutGame's own lastBrickBroken already uses). Tuned well below
+    // AirHockeyGame's own goal-burst scale (0.35-0.85 speed, 1.4 gravity) since a single small
+    // enemy dying is a much smaller beat than a scored goal.
+    LaunchedEffect(state.lastEnemyDeath?.seq) {
+        val death = state.lastEnemyDeath ?: return@LaunchedEffect
+        particleBurst.spawn(
+            origin = death.position, count = 8,
+            colors = listOf(palette.enemyColor, palette.projectileColor),
+            speedRange = 0.04f..0.09f, lifeRangeSeconds = 0.3f..0.45f, gravity = 0.12f
+        )
     }
 
     var previousWave by remember(state.runSeq) { mutableStateOf(state.waveNumber) }
@@ -206,6 +239,7 @@ fun TowerDefenceScreen(
                     .height(boardSizeDp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(palette.boardBackground)
+                    .cameraShake(cameraShake, magnitudePx = shakeMagnitudePx)
                     .pointerInput(state.level.id) {
                         detectTapOnZone(state.level.towerZones) { zoneIndex ->
                             val s = game.state.value
@@ -267,6 +301,17 @@ fun TowerDefenceScreen(
                 // Projectiles.
                 for (projectile in state.projectiles) {
                     drawCircle(color = palette.projectileColor, radius = w * 0.009f, center = toPx(projectile.position))
+                }
+
+                // Kill-burst motes -- see the class KDoc's JUICE section and the particleBurst
+                // spawn LaunchedEffect above. Drawn last so a burst never sits under a
+                // still-approaching enemy or tower.
+                for (particle in particleBurst.particles.value) {
+                    drawCircle(
+                        color = particle.color.copy(alpha = particle.lifeFraction),
+                        radius = w * 0.008f * particle.lifeFraction.coerceAtLeast(0.35f),
+                        center = toPx(particle.pos)
+                    )
                 }
             }
         }

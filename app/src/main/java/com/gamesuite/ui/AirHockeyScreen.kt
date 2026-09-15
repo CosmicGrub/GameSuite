@@ -53,7 +53,11 @@ import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.BurstParticle
 import com.gamesuite.ui.effects.PremiumShaders
+import com.gamesuite.ui.effects.cameraShake
+import com.gamesuite.ui.effects.rememberCameraShake
+import com.gamesuite.ui.effects.rememberParticleBurst
 import com.gamesuite.ui.effects.specularSweep
 import kotlin.math.cos
 import kotlin.math.sin
@@ -199,10 +203,14 @@ fun AirHockeyScreen(
     // Real goal-scored celebration: the ball itself is already held still by tick()'s own
     // hit-stop (AirHockeyGame.GOAL_FREEZE_FRAMES) — this drives the rest of the sequence:
     // camera-shake (Maximum tier only) + a goal-mouth flash + a real velocity/gravity/fade
-    // particle burst, all gated behind `enhanced`.
-    var shakeOffset by remember { mutableStateOf(Offset.Zero) }
+    // particle burst, all gated behind `enhanced`. The shake and particle burst are now the
+    // shared com.gamesuite.ui.effects.CameraShake/ParticleBurst utilities (see those files' own
+    // KDoc) rather than this screen's own hand-rolled copies — this WAS the richest of the
+    // three independent implementations those utilities generalized from, so migrating it is
+    // the strongest proof the abstraction actually fits a real, complex, shipped use case.
+    val cameraShake = rememberCameraShake()
     val flashAlpha = remember { Animatable(0f) }
-    var goalParticles by remember { mutableStateOf(listOf<GoalParticle>()) }
+    val goalParticleBurst = rememberParticleBurst()
     LaunchedEffect(state.goalEvent?.seq) {
         val event = state.goalEvent ?: return@LaunchedEffect
         if (!enhanced) return@LaunchedEffect
@@ -212,56 +220,34 @@ fun AirHockeyScreen(
 
         val spawnY = if (event.scoredByPlayer) 0f else 1f
         val particleCount = if (motionTier == AirHockeyMotionTier.MAXIMUM) 14 else 8
-        goalParticles = List(particleCount) {
+        val burstColor = if (event.scoredByPlayer) Color(0xFF66BB6A) else Color(0xFFEF5350)
+        // Constructed directly (bypassing ParticleBurst.spawn()'s generic angle/speed
+        // convenience) to preserve this effect's own tuned, non-radial velocity shape: a
+        // universal upward/inward bias (the constant -0.15f, independent of angle, scaling
+        // sin(angle) down to 0.6x) keeps the burst visible arcing back onto the table rather
+        // than spraying off the near edge it spawned from. Also preserves the original's own
+        // quirk of a FIXED maxLife (0.75f) independent of each particle's own randomized
+        // starting life — a shorter-lived particle starts already partway faded, unchanged
+        // from the pre-migration behavior.
+        goalParticleBurst.particles.value = goalParticleBurst.particles.value + List(particleCount) {
             val angle = Random.nextFloat() * (Math.PI.toFloat() * 2f)
             val spd = 0.35f + Random.nextFloat() * 0.5f
-            GoalParticle(
+            BurstParticle(
                 pos = Offset(0.5f, spawnY),
                 vel = Offset(cos(angle) * spd, sin(angle) * spd * 0.6f - 0.15f),
                 life = 0.5f + Random.nextFloat() * 0.25f,
                 maxLife = 0.75f,
-                color = if (event.scoredByPlayer) Color(0xFF66BB6A) else Color(0xFFEF5350)
+                gravity = GOAL_PARTICLE_GRAVITY,
+                color = burstColor
             )
         }
 
         // Camera-shake reserved for Maximum — the clearest "extra compounding layer" case
-        // between the two tiers.
+        // between the two tiers. Same 300ms linear-decay envelope as before; the oscillation
+        // itself now comes from CameraShake's own shared formula (already proven on Checkers)
+        // rather than this screen's own manual withFrameNanos loop.
         if (motionTier == AirHockeyMotionTier.MAXIMUM) {
-            val shakeDurationMs = 300f
-            val start = withFrameNanos { it }
-            while (true) {
-                val now = withFrameNanos { it }
-                val elapsedMs = (now - start) / 1_000_000f
-                if (elapsedMs >= shakeDurationMs) break
-                val decay = 1f - elapsedMs / shakeDurationMs
-                val mag = 10f * decay
-                shakeOffset = Offset(sin(elapsedMs * 0.09f) * mag, cos(elapsedMs * 0.11f) * mag)
-            }
-            shakeOffset = Offset.Zero
-        }
-    }
-    // Particle physics loop — independent of the trigger above so an in-flight burst keeps
-    // animating smoothly regardless of what else recomposes. Real per-particle velocity +
-    // gravity + fade, cheap at this particle count.
-    LaunchedEffect(Unit) {
-        var lastNanos = 0L
-        while (true) {
-            withFrameNanos { nanos ->
-                if (lastNanos != 0L && goalParticles.isNotEmpty()) {
-                    val dt = (nanos - lastNanos) / 1_000_000_000f
-                    goalParticles = goalParticles.mapNotNull { p ->
-                        val newLife = p.life - dt
-                        if (newLife <= 0f) return@mapNotNull null
-                        val newVel = Offset(p.vel.x, p.vel.y + GOAL_PARTICLE_GRAVITY * dt)
-                        p.copy(
-                            pos = Offset(p.pos.x + newVel.x * dt, p.pos.y + newVel.y * dt),
-                            vel = newVel,
-                            life = newLife
-                        )
-                    }
-                }
-                lastNanos = nanos
-            }
+            cameraShake.trigger(durationMs = 300)
         }
     }
 
@@ -391,7 +377,8 @@ fun AirHockeyScreen(
                         // Goal celebration camera-shake (Maximum tier only, see above) — a pure
                         // compositing translation, never touches layout or the Canvas's own
                         // draw-scope math, same non-interference guarantee as the tilt above.
-                        .graphicsLayer { translationX = shakeOffset.x; translationY = shakeOffset.y }
+                        // 10f raw px, unchanged from before the migration to the shared utility.
+                        .cameraShake(cameraShake, magnitudePx = 10f)
                 ) {
                     val boardSizeDp = maxWidth
 
@@ -561,11 +548,10 @@ fun AirHockeyScreen(
                         // Goal celebration particle burst — real per-particle velocity +
                         // gravity + fade physics (see the particle loop above), cheap at this
                         // count.
-                        goalParticles.forEach { p ->
-                            val lifeFrac = (p.life / p.maxLife).coerceIn(0f, 1f)
+                        goalParticleBurst.particles.value.forEach { p ->
                             drawCircle(
-                                p.color.copy(alpha = lifeFrac * 0.9f),
-                                radius = h * 0.012f * (0.5f + lifeFrac),
+                                p.color.copy(alpha = p.lifeFraction * 0.9f),
+                                radius = h * 0.012f * (0.5f + p.lifeFraction),
                                 center = Offset(p.pos.x * w, p.pos.y * h)
                             )
                         }
@@ -652,11 +638,9 @@ private fun ScorePunch(score: Int, style: TextStyle, enhanced: Boolean) {
 private data class ShockwaveRing(val id: Long, val pos: Offset, val speedFrac: Float, val ageMs: Float = 0f)
 private const val SHOCKWAVE_LIFESPAN_MS = 380f
 
-/** One goal-celebration particle — real position/velocity/life, integrated with gravity each
- *  frame by the particle loop above; drawn as a small fading circle. */
-private data class GoalParticle(val pos: Offset, val vel: Offset, val life: Float, val maxLife: Float, val color: Color)
-/** Downward pull on burst particles, in the same normalized 0f..1f-per-second units as the
- *  ball's own velocity — tuned so a ~0.6s burst arcs and falls within the table's bounds. */
+/** Downward pull on the goal-celebration burst (now a shared [com.gamesuite.ui.effects.ParticleBurst]),
+ *  in the same normalized 0f..1f-per-second units as the ball's own velocity — tuned so a
+ *  ~0.6s burst arcs and falls within the table's bounds. */
 private const val GOAL_PARTICLE_GRAVITY = 1.4f
 
 /**

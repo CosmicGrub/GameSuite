@@ -3,7 +3,6 @@ package com.gamesuite.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -84,6 +83,7 @@ import com.gamesuite.games.uno.UnoRank
 import com.gamesuite.games.uno.UnoRules
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.shakeSteps
 import com.gamesuite.ui.effects.specularSweep
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -407,8 +407,11 @@ fun UnoScreen(
                     cameraPunch.animateTo(1.05f, animationSpec = tween(160))
                     cameraPunch.animateTo(1f, animationSpec = tween(240))
                 }
-                launch { jitterShake(cameraShakeX, magnitudePx = 6f) }
-                launch { jitterShake(cameraShakeY, magnitudePx = 4f) }
+                // The shared com.gamesuite.ui.effects.Animatable.shakeSteps extension (see its
+                // own KDoc) -- its default pattern IS this screen's own pre-migration
+                // jitterShake step list verbatim, so this is a lossless, drop-in replacement.
+                launch { cameraShakeX.shakeSteps(magnitudePx = 6f) }
+                launch { cameraShakeY.shakeSteps(magnitudePx = 4f) }
             }
         }
         previousTopCardId = s.topCard.instanceId
@@ -1706,16 +1709,6 @@ private fun layeredChime(sounds: CardSounds, scope: CoroutineScope) {
     }
 }
 
-/** A few-px decaying jitter on one axis of [anim] -- see cameraShakeX/Y in
- *  UnoScreen for how this layers onto cameraPunch's own scale-punch rather
- *  than replacing it. */
-private suspend fun jitterShake(anim: Animatable<Float, AnimationVector1D>, magnitudePx: Float) {
-    anim.snapTo(0f)
-    val steps = listOf(magnitudePx, -magnitudePx * 0.7f, magnitudePx * 0.4f, -magnitudePx * 0.2f, 0f)
-    for (step in steps) {
-        anim.animateTo(step, animationSpec = tween(35))
-    }
-}
 
 // ---- Reference-driven presentation (see docs — "Reshuffling UNO" design memo) ----
 //
@@ -1873,7 +1866,7 @@ private fun TurnDirectionRing(direction: Int, enhanced: Boolean, reversalSignal:
     // can pre-empt an in-flight leg early -- Animatable's own mutual
     // exclusion means a second animateTo call on this same instance, from a
     // different coroutine, cancels whichever one is already running (the
-    // same interruptible-animation idiom jitterShake/cameraPunch already
+    // same interruptible-animation idiom shakeSteps/cameraPunch already
     // rely on elsewhere in this file, just split across two coroutines here
     // instead of sequential calls in one).
     LaunchedEffect(enhanced) {

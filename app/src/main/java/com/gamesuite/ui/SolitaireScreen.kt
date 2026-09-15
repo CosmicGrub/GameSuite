@@ -64,6 +64,7 @@ import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
+import com.gamesuite.ui.effects.shakeSteps
 import com.gamesuite.ui.effects.specularSweep
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -420,9 +421,13 @@ fun SolitaireScreen(
         finaleFlourishActive = true
         tableShakeX.snapTo(0f)
         delay(HIT_STOP_MS)
-        for (v in SHAKE_STEPS) {
-            tableShakeX.animateTo(v, animationSpec = tween(SHAKE_STEP_MS))
-        }
+        // The shared com.gamesuite.ui.effects.Animatable.shakeSteps extension (see its own
+        // KDoc) -- this exact step list was extracted directly from this screen's own
+        // pre-migration SHAKE_STEPS, so this is a lossless, drop-in replacement. Its own
+        // internal snapTo(0f) is a harmless no-op here (already snapped to 0 above, before the
+        // hit-stop delay -- preserved verbatim rather than folded into this call, since the
+        // ORIGINAL ordering was reset-then-wait, not wait-then-reset).
+        tableShakeX.shakeSteps(magnitudePx = 1f, stepDurationMs = SHAKE_STEP_MS, pattern = SHAKE_STEPS)
         finaleFlourishActive = false
     }
 

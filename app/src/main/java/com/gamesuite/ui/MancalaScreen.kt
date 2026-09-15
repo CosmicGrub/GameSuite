@@ -1,7 +1,6 @@
 package com.gamesuite.ui
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -63,6 +62,7 @@ import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.shakeSteps
 import com.gamesuite.ui.effects.specularSweep
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -283,7 +283,11 @@ fun MancalaScreen(
             if (jostleActive && capture.totalSwept >= BIG_CAPTURE_STONE_THRESHOLD) {
                 // Fire-and-forget: the shake plays alongside the sweep below rather than
                 // delaying it.
-                launch { runCameraShake(shakeAnim) }
+                // The shared com.gamesuite.ui.effects.Animatable.shakeSteps extension (see its
+                // own KDoc) -- this exact impulse list was extracted directly from this
+                // screen's own pre-migration runCameraShake, so this is a lossless, drop-in
+                // replacement, not an approximation.
+                launch { shakeAnim.shakeSteps(magnitudePx = 1f, stepDurationMs = 35, pattern = listOf(-14f, 10f, -7f, 4f, 0f)) }
             }
             coroutineScope {
                 launch { captureLandingAnim.animateTo(1f, animationSpec = tween(CAPTURE_HOP_DURATION_MS)) }
@@ -603,12 +607,6 @@ private fun SeedHop(progress: Float, from: Offset, to: Offset, arcHeightPx: Floa
     )
 }
 
-/** A short, decaying back-and-forth horizontal jolt applied to the whole board's translationX. */
-private suspend fun runCameraShake(shakeAnim: Animatable<Float, AnimationVector1D>) {
-    shakeAnim.snapTo(0f)
-    val impulses = listOf(-14f, 10f, -7f, 4f, 0f)
-    for (target in impulses) shakeAnim.animateTo(target, animationSpec = tween(35))
-}
 
 /**
  * Real per-seed physics for [MancalaMotionTier.MAXIMUM] -- every seed that has landed in a

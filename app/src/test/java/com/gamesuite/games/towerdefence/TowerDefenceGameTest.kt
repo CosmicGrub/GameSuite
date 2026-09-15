@@ -290,6 +290,37 @@ class TowerDefenceGameTest {
     }
 
     @Test
+    fun `a tower kill sets lastEnemyDeath with the kill's own position, and leaking never touches it`() {
+        val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+        assertNull(game.state.value.lastEnemyDeath)
+        game.state.value = game.state.value.copy(gold = 10_000)
+        game.placeTower(0)
+
+        val deathPos = Offset(0.03f, 0f)
+        val enemy = TowerDefenceGame.TowerDefenceEnemy(id = 555, distanceTraveled = 0f, hp = 1f, maxHp = 1f, speed = 0f, goldReward = 10)
+        game.state.value = game.state.value.copy(enemies = listOf(enemy), enemiesRemainingToSpawn = 0, interWaveCooldown = 0f)
+
+        val killed = tickUntil(game) { game.state.value.lastEnemyDeath != null }
+        assertTrue("expected the tower to kill the manufactured enemy within the step budget", killed)
+        val death = game.state.value.lastEnemyDeath!!
+        assertEquals(TowerDefenceGame.positionAlongPath(CLUSTERED_DEFENSE_LEVEL.path, enemy.distanceTraveled), death.position)
+
+        // The event persists (same seq) across ticks where nothing new dies -- same "last one
+        // wins, stays until the next" idiom BreakoutGame's own lastBrickBroken already uses.
+        val seqAfterKill = death.seq
+        game.tick(0.05f)
+        assertEquals(seqAfterKill, game.state.value.lastEnemyDeath?.seq)
+
+        // A leak (not a kill) must never set or touch lastEnemyDeath.
+        val leakGame = newGame(CpuDifficulty.MEDIUM, SHORT_LEAK_LEVEL)
+        leakGame.startMatch()
+        tickSeconds(leakGame, TowerDefenceGame.INTER_WAVE_SECONDS + 0.3f)
+        assertEquals(1, TowerDefenceGame.STARTING_LIVES - leakGame.state.value.lives)
+        assertNull("a leaked enemy must not be reported as a kill", leakGame.state.value.lastEnemyDeath)
+    }
+
+    @Test
     fun `a projectile whose target already died is dropped without side effects`() {
         val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
         game.startMatch()

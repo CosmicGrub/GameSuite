@@ -228,6 +228,13 @@ class TowerDefenceGame : GameModule {
         val damage: Float
     )
 
+    /** A kill's own position and a monotonic [seq] — the UI keys a one-shot effect (a particle
+     *  burst) off [seq] changing, same "seq-numbered event, persists until the next one"
+     *  idiom BreakoutGame's own `lastBrickBroken`/`lastPaddleBounce` already use. At most one
+     *  captured per tick (see [tick]'s phase 4) if multiple kills land in the same frame — the
+     *  same acceptable simplification BreakoutGame's own KDoc already documents for its events. */
+    data class TowerDefenceEnemyDeathEvent(val seq: Long, val position: Offset)
+
     data class TowerDefenceState(
         val level: TowerDefenceLevel,
         val difficulty: CpuDifficulty,
@@ -246,6 +253,9 @@ class TowerDefenceGame : GameModule {
         val interWaveCooldown: Float,
         val paused: Boolean = false,
         val runResult: TowerDefenceRunResult? = null,
+        /** The most recent enemy kill's position, for the UI's own particle-burst effect —
+         *  see [TowerDefenceEnemyDeathEvent]'s own KDoc. */
+        val lastEnemyDeath: TowerDefenceEnemyDeathEvent? = null,
         /** Bumped by every [startMatch]/[playAgain] — lets the UI reliably detect "a new run
          *  just started/ended" without relying on a Boolean transition that [playAgain] could
          *  otherwise flip past unobserved. */
@@ -289,6 +299,7 @@ class TowerDefenceGame : GameModule {
     private var nextEnemyId = 0
     private var nextTowerId = 0
     private var nextProjectileId = 0
+    private var eventSeq = 0L
 
     /** The furthest wave reached across any run THIS SESSION (across any [playAgain] restarts),
      *  reported by [leaveSession] — same "session-level tally reported on the way out" shape as
@@ -312,7 +323,7 @@ class TowerDefenceGame : GameModule {
 
     override fun startMatch() {
         val cfg = difficultyConfig.getValue(difficulty)
-        nextEnemyId = 0; nextTowerId = 0; nextProjectileId = 0
+        nextEnemyId = 0; nextTowerId = 0; nextProjectileId = 0; eventSeq = 0L
         state.value = TowerDefenceState(
             level = level,
             difficulty = difficulty,
@@ -441,6 +452,7 @@ class TowerDefenceGame : GameModule {
         var interWaveCooldown = s.interWaveCooldown
         var waveNumber = s.waveNumber
         var runResult: TowerDefenceRunResult? = null
+        var enemyDeath = s.lastEnemyDeath
 
         // Phase 0: count down to the next wave's start.
         if (enemiesRemainingToSpawn == 0 && enemies.isEmpty() && interWaveCooldown > 0f) {
@@ -529,6 +541,8 @@ class TowerDefenceGame : GameModule {
                     if (newHp <= 0f) {
                         gold += target.goldReward
                         enemyById.remove(target.id)
+                        eventSeq++
+                        enemyDeath = TowerDefenceEnemyDeathEvent(eventSeq, targetPos)
                     } else {
                         enemyById[target.id] = target.copy(hp = newHp)
                     }
@@ -566,7 +580,8 @@ class TowerDefenceGame : GameModule {
         state.value = s.copy(
             lives = lives, gold = gold, enemies = enemies, towers = towers, projectiles = projectiles,
             enemiesRemainingToSpawn = enemiesRemainingToSpawn, spawnCooldown = spawnCooldown,
-            interWaveCooldown = interWaveCooldown, waveNumber = waveNumber, runResult = runResult
+            interWaveCooldown = interWaveCooldown, waveNumber = waveNumber, runResult = runResult,
+            lastEnemyDeath = enemyDeath
         )
     }
 

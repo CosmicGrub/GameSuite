@@ -2,6 +2,7 @@ package com.gamesuite.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,6 +68,8 @@ import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.cameraShakeOffsetFor
+import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.ui.effects.specularSweep
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -350,7 +353,13 @@ fun CheckersScreen(
         base = Color(0xFFE3C79E), grain = Color(0xFFC19A6B), highlight = Color(0xFFFBEEDA), seed = 2
     )
     val moveProgress = remember(s) { Animatable(if (reducedMotion || effectiveTier == CheckersMotionTier.OFF) 1f else 0f) }
-    val cameraShake = remember { Animatable(0f) }
+    // The shared com.gamesuite.ui.effects.CameraShake utility (see its own KDoc) -- this exact
+    // Animatable-driven `shake * sin(shake*freq)` formula was extracted directly from this
+    // screen's own pre-migration code, so this is a lossless, drop-in replacement, not an
+    // approximation. `easing = FastOutSlowInEasing` reproduces the plain `tween(...)` (no
+    // explicit easing) the pre-migration `cameraShake.animateTo` call used, whose DEFAULT
+    // easing is FastOutSlowInEasing, not linear.
+    val cameraShake = rememberCameraShake()
     LaunchedEffect(s) {
         if (reducedMotion || effectiveTier == CheckersMotionTier.OFF) return@LaunchedEffect
         val hops = s.lastTurnHops
@@ -364,10 +373,7 @@ fun CheckersScreen(
             if (mid > from) {
                 moveProgress.animateTo(mid, animationSpec = tween(((mid - from) * MOVE_DURATION_MS).roundToInt().coerceAtLeast(1)))
             }
-            launch {
-                cameraShake.snapTo(1f)
-                cameraShake.animateTo(0f, animationSpec = tween(CAMERA_SHAKE_DECAY_MS))
-            }
+            launch { cameraShake.trigger(durationMs = CAMERA_SHAKE_DECAY_MS, easing = FastOutSlowInEasing) }
             delay(HIT_STOP_MS)
             from = mid
         }
@@ -468,10 +474,14 @@ fun CheckersScreen(
                         .then(if (card3D) Modifier.tablePerspectiveTilt() else Modifier)
                         .then(
                             if (maximum) Modifier.graphicsLayer {
-                                val shake = cameraShake.value
+                                // Y axis intentionally flattened to 0.6x the X magnitude (a
+                                // real, deliberate asymmetry from before the migration) -- two
+                                // calls with different magnitudes, one per axis, since
+                                // cameraShakeOffsetFor's own single-magnitude convenience
+                                // shape doesn't cover an asymmetric shake.
                                 val jitterPx = 4.dp.toPx()
-                                translationX = jitterPx * shake * kotlin.math.sin(shake * 47f)
-                                translationY = jitterPx * 0.6f * shake * kotlin.math.cos(shake * 39f)
+                                translationX = cameraShakeOffsetFor(cameraShake.value, jitterPx, frequencyX = 47f).x
+                                translationY = cameraShakeOffsetFor(cameraShake.value, jitterPx * 0.6f, frequencyY = 39f).y
                             } else Modifier
                         )
                         .then(
