@@ -201,6 +201,17 @@ fun MainMenuScreen(
                 )
                 onNavigateToGame("chess")
             },
+            "reversi" to {
+                sessionManager.launchGame(
+                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                    players = listOf(
+                        PlayerInfo(playerId = "p1", displayName = "You"),
+                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
+                    ),
+                    localPlayerIndex = 0
+                )
+                onNavigateToGame("reversi")
+            },
             "air-hockey" to {
                 sessionManager.launchGame(
                     mode = PlayMode.SINGLE_PLAYER_VS_BOT,
@@ -598,7 +609,8 @@ fun MainMenuScreen(
                     },
                     GameEntry(stringResource(R.string.game_mancala_vs_cpu)) { primaryLaunch.getValue("mancala").invoke() },
                     GameEntry(stringResource(R.string.game_checkers_vs_cpu)) { primaryLaunch.getValue("checkers").invoke() },
-                    GameEntry(stringResource(R.string.game_chess_vs_cpu)) { primaryLaunch.getValue("chess").invoke() }
+                    GameEntry(stringResource(R.string.game_chess_vs_cpu)) { primaryLaunch.getValue("chess").invoke() },
+                    GameEntry(stringResource(R.string.game_reversi_vs_cpu)) { primaryLaunch.getValue("reversi").invoke() }
                 )
             )
 

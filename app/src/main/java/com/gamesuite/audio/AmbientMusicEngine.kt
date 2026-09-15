@@ -253,6 +253,25 @@ object MusicProfiles {
         arpeggioVolume = 0.12f
     )
 
+    /** Same wood-toned pentatonic family as [CONNECT_FOUR]/[DOMINOES]/[MANCALA]/[DOTS_AND_BOXES],
+     *  its own root -- Reversi's rhythm is bursts of flanking captures (several discs flip at once)
+     *  punctuating quieter scanning turns, so this sits closer to [CONNECT_FOUR]'s steady,
+     *  deliberate energy than [DOTS_AND_BOXES]' faster alternating-tap pace, with a touch more
+     *  arpeggio brightness to underline those flip moments. */
+    val REVERSI = MusicProfile(
+        rootNoteHz = 155.56f, // D#3/Eb3
+        scaleIntervals = MAJOR_PENTATONIC,
+        chordProgressionDegrees = listOf(0, 2, 3, 4),
+        chordDurationSeconds = 13f,
+        voiceCount = 3,
+        baseVolume = 0.14f,
+        waveformBrightness = 0.23f,
+        lowpassCutoffHz = 3700f,
+        arpeggioEnabled = true,
+        arpeggioRateHz = 1.3f,
+        arpeggioVolume = 0.13f
+    )
+
     /** Gentle, airy major pad — the shared "focus" mood for every quiet
      *  solo puzzle game (Solitaire, Word Tiles, Word Search, Crossword,
      *  Hangman). One profile really is enough for all five, per the brief. */

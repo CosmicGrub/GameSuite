@@ -63,6 +63,7 @@
     <string name="game_mancala_vs_cpu">Mancala (vs CPU)</string>
     <string name="game_checkers_vs_cpu">Checkers (vs CPU)</string>
     <string name="game_chess_vs_cpu">Chess (vs CPU)</string>
+    <string name="game_reversi_vs_cpu">Reversi (vs CPU)</string>
 
     <!-- Cards -->
     <string name="game_uno_vs_cpu">UNO (vs 2 CPU bots)</string>

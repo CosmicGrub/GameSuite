@@ -55,6 +55,7 @@ import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.minesweeper.MinesweeperGame
 import com.gamesuite.games.nonogram.NonogramGame
 import com.gamesuite.games.partytoolkit.PartyToolkitGame
+import com.gamesuite.games.reversi.ReversiGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.sudoku.SudokuGame
@@ -77,6 +78,7 @@ import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.KakuroScreen
 import com.gamesuite.ui.KenKenScreen
 import com.gamesuite.ui.MastermindScreen
+import com.gamesuite.ui.ReversiScreen
 import com.gamesuite.ui.WordGuessScreen
 import com.gamesuite.ui.LightsOutScreen
 import com.gamesuite.ui.MainMenuScreen
@@ -424,6 +426,15 @@ class MainActivity : ComponentActivity() {
                             ChessScreen(
                                 sessionManager = sessionManager,
                                 game = chessGame,
+                                settingsViewModel = settingsViewModel,
+                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                            )
+                        }
+                        composable("reversi") {
+                            val reversiGame = rememberActiveModule(sessionManager) { ReversiGame() }
+                            ReversiScreen(
+                                sessionManager = sessionManager,
+                                game = reversiGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
