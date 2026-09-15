@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.audio.MusicProfiles
@@ -376,6 +377,50 @@ private val KEYBOARD_ROWS = listOf(
     "ZXCVBNM"
 )
 
+/** Gap between adjacent keys in every row -- pulled out to a named value since both the layout
+ *  below and its own width math (see [WordGuessKeyboard]'s KDoc) need the exact same number. */
+private val KEYBOARD_KEY_GAP = 4.dp
+
+/** Enter/Backspace are drawn wider than a letter key -- same real on-screen-QWERTY convention
+ *  every mobile keyboard (incl. the genre this screen is explicitly modeled on) uses, and the
+ *  exact multiplier that keeps the bottom row's own total width (7 letters + these 2 action
+ *  keys) from ever exceeding row 1's (10 letters), see [WordGuessKeyboard]'s KDoc. */
+private const val ACTION_KEY_WIDTH_MULTIPLIER = 1.5f
+
+/**
+ * This app's established "never let a tappable element shrink below a usable size" floor (see
+ * e.g. ChessScreen/CheckersScreen/MancalaScreen's own `MIN_TOUCH_TARGET`) -- applied here to key
+ * HEIGHT (which has the room to honor it safely on every real screen) rather than width. Width
+ * can NOT honor the same floor: 10 keys at 48dp each plus 9 gaps needs ~516dp, wider than almost
+ * any real phone in portrait, so a hard 48dp floor on width would just reintroduce the overflow
+ * this file's own keyboard-fit fix removes. Every real on-screen QWERTY keyboard (this app's own
+ * included) makes the same trade -- keys narrower than the "ideal" touch target, height held to
+ * it -- because a horizontal near-miss just lands on the adjacent letter (cheap, recoverable),
+ * while a cramped row height is what actually costs mis-taps.
+ */
+private val MIN_TOUCH_TARGET = 48.dp
+
+/**
+ * Sizes every key from the ACTUAL available width (via [BoxWithConstraints]/`maxWidth`) instead
+ * of a fixed dp value, so the row never overflows off-screen regardless of how narrow the real
+ * device is (e.g. a folded cover screen at ~344dp available) -- the bug this replaces: fixed
+ * 32dp keys + 4dp gaps needed 10*32 + 9*4 = 356dp for row 1 alone, which didn't fit a 344dp-wide
+ * screen, pushing the P key (and, in row 3, the trailing Backspace key) off-screen with no way
+ * to reach them.
+ *
+ * All three rows share the SAME per-key width -- sized off the WIDEST row (row 1's 10 letters)
+ * -- so this reads as one keyboard, not three differently-scaled ones, matching real
+ * physical/software QWERTY convention. Row 3 (7 letters + Enter + Backspace) is kept from ever
+ * exceeding row 1's own width by drawing Enter/Backspace at [ACTION_KEY_WIDTH_MULTIPLIER] (1.5x)
+ * a letter key's width -- the same "wider action keys" real mobile keyboards use -- which makes
+ * row 3's own total width 7 + 1.5 + 1.5 = 10 key-widths, worth of gaps: never more than row 1's.
+ *
+ * Worked example at a 344dp-available width (this app's own narrowest real target, the Fold 5
+ * cover screen -- see this file's own KDoc): keyWidth = (344dp - 9*4dp) / 10 = (344-36)/10 =
+ * 30.8dp. Row 1's total = 10*30.8 + 9*4 = 308 + 36 = 344dp -- fits exactly. Row 3's total =
+ * 7*30.8 + 2*(1.5*30.8) + 8*4 = 215.6 + 92.4 + 32 = 340dp -- fits with room to spare (one fewer
+ * gap than row 1). Row 2 (9 letters) fits with even more room. No key is ever cut off.
+ */
 @Composable
 private fun WordGuessKeyboard(
     bestFeedbackByLetter: Map<Char, LetterFeedback>,
@@ -385,35 +430,44 @@ private fun WordGuessKeyboard(
     onBackspace: () -> Unit,
     onEnter: () -> Unit
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((rowIndex, row) in KEYBOARD_ROWS.withIndex()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (rowIndex == 2) {
-                    KeyboardActionKey(label = "Enter", enabled = canSubmit, palette = palette, onClick = onEnter)
-                }
-                for (letter in row) {
-                    val feedback = bestFeedbackByLetter[letter.lowercaseChar()]
-                    val bg = when (feedback) {
-                        LetterFeedback.CORRECT -> palette.correct
-                        LetterFeedback.PRESENT -> palette.present
-                        LetterFeedback.ABSENT -> palette.absent
-                        null -> palette.keyDefault
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val widestRowKeyCount = KEYBOARD_ROWS.maxOf { it.length } // 10, from row 1 (QWERTYUIOP)
+        val totalGapWidth = KEYBOARD_KEY_GAP * (widestRowKeyCount - 1)
+        // Capped AT MOST MIN_TOUCH_TARGET so keys don't balloon absurdly large on a wide tablet
+        // -- see MIN_TOUCH_TARGET's own KDoc for why a LOWER floor isn't safe to apply here.
+        val keyWidth = ((maxWidth - totalGapWidth) / widestRowKeyCount).coerceAtMost(MIN_TOUCH_TARGET)
+        val actionKeyWidth = keyWidth * ACTION_KEY_WIDTH_MULTIPLIER
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((rowIndex, row) in KEYBOARD_ROWS.withIndex()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(KEYBOARD_KEY_GAP)) {
+                    if (rowIndex == 2) {
+                        KeyboardActionKey(label = "Enter", enabled = canSubmit, width = actionKeyWidth, palette = palette, onClick = onEnter)
                     }
-                    val fg = if (feedback != null) palette.textOnAccent else palette.textPrimary
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(bg)
-                            .clickable { onLetter(letter.lowercaseChar()) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(letter.toString(), color = fg, fontWeight = FontWeight.Bold)
+                    for (letter in row) {
+                        val feedback = bestFeedbackByLetter[letter.lowercaseChar()]
+                        val bg = when (feedback) {
+                            LetterFeedback.CORRECT -> palette.correct
+                            LetterFeedback.PRESENT -> palette.present
+                            LetterFeedback.ABSENT -> palette.absent
+                            null -> palette.keyDefault
+                        }
+                        val fg = if (feedback != null) palette.textOnAccent else palette.textPrimary
+                        Box(
+                            modifier = Modifier
+                                .width(keyWidth)
+                                .height(MIN_TOUCH_TARGET)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(bg)
+                                .clickable { onLetter(letter.lowercaseChar()) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(letter.toString(), color = fg, fontWeight = FontWeight.Bold)
+                        }
                     }
-                }
-                if (rowIndex == 2) {
-                    KeyboardActionKey(label = "⌫", enabled = true, palette = palette, onClick = onBackspace)
+                    if (rowIndex == 2) {
+                        KeyboardActionKey(label = "⌫", enabled = true, width = actionKeyWidth, palette = palette, onClick = onBackspace)
+                    }
                 }
             }
         }
@@ -421,14 +475,14 @@ private fun WordGuessKeyboard(
 }
 
 @Composable
-private fun KeyboardActionKey(label: String, enabled: Boolean, palette: WordGuessPalette, onClick: () -> Unit) {
+private fun KeyboardActionKey(label: String, enabled: Boolean, width: Dp, palette: WordGuessPalette, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .height(44.dp)
+            .width(width)
+            .height(MIN_TOUCH_TARGET)
             .clip(RoundedCornerShape(6.dp))
             .background(if (enabled) palette.accent else palette.chipBackground)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 10.dp),
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Text(

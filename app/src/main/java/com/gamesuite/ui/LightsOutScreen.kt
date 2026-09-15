@@ -82,7 +82,11 @@ fun LightsOutScreen(
 
     val allRecords by statsStore.records.collectAsState(initial = emptyMap())
     val record = allRecords[game.difficulty.name]
-    var reportedResult by remember(s.cells.size, game.difficulty) { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
+    // Keyed on the actual board (unique per round, stable across moves of the SAME round) --
+    // `.size` alone doesn't change between two rounds of the same difficulty, which let round
+    // 1's result silently keep showing on every later round -- the same fix WordGuess's own
+    // reportedResult already applies (see that screen's own comment), mirrored here.
+    var reportedResult by remember(s.cells, game.difficulty) { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
 
     // Live "Time: M:SS" display -- same idiom as every other solo puzzle's
     // own live-timer LaunchedEffect (the engine only exposes raw

@@ -388,7 +388,12 @@ fun MainMenuScreen(
                 // keyboard's Tab key steps past both header buttons as one cluster before
                 // moving into the page body below, instead of landing on every leaf in an
                 // order indistinguishable from the rest of the screen.
-                Row(modifier = Modifier.focusGroup()) {
+                // horizontalScroll (same low-risk fallback this app's other difficulty-tier chip
+                // rows already reach for -- see e.g. EdgeMatchScreen's own DifficultyTabsEdgeMatch
+                // / KakuroScreen's board) so "My Stats"/"Settings" never get compressed to ~1px
+                // wide with their labels wrapping one letter per line on a narrow screen -- this
+                // row's content is simply scrolled into view instead of squeezed.
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()).focusGroup()) {
                     TextButton(
                         onClick = onNavigateToStats,
                         modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)

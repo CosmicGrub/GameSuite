@@ -156,7 +156,13 @@ class BreakoutGame : GameModule {
         val lastPaddleBounce: PaddleBounceEvent? = null,
         val lastWallBounce: WallBounceEvent? = null,
         val lastLifeLost: LifeLostEvent? = null,
-        val lastLevelCleared: LevelClearedEvent? = null
+        val lastLevelCleared: LevelClearedEvent? = null,
+        /** Bumped by every [BreakoutGame.startMatch] -- lets the UI reliably detect "a new run
+         *  just started" without relying on a Boolean transition, the same shape
+         *  TowerDefenceState's own `runSeq` uses (see that class's KDoc) and for the same reason:
+         *  `gameOver` alone doesn't change between two runs of the same difficulty, which let a
+         *  finished run's own "new best score?" result silently keep showing on every later run. */
+        val runSeq: Int = 0
     )
 
     val state = mutableStateOf(BreakoutState())
@@ -190,7 +196,8 @@ class BreakoutGame : GameModule {
         state.value = BreakoutState(
             paddleX = 0.5f,
             paddleHalfWidth = cfg.paddleHalfWidth,
-            ballPos = Offset(0.5f, RESTING_BALL_Y)
+            ballPos = Offset(0.5f, RESTING_BALL_Y),
+            runSeq = state.value.runSeq + 1
         )
         matchOver.value = false
     }

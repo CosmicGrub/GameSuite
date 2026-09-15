@@ -128,7 +128,11 @@ fun NonogramScreen(
 
     val allBestTimes by statsStore.bestTimesMillis.collectAsState(initial = emptyMap())
     val bestTimeMillis = allBestTimes[game.difficulty.name]
-    var reportedNewBest by remember(s.size) { mutableStateOf(false) }
+    // Keyed on s.solution (unique per puzzle instance), same convention Sudoku/Kakuro/KenKen
+    // already use for their own reportedNewBest -- s.size alone doesn't change between two
+    // rounds of the same difficulty, which let round 1's result silently keep showing on every
+    // later round.
+    var reportedNewBest by remember(s.solution) { mutableStateOf(false) }
 
     // Live "Time: M:SS" display -- same idiom as every other solo puzzle's own live-timer LaunchedEffect.
     var liveElapsedMillis by remember(s.size) { mutableStateOf(0L) }

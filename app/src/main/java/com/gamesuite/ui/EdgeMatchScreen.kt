@@ -4,7 +4,9 @@ import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -329,7 +331,14 @@ private fun DifficultyTabsEdgeMatch(
     onSelectTier: (CpuDifficulty) -> Unit,
     onSelectCustom: () -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // horizontalScroll (same low-risk fallback KakuroScreen's own board / MastermindScreen's own
+    // color-swatch row already use for "might not fit available width") so the 4th "Custom" chip
+    // never gets compressed to ~1px wide with its label wrapping one letter per line on a narrow
+    // screen -- this row's content is simply scrolled into view instead of squeezed.
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         for (tier in CpuDifficulty.entries) {
             val label = when (tier) {
                 CpuDifficulty.EASY -> "Easy"

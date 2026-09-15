@@ -101,7 +101,12 @@ fun BreakoutScreen(
 
     val bestScores by statsStore.bestScores.collectAsState(initial = emptyMap())
     val bestScore = bestScores[game.difficulty.name]
-    var reportedNewBest by remember(game.difficulty) { mutableStateOf<Boolean?>(null) }
+    // Keyed on state.runSeq (bumped by every BreakoutGame.startMatch -- see that field's KDoc),
+    // the same "incrementing counter, unique per run" shape TowerDefenceScreen already uses for
+    // its own reportedForRunSeq. game.difficulty alone doesn't change between two runs of the
+    // same difficulty, which let a finished run's own "new best score?" result silently keep
+    // showing on every later run.
+    var reportedNewBest by remember(state.runSeq) { mutableStateOf<Boolean?>(null) }
 
     // The physics frame loop -- same shape as AirHockeyScreen's own; runs continuously while
     // this screen is composed and the session isn't over.
@@ -145,7 +150,7 @@ fun BreakoutScreen(
             playSfx(SfxKind.INVALID_BUZZ)
         }
     }
-    LaunchedEffect(state.gameOver) {
+    LaunchedEffect(state.gameOver, state.runSeq) {
         if (state.gameOver && reportedNewBest == null) {
             val isNewBest = statsStore.recordScore(game.difficulty, state.score)
             reportedNewBest = isNewBest
