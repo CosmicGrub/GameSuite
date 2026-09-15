@@ -296,6 +296,12 @@ class TowerDefenceGame : GameModule {
     private var bestWaveThisSession = 0
     private var everWonThisSession = false
 
+    /** Tracks whether the CURRENT [TowerDefenceState.paused]=true was caused by [pause] (an app
+     *  backgrounding event) rather than by the player's own [togglePause] — see [pause]/[resume]'s
+     *  own KDoc for why this exists: without it, [resume] can't tell a manual pause it must leave
+     *  alone apart from a lifecycle pause it's responsible for clearing. */
+    private var pausedByLifecycle = false
+
     override fun init(context: GameContext) {
         this.context = context
     }
@@ -318,19 +324,31 @@ class TowerDefenceGame : GameModule {
             runSeq = state.value.runSeq + 1
         )
         matchOver.value = false
+        pausedByLifecycle = false
     }
 
     /** See the class KDoc's PAUSE section — unlike Air Hockey/Breakout's empty no-ops, these
-     *  drive the same [TowerDefenceState.paused] flag [togglePause] does. */
+     *  drive the same [TowerDefenceState.paused] flag [togglePause] does. Only takes ownership of
+     *  the pause (recording [pausedByLifecycle]) when the game wasn't ALREADY paused — if the
+     *  player had already paused manually via [togglePause], backgrounding the app must not let
+     *  the matching [resume] silently clear that manual pause later. */
     override fun pause() {
         val s = state.value
         if (matchOver.value || s.runOver) return
+        if (s.paused) return
+        pausedByLifecycle = true
         state.value = s.copy(paused = true)
     }
 
+    /** Only clears [TowerDefenceState.paused] if THIS lifecycle hook (via [pause]) was the one
+     *  that set it — a pause the player set manually via [togglePause] is left alone, so
+     *  foregrounding the app after a background/foreground cycle never undoes an intentional
+     *  pause. See [pause]'s own KDoc and the class KDoc's PAUSE section. */
     override fun resume() {
         val s = state.value
         if (matchOver.value || s.runOver) return
+        if (!pausedByLifecycle) return
+        pausedByLifecycle = false
         state.value = s.copy(paused = false)
     }
 
@@ -340,10 +358,14 @@ class TowerDefenceGame : GameModule {
     }
 
     /** The in-game Pause button — see the class KDoc's PAUSE section for why this and the
-     *  lifecycle [pause]/[resume] hooks deliberately drive the same flag. */
+     *  lifecycle [pause]/[resume] hooks deliberately drive the same flag. Toggling manually always
+     *  takes ownership of the flag away from [pausedByLifecycle] — a manual unpause must never be
+     *  re-paused by a stale, already-handled backgrounding event, and a manual pause must never be
+     *  mistaken by [resume] for one IT is responsible for clearing. */
     fun togglePause() {
         val s = state.value
         if (matchOver.value || s.runOver) return
+        pausedByLifecycle = false
         state.value = s.copy(paused = !s.paused)
     }
 

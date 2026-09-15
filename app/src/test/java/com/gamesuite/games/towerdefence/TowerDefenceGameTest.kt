@@ -340,6 +340,36 @@ class TowerDefenceGameTest {
         assertFalse(game.state.value.paused)
     }
 
+    @Test
+    fun `resume() must not silently cancel a manual pause the app-lifecycle hooks did not cause`() {
+        val game = newGame(CpuDifficulty.MEDIUM, CLUSTERED_DEFENSE_LEVEL)
+        game.startMatch()
+
+        // Player manually pauses via the in-game button to review the board.
+        game.togglePause()
+        assertTrue(game.state.value.paused)
+
+        // App is backgrounded (e.g. a phone call or notification) while already paused --
+        // the lifecycle pause() must be a harmless no-op, not something resume() later "owns".
+        game.pause()
+        assertTrue(game.state.value.paused)
+
+        // App returns to the foreground -- resume() didn't cause this pause, so it must leave
+        // it alone rather than silently un-pausing the game the player deliberately paused.
+        game.resume()
+        assertTrue(
+            "resume() must never clear a pause set manually via togglePause -- only one it caused itself",
+            game.state.value.paused
+        )
+        val frozen = game.state.value
+        game.tick(0.05f)
+        assertSame("the game must still be genuinely paused after the spurious resume()", frozen, game.state.value)
+
+        // The player's own togglePause() still works normally afterward.
+        game.togglePause()
+        assertFalse(game.state.value.paused)
+    }
+
     // -- Session lifecycle / matchOver guard --
 
     @Test
