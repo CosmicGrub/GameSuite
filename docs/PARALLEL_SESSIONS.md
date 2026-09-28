@@ -53,6 +53,7 @@ worktrees with `--no-optional-locks`, so looking never blocks their `git add` or
 | Branch has commits not in `main` or `origin/main` | Refused. `--unmerged` overrides this one check, for a **squash-merged** PR (whose commits never appear in `main`) or an abandoned branch. A dirty tree still blocks it. |
 | The worktree at that path is on another branch, or a detached HEAD | Always refused, even with `--force`. Use `git worktree remove` yourself if you really mean it. |
 | Directory already deleted behind git's back | Cleaned up: the stale registration is pruned and the branch removed under the same merged check. |
+| Worktree locked with `git worktree lock` (present or already deleted) | Refused, showing the lock reason: someone protected it on purpose. `--force` unlocks it and continues. |
 | Anything, with `--force` | Discards uncommitted changes, ignored files, and unmerged commits. |
 
 ## Landing your work
@@ -97,7 +98,9 @@ drive has under 4 GB free.
   user, busy ones included, so it will kill another session's build in progress. Only run it
   when nothing else is `BUSY`; otherwise close the IDE or shell that has the worktree open.
 - Worktrees are siblings of the primary checkout (`Z:\GameSuite-wt-<name>`) to keep paths
-  short. Set `GAMESUITE_WORKTREE_ROOT` to place them elsewhere.
+  short. Set `GAMESUITE_WORKTREE_ROOT` to place them elsewhere; a relative value is resolved
+  against the primary checkout (not your current directory), so `new` and `done` agree from any
+  worktree.
 - `.claude/worktrees/` (gitignored) is used by Claude Code's own agent worktrees and is
   unrelated to these.
 

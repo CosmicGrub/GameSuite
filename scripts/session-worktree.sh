@@ -29,13 +29,51 @@ primary_root() {
     git worktree list --porcelain | awk '/^worktree /{ sub(/^worktree /, ""); print; exit }'
 }
 
+# Lexically collapse '.', '..', duplicate slashes and backslashes. Touches no filesystem, so it works
+# for directories that do not exist yet. Keeps a leading '/' or drive letter ("Z:/") as the root.
+normalize_path() {
+    local p="${1//\\//}" prefix="" seg
+    local -a out=()
+    if [[ "$p" =~ ^([A-Za-z]:)(/.*)?$ ]]; then
+        prefix="${BASH_REMATCH[1]}"
+        p="${BASH_REMATCH[2]:-}"
+    fi
+    [[ "$p" == /* ]] && prefix="${prefix}/"
+    local IFS=/
+    for seg in $p; do
+        case "$seg" in
+            ""|.) ;;
+            ..)   [[ ${#out[@]} -eq 0 ]] || unset "out[$((${#out[@]} - 1))]" ;;
+            *)    out+=("$seg") ;;
+        esac
+    done
+    echo "${prefix}${out[*]:-}"
+}
+
 # Sibling directory name: <primary-dir-name>-wt-<name>, next to the primary checkout.
-# GAMESUITE_WORKTREE_ROOT overrides the parent directory.
+# GAMESUITE_WORKTREE_ROOT overrides the parent directory. A relative value is resolved against the
+# PRIMARY checkout, never the caller's cwd, so `new` and `done` agree no matter which worktree runs them.
 worktree_path() {
-    local primary parent
+    local primary parent override="${GAMESUITE_WORKTREE_ROOT:-}"
     primary="$(primary_root)"
-    parent="${GAMESUITE_WORKTREE_ROOT:-$(dirname "$primary")}"
+    if [[ -n "$override" ]]; then
+        override="${override//\\//}"
+        if [[ "$override" != /* && ! "$override" =~ ^[A-Za-z]:/ ]]; then
+            override="$primary/$override"
+        fi
+        parent="$(normalize_path "$override")"
+    else
+        parent="$(dirname "$primary")"
+    fi
     echo "$parent/$(basename "$primary")-wt-$1"
+}
+
+# The reason a registered worktree was locked (or "no reason given"); prints nothing if it is not locked.
+lock_reason() {
+    git worktree list --porcelain | awk -v want="worktree $1" '
+        $0 == want { inrec = 1; next }
+        /^$/       { inrec = 0 }
+        inrec && /^locked/ { r = $0; sub(/^locked ?/, "", r); print (r == "" ? "no reason given" : r); exit }'
 }
 
 valid_name() { [[ "$1" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; }
@@ -158,6 +196,16 @@ cmd_done() {
     # A shell sitting inside the worktree blocks its deletion on Windows and leaves it half removed.
     if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" == "$path" ]]; then
         die "you are inside '$path'; cd out of it (for example to the primary checkout) and run this again"
+    fi
+
+    # A locked worktree was protected on purpose: git will neither remove nor prune it, so cleaning up
+    # a deleted-directory registration would also fail half way. Unlock only when explicitly forced.
+    local lock
+    lock="$(lock_reason "$path")"
+    if [[ -n "$lock" ]]; then
+        [[ $force -eq 1 ]] || die "'$path' is locked ($lock); pass --force to unlock and remove it"
+        git worktree unlock "$path"
+        echo "unlocked '$path' (was locked: $lock)"
     fi
 
     local stale=0
