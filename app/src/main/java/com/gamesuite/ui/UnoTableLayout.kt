@@ -14,6 +14,16 @@ internal const val SEAT_H_UNIT = 132f
 internal const val SEAT_W_COMPACT = 84f
 internal const val SEAT_H_COMPACT = 96f
 
+/**
+ * A compact plate carries the player's name, and text does not shrink below ~9sp the way the plate does,
+ * so on a crowded phone table the plates got too narrow for their own names (Fold cover screen, nine
+ * opponents: "Player 2Player 3Player 4..." running together). They never get narrower than this (dp).
+ */
+internal const val COMPACT_MIN_PLATE_W = 58f
+
+private fun plateWidth(wUnit: Float, scl: Float): Float =
+    if (wUnit == SEAT_W_COMPACT) maxOf(wUnit * scl, COMPACT_MIN_PLATE_W) else wUnit * scl
+
 /** Center of one opponent seat's plate, in dp from the table's top-left. */
 internal data class TableSeatPos(val cx: Float, val cy: Float)
 
@@ -107,7 +117,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
     // must end above the pile cluster. Full seats first; if that doesn't fit at a readable size, the
     // compact plate (no fan) is tried.
     fun packSeatRows(scl: Float, wUnit: Float, hUnit: Float): List<TableSeatPos>? {
-        val w = wUnit * scl
+        val w = plateWidth(wUnit, scl)
         val h = hUnit * scl
         val gap = 4f
         val fxRow = rx - 12f
@@ -176,7 +186,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
 
     // Seat centers ride an ellipse inset far enough that the whole plate sits on the felt.
     fun seatRadii(scl: Float): Pair<Float, Float> =
-        (rx - arcWUnit * scl * 0.62f).coerceAtLeast(24f) to (ry - arcHUnit * scl * 0.62f).coerceAtLeast(24f)
+        (rx - plateWidth(arcWUnit, scl) * 0.62f).coerceAtLeast(24f) to (ry - arcHUnit * scl * 0.62f).coerceAtLeast(24f)
 
     // Shrink the seats when many opponents would otherwise collide along the arc. Sized against the
     // plate's height, the larger dimension: along the sides of the oval neighbors stack vertically.
@@ -205,7 +215,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
 
     fun placeArc(scl: Float): List<TableSeatPos> {
         val (rxSeat, rySeat) = seatRadii(scl)
-        val hw = arcWUnit * scl / 2f
+        val hw = plateWidth(arcWUnit, scl) / 2f
         val hh = arcHUnit * scl / 2f
         // Place each seat on its rim ellipse, then, if any corner of its plate would cross the
         // felt's edge (a rectangle in the curved upper corners of an oval), slide it toward the center
@@ -278,7 +288,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
         for ((i, scl) in candidates.withIndex()) {
             arcSeats = placeArc(scl)
             arcScale = scl
-            val pw = arcWUnit * scl
+            val pw = plateWidth(arcWUnit, scl)
             val ph = arcHUnit * scl
             if ((worstOverlap(arcSeats, pw, ph) <= 0.05f && worstClusterOverlap(arcSeats, pw, ph) <= 0.06f) || i == candidates.lastIndex) break
         }
@@ -287,7 +297,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
     // size setting) is simply too wide for it, and no plate size fixes that -- so the piles give way
     // instead: retry with them a little smaller until the seats clear them or they hit the floor.
     if (rows == null && userScale > 0.75f &&
-        worstClusterOverlap(arcSeats, arcWUnit * arcScale, arcHUnit * arcScale) > 0.10f
+        worstClusterOverlap(arcSeats, plateWidth(arcWUnit, arcScale), arcHUnit * arcScale) > 0.10f
     ) {
         return computeTableLayout(tableW, tableH, seatCount, maxOf(0.75f, userScale * 0.92f))
     }
@@ -302,7 +312,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
         discardH = discardH,
         drawW = drawW,
         seatScale = seatScale,
-        seatW = wUnit * seatScale,
+        seatW = plateWidth(wUnit, seatScale),
         seatH = hUnit * seatScale,
         compact = finalCompact,
         seats = seats,
