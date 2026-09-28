@@ -1,0 +1,180 @@
+# CI for the GameSuite app: the Android/KMP modules (app/, shared/) and the Rust native
+# cores they load through UniFFI (rust/). Two independent jobs so a Rust regression fails
+# in a couple of minutes without waiting on the Android build:
+#
+#   rust     `cargo test` for the whole rust/ workspace (Air Hockey sim physics, PadSynth DSP).
+#            The Gradle build never runs these, only the Kotlin tests that call into the libs.
+#   android  cross-compiles the native libs for all three ABIs (cargo-ndk), runs the JVM unit
+#            tests for :app and the shared KMP module, and assembles the debug APK.
+#
+# Deliberately NOT run here (each needs a follow-up of its own):
+#   - androidTest / instrumented tests   need an emulator
+#   - lint, detekt, ktlint, cargo fmt/clippy   none are clean or configured yet; enforcing one
+#     that fails today would just train everyone to ignore a red build
+#   - release/R8 build   no signing config or minify setup exists yet
+#
+# Reproduce locally (from a checkout with the Android SDK + NDK + Rust toolchain):
+#   ./gradlew :app:testDebugUnitTest :shared:allTests :app:assembleDebug
+#   (cd rust && cargo test --workspace --locked)
+#
+# The server/ relay has its own workflow: relay-server.yml.
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'rust/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'rust/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+# Least privilege: nothing here writes to the repo, PRs, or releases.
+permissions:
+  contents: read
+
+# A new push to a PR supersedes the run in flight. Runs on main are never cancelled once started
+# (a newer push can still replace a run that is only queued).
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Must match the NDK the project is developed against (see resolveAndroidNdkHome() in
+  # app/build.gradle.kts). Pinned rather than taking the runner image's preinstalled NDK,
+  # which changes whenever GitHub refreshes the image.
+  NDK_VERSION: '28.2.13676358'
+  # Matches the cargo-ndk the build's CLI flags (-t / -P / -o) were written against.
+  CARGO_NDK_VERSION: '4.1.2'
+
+jobs:
+  rust:
+    name: Rust core tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          # Only main writes the cache, so PR runs can't evict it with one-off entries.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # --locked: fail if Cargo.lock is out of date instead of silently rewriting it.
+      - name: cargo test
+        working-directory: rust
+        run: cargo test --workspace --locked
+
+  android:
+    name: Build + unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Installs sdkmanager, accepts licenses, then the exact platform/build-tools/NDK the
+      # project compiles against, so the build doesn't depend on what the runner image has.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0 ndk;${{ env.NDK_VERSION }}'
+
+      # app/build.gradle.kts hands ANDROID_NDK_HOME to cargo-ndk and fails the build if the
+      # NDK's clang toolchain isn't there; check it here so a bad install reads as one clear
+      # line instead of a Gradle stack trace.
+      - name: Point cargo-ndk at the pinned NDK
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          NDK_HOME="$SDK_ROOT/ndk/$NDK_VERSION"
+          if [ ! -d "$NDK_HOME/toolchains/llvm/prebuilt" ]; then
+            echo "::error::NDK $NDK_VERSION not found under '$SDK_ROOT/ndk' (installed: $(ls "$SDK_ROOT/ndk" 2>&1 | tr '\n' ' '))"
+            exit 1
+          fi
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # One rustc target per ABI in cargoNdkTargets (arm64-v8a, armeabi-v7a, x86_64).
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # rust-cache restores ~/.cargo/bin, so this only compiles cargo-ndk on a cold cache.
+      # (cargo-ndk isn't in taiki-e/install-action's manifest, so there is no prebuilt path.)
+      - name: Install cargo-ndk
+        run: |
+          if ! cargo ndk --version 2>/dev/null | grep -q "$CARGO_NDK_VERSION"; then
+            cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
+          fi
+          cargo ndk --version
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          # Same reasoning as the Rust cache: main writes, everything else only reads.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Windows-authored checkouts commit gradlew as 100644; make it runnable regardless.
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # --continue: report every failing test task, not just the first.
+      # -Xmx4g: gradle.properties' 2 GB is sized for a laptop; the runner has 16 GB and the
+      # cold build compiles a 32-game Compose app plus three Rust ABIs.
+      - name: Unit tests + debug APK
+        run: >
+          ./gradlew --console=plain --stacktrace --continue
+          "-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8"
+          :app:testDebugUnitTest :shared:allTests :app:assembleDebug
+
+      # Reports are only worth the storage when something failed.
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+          # Names are unique per run; without this a re-run of the job would fail with a 409.
+          overwrite: true
+
+      # A per-run debug APK so a PR can be sideloaded and tried on a device without a local build.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
