@@ -9,14 +9,20 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -96,7 +102,14 @@ fun <T> FannedHand(
     // as a targeted addition rather than widening `enabled` itself to a per-item predicate, since
     // every other existing behavior (drag physics, deal-in, hover cursor) should keep reading one
     // simple boolean rather than re-deriving it per item.
-    alsoEnabledFor: ((T) -> Boolean)? = null
+    alsoEnabledFor: ((T) -> Boolean)? = null,
+    // How far each card sits from the previous one, as a fraction of card width (smaller = more
+    // overlap). 0.55 is the original tight fan every existing caller keeps by default.
+    overlapFraction: Float = 0.55f,
+    // Which cards are actually playable right now. While the hand is enabled, playable cards ride a
+    // little higher and the rest are dimmed, so the legal moves read at a glance (what every UNO
+    // video game does). null (default) = no distinction, every existing caller unchanged.
+    isPlayable: ((T) -> Boolean)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     // Settings -> Accessibility -> Reduced Motion (see settings/LocalReducedMotion.kt) — the
@@ -114,7 +127,7 @@ fun <T> FannedHand(
     val scale = LocalCardScale.current
     val scaledCardWidth = cardWidth * scale
     val scaledCardHeight = cardHeight * scale
-    val overlap = scaledCardWidth * 0.55f
+    val overlap = scaledCardWidth * overlapFraction
     val fanWidth = if (items.isEmpty()) scaledCardWidth else scaledCardWidth + overlap * (items.size - 1)
 
     // The fan's natural width grows with hand size and can exceed the
@@ -123,11 +136,24 @@ fun <T> FannedHand(
     // intrinsic width inside a horizontally scrolling viewport so every
     // card — including ones pushed past the visible edge — stays reachable
     // regardless of hand size or screen width.
+    BoxWithConstraints(modifier = modifier.height(scaledCardHeight + 24.dp)) {
+    val viewportWidth = maxWidth
     Box(
-        modifier = modifier
-            .height(scaledCardHeight + 24.dp)
+        modifier = Modifier
+            .fillMaxSize()
             .horizontalScroll(rememberScrollState())
     ) {
+        // A hand narrower than its viewport used to hug the start edge (the inner fan Box
+        // is only as wide as the fan) -- on a wide screen that parked a few small cards in
+        // the bottom-left corner. Padding the scrolled content out to at least the viewport
+        // width and centering the fan inside it keeps a short hand centered, while a hand
+        // wider than the viewport still scrolls exactly as before.
+        Box(
+            modifier = Modifier
+                .height(scaledCardHeight + 24.dp)
+                .width(maxOf(fanWidth, viewportWidth)),
+            contentAlignment = Alignment.TopCenter
+        ) {
         // A Box does not size itself to offset-positioned children (offset
         // doesn't contribute to measured size), so the fan needs an inner
         // Box explicitly sized to fanWidth — otherwise the scroll container
@@ -146,7 +172,23 @@ fun <T> FannedHand(
                 // `enabled` for interactivity purposes now reads this instead, so an exception
                 // card behaves exactly as if the WHOLE hand were enabled, without weakening the
                 // blanket gate for every other, non-exempt card in this same hand.
-                val itemEnabled = enabled || alsoEnabledFor?.invoke(item) == true
+                // With a legality check supplied, a card the check rejects is not interactive at all:
+                // it used to stay tappable and draggable while dimmed, so playing it flew a ghost card
+                // to the pile and fired the place sound and haptic for a play the engine then refused.
+                val itemEnabled = (enabled && (isPlayable?.invoke(item) ?: true)) || alsoEnabledFor?.invoke(item) == true
+                // Legal-move highlight (see isPlayable's KDoc): while it's this hand's turn the
+                // unplayable cards are dimmed and the playable ones lifted; a card enabled only
+                // through alsoEnabledFor (a jump-in) counts as playable regardless of what
+                // isPlayable says about ordinary turn-order legality.
+                val viaException = !enabled && alsoEnabledFor?.invoke(item) == true
+                val playable = viaException || (isPlayable?.invoke(item) ?: true)
+                val dimmed = isPlayable != null && enabled && !playable
+                val lifted = isPlayable != null && itemEnabled && playable
+                val playableLift by animateFloatAsState(
+                    targetValue = if (lifted) -14f else 0f,
+                    animationSpec = if (reducedMotion) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "playableLift"
+                )
 
                 var dragOffsetY by remember(idOf(item)) { mutableFloatStateOf(0f) }
                 var isDragging by remember(idOf(item)) { mutableStateOf(false) }
@@ -182,6 +224,11 @@ fun <T> FannedHand(
                     onCardAboutToPlay?.invoke(item, visualOf(item), cardRootPosition, rotationDeg)
                     onPlay(item)
                 }
+                // The gesture handlers below are long-lived (keyed only on itemEnabled and the card's
+                // id), so a plain call to play() from them would run the version captured when they
+                // started -- with a stale card size and fan tilt handed to onCardAboutToPlay after the
+                // hand has resized. This always reaches the latest one.
+                val currentPlay = rememberUpdatedState<() -> Unit> { play() }
 
                 Box(
                     modifier = Modifier
@@ -190,6 +237,9 @@ fun <T> FannedHand(
                             scaleX = 0.3f + 0.7f * dealProgress.value
                             scaleY = 0.3f + 0.7f * dealProgress.value
                             alpha = dealProgress.value.coerceIn(0f, 1f)
+                            // The legal-move lift spring is read here, in the draw phase, so its
+                            // per-frame animation redraws this card instead of recomposing the whole hand.
+                            translationY = playableLift * density
                         }
                         .onGloballyPositioned { cardRootPosition = it.positionInRoot() }
                         // Mouse/trackpad hover cursor (Tab S9 DeX windowed mode / keyboard-cover
@@ -217,7 +267,7 @@ fun <T> FannedHand(
                                 onDragEnd = {
                                     isDragging = false
                                     if (pastThreshold) {
-                                        play()
+                                        currentPlay.value()
                                     }
                                     dragOffsetY = 0f
                                     pastThreshold = false
@@ -235,12 +285,15 @@ fun <T> FannedHand(
                         rotationDeg = rotationDeg,
                         width = scaledCardWidth,
                         height = scaledCardHeight,
-                        onTap = if (itemEnabled) { { play() } } else null,
-                        description = descriptionOf?.invoke(item)
+                        onTap = if (itemEnabled) { { currentPlay.value() } } else null,
+                        description = descriptionOf?.invoke(item),
+                        dimmed = dimmed
                     )
                 }
             }
         }
+        }
+    }
     }
 }
 
@@ -251,7 +304,8 @@ private fun RotatedCard(
     width: Dp,
     height: Dp,
     onTap: (() -> Unit)?,
-    description: String? = null
+    description: String? = null,
+    dimmed: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -267,7 +321,18 @@ private fun RotatedCard(
                 } else Modifier
             )
     ) {
-        Box(modifier = Modifier.rotate(rotationDeg)) {
+        Box(
+            modifier = Modifier
+                .rotate(rotationDeg)
+                .then(
+                    if (dimmed) {
+                        Modifier.drawWithContent {
+                            drawContent()
+                            drawRoundRect(Color.Black.copy(alpha = 0.45f), cornerRadius = CornerRadius(size.width * 0.11f))
+                        }
+                    } else Modifier
+                )
+        ) {
             PlayingCardView(card = visual, width = width, height = height)
         }
     }

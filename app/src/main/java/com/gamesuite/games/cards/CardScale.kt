@@ -37,8 +37,21 @@ val LocalCardScale = compositionLocalOf { 1f }
  */
 @Composable
 fun rememberCardScaleMultiplier(preference: Float): Float {
-    val effectiveWidthDp = minOf(LocalConfiguration.current.screenWidthDp, 840)
-    val maxMultiplier = (effectiveWidthDp * 0.16f / 64f).coerceIn(1.15f, 1.75f)
-    val minMultiplier = 0.65f
-    return minMultiplier + (maxMultiplier - minMultiplier) * preference.coerceIn(0f, 1f)
+    val maxMultiplier = maxCardScaleMultiplier(LocalConfiguration.current.screenWidthDp)
+    return MIN_CARD_SCALE + (maxMultiplier - MIN_CARD_SCALE) * preference.coerceIn(0f, 1f)
 }
+
+/** The smallest multiplier the Card size slider maps to, on every device. */
+const val MIN_CARD_SCALE = 0.65f
+
+/** The largest multiplier the slider maps to on a window [screenWidthDp] wide (see the class doc:
+ *  the ceiling scales with the window's effective width, capped at 840dp). */
+fun maxCardScaleMultiplier(screenWidthDp: Int): Float =
+    (minOf(screenWidthDp, 840) * 0.16f / 64f).coerceIn(1.15f, 1.75f)
+
+/** Inverse of [rememberCardScaleMultiplier]: the raw 0..1 slider preference that produced [cardScale]
+ *  on a window [screenWidthDp] wide. Lets a screen that needs the setting on a device-independent
+ *  footing (UNO sizes several things relative to it) read the real curve instead of copying its
+ *  constants. */
+fun cardSizePreferenceFor(cardScale: Float, screenWidthDp: Int): Float =
+    ((cardScale - MIN_CARD_SCALE) / (maxCardScaleMultiplier(screenWidthDp) - MIN_CARD_SCALE)).coerceIn(0f, 1f)

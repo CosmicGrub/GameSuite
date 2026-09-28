@@ -2,6 +2,15 @@ package com.gamesuite.games.cards
 
 import androidx.compose.ui.graphics.Color
 
+/** How [PlayingCardView] draws a card's face/back. [FLAT] is the original solid-color card every
+ *  existing caller gets by default; [UNO] is the printed-deck look (white frame, slanted white
+ *  center oval, mirrored corner marks, red-oval "UNO" back). */
+enum class CardStyle { FLAT, UNO }
+
+/** The center mark of a [CardStyle.UNO] face -- text glyphs use [CardVisual.label]; the rest are
+ *  drawn as vector shapes so they never depend on a font having the right symbol. */
+enum class CardGlyph { TEXT, SKIP, REVERSE, WILD }
+
 /**
  * Generic playing-card face — every card game (UNO now; standard-deck games
  * later) maps its own card model to this so they all render through the
@@ -24,5 +33,9 @@ data class CardVisual(
      *  colorblind player can tell cards apart by more than hue during actual play, not only in
      *  a one-off color-choice moment. Ignored while [faceDown] (nothing to disambiguate on a
      *  card back). */
-    val colorblindGlyph: String? = null
+    val colorblindGlyph: String? = null,
+    /** See [CardStyle]. Defaults to [CardStyle.FLAT] so every existing caller is unaffected. */
+    val style: CardStyle = CardStyle.FLAT,
+    /** Only read when [style] is [CardStyle.UNO] and the card is face-up. */
+    val glyph: CardGlyph = CardGlyph.TEXT
 )

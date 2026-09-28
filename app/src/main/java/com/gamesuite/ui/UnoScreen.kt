@@ -18,6 +18,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -29,10 +30,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -41,8 +46,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -50,6 +58,9 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,7 +76,9 @@ import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
+import com.gamesuite.games.cards.CardGlyph
 import com.gamesuite.games.cards.CardSounds
+import com.gamesuite.games.cards.CardStyle
 import com.gamesuite.games.cards.CardVisual
 import com.gamesuite.games.cards.FannedHand
 import com.gamesuite.games.cards.LocalCardScale
@@ -81,10 +94,12 @@ import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.games.uno.UnoCard
 import com.gamesuite.games.uno.UnoColor
 import com.gamesuite.games.uno.UnoGame
+import com.gamesuite.games.uno.UnoPlayerState
 import com.gamesuite.games.uno.UnoRank
 import com.gamesuite.games.uno.UnoRules
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.ui.effects.rememberFeltGrainBrush
 import com.gamesuite.ui.effects.shakeSteps
 import com.gamesuite.ui.effects.specularSweep
 import com.gamesuite.ui.effects.victoryGlow
@@ -165,13 +180,16 @@ fun UnoScreen(
     // Drive bot turns automatically -- see botThinkDelayMs's own KDoc for why
     // this is no longer a flat delay(700) (opponent "personality" tells,
     // premium 2026 vision pitch's UNO section).
-    LaunchedEffect(state?.currentPlayerIndex, state?.awaitingColorChoice, state?.awaitingChallenge, state?.roundOver) {
+    // awaitingDrawDecision is a key too: a bot that draws a playable card keeps the turn (an unchanged
+    // currentPlayerIndex), and that flag flipping is what re-fires this to play the drawn card as its own
+    // step (chainDrawnPlay = false), after a fresh think delay, instead of inside the draw's call.
+    LaunchedEffect(state?.currentPlayerIndex, state?.awaitingColorChoice, state?.awaitingChallenge, state?.roundOver, state?.awaitingDrawDecision) {
         val s = state ?: return@LaunchedEffect
         if (s.matchOver || s.roundOver) return@LaunchedEffect
         val current = s.players.getOrNull(s.currentPlayerIndex) ?: return@LaunchedEffect
         if (current.isBot || (s.awaitingChallenge && s.challengeVictimIndex?.let { s.players[it].isBot } == true)) {
             delay(botThinkDelayMs(current.hand, s, game.rules, current.playerId))
-            game.playBotTurn()
+            game.playBotTurn(chainDrawnPlay = false)
         }
     }
 
@@ -197,6 +215,9 @@ fun UnoScreen(
 
     val myIndex = humanIndex(s, activeContext)
     val myTurn = s.currentPlayerIndex == myIndex && !s.awaitingColorChoice && !s.awaitingChallenge
+    // Whether a draw would actually do anything: not once you've just drawn a playable card (the turn stays
+    // with you, and the engine refuses a second draw until you play it or keep it).
+    val canDraw = myTurn && !s.awaitingDrawDecision
     val myHand = s.players.getOrNull(myIndex)?.hand ?: emptyList()
 
     // The user's card-size preference (Settings → Card size), already mapped to
@@ -220,7 +241,10 @@ fun UnoScreen(
     // players' danger borders and the Draw button's own tension border all
     // breathe in lockstep instead of drifting independently.
     val dangerPulse = rememberInfiniteTransition(label = "unoDangerPulse")
-    val dangerPulseT by dangerPulse.animateFloat(
+    // Deliberately NOT read with `by`: that would recompose this whole screen (the table, every seat, the
+    // hand) 60 times a second. [dangerAlpha] is only ever called from inside a draw lambda, so the pulse
+    // invalidates just the borders it paints.
+    val dangerPulseT = dangerPulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(animation = tween(1400, easing = androidx.compose.animation.core.LinearEasing)),
@@ -231,7 +255,7 @@ fun UnoScreen(
     // non-animated identity) stays on regardless, same as this file's
     // existing always-on direction arrows.
     fun dangerAlpha(base: Float, swing: Float): Float =
-        if (enhanced) base + swing * kotlin.math.abs(kotlin.math.sin(dangerPulseT * Math.PI.toFloat())) else base
+        if (enhanced) base + swing * kotlin.math.abs(kotlin.math.sin(dangerPulseT.value * Math.PI.toFloat())) else base
 
     val handDangerLevel = s.players.maxOfOrNull { p ->
         when {
@@ -325,8 +349,38 @@ fun UnoScreen(
     // starts, so the real state update (new top card, AnimatedContent's own
     // transition) has already landed; this overlay just fills the visual gap
     // of "where did the card in my hand actually go."
-    var discardPilePosition by remember { mutableStateOf(Offset.Zero) }
+    // Real on-screen rectangles (root coordinates) of the things cards fly between. Sizes are
+    // measured rather than assumed because the table sizes its cards from its own bounds, so a
+    // flight has to start at the size of the card it leaves and land at the size of the card it
+    // joins.
+    var discardCardRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var drawPileRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    // The pile's tap target is drawn without a ripple, so keyboard / D-pad focus (Tab S9 DeX, keyboard
+    // cover) needs its own visible ring or Enter draws a card from something that shows no focus.
+    val pileSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pileFocused by pileSource.collectIsFocusedAsState()
+    var handAreaRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val seatRects = remember { mutableStateMapOf<Int, androidx.compose.ui.geometry.Rect>() }
     var flyingCard by remember { mutableStateOf<FlyingCard?>(null) }
+    // Face-down cards traveling from the draw pile to opponents' seats (the deal, and opponent
+    // draws); many at once, all advanced by one frame clock that only ticks while any are in
+    // flight. See MiniFlight / MiniFlightsOverlay.
+    val miniFlights = remember { mutableStateListOf<MiniFlight>() }
+    val miniClock = remember { mutableLongStateOf(0L) }
+    // Bumped on every launch so the frame loop below always restarts: keyed on "is the list empty" alone,
+    // a flight added in the same frame the last one finished never woke the loop, and sat frozen.
+    val miniKick = remember { mutableIntStateOf(0) }
+    fun launchMini(flight: MiniFlight) {
+        miniFlights += flight
+        miniKick.intValue++
+    }
+    LaunchedEffect(miniKick.intValue) {
+        while (miniFlights.isNotEmpty()) {
+            withFrameNanos { miniClock.longValue = it / 1_000_000 }
+            val now = miniClock.longValue
+            miniFlights.removeAll { now >= it.startMs + it.durationMs }
+        }
+    }
     val flyProgress = remember { Animatable(0f) }
     LaunchedEffect(flyingCard) {
         val card = flyingCard ?: return@LaunchedEffect
@@ -378,9 +432,39 @@ fun UnoScreen(
     val cameraShakeX = remember { Animatable(0f) }
     val cameraShakeY = remember { Animatable(0f) }
     var previousTopCardId by remember { mutableStateOf(s.topCard.instanceId) }
+    // Who held which cards as of the previous state, so the effect below can tell whose hand a newly
+    // landed top card came out of. A one-element array rather than state: it is only ever read and
+    // written from effects, in declaration order, and must not itself trigger recomposition.
+    val handSnapshot = remember { arrayOf(s.players.associate { it.playerId to it.hand.map { c -> c.instanceId }.toSet() }) }
+    // The same moment's hand sizes and draw-pile size: card ids can be unusable (an online opponent's
+    // cards are redacted to one placeholder id), sizes never are.
+    val sizeSnapshot = remember { arrayOf(s.players.associate { it.playerId to it.hand.size }) }
+    val pileSnapshot = remember { intArrayOf(s.drawPileSize) }
+    val flightDensity = LocalDensity.current
     LaunchedEffect(s.topCard.instanceId) {
         if (s.topCard.instanceId == previousTopCardId) return@LaunchedEffect
         val rank = s.topCard.rank
+        // Every played card now visibly travels: the local player's own flight starts in FannedHand
+        // (flyingCard is already set by then), and this covers everyone else -- an opponent's or a
+        // remote human's card takes off from their seat and lands on the pile at full size.
+        val playedBySeat = s.players.indexOfFirst { p -> handSnapshot[0][p.playerId]?.contains(s.topCard.instanceId) == true }
+            .takeIf { it >= 0 }
+            // Ids can't say (redacted hands, or two updates landing in one frame): whoever's hand shrank.
+            ?: s.players.indexOfFirst { p -> p.hand.size < (sizeSnapshot[0][p.playerId] ?: p.hand.size) }
+        val seatRect = seatRects[playedBySeat]
+        if (playedBySeat >= 0 && playedBySeat != myIndex && flyingCard == null && !reducedMotion &&
+            seatRect != null && discardCardRect.width > 0f
+        ) {
+            val wPx = seatRect.width * 0.36f
+            flyingCard = FlyingCard(
+                visual = unoCardToVisual(s.topCard, colorblindMode = colorblindMode),
+                start = Offset(seatRect.center.x - wPx / 2f, seatRect.center.y - wPx * (92f / 64f) / 2f),
+                startRotationDeg = 0f,
+                isWildRank = s.topCard.isWild,
+                rank = rank,
+                width = with(flightDensity) { wPx.toDp() }
+            )
+        }
         // Impact pulse: every landed card gets a small one, not just action cards.
         if (enhanced) {
             discardImpactPulse.snapTo(1f)
@@ -432,6 +516,45 @@ fun UnoScreen(
         }
         previousTopCardId = s.topCard.instanceId
     }
+    // Declared after the top-card effect above on purpose: both restart on the same state change, and
+    // the flight logic there has to read the PREVIOUS hands before this overwrites them.
+    var lastRoundSeen by remember { mutableStateOf(s.roundNumber) }
+    LaunchedEffect(s.players) {
+        // An opponent who just took cards (a draw, or a +2/+4 penalty) gets that many cards flown
+        // from the draw pile to their seat. Skipped on a new round (the deal has its own flights),
+        // for the local seat (its own draw flight lives in the hand), and under reduced motion.
+        val isNewRound = s.roundNumber != lastRoundSeen
+        lastRoundSeen = s.roundNumber
+        // Cards only leave the draw pile for a hand when the pile itself moved; a hand swap (or anything
+        // else that reshuffles who holds what) leaves it alone and must not fly cards from the deck.
+        val pileMoved = s.drawPileSize != pileSnapshot[0]
+        if (!isNewRound && pileMoved && enhanced && !reducedMotion && drawPileRect.width > 0f) {
+            s.players.forEachIndexed { index, p ->
+                val previous = handSnapshot[0][p.playerId] ?: return@forEachIndexed
+                val idGained = p.hand.count { it.instanceId !in previous }
+                val sizeGained = p.hand.size - (sizeSnapshot[0][p.playerId] ?: p.hand.size)
+                val gained = maxOf(idGained, sizeGained)
+                val seat = seatRects[index]
+                if (index != myIndex && gained > 0 && seat != null) {
+                    val nowMs = System.nanoTime() / 1_000_000
+                    repeat(gained.coerceAtMost(6)) { i ->
+                        launchMini(
+                            MiniFlight(
+                                from = drawPileRect.center,
+                                to = seat.center,
+                                fromWidthPx = drawPileRect.width,
+                                toWidthPx = seat.width * 0.3f,
+                                startMs = nowMs + i * 90L
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        handSnapshot[0] = s.players.associate { it.playerId to it.hand.map { c -> c.instanceId }.toSet() }
+        sizeSnapshot[0] = s.players.associate { it.playerId to it.hand.size }
+        pileSnapshot[0] = s.drawPileSize
+    }
     LaunchedEffect(actionFlash) {
         if (actionFlash != null) {
             delay(850)
@@ -444,8 +567,7 @@ fun UnoScreen(
     // settles -- the one flourish UnoState.drawPileSize existed for
     // (maintained through every draw/reshuffle in UnoGame.kt) but had zero
     // read sites anywhere on this screen until now.
-    var drawPilePosition by remember { mutableStateOf(Offset.Zero) }
-    var handAreaPosition by remember { mutableStateOf(Offset.Zero) }
+    var handCardWidth by remember { mutableStateOf(64.dp) }
     var drawnCardFlight by remember { mutableStateOf<DrawnCardFlight?>(null) }
     val drawFlightProgress = remember { Animatable(0f) }
     var previousHandIds by remember { mutableStateOf(myHand.map { it.instanceId }.toSet()) }
@@ -486,6 +608,34 @@ fun UnoScreen(
         if (!enhanced) return@LaunchedEffect
         isDealing = true
         opponentDealCounts = s.players.map { 0 }
+        // The deal, made visible: one face-down card leaves the draw pile for each opponent, round
+        // robin in seat order, 55ms per round -- the same cadence the count chips tick at below, which
+        // now start one flight-time later so a chip only counts a card once it has actually landed.
+        // (One frame first, so the seats and pile have been laid out and their rects are known.)
+        androidx.compose.runtime.withFrameNanos { }
+        if (!reducedMotion && drawPileRect.width > 0f) {
+            val nowMs = System.nanoTime() / 1_000_000
+            val n = s.players.size
+            val order = if (myIndex in s.players.indices) (1 until n).map { (myIndex + it) % n } else s.players.indices.toList()
+            val rounds = s.players.maxOfOrNull { it.hand.size } ?: 0
+            for (r in 0 until rounds) {
+                order.forEachIndexed { j, idx ->
+                    val seat = seatRects[idx] ?: return@forEachIndexed
+                    if (r < s.players[idx].hand.size) {
+                        launchMini(
+                            MiniFlight(
+                                from = drawPileRect.center,
+                                to = seat.center,
+                                fromWidthPx = drawPileRect.width,
+                                toWidthPx = seat.width * 0.3f,
+                                startMs = nowMs + r * 55L + j * (55L / order.size.coerceAtLeast(1))
+                            )
+                        )
+                    }
+                }
+            }
+            delay(300)
+        }
         for (round in 1..(s.players.maxOfOrNull { it.hand.size } ?: 0)) {
             delay(55)
             opponentDealCounts = s.players.map { p -> minOf(round, p.hand.size) }
@@ -502,518 +652,583 @@ fun UnoScreen(
     UnoBackground(dangerLevel = animatedTension) {
     AdaptiveTwoPane(
         foldState = LocalFoldState.current,
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 10.dp),
         primary = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // A subtle table-shaped (elliptical) tint behind this whole pane's
-                    // content -- distinct from UnoBackground's full-screen ambient glow
-                    // below it -- strengthening the "seated at a table" read the project
-                    // owner asked for, per the brief's own strong recommendation on this
-                    // point, WITHOUT repositioning any seat: this is a static background
-                    // draw only, sized to this pane's own bounds, drawn before
-                    // verticalScroll below so it stays fixed to the viewport rather than
-                    // scrolling with the content. The opponents row's horizontalScroll
-                    // and this pane's own verticalScroll (both just verified correct and
-                    // safe across every orientation in the prior pass) are untouched.
-                    .drawBehind {
-                        drawOval(
-                            brush = Brush.radialGradient(
-                                listOf(Color(0xFF120B24).copy(alpha = 0.38f), Color.Transparent)
-                            )
-                        )
-                    }
-                    // Fold-5-cover-screen-rotated-to-landscape (~344dp tall) is
-                    // the tightest real vertical budget anywhere in this app --
-                    // opponents row + discard pile + draw/UNO row easily add up
-                    // to more height than that window actually has, even before
-                    // a turn tag or "Catch!" button adds more. This pane has no
-                    // fixed-aspect board to preserve (unlike Checkers/Chess/
-                    // Tic-Tac-Toe), so a landscape chrome-reflow doesn't apply
-                    // here the way it does there -- verticalScroll is the
-                    // correct, minimal fix: a no-op whenever this pane's
-                    // content already fits (every other window shape), and the
-                    // difference between "scrollable" and "silently clipped and
-                    // partly untappable" on the shortest windows. Matches the
-                    // horizontalScroll already used for the opponents row and
-                    // (inside FannedHand) the hand itself, for the same reason
-                    // on the other axis.
-                    .verticalScroll(rememberScrollState())
-                    // The primary table pane (opponents, discard pile, draw/UNO
-                    // buttons) now gets the same resting perspective tilt every
-                    // other board screen already applies via tablePerspectiveTilt
-                    // -- UNO was the confirmed gap that never called it. Scoped to
-                    // just this pane, not the hand's own drag surface below (a
-                    // tilted drag target would fight the player's own finger).
-                    .let { if (card3D) it.tablePerspectiveTilt() else it }
-                    // Camera-punch zoom on the table for the biggest single beat in the
-                    // game (a Wild Draw Four landing) -- see the cameraPunch Animatable
-                    // above for the trigger. Scoped to just the table, not the hand
-                    // below, so the player's own cards never visually jump under a
-                    // mid-drag finger. cameraShakeX/Y layer a few-px jitter on top of
-                    // the same scale-punch for the new hit-stop beat -- additive, the
-                    // scale-punch itself is unchanged.
-                    .graphicsLayer {
-                        scaleX = cameraPunch.value
-                        scaleY = cameraPunch.value
-                        translationX = cameraShakeX.value
-                        translationY = cameraShakeY.value
-                    }
-            ) {
-                // Opponents arranged along a real arc, not a flat row — the round-table fix.
-                // The audit that flagged this named it directly: "the single biggest gap
-                // against the round-table ask... seats arranged in a straight (scrollable)
-                // row, never around a rim." The decorative elliptical tint and the table-tilt/
-                // camera-punch work added since both explicitly left this exact gap open (see
-                // this Column's own drawBehind/tablePerspectiveTilt comments above — neither
-                // repositions a single seat). This does: angle=0 (the center-most seat) sits
-                // furthest from the viewer (highest on screen, smallest y-offset magnitude...
-                // largest, actually — see below), and seats toward either edge curve down and
-                // outward — the same "far side of an oval table, you anchored at the bottom"
-                // shape every benchmarked UNO video game uses (2006 Xbox Live Arcade, Ubisoft's
-                // 2016+ release, UNO! Mobile — see the audit's own video-game research). Still
-                // horizontally scrollable for the same "UNO supports up to 10 players" reason
-                // the old Row was — an arc that's wider than the viewport just scrolls instead
-                // of clipping, exactly like the row it replaces.
-                val seatCount = s.players.size
-                val maxArcAngleDeg = if (seatCount <= 1) 0f else 55f
-                val seatRadiusX = (56.dp + 20.dp * (seatCount - 1).coerceAtLeast(0)) * cardScale
-                val seatRadiusY = 40.dp * cardScale
-                val seatFootprint = 104.dp * cardScale // per-seat width budget for the container's own size
+            // The table: a felt oval that fills this pane, opponents seated around its rim (in
+            // turn order, starting with whoever plays after you), the piles and actions in the
+            // middle. Every size below is derived from this pane's own bounds -- the previous
+            // layout pinned fixed-size content to the top of the pane, which on a tall window
+            // left the whole middle of the screen empty.
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val tableW = maxWidth
+                val availH = maxHeight
+                // Below this height the seats, piles and buttons stop fitting without overlapping
+                // (Fold cover screen rotated to landscape is the tightest real case), so the table
+                // keeps a floor and scrolls instead.
+                val tableH = maxOf(availH, 300.dp)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    contentAlignment = Alignment.TopCenter
+                        .fillMaxSize()
+                        .then(if (tableH > availH) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(seatFootprint + seatRadiusX * 2)
-                            .height(seatFootprint + seatRadiusY),
-                        contentAlignment = Alignment.TopCenter
+                            .width(tableW)
+                            .height(tableH)
+                            // Same resting perspective tilt every other board screen applies,
+                            // scoped to the table (not the hand's drag surface).
+                            .let { if (card3D) it.tablePerspectiveTilt() else it }
+                            // Camera-punch zoom + hit-stop shake on the table for a Wild Draw
+                            // Four landing -- see the cameraPunch/cameraShake Animatables above.
+                            .graphicsLayer {
+                                scaleX = cameraPunch.value
+                                scaleY = cameraPunch.value
+                                translationX = cameraShakeX.value
+                                translationY = cameraShakeY.value
+                            }
                     ) {
-                    s.players.forEachIndexed { index, p ->
-                        val isTurn = index == s.currentPlayerIndex
-                        // Arc placement: angle sweeps evenly from -maxArcAngleDeg to
-                        // +maxArcAngleDeg across every seat (a single seat stays centered at
-                        // angle 0). yOffset is 0 at the center seat (furthest back / highest on
-                        // screen, since this whole arc sits at the TOP of its own Box) and grows
-                        // toward the edges — an oval's near-side curvature bowing toward the
-                        // viewer, not a full circle (that would put edge seats ABOVE center,
-                        // backwards for a "sitting at a table" read).
-                        val seatAngleDeg = if (seatCount <= 1) 0f
-                            else -maxArcAngleDeg + (2f * maxArcAngleDeg) * (index / (seatCount - 1).toFloat())
-                        val seatAngleRad = Math.toRadians(seatAngleDeg.toDouble())
-                        val seatXOffset = seatRadiusX * sin(seatAngleRad).toFloat()
-                        val seatYOffset = seatRadiusY * (1f - cos(seatAngleRad).toFloat())
-                        // Team tint -- confirmed real gap: teamId already exists on
-                        // UnoPlayerState and the end screens already dedupe/group by
-                        // it (distinctBy teamId), but the live opponents row never
-                        // did. Keyed on teamId, not seat index (badgeGradients above
-                        // is pure per-seat decoration with no team meaning at all).
-                        val teamColor = p.teamId.takeIf { it >= 0 }?.let { teamColors[it % teamColors.size] }
-                        // "Hot streak" tension border -- purely cosmetic, derived
-                        // from the hand size this row already renders below via
-                        // OpponentHandFan (no new information leak). Danger takes
-                        // priority over team tint for the border itself; team
-                        // affiliation still reads via the background tint below.
-                        val seatBorder = when {
-                            p.hand.size <= 1 -> Color(0xFFE5544D) to dangerAlpha(0.5f, 0.4f)
-                            p.hand.size == 2 -> Color(0xFFFFA726) to dangerAlpha(0.35f, 0.25f)
-                            teamColor != null -> teamColor to 0.5f
-                            else -> null
+                        // ---- Metrics, all in dp, all derived from the pane (see computeTableLayout, which is unit tested) ----
+                        val userScale = cardPreferenceScale(cardScale, LocalConfiguration.current.screenWidthDp)
+                        // Opponents in turn order starting after the local seat, so the next player
+                        // sits on your left and play travels clockwise around the table; a
+                        // spectator (no local seat) just sees everyone in seat order.
+                        val opponents: List<Int> = if (myIndex in s.players.indices) {
+                            (1 until s.players.size).map { (myIndex + it) % s.players.size }
+                        } else {
+                            s.players.indices.toList()
                         }
-                        // "Who has to draw 4 (or 2, or a bigger stack) and things of this
-                        // nature" -- the confirmed real gap that s.pendingDraw only ever
-                        // showed via the human's OWN Draw button label, invisible whenever a
-                        // BOT is the one who must resolve it. UnoGame.kt's own
-                        // drawCard()/playCard() resolution both gate on
-                        // `playerIndex == s.currentPlayerIndex` for who actually owes the
-                        // pending draw (confirmed by reading that file before writing this),
-                        // so this is the exact condition, not an approximation.
-                        val owesDraw = index == s.currentPlayerIndex && s.pendingDraw > 0
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(x = seatXOffset, y = seatYOffset)
-                        ) {
+                        val seatCount = opponents.size
+                        val layout = remember(tableW, tableH, seatCount, userScale) {
+                            computeTableLayout(tableW.value, tableH.value, seatCount, userScale)
+                        }
+                        val discardW = layout.discardW.dp
+                        val discardH = layout.discardH.dp
+                        val drawW = layout.drawW.dp
+                        val drawH = drawW * (104f / 72f)
+                        val ringScale = discardW.value / 72f
+                        val seatScale = layout.seatScale
+                        val seatWUnit = SEAT_W_UNIT.dp
+                        val feltLeft = layout.feltLeft.dp
+                        val feltRight = layout.feltRight.dp
+                        val feltTop = layout.feltTop.dp
+                        val feltBottom = layout.feltBottom.dp
+                        val cx = tableW / 2f
+                        val clusterYFrac = layout.clusterYFrac
+                        TableFelt(left = feltLeft, top = feltTop, right = feltRight, bottom = feltBottom)
+
+                        // ---- Seats around the rim ----
+                        opponents.forEachIndexed { k, index ->
+                            val p = s.players[index]
+                            val isTurn = index == s.currentPlayerIndex
+                            // Team tint -- teamId already exists on UnoPlayerState (>=0 only when
+                            // rules.teamPlay is on); keyed on it, not seat index, so teammates read
+                            // as grouped wherever they sit.
+                            val teamColor = p.teamId.takeIf { it >= 0 }?.let { teamColors[it % teamColors.size] }
+                            // "Hot streak" border from hand size (no new information leak: every
+                            // seat's hand size is already on screen). Danger beats team tint.
+                            val seatBorder = when {
+                                p.hand.size <= 1 -> Color(0xFFE5544D) to { dangerAlpha(0.5f, 0.4f) }
+                                p.hand.size == 2 -> Color(0xFFFFA726) to { dangerAlpha(0.35f, 0.25f) }
+                                teamColor != null -> teamColor to { 0.5f }
+                                else -> null
+                            }
+                            // Who owes a pending +2/+4 stack: exactly the current player (the same
+                            // condition UnoGame.drawCard()/playCard() resolve on).
+                            val owesDraw = isTurn && s.pendingDraw > 0
+                            val boxW = layout.seatW.dp
+                            val boxH = layout.seatH.dp
+                            val slot = layout.seats[k]
+                            val px = slot.cx.dp
+                            val py = slot.cy.dp
+                            Box(
+                                modifier = Modifier
+                                    .size(boxW, boxH)
+                                    .offset(x = px - boxW / 2f, y = py - boxH / 2f)
+                                    // Where an opponent's played card takes off from.
+                                    .onGloballyPositioned { seatRects[index] = it.boundsInRoot() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OpponentSeat(
+                                    player = p,
+                                    seatIndex = index,
+                                    handCount = if (isDealing) opponentDealCounts.getOrElse(index) { p.hand.size } else p.hand.size,
+                                    isTurn = isTurn,
+                                    turnGlow = { dangerAlpha(0.75f, 0.25f) },
+                                    teamColor = teamColor,
+                                    border = seatBorder,
+                                    owedDraw = if (owesDraw) s.pendingDraw else 0,
+                                    seatScale = seatScale,
+                                    // Capped: a big Card-size setting must not grow the fan past the plate
+                                    // the layout reserved for it.
+                                    cardScale = minOf(userScale * 1.06f, 1.092f),
+                                    score = s.cumulativeScores[p.playerId] ?: 0,
+                                    // Crowded narrow tables use the compact plate: the count chip already says
+                                    // how many cards, and there is no room for the fan.
+                                    showFan = !layout.compact
+                                )
+                            }
+                        }
+
+                        // ---- Your own seat, on the near rim ----
+                        // Completes the ring: the hand itself lives in the pane below the table, but
+                        // your identity, hand size and turn glow belong at the table with everyone
+                        // else's. Skipped on windows too short to fit it without crowding the piles.
+                        if (myIndex in s.players.indices && tableH >= 420.dp) {
+                            val me = s.players[myIndex]
+                            val selfW = seatWUnit * seatScale
+                            val selfH = 96.dp * seatScale
+                            Box(
+                                modifier = Modifier
+                                    .size(selfW, selfH)
+                                    .offset(x = cx - selfW / 2f, y = feltBottom - 18.dp - selfH),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OpponentSeat(
+                                    player = me,
+                                    seatIndex = myIndex,
+                                    handCount = me.hand.size,
+                                    isTurn = s.currentPlayerIndex == myIndex,
+                                    turnGlow = { dangerAlpha(0.75f, 0.25f) },
+                                    teamColor = me.teamId.takeIf { it >= 0 }?.let { teamColors[it % teamColors.size] },
+                                    border = null,
+                                    owedDraw = 0,
+                                    seatScale = seatScale,
+                                    cardScale = minOf(userScale * 1.06f, 1.092f),
+                                    showFan = false,
+                                    score = s.cumulativeScores[me.playerId] ?: 0
+                                )
+                            }
+                        }
+
+                        // ---- Center of the table: piles, status, actions ----
                         Column(
                             modifier = Modifier
-                                .widthIn(min = 72.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .then(if (teamColor != null) Modifier.background(teamColor.copy(alpha = 0.12f)) else Modifier)
-                                .then(
-                                    if (seatBorder != null) {
-                                        Modifier.border(1.5.dp, seatBorder.first.copy(alpha = seatBorder.second), RoundedCornerShape(12.dp))
-                                    } else Modifier
-                                )
-                                .padding(4.dp),
+                                .align(Alignment.Center)
+                                .offset(y = tableH * clusterYFrac),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Seat-anchored turn tag rides with whichever player is acting,
-                            // instead of a single fixed "your turn" label living in one
-                            // corner regardless of who's actually up — reads correctly for
-                            // pass-and-play/Nearby now that humanIndex() rotates per seat.
-                            // Skip it for the local player's own seat here — the hand side
-                            // below already carries the same tag next to their actual cards,
-                            // and showing both at once just repeats the same line twice.
-                            if (isTurn && index != myIndex) {
-                                TurnTag(text = turnPrompt(s))
-                                Spacer(Modifier.height(4.dp))
-                            }
-                            PlayerBadge(seatIndex = index)
-                            Spacer(Modifier.height(4.dp))
-                            Text(p.displayName, fontWeight = if (isTurn) FontWeight.Bold else FontWeight.Normal)
-                            Spacer(Modifier.height(4.dp))
-                            // At one card the fan collapses to a single large card instead of
-                            // a counter — the hand's own shape is the "they're close" tell.
-                            OpponentHandFan(
-                                count = if (isDealing) opponentDealCounts.getOrElse(index) { p.hand.size } else p.hand.size,
-                                playerName = p.displayName,
-                                scale = cardScale
-                            )
-                            // index != myIndex: never let the human catch themselves for a self-inflicted penalty.
-                            // catchWindowClosesAfterPlayerIndex: the audited "catch window never
-                            // closes" fix -- official rule only allows a catch before the next
-                            // player's own turn begins, not indefinitely (see that field's own
-                            // KDoc). Checked here too, not just engine-side, so the button itself
-                            // disappears the instant it would no longer do anything, rather than
-                            // sitting there as a dead tap with no feedback.
-                            if (index != myIndex && p.hand.size == 1 && !p.calledUno &&
-                                p.catchWindowClosesAfterPlayerIndex == s.currentPlayerIndex
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(discardW * 0.14f)
                             ) {
-                                TextButton(
-                                    onClick = {
-                                        // Check the live state at the moment of the tap, not the
-                                        // composition's captured `p` -- a bot can call UNO (or the
-                                        // window can close as the turn moves on) in the gap between
-                                        // this button rendering and being tapped, and the
-                                        // "successful Catch" haptic below should only fire for an
-                                        // actual catch.
-                                        val live = game.state.value
-                                        val caught = live?.players?.getOrNull(index)?.let {
-                                            it.hand.size == 1 && !it.calledUno &&
-                                                it.catchWindowClosesAfterPlayerIndex == live.currentPlayerIndex
-                                        } == true
-                                        game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
-                                        // Audited gap: a successful Catch previously had this
-                                        // haptic but no sound at all -- the only outcome-changing
-                                        // tap on this whole screen that stayed silent.
-                                        if (caught) {
-                                            haptics(HapticSignal.STRONG_ACTION)
-                                            sounds.playTap()
-                                        }
-                                    },
-                                    // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
-                                    // §4c) -- purely additive, no effect on touch.
-                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                                ) {
-                                    Text("Catch!", color = Color.Red)
-                                }
-                            }
-                        }
-                        // A small corner badge, not a border around the whole seat -- the
-                        // hand-danger border above is about a LOW hand, this is about an
-                        // OBLIGATION, a different concern that must never be visually
-                        // confused with it (see PendingDrawBadge's own KDoc).
-                        if (owesDraw) {
-                            PendingDrawBadge(
-                                count = s.pendingDraw,
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 4.dp, y = (-4).dp)
-                            )
-                        }
-                        }
-                    }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // Discard pile / current color / status — the top card animates in on change.
-                // The turn-direction ring rides directly behind the pile itself (not a
-                // separate element competing for space) — see TurnDirectionRing's own KDoc
-                // for the reference this replaces (the old flanking DirectionArrows, two
-                // static glyphs with no actual rotation and no ring).
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        // Real on-screen root position of the discard pile itself — the fly-
-                        // to-discard-pile animation's actual landing target. Tracked on this
-                        // wrapping Column rather than the card inside AnimatedContent so it
-                        // stays stable across the top-card swap animation (AnimatedContent
-                        // briefly hosts two composables mid-transition).
-                        modifier = Modifier.onGloballyPositioned { discardPilePosition = it.positionInRoot() }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            // The literal center-of-the-table turn-direction ring, drawn
-                            // behind the discard-pile cluster it surrounds -- z-order first
-                            // so the stack-depth cards and the real top card both render on
-                            // top of it and it never obstructs either. Subtle by design (an
-                            // ambient/peripheral read, not the focal point) — see its own
-                            // KDoc for the two motion tiers (always-on static orientation vs
-                            // enhanced-gated continuous rotation + reversal flourish).
-                            TurnDirectionRing(
-                                direction = s.direction,
-                                enhanced = enhanced,
-                                reversalSignal = reversalSignal,
-                                cardScale = cardScale
-                            )
-                            // Discard "stack depth" -- a couple of static offset face-down
-                            // cards behind the animated top card, so the pile reads as an
-                            // actual accumulating stack instead of one flat card. Content
-                            // addition only (no state), matching the draw pile's own look.
-                            if (enhanced) {
-                                PlayingCardView(
-                                    card = unoCardToVisual(s.topCard).copy(faceDown = true),
-                                    width = 72.dp * cardScale,
-                                    height = 104.dp * cardScale,
-                                    showThickness = card3D,
-                                    modifier = Modifier.offset(x = 3.dp, y = 3.dp).graphicsLayer { alpha = 0.5f }
-                                )
-                                PlayingCardView(
-                                    card = unoCardToVisual(s.topCard).copy(faceDown = true),
-                                    width = 72.dp * cardScale,
-                                    height = 104.dp * cardScale,
-                                    showThickness = card3D,
-                                    modifier = Modifier.offset(x = 1.5.dp, y = 1.5.dp).graphicsLayer { alpha = 0.7f }
-                                )
-                            }
-                            AnimatedContent(
-                                targetState = s.topCard.instanceId,
-                                transitionSpec = {
-                                    // Settings -> Accessibility -> Reduced Motion: swap the scale/fade
-                                    // transition for a near-instant one instead of skipping the setting
-                                    // entirely (the audited "stored but consumed nowhere" finding).
-                                    if (reducedMotion) {
-                                        fadeIn(tween(1)).togetherWith(fadeOut(tween(1)))
-                                    } else {
-                                        (scaleIn(animationSpec = tween(220), initialScale = 0.6f) + fadeIn(tween(220)))
-                                            .togetherWith(scaleOut(animationSpec = tween(150), targetScale = 0.8f) + fadeOut(tween(150)))
-                                    }
-                                },
-                                label = "discardPile",
-                                modifier = Modifier.graphicsLayer {
-                                    scaleX = discardImpactPulse.value
-                                    scaleY = discardImpactPulse.value
-                                }
-                            ) { _ ->
-                                PlayingCardView(
-                                    card = unoCardToVisual(s.topCard, overrideColor = s.currentColor, colorblindMode = colorblindMode),
-                                    width = 72.dp * cardScale,
-                                    height = 104.dp * cardScale,
-                                    showThickness = card3D,
+                                // Draw pile: a face-down stack UnoState.drawPileSize already tracked
+                                // through every draw/reshuffle. Its own position feeds the drawn-card
+                                // flight overlay below.
+                                Box(
+                                    contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .semantics {
-                                            contentDescription = "Discard pile: ${s.topCard.accessibleDescription(colorOverride = s.currentColor)}"
+                                        .onGloballyPositioned { drawPileRect = it.boundsInRoot() }
+                                        // Tapping the pile itself draws, like every UNO video game --
+                                        // the Draw button below stays for discoverability. Same action
+                                        // and feedback as the button (the engine validates whose turn).
+                                        // Only live on the player's own turn, so a stray tap in an opponent's
+                                        // turn doesn't play the draw sound and buzz for a draw that never happens.
+                                        .then(if (pileFocused) Modifier.border(2.dp, panelGold, RoundedCornerShape(10.dp)) else Modifier)
+                                        .clickable(
+                                            enabled = canDraw,
+                                            onClickLabel = if (s.pendingDraw > 0) "Draw ${s.pendingDraw} cards" else "Draw a card",
+                                            role = androidx.compose.ui.semantics.Role.Button,
+                                            interactionSource = pileSource,
+                                            indication = null
+                                        ) {
+                                            game.drawCard(myIndex)
+                                            sounds.playDraw()
+                                            haptics(HapticSignal.LIGHT_TICK)
                                         }
-                                        // Shader gloss/foil scoped to just the two Wild ranks --
-                                        // not the full 108-card deck -- via the shared
-                                        // specular-sweep shader (see PremiumShaders.kt).
-                                        .specularSweep(enabled = card3D && s.topCard.isWild, tint = panelGold)
+                                ) {
+                                    if (enhanced) {
+                                        PlayingCardView(
+                                            card = CardVisual(id = -2, label = "", backgroundColor = Color.Transparent, faceDown = true, style = CardStyle.UNO),
+                                            width = drawW,
+                                            height = drawH,
+                                            showThickness = card3D,
+                                            modifier = Modifier.offset(x = 3.dp, y = 3.dp).graphicsLayer { alpha = 0.6f }
+                                        )
+                                    }
+                                    PlayingCardView(
+                                        card = CardVisual(id = -1, label = "", backgroundColor = Color.Transparent, faceDown = true, style = CardStyle.UNO),
+                                        width = drawW,
+                                        height = drawH,
+                                        showThickness = card3D,
+                                        modifier = Modifier.semantics { contentDescription = "Draw pile, ${s.drawPileSize} cards" }
+                                    )
+                                    Text(
+                                        "${s.drawPileSize}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .offset(x = 6.dp, y = 6.dp)
+                                            .background(Color(0xFF1D1440), RoundedCornerShape(50))
+                                            .border(1.dp, Color(0xFF6C5CE7), RoundedCornerShape(50))
+                                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    )
+                                }
+                                // Discard pile -- the top card animates in on change. The turn-direction
+                                // ring rides directly behind the pile itself (see TurnDirectionRing's own
+                                // KDoc); its size follows the pile's.
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                ) {
+                                    // The ring is decoration around the pile, bigger than the card; measured
+                                    // unbounded inside a card-sized slot so it never adds to the pile's layout
+                                    // footprint (which the seats are laid out around).
+                                    Box(
+                                        modifier = Modifier.size(discardW, discardH),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(modifier = Modifier.wrapContentSize(Alignment.Center, unbounded = true)) {
+                                            TurnDirectionRing(
+                                                direction = s.direction,
+                                                enhanced = enhanced,
+                                                reversalSignal = reversalSignal,
+                                                cardScale = ringScale
+                                            )
+                                        }
+                                    }
+                                    // The pile's landing target: an invisible spacer exactly the size of
+                                    // the top card, so the fly-to-discard animation lands on the card
+                                    // itself (the wrapper is bigger -- it includes the direction ring)
+                                    // and stays stable across the top-card swap animation.
+                                    Spacer(
+                                        Modifier
+                                            .size(discardW, discardH)
+                                            .onGloballyPositioned { discardCardRect = it.boundsInRoot() }
+                                    )
+                                    // The pile itself: the last few cards played stay visible under the
+                                    // top card, each turned and nudged by a fixed amount derived from
+                                    // its own id, so it reads as a casually thrown pile rather than a
+                                    // ruler-straight stack. (Deterministic per card, so a card never
+                                    // re-shuffles its pose as newer ones land on it.)
+                                    val pileDepth = minOf(4, s.discardPile.size - 1)
+                                    for (depth in pileDepth downTo 1) {
+                                        val under = s.discardPile[s.discardPile.size - 1 - depth]
+                                        val tilt = ((under.instanceId * 37) % 41 - 20) / 20f * 17f
+                                        val dx = ((under.instanceId * 13) % 21 - 10) / 10f * 0.07f
+                                        val dy = ((under.instanceId * 29) % 21 - 10) / 10f * 0.05f
+                                        PlayingCardView(
+                                            card = unoCardToVisual(under, colorblindMode = colorblindMode),
+                                            width = discardW,
+                                            height = discardH,
+                                            showThickness = false,
+                                            modifier = Modifier
+                                                .offset(x = discardW * dx, y = discardH * dy)
+                                                .rotate(tilt)
+                                                .graphicsLayer { alpha = 0.92f }
+                                        )
+                                    }
+                                    AnimatedContent(
+                                        targetState = s.topCard.instanceId,
+                                        transitionSpec = {
+                                            // Settings -> Accessibility -> Reduced Motion: swap the scale/fade
+                                            // transition for a near-instant one instead of skipping the setting.
+                                            if (reducedMotion) {
+                                                fadeIn(tween(1)).togetherWith(fadeOut(tween(1)))
+                                            } else {
+                                                (scaleIn(animationSpec = tween(220), initialScale = 0.6f) + fadeIn(tween(220)))
+                                                    .togetherWith(scaleOut(animationSpec = tween(150), targetScale = 0.8f) + fadeOut(tween(150)))
+                                            }
+                                        },
+                                        label = "discardPile",
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = discardImpactPulse.value
+                                            scaleY = discardImpactPulse.value
+                                        }
+                                    ) { _ ->
+                                        PlayingCardView(
+                                            card = unoCardToVisual(s.topCard, overrideColor = s.currentColor, colorblindMode = colorblindMode),
+                                            width = discardW,
+                                            height = discardH,
+                                            showThickness = card3D,
+                                            modifier = Modifier
+                                                .semantics {
+                                                    contentDescription = "Discard pile: ${s.topCard.accessibleDescription(colorOverride = s.currentColor)}"
+                                                }
+                                                // Shader gloss/foil scoped to just the two Wild ranks.
+                                                .specularSweep(enabled = card3D && s.topCard.isWild, tint = panelGold)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+                            // The running play-by-play ("Sam played Red 7", "Skip!"). liveRegion: a
+                            // screen-reader user otherwise has to re-explore after every move.
+                            Box(
+                                modifier = Modifier
+                                    .widthIn(max = tableW * 0.8f)
+                                    .background(Color(0xFF120C24).copy(alpha = 0.72f), RoundedCornerShape(50))
+                                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+                                    .padding(horizontal = 14.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    s.lastAction,
+                                    color = Color.White.copy(alpha = 0.92f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                                 )
                             }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        // liveRegion: this line is the running play-by-play ("Player played
-                        // Red 7", "Skip!", etc) — without it a screen-reader user has to
-                        // re-explore the screen after every move to notice anything changed.
-                        Text(
-                            s.lastAction,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                        )
-                    }
-                }
+                            // Whose turn it is and what they owe (the seat itself only glows), for a
+                            // spectator or when an opponent has to answer a stack/challenge.
+                            val actor = s.players.getOrNull(s.currentPlayerIndex)
+                            if (actor != null && s.currentPlayerIndex != myIndex && !s.roundOver) {
+                                Spacer(Modifier.height(6.dp))
+                                TurnTag(text = "${actor.displayName}: ${turnPrompt(s)}")
+                            }
 
-                Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        // Idle touch: a gentle nudge after 6-8s of inactivity on
+                                        // the player's own turn -- see idleNudgeY above.
+                                        .graphicsLayer { translationY = idleNudgeY.value }
+                                        // Same shared tension-pulse the seats' danger borders use,
+                                        // generalized to the stacking pendingDraw moment.
+                                        .then(
+                                            if (s.pendingDraw > 0) {
+                                                Modifier
+                                                    .clip(RoundedCornerShape(50))
+                                                    .drawWithContent {
+                                                        drawContent()
+                                                        val stroke = 1.5.dp.toPx()
+                                                        drawRoundRect(
+                                                            color = Color(0xFFFFA726).copy(alpha = dangerAlpha(0.5f, 0.4f).coerceIn(0f, 1f)),
+                                                            topLeft = Offset(stroke / 2f, stroke / 2f),
+                                                            size = Size(size.width - stroke, size.height - stroke),
+                                                            cornerRadius = CornerRadius(size.height / 2f - stroke / 2f),
+                                                            style = Stroke(stroke)
+                                                        )
+                                                    }
+                                            } else Modifier
+                                        )
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            game.drawCard(myIndex)
+                                            // Same rule as tapping the pile: no draw sound or buzz unless a draw can happen.
+                                            if (canDraw) {
+                                                sounds.playDraw()
+                                                haptics(HapticSignal.LIGHT_TICK)
+                                            }
+                                        },
+                                        // The theme's default primary reads washed-out against the felt;
+                                        // this is the same violet the UNO panels' borders already use.
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
+                                        modifier = Modifier.heightIn(min = 44.dp).pointerHoverIcon(PointerIcon.Hand)
+                                    ) {
+                                        Text(if (s.pendingDraw > 0) "Draw ${s.pendingDraw}" else "Draw", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                if (myHand.size == 1) {
+                                    Button(
+                                        onClick = {
+                                            game.callUno(myIndex)
+                                            showUnoCallout = true
+                                            layeredChime(sounds, scope)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F), contentColor = Color.White),
+                                        modifier = Modifier.heightIn(min = 44.dp).pointerHoverIcon(PointerIcon.Hand)
+                                    ) { Text("UNO!", fontWeight = FontWeight.Black) }
+                                }
+                                // Official UNO: playing a card you just drew is your OPTION, not mandatory --
+                                // only offered when the house rule doesn't force it (see
+                                // UnoRules.forcePlayDrawnCard and UnoGame.keepDrawnCard()).
+                                if (myTurn && s.awaitingDrawDecision && !game.rules.forcePlayDrawnCard) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            game.keepDrawnCard(myIndex)
+                                            haptics(HapticSignal.LIGHT_TICK)
+                                        },
+                                        modifier = Modifier.heightIn(min = 44.dp).pointerHoverIcon(PointerIcon.Hand)
+                                    ) { Text("Keep card") }
+                                }
+                            }
+                        }
 
-                Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    // Draw pile: a face-down stack UnoState.drawPileSize already tracked
-                    // through every draw/reshuffle with no visual anywhere to show it.
-                    // Its own position feeds the drawn-card flight overlay below.
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .onGloballyPositioned { drawPilePosition = it.positionInRoot() }
-                            .padding(end = 12.dp)
-                    ) {
-                        if (enhanced) {
-                            PlayingCardView(
-                                card = CardVisual(id = -2, label = "", backgroundColor = Color.Transparent, faceDown = true),
-                                width = 44.dp * cardScale,
-                                height = 64.dp * cardScale,
-                                showThickness = card3D,
-                                modifier = Modifier.offset(x = 2.dp, y = 2.dp).graphicsLayer { alpha = 0.6f }
-                            )
+                        // ---- Catch! buttons ----
+                        // Table-level siblings, drawn last: inside a seat they sat within a fixed-size slot, and a
+                        // child poking outside its parent's bounds is not hit-tested -- the button drew fine but
+                        // part of it went dead. Here nothing clips it. index != myIndex / a real local seat: never
+                        // let the human (or a spectator) catch on their own behalf. The window check mirrors the
+                        // engine's own catch-window rule (see UnoPlayerState.catchWindowClosesAfterPlayerIndex) so
+                        // the button disappears the instant it would stop doing anything.
+                        if (myIndex in s.players.indices) {
+                            opponents.forEachIndexed { k, index ->
+                                val p = s.players[index]
+                                if (index != myIndex && p.hand.size == 1 && !p.calledUno &&
+                                    p.catchWindowClosesAfterPlayerIndex == s.currentPlayerIndex
+                                ) {
+                                    val slot = layout.seats[k]
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = slot.cx.dp - 45.dp, y = slot.cy.dp + layout.seatH.dp / 2f - 30.dp)
+                                            .width(90.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                // Check the live state at the moment of the tap, not the
+                                                // composition's captured `p` -- a bot can call UNO (or the
+                                                // window can close) in the gap between render and tap, and the
+                                                // "successful Catch" feedback should only fire for a real catch.
+                                                val live = game.state.value
+                                                val caught = live?.players?.getOrNull(index)?.let {
+                                                    it.hand.size == 1 && !it.calledUno &&
+                                                        it.catchWindowClosesAfterPlayerIndex == live.currentPlayerIndex
+                                                } == true
+                                                game.catchUnoFailure(accuserIndex = myIndex, targetIndex = index)
+                                                if (caught) {
+                                                    haptics(HapticSignal.STRONG_ACTION)
+                                                    sounds.playTap()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5544D), contentColor = Color.White),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc 4c) -- purely
+                                            // additive, no effect on touch.
+                                            modifier = Modifier.heightIn(min = 36.dp).pointerHoverIcon(PointerIcon.Hand)
+                                        ) {
+                                            Text("Catch!", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        PlayingCardView(
-                            card = CardVisual(id = -1, label = "", backgroundColor = Color.Transparent, faceDown = true),
-                            width = 44.dp * cardScale,
-                            height = 64.dp * cardScale,
-                            showThickness = card3D,
-                            modifier = Modifier.semantics { contentDescription = "Draw pile, ${s.drawPileSize} cards" }
-                        )
-                        Text(
-                            "${s.drawPileSize}",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset(x = 4.dp, y = 4.dp)
-                                .background(Color(0xFF1D1440), RoundedCornerShape(50))
-                                .border(1.dp, Color(0xFF6C5CE7), RoundedCornerShape(50))
-                                .padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            // Idle touch: a gentle nudge after 6-8s of inactivity on
-                            // the player's own turn -- see idleNudgeY above.
-                            .graphicsLayer { translationY = idleNudgeY.value }
-                            // Same shared tension-pulse the opponents' hand-danger
-                            // borders use above, generalized to the stacking
-                            // pendingDraw moment: a growing +2/+4 obligation is table
-                            // tension too, not just a low hand.
-                            .then(
-                                if (s.pendingDraw > 0) {
-                                    Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .border(1.5.dp, Color(0xFFFFA726).copy(alpha = dangerAlpha(0.5f, 0.4f)), RoundedCornerShape(50))
-                                } else Modifier
-                            )
-                    ) {
-                        Button(
-                            onClick = {
-                                game.drawCard(myIndex)
-                                sounds.playDraw()
-                                haptics(HapticSignal.LIGHT_TICK)
-                            },
-                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
-                            // §4c) -- purely additive, no effect on touch.
-                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                        ) {
-                            Text(if (s.pendingDraw > 0) "Draw ${s.pendingDraw}" else "Draw")
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    if (myHand.size == 1) {
-                        Button(
-                            onClick = {
-                                game.callUno(myIndex)
-                                showUnoCallout = true
-                                layeredChime(sounds, scope)
-                            },
-                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
-                            // §4c) -- purely additive, no effect on touch.
-                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                        ) { Text("UNO!") }
-                        Spacer(Modifier.width(12.dp))
-                    }
-                    // Official UNO: playing a card you just drew is your OPTION, not mandatory —
-                    // only offered when the house rule doesn't force it (see UnoRules.forcePlayDrawnCard
-                    // and UnoGame.keepDrawnCard()). This is the fix for the audited finding that the
-                    // engine's true default silently forced this with no way to opt out.
-                    if (myTurn && s.awaitingDrawDecision && !game.rules.forcePlayDrawnCard) {
-                        OutlinedButton(
-                            onClick = {
-                                game.keepDrawnCard(myIndex)
-                                haptics(HapticSignal.LIGHT_TICK)
-                            },
-                            // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover, doc
-                            // §4c) -- purely additive, no effect on touch.
-                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                        ) { Text("Keep card") }
                     }
                 }
             }
         },
         secondary = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // The drawn-card flight's actual landing target -- tracked on this
-                    // whole pane rather than any one card slot, since the exact fan
-                    // position of a not-yet-added card can't be known in advance.
-                    .onGloballyPositioned { handAreaPosition = it.positionInRoot() }
+            // Your hand: card size follows the pane's width (and a share of the window height), so a
+            // tablet gets real cards instead of phone-sized ones, and the fan is centered under the
+            // table. The user's Card size setting still scales it proportionally.
+            // On a foldable in book/tabletop posture this pane is a whole half of the screen rather than
+            // a strip under the table, so the hand is centered in it; in the ordinary stacked layout the
+            // pane must stay wrap-height (a fill-height root here would starve the table above it).
+            val foldState = LocalFoldState.current
+            val splitPane = foldState.isBookPosture || foldState.isTabletopPosture
+            BoxWithConstraints(
+                modifier = (if (splitPane) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    // The drawn-card flight's actual landing target -- tracked on this whole pane
+                    // rather than any one card slot, since the exact fan position of a not-yet-added
+                    // card can't be known in advance.
+                    .onGloballyPositioned { handAreaRect = it.boundsInRoot() }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (myTurn) {
-                        TurnTag(text = "${turnPrompt(s)} — drag a card up to play it")
-                    } else {
-                        Text("Your hand", style = MaterialTheme.typography.titleSmall)
-                    }
-                    // Same badge treatment as the opponent seats above, for
-                    // consistency -- the pulsing amber Draw-button border below
-                    // already covers this reasonably on its own, but a matching
-                    // badge here reads as one consistent obligation indicator
-                    // across both sides of the table rather than two different
-                    // treatments for the same concern.
-                    if (s.currentPlayerIndex == myIndex && s.pendingDraw > 0) {
-                        Spacer(Modifier.width(8.dp))
-                        PendingDrawBadge(count = s.pendingDraw)
+                val paneW = maxWidth
+                val screenH = LocalConfiguration.current.screenHeightDp.dp
+                val handSize = myHand.size.coerceAtLeast(1)
+                val userHandScale = cardPreferenceScale(cardScale, LocalConfiguration.current.screenWidthDp)
+                val availFan = paneW - 32.dp
+                var handCardW = (paneW * 0.15f).coerceIn(64.dp, 116.dp) * userHandScale
+                val maxHandH = screenH * 0.23f
+                if (handCardW * (92f / 64f) > maxHandH) handCardW = maxHandH * (64f / 92f)
+                // Spread the cards as loosely as the width allows (more of each face showing),
+                // tightening toward the classic fan as the hand grows, and only then shrinking the
+                // cards themselves; past that the fan scrolls.
+                var handOverlap = 0.72f
+                if (handSize > 1 && handCardW + handCardW * handOverlap * (handSize - 1) > availFan) {
+                    handOverlap = ((availFan - handCardW) / (handCardW * (handSize - 1))).coerceIn(0.5f, 0.72f)
+                    if (handCardW + handCardW * handOverlap * (handSize - 1) > availFan) {
+                        handCardW = availFan / (1f + handOverlap * (handSize - 1))
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
-
-                FannedHand(
-                    items = myHand,
-                    idOf = { it.instanceId },
-                    visualOf = { unoCardToVisual(it, colorblindMode = colorblindMode) },
-                    enabled = myTurn,
-                    // Jump-in (audited finding: fully engine-complete in UnoGame.jumpIn() since
-                    // the original build, but with no UI path at all, so turning the house rule
-                    // on in UnoHouseRulesScreen never actually did anything a player could act
-                    // on). Mirrors UnoGame.jumpIn()'s own guard conditions so a card only lights
-                    // up as jump-in-able when the engine would actually accept it -- an exact
-                    // color+rank match of the top card, off-turn, and not mid color-choice/
-                    // challenge (where no seat's normal input is accepted anyway).
-                    alsoEnabledFor = { card ->
-                        game.rules.jumpIn && !myTurn && !s.awaitingColorChoice && !s.awaitingChallenge &&
-                            card.color == s.topCard.color && card.rank == s.topCard.rank
-                    },
-                    onPlay = { card ->
-                        // myTurn is already known false for any card that only became tappable
-                        // via alsoEnabledFor above -- jumpIn() itself re-validates everything
-                        // (including re-checking rules.jumpIn) before touching state, so this
-                        // routing is a convenience, not the actual authority.
-                        if (myTurn) game.playCard(myIndex, card) else game.jumpIn(myIndex, card)
-                        layeredPlace(sounds, scope, rate = placeRateFor(card.rank))
-                        // Haptic vocabulary via the shared Haptics.kt (see
-                        // haptics/Haptics.kt) -- LIGHT_TICK for a plain number
-                        // card, NORMAL_ACTION/STRONG_ACTION for an action card.
-                        // Wild Draw Four gets no haptic here: its own STRONG_ACTION
-                        // fires from the topCard-change effect above, timed to
-                        // the new hit-stop rather than the instant of the tap.
-                        when {
-                            card.rank == UnoRank.WILD_DRAW_FOUR -> {}
-                            // REVERSE gets no haptic here either -- like Wild Draw Four
-                            // above, its ESCALATING haptic fires from the topCard-change
-                            // effect instead, timed to the direction ring's own reversal
-                            // flourish rather than the instant of the tap.
-                            card.rank == UnoRank.REVERSE -> {}
-                            card.rank == UnoRank.DRAW_TWO -> haptics(HapticSignal.STRONG_ACTION)
-                            card.rank == UnoRank.SKIP || card.rank == UnoRank.WILD ->
-                                haptics(HapticSignal.NORMAL_ACTION)
-                            else -> haptics(HapticSignal.LIGHT_TICK)
+                handCardW = handCardW.coerceAtLeast(44.dp)
+                val handCardWFinal = handCardW
+                // Flights (a drawn card landing in the hand) read this to arrive at the hand's own size.
+                SideEffect { handCardWidth = handCardWFinal }
+                Column(
+                    modifier = (if (splitPane) Modifier.align(Alignment.Center) else Modifier).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (myTurn) {
+                            // Every card is dimmed when none can be played -- say what to do about it.
+                            val stuck = !s.awaitingDrawDecision && myHand.none { game.canPlay(it) }
+                            TurnTag(
+                                text = when {
+                                    stuck && s.pendingDraw > 0 -> "Nothing to stack — draw ${s.pendingDraw}"
+                                    stuck -> "Nothing to play — draw a card"
+                                    else -> "${turnPrompt(s)} — drag a card up to play it"
+                                }
+                            )
+                        } else {
+                            Text("Your hand", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
-                    },
-                    onCardAboutToPlay = { card, visual, startPos, startRotation ->
-                        flyingCard = FlyingCard(visual, startPos, startRotation, isWildRank = card.isWild, rank = card.rank)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    // Each card in the player's own hand announces its identity
-                    // ("Red Seven", "Wild Draw Four", "Skip") — see accessibleDescription().
-                    descriptionOf = { it.accessibleDescription() },
-                    // Staggered deal-in -- see FannedHand's own dealTrigger KDoc. null
-                    // (not just gated on `enhanced` alone) so a card added mid-round by
-                    // an ordinary draw never replays the whole hand's entrance.
-                    dealTrigger = if (enhanced) s.roundNumber else null
-                )
+                        // Same badge treatment as the seats above, so a pending +2/+4 obligation reads
+                        // as one indicator across both sides of the table.
+                        if (s.currentPlayerIndex == myIndex && s.pendingDraw > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            PendingDrawBadge(count = s.pendingDraw)
+                        }
+                    }
+
+                    // Edge cards in the fan rise above its top line, so leave room for them.
+                    Spacer(Modifier.height(16.dp))
+
+                    FannedHand(
+                        items = myHand,
+                        idOf = { it.instanceId },
+                        visualOf = { unoCardToVisual(it, colorblindMode = colorblindMode) },
+                        enabled = myTurn,
+                        // FannedHand multiplies by the user's card scale itself, so hand the
+                        // unscaled size that lands on the width computed above.
+                        cardWidth = handCardW / cardScale,
+                        cardHeight = handCardW / cardScale * (92f / 64f),
+                        overlapFraction = handOverlap,
+                        // Playable cards rise and the rest dim while it's your turn -- the engine's own
+                        // legality check, so the highlight can never disagree with what would be accepted.
+                        isPlayable = { card -> game.canPlay(card) },
+                        // Jump-in (fully engine-complete in UnoGame.jumpIn(); this is its UI path):
+                        // mirrors jumpIn()'s own guard so a card only lights up as jump-in-able when
+                        // the engine would accept it -- an exact color+rank match of the top card,
+                        // off-turn, and not mid color-choice/challenge.
+                        alsoEnabledFor = { card ->
+                            game.rules.jumpIn && !myTurn && !s.awaitingColorChoice && !s.awaitingChallenge &&
+                                card.color == s.topCard.color && card.rank == s.topCard.rank
+                        },
+                        onPlay = { card ->
+                            // myTurn is already known false for any card that only became tappable
+                            // via alsoEnabledFor above -- jumpIn() itself re-validates everything
+                            // (including re-checking rules.jumpIn) before touching state, so this
+                            // routing is a convenience, not the actual authority.
+                            if (myTurn) game.playCard(myIndex, card) else game.jumpIn(myIndex, card)
+                            layeredPlace(sounds, scope, rate = placeRateFor(card.rank))
+                            // Haptic vocabulary via the shared Haptics.kt -- LIGHT_TICK for a plain
+                            // number card, NORMAL_ACTION/STRONG_ACTION for an action card. Wild Draw
+                            // Four and Reverse get no haptic here: theirs fire from the topCard-change
+                            // effect above, timed to the hit-stop / ring-reversal beat rather than
+                            // the instant of the tap.
+                            when {
+                                card.rank == UnoRank.WILD_DRAW_FOUR -> {}
+                                card.rank == UnoRank.REVERSE -> {}
+                                card.rank == UnoRank.DRAW_TWO -> haptics(HapticSignal.STRONG_ACTION)
+                                card.rank == UnoRank.SKIP || card.rank == UnoRank.WILD ->
+                                    haptics(HapticSignal.NORMAL_ACTION)
+                                else -> haptics(HapticSignal.LIGHT_TICK)
+                            }
+                        },
+                        onCardAboutToPlay = { card, visual, startPos, startRotation ->
+                            flyingCard = FlyingCard(visual, startPos, startRotation, isWildRank = card.isWild, rank = card.rank, width = handCardWFinal)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        // Each card in the player's own hand announces its identity
+                        // ("Red Seven", "Wild Draw Four", "Skip") -- see accessibleDescription().
+                        descriptionOf = { it.accessibleDescription() },
+                        // Staggered deal-in -- see FannedHand's own dealTrigger KDoc. null (not just
+                        // gated on `enhanced` alone) so a card added mid-round by an ordinary draw
+                        // never replays the whole hand's entrance.
+                        dealTrigger = if (enhanced) s.roundNumber else null
+                    )
+                }
             }
         }
     )
@@ -1060,21 +1275,24 @@ fun UnoScreen(
     flyingCard?.let { card ->
         FlyingCardOverlay(
             card = card,
-            target = discardPilePosition,
-            progress = flyProgress.value,
-            cardScale = cardScale,
+            targetCenter = discardCardRect.center,
+            targetWidthPx = discardCardRect.width,
+            progressState = flyProgress.asState(),
             use3D = card3D,
             enhanced = enhanced
         )
     }
 
+    // Unconditional: the overlay reads the list itself, so a flight starting or ending recomposes only it.
+    MiniFlightsOverlay(flights = miniFlights, clock = miniClock)
+
     drawnCardFlight?.let { flight ->
         DrawPileFlightOverlay(
             card = flight.card,
-            start = drawPilePosition,
-            target = handAreaPosition,
-            progress = drawFlightProgress.value,
-            cardScale = cardScale,
+            startRect = drawPileRect,
+            targetCenter = handAreaRect.center,
+            targetWidthPx = with(LocalDensity.current) { handCardWidth.toPx() },
+            progressState = drawFlightProgress.asState(),
             use3D = card3D,
             colorblindMode = colorblindMode
         )
@@ -1099,20 +1317,32 @@ fun UnoScreen(
  * [UnoColor.WILD] (a neutral dark gray, never one of the four confusable suit colors), so an
  * unresolved Wild correctly never gets a glyph regardless of this flag.
  */
-private fun unoCardToVisual(card: UnoCard, overrideColor: UnoColor? = null, colorblindMode: Boolean = false): CardVisual = CardVisual(
-    id = card.instanceId,
-    label = card.displayLabel(),
-    backgroundColor = colorFor(overrideColor ?: card.color),
-    // Small top-left corner index mirroring the real card's own printed corner mark --
-    // PlayingCardView already draws this whenever non-null (see its own cornerIndex
-    // rendering), this was simply never wired here (the audited "cards read as color
-    // swatches with a big center pip, missing every UNO-in-hand deck's actual corner
-    // index" gap). Same glyph as the big centered label -- unoNumberWords' own KDoc
-    // already anticipated this exact reuse ("a single glyph... for the compact on-card
-    // corner index").
-    cornerIndex = card.displayLabel(),
-    colorblindGlyph = if (colorblindMode) colorblindGlyph[overrideColor ?: card.color] else null
-)
+private fun unoCardToVisual(card: UnoCard, overrideColor: UnoColor? = null, colorblindMode: Boolean = false): CardVisual {
+    // Skip/Reverse/Wild are drawn as vector marks (see CardGlyph) instead of words -- "Reverse"
+    // set in a corner index was unreadable -- so only the number/+2/+4 ranks carry text. The
+    // same short string serves the big center mark and the mirrored corner marks, like the
+    // printed deck.
+    val glyph = when (card.rank) {
+        UnoRank.SKIP -> CardGlyph.SKIP
+        UnoRank.REVERSE -> CardGlyph.REVERSE
+        UnoRank.WILD -> CardGlyph.WILD
+        else -> CardGlyph.TEXT
+    }
+    val mark = when (card.rank) {
+        UnoRank.DRAW_TWO -> "+2"
+        UnoRank.WILD_DRAW_FOUR -> "+4"
+        else -> card.displayLabel()
+    }
+    return CardVisual(
+        id = card.instanceId,
+        label = mark,
+        backgroundColor = colorFor(overrideColor ?: card.color),
+        cornerIndex = mark,
+        colorblindGlyph = if (colorblindMode) colorblindGlyph[overrideColor ?: card.color] else null,
+        style = CardStyle.UNO,
+        glyph = glyph
+    )
+}
 
 /** Spoken-out-loud form of [UnoRank]'s number ranks — [UnoCard.displayLabel] only
  *  needs a single glyph ("7") for the compact on-card corner index, but a
@@ -1243,16 +1473,20 @@ private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRoun
     LaunchedEffect(Unit) { playSfx(SfxKind.SUCCESS_CHIME) }
     Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         if (enhanced) ConfettiOverlay()
-        UnoPanel {
+        UnoPanel(modifier = Modifier.widthIn(min = 300.dp, max = 460.dp)) {
             PanelTitle(winnerLabel(state, "wins round ${state.roundNumber}"))
-            Spacer(Modifier.height(14.dp))
-            Text("Scores (first to 500)", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
-            state.players.distinctBy { it.teamId.takeIf { t -> t >= 0 } ?: it.playerId }.forEach { p ->
-                Text("${p.displayName}: ${state.cumulativeScores[p.playerId] ?: 0}", color = Color.White)
-            }
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onNextRound) { Text("Next round") }
+            Text("First to 500", color = Color.White.copy(alpha = 0.65f), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(14.dp))
+            // Up to ten rows: on a short window (Fold cover, landscape) it scrolls instead of pushing the
+            // button off the bottom of the screen.
+            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state) }
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = onNextRound,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 46.dp)
+            ) { Text("Next round", fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -1284,14 +1518,140 @@ private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: ()
             ConfettiOverlay()
             ConfettiOverlay(delayMs = 500)
         }
-        UnoPanel {
+        UnoPanel(modifier = Modifier.widthIn(min = 300.dp, max = 460.dp)) {
+            UnoCrown()
+            Spacer(Modifier.height(6.dp))
             PanelTitle(winnerLabel(state, "wins the match!"))
-            Spacer(Modifier.height(10.dp))
-            state.players.distinctBy { it.teamId.takeIf { t -> t >= 0 } ?: it.playerId }.forEach { p ->
-                Text("${p.displayName}: ${state.cumulativeScores[p.playerId] ?: 0}", color = Color.White)
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state) }
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = onDone,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 46.dp)
+            ) { Text("Back to menu", fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+/**
+ * The user's Card size setting as a device-independent multiplier around 1.0. [cardScale] is
+ * already device-mapped (see CardScale.kt: its ceiling shrinks on narrow windows), so using it
+ * directly against a fixed tablet reference made every card on a narrow screen small twice over;
+ * this inverts that mapping back to the 0..1 preference and re-centers it, so the default
+ * preference means "normal size" on any device and the slider still spans small to large.
+ */
+private fun cardPreferenceScale(cardScale: Float, screenWidthDp: Int): Float =
+    0.75f + com.gamesuite.games.cards.cardSizePreferenceFor(cardScale, screenWidthDp) * 0.7f
+
+private data class ScoreRow(val name: String, val score: Int, val isWinner: Boolean)
+
+/**
+ * The end-of-round / end-of-match standings: players (teams, when team play is on) ranked by
+ * cumulative score, each with a medal, their total, and a bar filling toward the 500-point target.
+ * The round's winner is picked out with a gold plate. The bars fill in on entry, staggered by rank.
+ */
+@Composable
+private fun UnoScoreboard(state: com.gamesuite.games.uno.UnoState, targetScore: Int = 500) {
+    val rows = state.players
+        .distinctBy { it.teamId.takeIf { t -> t >= 0 } ?: it.playerId }
+        .map { p ->
+            ScoreRow(
+                name = p.displayName,
+                score = state.cumulativeScores[p.playerId] ?: 0,
+                isWinner = state.winnerPlayerId == p.playerId ||
+                    (state.winningTeamId != null && state.winningTeamId == p.teamId)
+            )
+        }
+        .sortedByDescending { it.score }
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        rows.forEachIndexed { rank, r ->
+            val fill by animateFloatAsState(
+                targetValue = if (shown) (r.score / targetScore.toFloat()).coerceIn(0f, 1f) else 0f,
+                animationSpec = tween(900, delayMillis = 140 * rank),
+                label = "scoreBar"
+            )
+            val medal = when (rank) {
+                0 -> Color(0xFFFFD54F)
+                1 -> Color(0xFFCFD8DC)
+                2 -> Color(0xFFD08A57)
+                else -> Color(0xFF5C4B99)
             }
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onDone) { Text("Back to menu") }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (r.isWinner) {
+                            Modifier
+                                .background(panelGold.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+                                .border(1.dp, panelGold.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        } else Modifier
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(26.dp).background(medal, RoundedCornerShape(50)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("${rank + 1}", color = Color(0xFF1D1440), fontWeight = FontWeight.Black, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        r.name,
+                        color = Color.White,
+                        fontWeight = if (rank == 0) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("${r.score}", color = panelGold, fontWeight = FontWeight.Black, fontSize = 17.sp)
+                }
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.12f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fill)
+                            .background(
+                                Brush.horizontalGradient(listOf(Color(0xFFFFE08A), Color(0xFFC9962F))),
+                                RoundedCornerShape(50)
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A small gold crown for the match-win panel, drawn as a path so it never depends on a font glyph. */
+@Composable
+private fun UnoCrown() {
+    Canvas(modifier = Modifier.size(width = 64.dp, height = 44.dp)) {
+        val w = size.width
+        val h = size.height
+        val crown = Path().apply {
+            moveTo(w * 0.10f, h * 0.92f)
+            lineTo(w * 0.03f, h * 0.30f)
+            lineTo(w * 0.29f, h * 0.56f)
+            lineTo(w * 0.50f, h * 0.08f)
+            lineTo(w * 0.71f, h * 0.56f)
+            lineTo(w * 0.97f, h * 0.30f)
+            lineTo(w * 0.90f, h * 0.92f)
+            close()
+        }
+        drawPath(crown, Brush.verticalGradient(listOf(Color(0xFFFFE9A8), Color(0xFFC9962F))))
+        drawPath(crown, Color(0xFF7C5417), style = Stroke(width = 2.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        for (x in listOf(0.03f, 0.50f, 0.97f)) {
+            drawCircle(Color(0xFFFFF3C4), radius = h * 0.09f, center = Offset(w * x, if (x == 0.50f) h * 0.08f else h * 0.30f))
         }
     }
 }
@@ -1389,9 +1749,15 @@ private fun UnoBackground(dangerLevel: Float = 0f, content: @Composable BoxScope
                     colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.28f)),
                     radius = 1400f
                 )
-            ),
-        content = content
-    )
+            )
+    ) {
+        // Every screen drawn on this dark table background reads its default text color from
+        // here. Left to the app theme it comes out dark-on-dark whenever the device is in light
+        // mode (seat names and the play-by-play were nearly invisible), so it is pinned light.
+        CompositionLocalProvider(LocalContentColor provides Color.White) {
+            content()
+        }
+    }
 }
 
 private val panelBackground = Color(0xFF1D1440)
@@ -1452,8 +1818,60 @@ private data class FlyingCard(
      *  big the play is (animation/physics pitch: a plain number card gets a
      *  gentle wobble, an action card a fuller single rotation, Wild Draw Four
      *  the most dramatic multi-rotation tumble). */
-    val rank: UnoRank = UnoRank.ZERO
+    val rank: UnoRank = UnoRank.ZERO,
+    /** On-screen width of the card at the moment it leaves, so the flight starts at exactly the
+     *  size of the card it replaces (the hand's cards, or a small opponent-fan card). */
+    val width: androidx.compose.ui.unit.Dp = 64.dp
 )
+
+/**
+ * One face-down card traveling between two points on the table (the draw pile out to an
+ * opponent's seat: the deal at the start of a round, and an opponent's draw). Unlike
+ * [FlyingCard]/[DrawnCardFlight] -- one-at-a-time flights driven by a shared Animatable -- many of
+ * these run at once (a whole deal), so each carries its own absolute start time and duration and
+ * they are all advanced by one frame clock (see [MiniFlightsOverlay]).
+ */
+private data class MiniFlight(
+    val from: Offset,
+    val to: Offset,
+    val fromWidthPx: Float,
+    val toWidthPx: Float,
+    val startMs: Long,
+    val durationMs: Long = 340L
+)
+
+@Composable
+private fun MiniFlightsOverlay(flights: List<MiniFlight>, clock: State<Long>) {
+    // Reading the clock here (not in the caller) keeps the per-frame recomposition scoped to this
+    // overlay instead of the whole screen.
+    val now = clock.value
+    val density = LocalDensity.current
+    val back = remember { CardVisual(id = -3, label = "", backgroundColor = Color.Transparent, faceDown = true, style = CardStyle.UNO) }
+    for (f in flights) {
+        val p = (now - f.startMs).toFloat() / f.durationMs
+        if (p <= 0f || p >= 1f) continue
+        val eased = 1f - (1f - p) * (1f - p)
+        val wPx = f.fromWidthPx.coerceAtLeast(1f)
+        val hPx = wPx * (92f / 64f)
+        val cx = f.from.x + (f.to.x - f.from.x) * eased
+        val cy = f.from.y + (f.to.y - f.from.y) * eased - with(density) { 18.dp.toPx() } * 4f * eased * (1f - eased)
+        val ratio = f.toWidthPx / wPx
+        val scale = 1f + (ratio - 1f) * eased
+        val alpha = if (p > 0.85f) 1f - (p - 0.85f) / 0.15f else 1f
+        Box(
+            modifier = Modifier
+                .offset { IntOffset((cx - wPx / 2f).roundToInt(), (cy - hPx / 2f).roundToInt()) }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    rotationZ = 14f * (1f - eased)
+                    this.alpha = alpha
+                }
+        ) {
+            PlayingCardView(card = back, width = with(density) { wPx.toDp() }, height = with(density) { hPx.toDp() })
+        }
+    }
+}
 
 /** A card mid-flight from the draw pile into the local player's hand —
  *  face-down for the first leg, flipping face-up as it settles. See the
@@ -1488,15 +1906,29 @@ private data class DrawnCardFlight(val card: UnoCard)
  * it's off.
  */
 @Composable
-private fun FlyingCardOverlay(card: FlyingCard, target: Offset, progress: Float, cardScale: Float, use3D: Boolean, enhanced: Boolean) {
+private fun FlyingCardOverlay(card: FlyingCard, targetCenter: Offset, targetWidthPx: Float, progressState: State<Float>, use3D: Boolean, enhanced: Boolean) {
+    // Read here, not by the caller: the per-frame recomposition stays inside this overlay instead of
+    // re-running the whole screen (table, seats, hand) for every frame of a flight.
+    val progress = progressState.value
+    val density = LocalDensity.current
+    // The ghost is laid out at the size of the card it leaves and scaled (about its center) up or
+    // down to the size of the card it lands on, so a hand card doesn't visibly shrink on lift-off
+    // and the pile card it merges into matches exactly. `card.start` is the source card's
+    // top-left, so its center follows from the source size.
+    val srcW = with(density) { card.width.toPx() }
+    val srcH = srcW * (92f / 64f)
+    val srcCenter = Offset(card.start.x + srcW / 2f, card.start.y + srcH / 2f)
+    val sizeRatio = if (srcW > 0f && targetWidthPx > 0f) targetWidthPx / srcW else 1f
     // Eased eases faster than linear so the card feels "thrown" rather than
     // conveyor-belted: quick to leave the hand, settling into the pile.
     val eased = 1f - (1f - progress) * (1f - progress)
-    val x = card.start.x + (target.x - card.start.x) * eased
+    val cx = srcCenter.x + (targetCenter.x - srcCenter.x) * eased
     // A small upward arc (negative = up in screen space) peaking at the
     // midpoint — a real toss rises before it lands, a straight lerp doesn't.
-    val arc = -40f * 4f * eased * (1f - eased)
-    val y = card.start.y + (target.y - card.start.y) * eased + arc
+    val arc = -with(density) { 28.dp.toPx() } * 4f * eased * (1f - eased)
+    val cy = srcCenter.y + (targetCenter.y - srcCenter.y) * eased + arc
+    val x = cx - srcW / 2f
+    val y = cy - srcH / 2f
     // The fan-tilt the card had at pickup, decaying to flat by landing --
     // unchanged from before this pass.
     val baseDecay = card.startRotationDeg * (1f - eased)
@@ -1518,7 +1950,7 @@ private fun FlyingCardOverlay(card: FlyingCard, target: Offset, progress: Float,
         }
     } else 0f
     val rotation = baseDecay + tumble
-    val scale = 1f - 0.15f * eased
+    val scale = 1f + (sizeRatio - 1f) * eased
     // Fades out only in the final stretch of the flight, so the ghost
     // dissolves right as it merges into the real top-of-pile card
     // (AnimatedContent's own scale/fade transition, already running) rather
@@ -1539,8 +1971,8 @@ private fun FlyingCardOverlay(card: FlyingCard, target: Offset, progress: Float,
     ) {
         PlayingCardView(
             card = card.visual,
-            width = 64.dp * cardScale,
-            height = 92.dp * cardScale,
+            width = card.width,
+            height = card.width * (92f / 64f),
             modifier = Modifier.specularSweep(enabled = use3D && card.isWildRank, tint = panelGold)
         )
     }
@@ -1573,12 +2005,30 @@ private fun tumbleTurnsFor(rank: UnoRank): Float = when (rank) {
  * the two faces at the same progress point instead of a hard cut.
  */
 @Composable
-private fun DrawPileFlightOverlay(card: UnoCard, start: Offset, target: Offset, progress: Float, cardScale: Float, use3D: Boolean, colorblindMode: Boolean = false) {
+private fun DrawPileFlightOverlay(
+    card: UnoCard,
+    startRect: androidx.compose.ui.geometry.Rect,
+    targetCenter: Offset,
+    targetWidthPx: Float,
+    progressState: State<Float>,
+    use3D: Boolean,
+    colorblindMode: Boolean = false
+) {
+    val progress = progressState.value
+    val density = LocalDensity.current
+    // Laid out at the draw pile's own card size and scaled toward the hand's card size as it
+    // travels, both measured (see the rect tracking in UnoScreen) rather than assumed.
+    val srcW = startRect.width.coerceAtLeast(1f)
+    val srcH = srcW * (92f / 64f)
+    val cardWidthDp = with(density) { srcW.toDp() }
+    val sizeRatio = if (targetWidthPx > 0f) targetWidthPx / srcW else 1f
     val eased = 1f - (1f - progress) * (1f - progress)
-    val x = start.x + (target.x - start.x) * eased
-    val arc = -30f * 4f * eased * (1f - eased)
-    val y = start.y + (target.y - start.y) * eased + arc
-    val scale = 1f - 0.1f * eased
+    val cx = startRect.center.x + (targetCenter.x - startRect.center.x) * eased
+    val arc = -with(density) { 22.dp.toPx() } * 4f * eased * (1f - eased)
+    val cy = startRect.center.y + (targetCenter.y - startRect.center.y) * eased + arc
+    val x = cx - srcW / 2f
+    val y = cy - srcH / 2f
+    val scale = 1f + (sizeRatio - 1f) * eased
     val fadeOutStart = 0.9f
     val alpha = if (progress > fadeOutStart) 1f - (progress - fadeOutStart) / (1f - fadeOutStart) else 1f
 
@@ -1602,16 +2052,16 @@ private fun DrawPileFlightOverlay(card: UnoCard, start: Offset, target: Offset, 
             Box(modifier = Modifier.card3DFlip(revealProgress)) {
                 PlayingCardView(
                     card = if (revealProgress < 0.5f) faceVisual.copy(faceDown = true) else faceVisual,
-                    width = 64.dp * cardScale,
-                    height = 92.dp * cardScale,
+                    width = cardWidthDp,
+                    height = cardWidthDp * (92f / 64f),
                     modifier = Modifier.specularSweep(enabled = use3D && card.isWild && revealProgress >= 0.5f, tint = panelGold)
                 )
             }
         } else {
             PlayingCardView(
                 card = if (revealProgress < 1f) faceVisual.copy(faceDown = true) else faceVisual,
-                width = 64.dp * cardScale,
-                height = 92.dp * cardScale
+                width = cardWidthDp,
+                height = cardWidthDp * (92f / 64f)
             )
         }
     }
@@ -1716,7 +2166,9 @@ private fun UnoCalloutOverlay() {
 private fun winnerLabel(s: com.gamesuite.games.uno.UnoState, suffix: String): String {
     val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId }
         ?: s.players.firstOrNull { it.teamId == s.winningTeamId }
-    return if (winner != null) "${winner.displayName} $suffix" else "Round over"
+    // "You wins round 1" read wrong -- the local player is "You", which takes "win".
+    val phrase = if (winner?.displayName == "You" && suffix.startsWith("wins")) "win" + suffix.removePrefix("wins") else suffix
+    return if (winner != null) "${winner.displayName} $phrase" else "Round over"
 }
 
 /**
@@ -1750,7 +2202,12 @@ private fun winnerLabel(s: com.gamesuite.games.uno.UnoState, suffix: String): St
 private fun humanIndex(s: com.gamesuite.games.uno.UnoState, context: com.gamesuite.core.GameContext): Int =
     when (context.activeMode) {
         com.gamesuite.core.PlayMode.LOCAL_AD_HOC, com.gamesuite.core.PlayMode.ONLINE -> context.localPlayerIndex
-        com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY -> s.currentPlayerIndex
+        // Whoever is up is "me" -- unless whoever is up is a CPU. A mixed table (the house-rules
+        // "vs 2 CPU bots" entry runs in this mode) has one device and one human: following the turn onto
+        // a CPU seat showed that CPU's hand, lit up as playable, on the human's screen. Pin to the human.
+        com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY ->
+            if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == false) s.currentPlayerIndex
+            else s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else s.currentPlayerIndex }
         else -> s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else 0 }
     }
 
@@ -1889,6 +2346,244 @@ private val badgeGradients = listOf(
  *  team; the live opponents row never did. */
 private val teamColors = listOf(Color(0xFF42A5F5), Color(0xFFEF5350), Color(0xFF66BB6A), Color(0xFFFFCA28))
 
+/**
+ * One opponent's place at the table: identity tile with a live hand-count chip and a turn glow,
+ * a name plate, and the face-down fan. Sized entirely off [seatScale] (the table computes it
+ * from its own bounds and how many seats share the rim) so the same seat reads on a phone and
+ * on a tablet. [border] is the hand-danger / team outline; [owedDraw] > 0 marks the seat that
+ * has to resolve a pending +2/+4 stack.
+ */
+@Composable
+private fun OpponentSeat(
+    player: UnoPlayerState,
+    seatIndex: Int,
+    handCount: Int,
+    isTurn: Boolean,
+    /** Turn-glow strength, read only while drawing so the pulse never recomposes the seat. Used only when [isTurn]. */
+    turnGlow: () -> Float,
+    teamColor: Color?,
+    /** Outline color and its (draw-time) alpha. */
+    border: Pair<Color, () -> Float>?,
+    owedDraw: Int,
+    seatScale: Float,
+    cardScale: Float,
+    /** False for the local player's own seat: their real hand is drawn face-up below the table. */
+    showFan: Boolean = true,
+    /** Cumulative match score; the chip only appears once someone has actually scored. */
+    score: Int = 0
+) {
+    val ss = seatScale
+    val plateShape = RoundedCornerShape(16.dp * ss)
+    val turnGreen = Color(0xFF7CFFB2)
+    // Measured unbounded and centered in whatever fixed slot the table gives this seat: its content
+    // (a text row, chips and fonts that don't shrink with the seat scale) can be taller than the slot
+    // at small scales, and a bounded Column just clipped the fan and the bottom seat's name plate.
+    Box(modifier = Modifier.wrapContentSize(Alignment.Center, unbounded = true)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .clip(plateShape)
+                // A dark plate under every seat so names and card backs stay legible on the felt.
+                .background(Color(0xFF0E0A1F).copy(alpha = 0.34f))
+                .then(if (teamColor != null) Modifier.background(teamColor.copy(alpha = 0.16f)) else Modifier)
+                .then(
+                    if (border != null) {
+                        Modifier.drawWithContent {
+                            drawContent()
+                            val stroke = 1.5.dp.toPx()
+                            drawRoundRect(
+                                color = border.first.copy(alpha = border.second().coerceIn(0f, 1f)),
+                                topLeft = Offset(stroke / 2f, stroke / 2f),
+                                size = Size(size.width - stroke, size.height - stroke),
+                                cornerRadius = CornerRadius((16.dp * ss).toPx() - stroke / 2f),
+                                style = Stroke(stroke)
+                            )
+                        }
+                    } else Modifier
+                )
+                .padding(horizontal = 8.dp * ss, vertical = 6.dp * ss)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = if (isTurn) {
+                    Modifier.drawBehind {
+                        // Kept inside the plate's own padding -- the plate clips its children, so a
+                        // larger halo showed up as a flat-topped blob.
+                        drawCircle(turnGreen.copy(alpha = 0.34f * turnGlow()), radius = size.minDimension * 0.62f)
+                    }
+                } else Modifier
+            ) {
+                PlayerBadge(
+                    seatIndex = seatIndex,
+                    size = 44.dp * ss,
+                    modifier = if (isTurn) {
+                        Modifier.drawWithContent {
+                            drawContent()
+                            val stroke = 2.5.dp.toPx()
+                            drawRoundRect(
+                                color = turnGreen.copy(alpha = turnGlow().coerceIn(0f, 1f)),
+                                topLeft = Offset(stroke / 2f, stroke / 2f),
+                                size = Size(size.width - stroke, size.height - stroke),
+                                cornerRadius = CornerRadius(10.dp.toPx() - stroke / 2f),
+                                style = Stroke(stroke)
+                            )
+                        }
+                    } else Modifier
+                )
+                // Hand size as a number, not just the fan's silhouette (which stops growing at 8
+                // cards) -- the way every UNO video game shows it.
+                val chipColor = when {
+                    handCount <= 1 -> Color(0xFFE5544D)
+                    handCount == 2 -> Color(0xFFFFA726)
+                    else -> Color(0xFF1D1440)
+                }
+                Text(
+                    "$handCount",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = (11f * ss).coerceAtLeast(9f).sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 7.dp * ss, y = 6.dp * ss)
+                        // Without the fan (compact plates, your own seat) this chip is the only place the
+                        // hand size exists, so it has to say what the number is; with the fan, the fan's own
+                        // description already does.
+                        .then(
+                            if (!showFan) {
+                                Modifier.semantics { contentDescription = "${player.displayName} has $handCount ${if (handCount == 1) "card" else "cards"}" }
+                            } else Modifier
+                        )
+                        .background(chipColor, RoundedCornerShape(50))
+                        .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(50))
+                        .padding(horizontal = 6.dp * ss, vertical = 1.dp * ss)
+                )
+            }
+            Spacer(Modifier.height(4.dp * ss))
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 124.dp * ss)
+                    .background(
+                        if (isTurn) Color(0xFF43A047) else Color(0xFF120C24).copy(alpha = 0.72f),
+                        RoundedCornerShape(50)
+                    )
+                    .border(1.dp, Color.White.copy(alpha = if (isTurn) 0.5f else 0.12f), RoundedCornerShape(50))
+                    .padding(horizontal = 8.dp * ss, vertical = 2.dp * ss)
+            ) {
+                Text(
+                    player.displayName,
+                    color = Color.White,
+                    fontSize = (12f * ss).coerceAtLeast(9f).sp,
+                    fontWeight = if (isTurn) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (score > 0) {
+                Spacer(Modifier.height(2.dp * ss))
+                Text(
+                    "$score pts",
+                    color = panelGold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (10.5f * ss).coerceAtLeast(9f).sp
+                )
+            }
+            if (showFan) {
+                Spacer(Modifier.height(4.dp * ss))
+                // At one card the fan collapses to a single large card instead of a counter -- the
+                // hand's own shape is the "they're close" tell.
+                OpponentHandFan(count = handCount, playerName = player.displayName, scale = cardScale * ss)
+            }
+        }
+        // A small corner badge, not a border around the whole seat -- the hand-danger border above
+        // is about a LOW hand, this is about an OBLIGATION, a different concern that must never be
+        // visually confused with it (see PendingDrawBadge's own KDoc).
+        if (owedDraw > 0) {
+            PendingDrawBadge(
+                count = owedDraw,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+            )
+        }
+    }
+}
+
+/**
+ * The table surface: a gold-rimmed oval of indigo felt with a stitched inner line and a soft top
+ * light, drawn to the given rectangle (all in dp, relative to the canvas this fills). The palette
+ * stays inside the screen's existing violet/gold identity (see [panelBackground]/[panelGold]) and
+ * keeps the four UNO colors high-contrast against it -- a green felt would swallow green cards.
+ */
+@Composable
+private fun TableFelt(left: Dp, top: Dp, right: Dp, bottom: Dp, modifier: Modifier = Modifier) {
+    // Cloth grain (AGSL, API 33+); null elsewhere and the felt is simply smooth.
+    val grain = rememberFeltGrainBrush()
+    // Its own layer: the table tilts and punches on a play, and the felt (gradients + AGSL grain) is far
+    // and away the most expensive thing on it -- as a layer it is composited, not re-rasterised.
+    Canvas(modifier = modifier.fillMaxSize().graphicsLayer()) {
+        val l = left.toPx()
+        val t = top.toPx()
+        val w = right.toPx() - l
+        val h = bottom.toPx() - t
+        val rim = (minOf(w, h) * 0.022f).coerceIn(5.dp.toPx(), 12.dp.toPx())
+
+        // Soft drop shadow so the table sits above the room instead of printing on it.
+        drawOval(Color.Black.copy(alpha = 0.38f), topLeft = Offset(l, t + rim * 0.8f), size = Size(w, h))
+        // Gold rim.
+        drawOval(
+            brush = Brush.linearGradient(
+                0f to Color(0xFFFFE9A8),
+                0.35f to Color(0xFFC9962F),
+                0.7f to Color(0xFF7C5417),
+                1f to Color(0xFFE8BE5A),
+                start = Offset(l, t),
+                end = Offset(l + w, t + h)
+            ),
+            topLeft = Offset(l, t),
+            size = Size(w, h)
+        )
+        // Felt.
+        val fl = l + rim
+        val ft = t + rim
+        val fw = w - rim * 2f
+        val fh = h - rim * 2f
+        drawOval(
+            brush = Brush.radialGradient(
+                0f to Color(0xFF4A3BB0),
+                0.6f to Color(0xFF2E2280),
+                1f to Color(0xFF1B1355),
+                center = Offset(l + w / 2f, t + h * 0.42f),
+                radius = maxOf(fw, fh) * 0.62f
+            ),
+            topLeft = Offset(fl, ft),
+            size = Size(fw, fh)
+        )
+        if (grain != null) {
+            drawOval(brush = grain, topLeft = Offset(fl, ft), size = Size(fw, fh))
+        }
+        // Where the felt meets the rim.
+        drawOval(Color.Black.copy(alpha = 0.35f), topLeft = Offset(fl, ft), size = Size(fw, fh), style = Stroke(width = 2.dp.toPx()))
+        // Stitching.
+        val stitch = rim * 1.6f
+        drawOval(
+            Color.White.copy(alpha = 0.16f),
+            topLeft = Offset(fl + stitch, ft + stitch),
+            size = Size(fw - stitch * 2f, fh - stitch * 2f),
+            style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 8.dp.toPx())))
+        )
+        // Overhead light.
+        drawOval(
+            brush = Brush.verticalGradient(
+                listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                startY = ft,
+                endY = ft + fh * 0.5f
+            ),
+            topLeft = Offset(fl, ft),
+            size = Size(fw, fh)
+        )
+    }
+}
+
 /** The reference's player identity: a gradient tile with a small wild-pinwheel
  *  icon, cycled per seat — no avatar, no photo, matching the source exactly. */
 @Composable
@@ -1934,7 +2629,7 @@ private fun OpponentHandFan(count: Int, playerName: String, scale: Float, modifi
     val description = "$playerName has $count ${if (count == 1) "card" else "cards"}"
     if (count == 1) {
         PlayingCardView(
-            card = CardVisual(id = -1, label = "", backgroundColor = Color.Transparent, faceDown = true),
+            card = CardVisual(id = -1, label = "", backgroundColor = Color.Transparent, faceDown = true, style = CardStyle.UNO),
             modifier = modifier.semantics { contentDescription = description },
             width = 40.dp * scale,
             height = 58.dp * scale
@@ -1959,7 +2654,7 @@ private fun OpponentHandFan(count: Int, playerName: String, scale: Float, modifi
                     .rotate(offsetFromCenter * 5f)
             ) {
                 PlayingCardView(
-                    card = CardVisual(id = i, label = "", backgroundColor = Color.Transparent, faceDown = true),
+                    card = CardVisual(id = i, label = "", backgroundColor = Color.Transparent, faceDown = true, style = CardStyle.UNO),
                     width = 24.dp * scale,
                     height = 36.dp * scale
                 )

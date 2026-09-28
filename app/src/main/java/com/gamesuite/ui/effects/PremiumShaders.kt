@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -102,6 +103,22 @@ object PremiumShaders {
         }
     """
 
+    // Fine woven-cloth grain for a felt surface: per-2px hashed noise plus a faint cross-hatch,
+    // returned as a sparse light/dark alpha layer (premultiplied) so it can be laid over an
+    // existing fill with ordinary source-over blending -- no `composable` child to sample. Static
+    // by design (a tabletop doesn't shimmer), so it costs one shader pass and no animation clock.
+    internal const val FELT_GRAIN_AGSL = """
+        half4 main(float2 coord) {
+            float2 cell = floor(coord * 0.5);
+            float n = fract(sin(dot(cell, float2(12.9898, 78.233))) * 43758.5453);
+            float weave = 0.5 + 0.5 * sin(coord.x * 1.7) * sin(coord.y * 1.7);
+            float v = (n - 0.5) * 0.11 + (weave - 0.5) * 0.05;
+            half a = half(abs(v));
+            half3 tone = v > 0.0 ? half3(1.0) : half3(0.0);
+            return half4(tone * a, a);
+        }
+    """
+
     // A softly drifting three-color "mesh gradient" (three moving blend centers,
     // inverse-square-weighted) for a screen's own root background -- meant to replace a
     // flat/static gradient behind chrome, never behind gameplay-color-coded content (see
@@ -169,6 +186,21 @@ private fun Modifier.specularSweepApi33(tint: Color, periodMs: Int): Modifier {
         }
     )
 }
+
+/**
+ * A brush that paints [PremiumShaders.FELT_GRAIN_AGSL] -- draw it over a felt-colored fill for
+ * cloth texture. Null below API 33 or on any shader failure, in which case the caller simply
+ * skips the grain and keeps its plain fill (never a crash, never a blank surface).
+ */
+@Composable
+fun rememberFeltGrainBrush(): Brush? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+    return remember { feltGrainBrushApi33() }
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private fun feltGrainBrushApi33(): Brush? =
+    runCatching { ShaderBrush(RuntimeShader(PremiumShaders.FELT_GRAIN_AGSL)) }.getOrNull()
 
 /**
  * The shared "big win" flourish: a warm bloom + expanding ring, additive-blended on top

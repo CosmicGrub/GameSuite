@@ -583,8 +583,14 @@ class UnoGame : GameModule {
 
     /** Call from the UI (e.g. a LaunchedEffect) when the current player is a bot. Never
      *  fires in networked play — LOCAL_AD_HOC games are human-only (no shared "who runs
-     *  the bot" authority), enforced by the lobby never offering bot seats there. */
-    fun playBotTurn() {
+     *  the bot" authority), enforced by the lobby never offering bot seats there.
+     *
+     *  [chainDrawnPlay]: when the bot's draw turns up a playable card the turn stays with it (see below).
+     *  True (the default) plays that card in the same call, so headless callers get a whole turn from one
+     *  call. The UI passes false and drives the follow-up itself on the next tick, so the draw and the
+     *  play are two separate states the table can animate -- rendered from one call, a bot's
+     *  draw-then-play showed as a card popping onto the pile from a seat whose count never changed. */
+    fun playBotTurn(chainDrawnPlay: Boolean = true) {
         val s = state.value ?: return
         if (s.matchOver) return
 
@@ -623,7 +629,7 @@ class UnoGame : GameModule {
             // their only legal option (chooseMove has nothing else to pick from by construction),
             // never invoking keepDrawnCard() themselves.
             val after = state.value
-            if (after != null && !after.roundOver && !after.matchOver && after.currentPlayerIndex == botIndex) {
+            if (chainDrawnPlay && after != null && !after.roundOver && !after.matchOver && after.currentPlayerIndex == botIndex) {
                 playBotTurn()
             }
         }
@@ -807,6 +813,14 @@ class UnoGame : GameModule {
     }
 
     // ---- Internals ----
+
+    /** Whether [card] would be accepted as a play against the current table (top card, current
+     *  color, and any pending +2/+4 stack) -- the same check [playCard] enforces, exposed so the UI
+     *  can light up playable cards instead of re-deriving the rules and drifting from them. */
+    fun canPlay(card: UnoCard): Boolean {
+        val s = state.value ?: return false
+        return isLegalPlay(card, s)
+    }
 
     private fun isLegalPlay(card: UnoCard, s: UnoState): Boolean {
         if (s.pendingDraw > 0) {

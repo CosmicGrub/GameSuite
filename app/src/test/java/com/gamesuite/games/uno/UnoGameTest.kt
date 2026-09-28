@@ -240,4 +240,61 @@ class UnoGameTest {
 
         assertEquals(handSizeBefore, game.state.value!!.players[0].hand.size)
     }
+
+    // ---- Bot draw-then-play ----
+
+    /** A bot with no legal card whose next draw is legal: RED 5 on top, bot holds only greens, deck top is RED 7. */
+    private fun botAboutToDrawAPlayableCard(): UnoGame {
+        val game = newGame(playerCount = 3)
+        val s = game.state.value!!
+        // The draw pile is private and shuffled; pin its top so the outcome is deterministic.
+        val field = UnoGame::class.java.getDeclaredField("drawPile").apply { isAccessible = true }
+        field.set(game, (0 until 30).map { card(if (it == 0) UnoColor.RED else UnoColor.GREEN, if (it == 0) UnoRank.SEVEN else UnoRank.TWO, 920 + it) }.toMutableList())
+        game.state.value = s.copy(
+            players = s.players.mapIndexed { i, p ->
+                if (i == 1) p.copy(isBot = true, hand = listOf(card(UnoColor.GREEN, UnoRank.THREE, 910), card(UnoColor.GREEN, UnoRank.FOUR, 911))) else p
+            },
+            discardPile = listOf(card(UnoColor.RED, UnoRank.FIVE, 900)),
+            currentColor = UnoColor.RED,
+            currentPlayerIndex = 1,
+            direction = 1,
+            pendingDraw = 0,
+            awaitingColorChoice = false,
+            awaitingChallenge = false
+        )
+        return game
+    }
+
+    @Test
+    fun `a bot that draws a playable card plays it in the same call by default`() {
+        val game = botAboutToDrawAPlayableCard()
+
+        game.playBotTurn()
+
+        val after = game.state.value!!
+        assertEquals("the drawn RED 7 must have been played", UnoRank.SEVEN, after.topCard.rank)
+        assertEquals(2, after.players[1].hand.size)
+        assertFalse(after.awaitingDrawDecision)
+    }
+
+    @Test
+    fun `with chaining off a bot's draw and its play are two separate states`() {
+        val game = botAboutToDrawAPlayableCard()
+
+        game.playBotTurn(chainDrawnPlay = false)
+
+        val drawn = game.state.value!!
+        assertEquals("the draw alone must leave the discard pile untouched", 900, drawn.topCard.instanceId)
+        assertEquals("the bot now holds the drawn card too", 3, drawn.players[1].hand.size)
+        assertEquals("the turn stays with the bot until it plays the drawn card", 1, drawn.currentPlayerIndex)
+        assertTrue(drawn.awaitingDrawDecision)
+
+        game.playBotTurn(chainDrawnPlay = false)
+
+        val played = game.state.value!!
+        assertEquals(UnoRank.SEVEN, played.topCard.rank)
+        assertEquals(2, played.players[1].hand.size)
+        assertFalse(played.awaitingDrawDecision)
+        assertTrue("the turn moves on once the drawn card is played", played.currentPlayerIndex != 1)
+    }
 }
