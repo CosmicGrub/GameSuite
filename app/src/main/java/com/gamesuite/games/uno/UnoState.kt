@@ -57,8 +57,9 @@ data class UnoState(
     /** True right after the current player drew a card that's legal to play, until they either
      *  play it or (when rules.forcePlayDrawnCard is false) explicitly keep it — see
      *  UnoGame.drawCard()/keepDrawnCard(). Lets the UI offer a "Keep card" action distinct from a
-     *  normal turn start. Always reset to false by UnoGame.commitState() except drawCard()'s own
-     *  call, so no other mutation needs to remember to clear it. */
+     *  normal turn start. Reset to false by UnoGame.commitState() on every turn-advancing commit;
+     *  only drawCard()'s own call sets it, and the non-turn commits (callUno, catchUnoFailure, host
+     *  onPlayerLeft) deliberately pass it through so they cannot re-open a second draw. */
     val awaitingDrawDecision: Boolean = false
 ) {
     val topCard: UnoCard get() = discardPile.last()
