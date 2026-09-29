@@ -38,10 +38,20 @@ function connect() {
   return { ws, messages }
 }
 
-function opened(ws) {
+/**
+ * Resolves once `ws` is open. Several sockets are usually created back to back and then awaited one
+ * at a time, so a later socket can finish its handshake while an earlier one is still being awaited:
+ * its 'open' event has already fired by the time a listener is attached here, and a listener-only
+ * version waits forever. Checking readyState first fixes that, and the timeout turns any remaining
+ * stall into a clear failure instead of a silent hang.
+ */
+function opened(ws, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
-    ws.once('open', resolve)
-    ws.once('error', reject)
+    if (ws.readyState === WebSocket.OPEN) return resolve()
+    if (ws.readyState !== WebSocket.CONNECTING) return reject(new Error('socket closed before it was awaited'))
+    const timer = setTimeout(() => reject(new Error(`WebSocket did not open within ${timeoutMs}ms`)), timeoutMs)
+    ws.once('open', () => { clearTimeout(timer); resolve() })
+    ws.once('error', (err) => { clearTimeout(timer); reject(err) })
   })
 }
 
@@ -71,6 +81,17 @@ async function main() {
   let childOutput = ''
   child.stdout.on('data', (d) => { childOutput += d.toString() })
   child.stderr.on('data', (d) => { childOutput += d.toString() })
+
+  // Whole-run watchdog: a healthy run takes seconds. If something ever waits forever, fail loudly
+  // (and take the relay down with us) instead of hanging CI until the job's own timeout.
+  const watchdogMs = parseInt(process.env.SMOKE_TEST_TIMEOUT_MS || '60000', 10)
+  setTimeout(() => {
+    console.error(`Smoke test exceeded ${watchdogMs}ms with ${pass} passed and ${fail} failed; aborting.
+--- server output ---
+${childOutput}`)
+    child.kill()
+    process.exit(1)
+  }, watchdogMs).unref()
 
   try {
     await waitForServer()
