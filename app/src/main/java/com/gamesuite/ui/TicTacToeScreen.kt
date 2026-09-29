@@ -123,13 +123,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun TicTacToeScreen(
     sessionManager: GameSessionManager,
+    game: TicTacToeGame,
     settingsViewModel: SettingsViewModel,
     misere: Boolean = false,
     wild: Boolean = false,
     onMatchEnded: () -> Unit
 ) {
     val context by sessionManager.activeContext.collectAsState()
-    val game = remember { TicTacToeGame() }
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
     val haptics = rememberHaptics()

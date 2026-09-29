@@ -59,6 +59,7 @@ import com.gamesuite.games.reversi.ReversiGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.solitaire.SolitaireGame
 import com.gamesuite.games.sudoku.SudokuGame
+import com.gamesuite.games.tictactoe.TicTacToeGame
 import com.gamesuite.games.towerdefence.TowerDefenceGame
 import com.gamesuite.games.uno.UnoGame
 import com.gamesuite.games.wordgames.crossword.CrosswordGame
@@ -155,7 +156,14 @@ class MainActivity : ComponentActivity() {
             // result gets written down instead of discarded with the GameContext.
             val lastMatchOutcome by sessionManager.lastMatchOutcome.collectAsStateWithLifecycle()
             LaunchedEffect(lastMatchOutcome) {
-                lastMatchOutcome?.let { statsViewModel.recordMatch(it) }
+                lastMatchOutcome?.let {
+                    statsViewModel.recordMatch(it)
+                    // Consume it immediately: an Activity recreation with no new match (dark mode
+                    // at sunset, a font-size change, ...) starts a fresh composition that would
+                    // otherwise replay this LaunchedEffect against the same stale value and
+                    // double-record the match. See acknowledgeMatchOutcome's KDoc.
+                    sessionManager.acknowledgeMatchOutcome()
+                }
             }
 
             AppTheme(
@@ -263,8 +271,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("tic-tac-toe") {
+                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
+                                game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
@@ -272,8 +282,10 @@ class MainActivity : ComponentActivity() {
                         composable("tic-tac-toe-misere") {
                             // Same GameModule/screen as "tic-tac-toe" — misere = true is the only
                             // difference (roadmap item 13c). See TicTacToeScreen's KDoc.
+                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
+                                game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
                                 misere = true,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
@@ -283,8 +295,10 @@ class MainActivity : ComponentActivity() {
                             // Same GameModule/screen as "tic-tac-toe" — wild = true is the only
                             // difference. Each mover chooses X or O; the win-check reads the
                             // symbol occupying a cell rather than who placed it.
+                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
+                                game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
                                 wild = true,
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }

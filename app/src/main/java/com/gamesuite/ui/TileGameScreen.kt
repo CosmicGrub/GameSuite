@@ -194,8 +194,13 @@ fun TileGameScreen(
     }
 
     val s = state ?: return
-    val activeContext = context ?: return
 
+    // Checked BEFORE `context ?: return` below on purpose. setOnMatchEnd (above) calls
+    // sessionManager.endActiveGame(result) synchronously, which nulls activeContext in the
+    // same beat that the engine's own s.matchOver flips true. The match-over panel below only
+    // ever reads `s` and `onMatchEnded`, never `context` — so with the context check ordered
+    // first, that null took the early return before this branch could ever run, and the
+    // screen went blank right when the match ended instead of showing a result.
     if (s.matchOver) {
         val winner = s.players.maxByOrNull { it.score }
         Column(
@@ -211,6 +216,8 @@ fun TileGameScreen(
         }
         return
     }
+
+    val activeContext = context ?: return
 
     var selectedTileId by remember { mutableStateOf<Int?>(null) }
     // (row, col, blank tile's instanceId) — captured together so the letter dialog knows exactly which tile it's naming.
