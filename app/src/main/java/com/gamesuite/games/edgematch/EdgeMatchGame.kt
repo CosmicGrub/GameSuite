@@ -197,6 +197,14 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
     /** Total time spent paused during the CURRENT puzzle, subtracted out wherever [solvedElapsedMillis] is computed — see [pause]/[resume]'s KDoc. */
     private var totalPausedMillis: Long = 0L
 
+    /**
+     * True once the CURRENT generated puzzle has been counted into [puzzlesSolved]. Cleared only by
+     * [startMatch] (a genuinely new board), never by [resetToInitial]: resetting a solved puzzle and
+     * solving it again is the SAME puzzle, and used to inflate the session tally (and therefore the
+     * score handed to GameResult) by one per re-solve.
+     */
+    private var solveCounted = false
+
     /** (board size, color count) per difficulty — see the class KDoc's DIFFICULTY section. */
     private val difficultyConfig: Map<CpuDifficulty, Pair<Int, Int>> = mapOf(
         CpuDifficulty.EASY to (4 to 4),
@@ -227,6 +235,7 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         solvedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        solveCounted = false
         // A fresh puzzle is always playable, regardless of whether a PRIOR puzzle's
         // endMatch() left matchOver stuck true -- built in from the start here (not
         // found after the fact), the same fix already needed across every other
@@ -251,6 +260,10 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
      * [selectDifficultyTier] switches back.
      */
     fun startCustomMatch(size: Int, colorCount: Int, geometry: EdgeMatchGeometry = EdgeMatchGeometry.SQUARE, dailySeed: Long? = null) {
+        // A no-op once the whole session has ended ([leaveSession]/[endMatch]): [startMatch] clears
+        // matchOver, so without this a late tap on the Custom dialog's Start button (during the
+        // frames before navigation pops) would silently revive a finished session.
+        if (matchOver.value) return
         customConfig = EdgeMatchCustomConfig(
             size = size.coerceIn(MIN_SIZE, MAX_SIZE),
             colorCount = colorCount.coerceIn(MIN_COLORS, MAX_COLORS),
@@ -312,6 +325,20 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms [solvedElapsedMillis]
+     * is computed in: wall time since the first tap minus every paused interval, including a pause
+     * that is still running (so the display freezes while paused instead of ticking on and then
+     * jumping back at the solve). Null before the first tap. Once the puzzle is solved it is just
+     * [solvedElapsedMillis]. Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        solvedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -343,7 +370,12 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         state.value = s.copy(tiles = newTiles, moves = s.moves + 1, solved = isSolved)
 
         if (isSolved) {
-            puzzlesSolved.value += 1
+            // Counted once per generated board: a reset-and-re-solve of the same puzzle must not
+            // bump the session tally again (see [solveCounted]).
+            if (!solveCounted) {
+                puzzlesSolved.value += 1
+                solveCounted = true
+            }
             val start = timerStartElapsedRealtime.value ?: nowMillis()
             solvedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
         }

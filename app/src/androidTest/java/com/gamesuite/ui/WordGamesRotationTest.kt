@@ -37,14 +37,15 @@ import org.junit.runner.RunWith
  * always-legal gameplay interaction before rotating, so the rotation is
  * exercised against genuine mid-game state (a guessed letter / a selected
  * clue) rather than only ever the freshest possible screen. Word Search does
- * NOT get this treatment: its board is a single Canvas with one summary
- * contentDescription ("Word search grid, drag from one letter to another to
- * select a word") and no per-cell semantics or click targets — the only way
- * to make a "real" move is a drag gesture between two letter positions,
- * which would require computing exact on-screen cell pixel coordinates from
- * the generated puzzle layout. That's exactly the kind of brittle,
- * timing/layout-dependent test this task says not to write, so it's skipped
- * here with this note rather than forced.
+ * NOT get this treatment: its board is a single drag Canvas with one summary
+ * contentDescription ("Word search grid, N by N. ...") plus a layer of
+ * per-cell screen-reader click targets under it. The visual way to make a
+ * "real" move is a drag gesture between two letter positions, which would
+ * require computing exact on-screen cell pixel coordinates from the
+ * generated puzzle layout, and the cell-click pair is a random puzzle's
+ * miss at best. That's exactly the kind of brittle, timing/layout-dependent
+ * test this task says not to write, so it's skipped here with this note
+ * rather than forced.
  */
 @RunWith(AndroidJUnit4::class)
 class WordGamesRotationTest {
@@ -147,11 +148,14 @@ class WordGamesRotationTest {
         // can take.
         // DIAGNOSTIC (temporary): dump the real on-device semantics tree.
         composeTestRule.onRoot().printToLog("GameSuiteE2E_WS_DUMP")
+        // Substring match: the description now also carries the grid size ("Word search grid, 12 by
+        // 12. Drag from ...") and only the grid's own node starts with it (cells say "Letter X, ...").
         composeTestRule.waitForNode(
-            hasContentDescription("Word search grid, drag from one letter to another to select a word")
+            hasContentDescription("Word search grid", substring = true)
         )
         composeTestRule.onNodeWithContentDescription(
-            "Word search grid, drag from one letter to another to select a word"
+            "Word search grid",
+            substring = true
         ).assertExists()
         with(device) { backToMenu() }
         composeTestRule.waitForIdle()

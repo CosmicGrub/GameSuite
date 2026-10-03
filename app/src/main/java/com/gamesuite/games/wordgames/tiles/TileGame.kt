@@ -31,8 +31,20 @@ data class PendingPlacement(val row: Int, val col: Int, val tile: RackTile, val 
  */
 enum class WordPlayTier { ORDINARY, MULTIPLIER, BINGO }
 
-/** [TileGame.setOnWordPlayed]'s payload — fired once per successful [TileGame.submitMove], mirroring the "engine reports the event, screen owns the animation" split games/solitaire/SolitaireGame.kt's CardMove/setOnCardMoved already established. */
-data class WordPlayResult(val words: List<String>, val pointsGained: Int, val tier: WordPlayTier)
+/**
+ * [TileGame.setOnWordPlayed]'s payload — fired once per successful [TileGame.submitMove], mirroring the "engine reports the event, screen owns the animation" split games/solitaire/SolitaireGame.kt's CardMove/setOnCardMoved already established.
+ *
+ * [playerIndex] / [byBot] say WHO played, so the screen can celebrate only the human's own plays
+ * (a CPU word used to fire the human's success haptic, chime and sparkle, and a CPU Bingo fired the
+ * match-win celebration). The defaults exist only so older call sites that build one by hand still compile.
+ */
+data class WordPlayResult(
+    val words: List<String>,
+    val pointsGained: Int,
+    val tier: WordPlayTier,
+    val playerIndex: Int = -1,
+    val byBot: Boolean = false
+)
 
 data class TileGameState(
     val board: List<List<BoardCell>>,
@@ -55,10 +67,25 @@ data class TileGameState(
 )
 
 /**
+ * The player(s) holding the top score: one entry for a sole winner, several for a tie (mirrors
+ * [TileGame]'s own `isWinner = score == maxScore` result), empty only for a state with no players.
+ * Lives here, not in the screen, so the "who won / is it a tie" rule has one plain-JVM-testable home.
+ */
+fun TileGameState.leaders(): List<TilePlayerState> {
+    val top = players.maxOfOrNull { it.score } ?: return emptyList()
+    return players.filter { it.score == top }
+}
+
+/**
  * Word-with-Friends/Scrabble-style tile game: 15x15 premium-square board,
  * standard letter distribution, dictionary-validated plays. Placement is
- * tap-based (select a rack tile, tap a board cell) rather than drag, for
- * consistency with the rest of the app's input style.
+ * tap-based (select a rack tile, tap a board cell), with drag-and-drop on
+ * top of it in TileGameScreen.
+ *
+ * Once the match is over (a rack emptied with the bag empty, every player
+ * passing twice in a row, or an abort) every input function is a no-op and
+ * [endMatch] reports exactly once, so a late tap or the bot's delayed turn
+ * cannot touch a finished or abandoned game.
  *
  * Scope note: this validates and scores real Scrabble-style moves (main
  * word + all crossing words, premium squares, bingo bonus) but the bot is a
@@ -85,6 +112,9 @@ class TileGame : GameModule {
     private var onWordPlayed: ((WordPlayResult) -> Unit)? = null
     private var bag: MutableList<RackTile> = mutableListOf()
 
+    /** True once [endMatch] has reported; makes a second finish/abort a no-op. Reset by [startMatch]. */
+    private var matchEnded = false
+
     override fun init(context: GameContext) {
         this.context = context
     }
@@ -103,6 +133,7 @@ class TileGame : GameModule {
     }
 
     override fun startMatch() {
+        matchEnded = false
         bag = TileBag.freshBag()
         val board = List(BOARD_SIZE) { List(BOARD_SIZE) { BoardCell() } }
         val players = context.players.map { info ->
@@ -122,10 +153,17 @@ class TileGame : GameModule {
         )
     }
 
+    // No timers or per-frame work to stop, so both are trivially idempotent no-ops.
     override fun pause() {}
     override fun resume() {}
 
+    /**
+     * Ends the match (finished or aborted) and reports it once. A second call, for example an abort
+     * that lands just after the last tile was played, is ignored instead of firing [onMatchEnd] again.
+     */
     override fun endMatch(result: GameResult) {
+        if (matchEnded) return
+        matchEnded = true
         state.value = state.value?.copy(matchOver = true)
         onMatchEnd?.invoke(result)
     }
@@ -134,6 +172,7 @@ class TileGame : GameModule {
 
     fun stageTile(row: Int, col: Int, tile: RackTile, chosenLetter: Char) {
         val s = state.value ?: return
+        if (s.matchOver) return
         if (s.board[row][col].tile != null) return
         if (s.pending.any { it.row == row && it.col == col }) return
         state.value = s.copy(pending = s.pending + PendingPlacement(row, col, tile, chosenLetter))
@@ -141,17 +180,20 @@ class TileGame : GameModule {
 
     fun unstageTile(row: Int, col: Int) {
         val s = state.value ?: return
+        if (s.matchOver) return
         state.value = s.copy(pending = s.pending.filterNot { it.row == row && it.col == col })
     }
 
     fun clearStaged() {
         val s = state.value ?: return
+        if (s.matchOver) return
         state.value = s.copy(pending = emptyList())
     }
 
     /** Validates the staged placement, scores it, commits it, and advances the turn. Returns an error message, or null on success. */
     fun submitMove(): String? {
         val s = state.value ?: return "No active game"
+        if (s.matchOver) return "The game is over"
         if (s.pending.isEmpty()) return "Place at least one tile first"
 
         val boardHasAnyTile = s.board.any { row -> row.any { it.tile != null } }
@@ -209,7 +251,15 @@ class TileGame : GameModule {
             matchOver = matchOver
         )
 
-        onWordPlayed?.invoke(WordPlayResult(words.map { it.text }.distinct(), gained, tier))
+        onWordPlayed?.invoke(
+            WordPlayResult(
+                words = words.map { it.text }.distinct(),
+                pointsGained = gained,
+                tier = tier,
+                playerIndex = s.currentPlayerIndex,
+                byBot = player.isBot
+            )
+        )
         if (matchOver) finishGame()
         return null
     }
@@ -236,6 +286,7 @@ class TileGame : GameModule {
 
     fun pass() {
         val s = state.value ?: return
+        if (s.matchOver) return
         val player = s.players[s.currentPlayerIndex]
         val consecutivePasses = s.consecutivePasses + 1
         val allPassed = consecutivePasses >= s.players.size * 2
@@ -252,6 +303,7 @@ class TileGame : GameModule {
 
     fun swapTiles(tileIds: Set<Int>) {
         val s = state.value ?: return
+        if (s.matchOver) return
         if (bag.size < tileIds.size) return
         val player = s.players[s.currentPlayerIndex]
         val kept = player.rack.filterNot { it.instanceId in tileIds }

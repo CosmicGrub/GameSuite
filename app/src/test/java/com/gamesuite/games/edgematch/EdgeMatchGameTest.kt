@@ -663,4 +663,85 @@ class EdgeMatchGameTest {
         assertEquals("tile2: E, NE, and NW are real neighbors", setOf(EdgeMatchGame.E, EdgeMatchGame.NE, EdgeMatchGame.NW), game.matchingDirections(2))
         assertEquals("tile3 (corner): only NW and W are real neighbors", setOf(EdgeMatchGame.NW, EdgeMatchGame.W), game.matchingDirections(3))
     }
+
+    // -------------------------------------------------------------------
+    // UI-quality pass: once-per-board tally, post-leave guard, pause-aware live clock
+    // -------------------------------------------------------------------
+
+    /**
+     * Regression: resetToInitial() then re-solving the SAME generated board used to bump
+     * puzzlesSolved a second time, inflating the session tally that leaveSession() hands to GameResult.
+     * A genuinely new board (startMatch) still counts.
+     */
+    @Test
+    fun `resetting a solved puzzle and solving it again does not count it twice, but a new board does`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 7L)
+        rotateEveryTileBackToItsOwnZero(game)
+        assertTrue(game.state.value!!.solved)
+        assertEquals(1, game.puzzlesSolved.value)
+
+        game.resetToInitial()
+        assertFalse("reset must clear the solved flag", game.state.value!!.solved)
+        rotateEveryTileBackToItsOwnZero(game)
+        assertTrue("the same scramble must be solvable again after a reset", game.state.value!!.solved)
+        assertEquals("a re-solve of the same board must not be counted again", 1, game.puzzlesSolved.value)
+
+        game.playAgain() // a genuinely new board
+        rotateEveryTileBackToItsOwnZero(game)
+        assertTrue(game.state.value!!.solved)
+        assertEquals("a new board counts", 2, game.puzzlesSolved.value)
+    }
+
+    @Test
+    fun `startCustomMatch is a no-op once the session has ended, instead of reviving it`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch()
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.startCustomMatch(size = 5, colorCount = 5)
+        assertTrue("a custom start after leaving must not clear matchOver", game.matchOver.value)
+        assertEquals(stateAtLeave, game.state.value)
+        assertNull("and must not stash a custom config either", game.customConfig)
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first tap, freezes while paused, and ends equal to the solved time`() {
+        var clock = 0L
+        val game = EdgeMatchGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.startMatch()
+        game.state.value = EdgeMatchState(size = 2, colorCount = 5, tiles = listOf(tile00.copy(rotation = 2), tile01, tile10, tile11))
+        assertNull("no stopwatch before the first tap", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.tapTile(0) // rotation 2 -> 3: starts the timer at t=1000, does not solve
+        assertFalse(game.state.value!!.solved)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        game.tapTile(0) // rotation 3 -> 0: solves the board
+        assertTrue(game.state.value!!.solved)
+        assertEquals(3_000L, game.solvedElapsedMillis.value)
+        assertEquals("once solved, the live clock reads exactly the recorded solve time", game.solvedElapsedMillis.value, game.activeElapsedMillis())
+    }
 }

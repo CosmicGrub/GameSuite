@@ -130,6 +130,9 @@ class DominoGame : GameModule {
         )
     }
 
+    // Nothing in a hand of dominoes runs on a clock, so there is no state to freeze: pause() and
+    // resume() are stateless and therefore trivially idempotent (calling either any number of
+    // times, in any order, changes nothing).
     override fun pause() {}
     override fun resume() {}
 
@@ -198,6 +201,7 @@ class DominoGame : GameModule {
 
     /** attachToLeft=true plays on the left end, false plays on the right end. Auto-flips as needed. */
     fun playDomino(playerIndex: Int, domino: Domino, attachToLeft: Boolean) {
+        if (matchOver.value) return // the session already ended (left or aborted): ignore stray input
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
         val player = s.players[playerIndex]
@@ -228,6 +232,7 @@ class DominoGame : GameModule {
     }
 
     fun drawFromBoneyard(playerIndex: Int) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex || boneyard.isEmpty()) return
         if (canPlay(playerIndex)) return // must play a legal tile instead of drawing
@@ -243,6 +248,7 @@ class DominoGame : GameModule {
     }
 
     fun pass(playerIndex: Int) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
         // Only allowed once the boneyard is empty and the player genuinely has no legal move.
@@ -275,6 +281,7 @@ class DominoGame : GameModule {
      * unchanged as MEDIUM.
      */
     fun playBotTurn() {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.handOver) return
         val botIndex = s.currentPlayerIndex

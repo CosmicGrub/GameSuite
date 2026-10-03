@@ -90,10 +90,16 @@ object NavRotationTestSupport {
     }
 
     /** Presses the real hardware/gesture back action and settles -- used to
-     *  return to the main menu between games in a multi-game test. */
+     *  return to the main menu between games in a multi-game test. A game that
+     *  is mid-match shows `GameChrome`'s "Leave" confirmation first, so this
+     *  confirms it when present (a no-op for screens without that dialog). */
     fun UiDevice.backToMenu() {
         pressBack()
         Thread.sleep(SETTLE_MS)
+        findObject(androidx.test.uiautomator.By.text("Leave"))?.let {
+            it.click()
+            Thread.sleep(SETTLE_MS)
+        }
     }
 
     /**
