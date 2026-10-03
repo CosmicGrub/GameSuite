@@ -163,6 +163,21 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first press minus every paused
+     * interval, including a pause that is still running (so the display freezes while paused
+     * instead of ticking on and then jumping back at the solve, which is what a screen computing
+     * `now - timerStartElapsedRealtime` itself did). Null before the first press. Once the board
+     * is won it is just [finishedElapsedMillis]. Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)

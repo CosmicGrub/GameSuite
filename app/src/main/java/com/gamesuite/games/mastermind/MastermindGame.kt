@@ -59,8 +59,11 @@ data class MastermindState(
  * MOVES/SESSION: same solo-puzzle session pattern as every other engine in this app —
  * module-level [matchOver] distinct from the per-round [MastermindState.isOver]; finishing a
  * round (solved OR out of guesses) does not end the match, just bumps [puzzlesSolved] on a
- * genuine solve; [playAgain] deals a fresh secret keeping the tally; [leaveSession] builds the
- * [GameResult] from the tally and ends the match.
+ * genuine solve or [puzzlesFailed] on a loss; [playAgain] deals a fresh secret keeping the
+ * tally; [leaveSession] builds the [GameResult] from the tally and ends the match. Solved plus
+ * failed is the number of FINISHED codes, which the screen reads to decide whether leaving
+ * mid-code may be a pure abort (nothing finished yet) or must go through [leaveSession] so the
+ * finished codes still count.
  */
 class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
     override val gameId = "mastermind"
@@ -72,6 +75,18 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
 
     val state = mutableStateOf<MastermindState?>(null)
     val puzzlesSolved = mutableStateOf(0)
+
+    /** Codes lost to running out of guesses this session; with [puzzlesSolved] this is the finished-code count. See the class KDoc. */
+    val puzzlesFailed = mutableStateOf(0)
+
+    /**
+     * Counts every fresh code dealt (bumped by each [startMatch], never reset, never lowered). The
+     * screen keys its per-code state (stats-recorded flag, the half-built guess) on this instead of
+     * on [MastermindState.secret]: a random secret can repeat back to back (1 in 256 at EASY), and
+     * re-dealing the same daily seed gives the identical secret, which with the secret as the key
+     * would skip recording the second solve.
+     */
+    val roundNumber = mutableStateOf(0)
 
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-round. */
     val matchOver = mutableStateOf(false)
@@ -104,6 +119,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
+        puzzlesFailed.value = 0
         matchOver.value = false
     }
 
@@ -126,6 +142,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         // engine in this batch (see e.g. ColorFloodGame's own KDoc on this exact fix).
         matchOver.value = false
         val random = if (dailySeed != null) Random(dailySeed) else Random
+        roundNumber.value += 1
         state.value = MastermindState(
             positions = positions,
             colorCount = colorCount,
@@ -156,6 +173,21 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
             totalPausedMillis += nowMillis() - it
             pausedAtElapsedRealtime = null
         }
+    }
+
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first guess minus every paused
+     * interval, including a pause that is still running (so the display freezes while paused
+     * instead of ticking on and then snapping back when the round ends). Null before the first
+     * guess. Once the round is decided it is just [finishedElapsedMillis]. Read-only; never
+     * mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
     }
 
     override fun endMatch(result: GameResult) {
@@ -193,6 +225,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
             puzzlesSolved.value += 1
             freezeTimer()
         } else if (outOfGuesses) {
+            puzzlesFailed.value += 1
             freezeTimer()
         }
     }

@@ -305,6 +305,50 @@ class WordGuessGameTest {
     }
 
     @Test
+    fun `activeElapsedMillis is null before the first guess, freezes while paused, and ends equal to the recorded round time`() {
+        var clock = 0L
+        val game = WordGuessGame(
+            nowMillis = { clock },
+            pickSecret = { "apple" },
+            isValidGuess = { true }
+        )
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.startMatch()
+        assertNull("no stopwatch before the first guess", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.submitGuess("brown") // wrong: starts the timer at t=1000 and the round goes on
+        assertFalse(game.state.value!!.isOver)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        game.submitGuess("apple") // solves the round
+        assertTrue(game.state.value!!.solved)
+        assertEquals(3_000L, game.finishedElapsedMillis.value)
+        assertEquals("once decided, the live clock reads exactly the recorded round time", 3_000L, game.activeElapsedMillis())
+
+        clock = 50_000L
+        assertEquals("a decided round's clock must not keep running", 3_000L, game.activeElapsedMillis())
+    }
+
+    @Test
     fun `playAgain deals a fresh secret and clears the previous round's guesses`() {
         val game = newGame()
         game.startMatch(dailySeed = 1L)
