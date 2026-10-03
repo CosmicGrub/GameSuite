@@ -1,6 +1,5 @@
 package com.gamesuite.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -9,15 +8,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +38,8 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
 
@@ -70,9 +67,9 @@ import kotlinx.coroutines.delay
  * folded into the generic status line) — Othello's forced-pass rule is a common new-player
  * confusion point, so it's surfaced as its own moment rather than a silent turn hand-back.
  *
- * CHROME: a single 44dp corner menu (Back to Menu / How to Play) plus a matching [BackHandler] —
+ * CHROME: the shared [GameChrome] corner menu (Back to Menu / How to Play) plus its BackHandler —
  * this game previously had neither, the #1 gap shared by every screen in the app relative to the
- * UNO/Air Hockey quality bar. Leaving mid-board goes through [ReversiGame.abortSession] (a
+ * UNO/Air Hockey quality bar. Leaving mid-board goes through GameModule.abortMatch (a
  * confirmation dialog first, never recorded to stats) rather than the board-over panel's own
  * "Back to Menu", which scores the finished session — see that method's KDoc for why they're two
  * different actions. Every board cell also carries a screen-reader description (row/column/owner,
@@ -141,25 +138,33 @@ fun ReversiScreen(
 
     val isMyTurn = !s.players[s.currentPlayerIndex].isBot
     val matchInProgress = !s.boardOver
+    val finishedBoards = game.sessionWins.value.values.sum() + game.sessionDraws.value
 
-    // Chrome: this game has no visible top bar (matching the UNO/Air Hockey precedent this
-    // whole redesign effort is chasing), just a quiet corner affordance for the two controls
-    // every game needs regardless of genre -- leaving mid-match, and a first-run-friendly
-    // rules reminder. Neither existed anywhere in this screen before.
-    var showMenu by remember { mutableStateOf(false) }
-    var showLeaveConfirm by remember { mutableStateOf(false) }
-    var showHelp by remember { mutableStateOf(false) }
-
-    // Quitting mid-board is not the same action as the board-over panel's own "Back to Menu"
-    // (which scores the finished session) -- see ReversiGame.abortSession's KDoc. A finished
-    // board can always be left immediately; system back mirrors whichever the corner menu's
-    // "Back to Menu" item would do.
-    fun requestLeave() {
-        if (matchInProgress) showLeaveConfirm = true else game.leaveSession()
-    }
-    BackHandler(onBack = ::requestLeave)
-
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Back / abort-confirm / How to Play live in the shared GameChrome now -- this screen's
+    // corner menu was the pilot it was extracted from. Leaving mid-board discards ONLY the
+    // unfinished board: if earlier boards in this session were already won or drawn, leaving
+    // goes through leaveSession() so those results still count; only a session with nothing
+    // finished is a pure abort (never a win or loss). A finished board always leaves through
+    // leaveSession(), which scores the session.
+    GameChrome(
+        helpTitle = "How to Play Reversi",
+        helpText = "Place a disc so it traps one or more of your opponent's discs between your " +
+            "new disc and another disc of your own color, in any straight line. Every " +
+            "trapped disc flips to your color.\n\n" +
+            "If you have no legal move, your turn is skipped. The board ends once " +
+            "neither player can move — whoever has more discs wins.",
+        matchInProgress = matchInProgress,
+        onLeave = game::leaveSession,
+        onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        buttonFill = palette.background,
+        buttonContent = palette.textPrimary,
+        leaveTitle = "Leave this board?",
+        leaveBody = if (finishedBoards > 0) {
+            "This board is still in progress and won't count, but the boards you've already finished stay on your record."
+        } else {
+            "This board is still in progress. Leaving now won't count it as a win or a loss."
+        }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -227,66 +232,6 @@ fun ReversiScreen(
                 FinishedPanel(s = s, game = game, palette = palette)
             }
         }
-
-        // Corner menu: a single 44dp affordance rather than a permanent top bar, matching the
-        // "no chrome competing with the stage" quality the UNO/Air Hockey benchmarks both have --
-        // this just adds the two controls they're both missing (see this file's own KDoc).
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(palette.background)
-                    .border(1.dp, palette.textPrimary.copy(alpha = 0.35f), CircleShape)
-                    .clickable(
-                        onClickLabel = "Game menu",
-                        role = Role.Button,
-                        onClick = { showMenu = true }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("⋮", color = palette.textPrimary, style = MaterialTheme.typography.titleLarge)
-            }
-            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                DropdownMenuItem(text = { Text("How to Play") }, onClick = { showMenu = false; showHelp = true })
-                DropdownMenuItem(text = { Text("Back to Menu") }, onClick = { showMenu = false; requestLeave() })
-            }
-        }
-    }
-
-    if (showLeaveConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLeaveConfirm = false },
-            title = { Text("Leave this board?") },
-            text = { Text("This board is still in progress. Leaving now won't count it as a win or a loss.") },
-            confirmButton = {
-                TextButton(onClick = { showLeaveConfirm = false; game.abortSession() }) { Text("Leave") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLeaveConfirm = false }) { Text("Keep Playing") }
-            }
-        )
-    }
-
-    if (showHelp) {
-        AlertDialog(
-            onDismissRequest = { showHelp = false },
-            title = { Text("How to Play Reversi") },
-            text = {
-                Text(
-                    "Place a disc so it traps one or more of your opponent's discs between your " +
-                        "new disc and another disc of your own color, in any straight line. Every " +
-                        "trapped disc flips to your color.\n\n" +
-                        "If you have no legal move, your turn is skipped. The board ends once " +
-                        "neither player can move — whoever has more discs wins."
-                )
-            },
-            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Got it") } }
-        )
     }
 }
 
@@ -349,7 +294,7 @@ private fun StatusRow(s: ReversiState, game: ReversiGame, palette: ReversiPalett
             // End padding reserves room for the corner menu button, which is aligned to the
             // whole screen's top-end and would otherwise sit on top of (and clip) the CPU chip
             // this row places at ITS end -- found on-device, not visible from source alone.
-            modifier = Modifier.fillMaxWidth().padding(end = 52.dp),
+            modifier = Modifier.fillMaxWidth().padding(end = GameChromeEndInset),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

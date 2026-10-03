@@ -174,9 +174,11 @@ class ReversiGame : GameModule {
         if (matchOver.value) return
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
+        // Only a strict leader wins the session: boards split evenly are a tie, not a win for both.
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
         val scores = context.players.map {
             val w = wins[it.playerId] ?: 0
-            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins)
+            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins && leaders == 1)
         }
         endMatch(GameResult(scores = scores))
     }
@@ -186,19 +188,6 @@ class ReversiGame : GameModule {
     fun playAgain() {
         if (matchOver.value) return
         startMatch()
-    }
-
-    /**
-     * Called from the mid-match Back confirmation (BackHandler or the corner menu), NOT the
-     * board-over panel's own "Back to Menu" — [leaveSession] scores the session's cumulative
-     * tally, which only makes sense once at least one board has actually finished. This ends
-     * the session immediately regardless of board state, with `wasAborted=true` and no scores,
-     * so GameSessionManager never records it to stats (see its own KDoc) — quitting mid-board
-     * is not a loss.
-     */
-    fun abortSession() {
-        if (matchOver.value) return
-        endMatch(GameResult(wasAborted = true))
     }
 
     /**
