@@ -1,16 +1,23 @@
 package com.gamesuite.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,35 +43,41 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
-
-/** Floor every board square is coerced onto, same "never let an 8x8 grid produce an untappable
- *  square" reasoning ChessScreen's own MIN_TOUCH_TARGET KDoc gives -- reused verbatim here rather
- *  than a second, potentially-diverging constant. */
-private val MIN_SQUARE_SIZE = 40.dp
-private val MAX_SQUARE_SIZE = 56.dp
 
 /**
  * Renders ReversiGame's state reactively — same overall shape as ConnectFourScreen (the other
  * simple two-player board game in this batch): a session-init LaunchedEffect, an 800ms-delayed
  * bot-turn LaunchedEffect, a plain-Column layout, a FinishedPanel with Play Again/Back to Menu.
  *
- * BOARD SIZING: derived from BOTH available width AND height — `minOf(maxWidth, maxHeight) / 8`,
- * floored to [MIN_SQUARE_SIZE] and capped at [MAX_SQUARE_SIZE] — the same formula ChessScreen's own
- * squareSize computation uses (see that file's KDoc for why width-alone was the classic bug: it
- * stretches/overflows whenever height is actually the tighter dimension), reused here rather than
- * ConnectFourScreen's own narrower 7x6-sized `minOf(maxWidth / cols, maxHeight / rows, 48.dp)` --
- * an 8x8 board runs into the same risk Chess already solved once, so this reuses that solution
- * directly instead of re-deriving a third variant.
+ * BOARD SIZING: [com.gamesuite.uikit.fitBoard] against this BoxWithConstraints's own measured
+ * space, clamped to a [40, 56]dp cell-size hint. Chess/Checkers/Mancala/Connect Four all had a
+ * confirmed bug from this exact screen's own prior formula — `minOf(maxWidth, maxHeight) /
+ * 8).coerceIn(40.dp, 56.dp)` — where the floor could push the board past its container on the
+ * Fold cover screen (312dp pane / 8 = 39dp, coerced up to 40dp = 320dp board, an 8dp overflow).
+ * fitBoard never returns a footprint larger than the space it was given — see its own KDoc.
  *
  * LEGAL-MOVE HIGHLIGHTING: every cell in [ReversiState.legalMoves] gets a translucent tint plus a
  * small center dot while it's the LOCAL human's turn — real Othello UIs conventionally show this,
  * and it's the one piece of UI feedback this genre genuinely needs (unlike Connect Four/Checkers,
- * where "can I play here" is usually obvious at a glance).
+ * where "can I play here" is usually obvious at a glance). Colorblind-safe as-is: the dot carries
+ * the "legal" signal by shape, not hue alone, and the two disc colors are near-black/near-white
+ * (a luminance distinction every colorblindness type preserves), so no LocalColorblindMode branch
+ * was needed here the way ColorFlood/Mastermind's multi-hue boards need one.
  *
  * THE PASS MOMENT: [ReversiState.justPassed] renders a dedicated, clearly-visible banner (not just
  * folded into the generic status line) — Othello's forced-pass rule is a common new-player
  * confusion point, so it's surfaced as its own moment rather than a silent turn hand-back.
+ *
+ * CHROME: a single 44dp corner menu (Back to Menu / How to Play) plus a matching [BackHandler] —
+ * this game previously had neither, the #1 gap shared by every screen in the app relative to the
+ * UNO/Air Hockey quality bar. Leaving mid-board goes through [ReversiGame.abortSession] (a
+ * confirmation dialog first, never recorded to stats) rather than the board-over panel's own
+ * "Back to Menu", which scores the finished session — see that method's KDoc for why they're two
+ * different actions. Every board cell also carries a screen-reader description (row/column/owner,
+ * matching CheckersScreen's own phrasing) and a captured disc cross-fades to its new color instead
+ * of snapping — see [CellView]'s KDoc.
  *
  * VISUAL IDENTITY: chrome (background/text/buttons) shares this batch's own warm tokens, but the
  * BOARD ITSELF — green felt, not a checkerboard — is the one deliberate exception, same reasoning
@@ -124,60 +140,153 @@ fun ReversiScreen(
     }
 
     val isMyTurn = !s.players[s.currentPlayerIndex].isBot
+    val matchInProgress = !s.boardOver
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(palette.background)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        StatusRow(s, game, palette)
+    // Chrome: this game has no visible top bar (matching the UNO/Air Hockey precedent this
+    // whole redesign effort is chasing), just a quiet corner affordance for the two controls
+    // every game needs regardless of genre -- leaving mid-match, and a first-run-friendly
+    // rules reminder. Neither existed anywhere in this screen before.
+    var showMenu by remember { mutableStateOf(false) }
+    var showLeaveConfirm by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
 
-        Spacer(Modifier.height(10.dp))
+    // Quitting mid-board is not the same action as the board-over panel's own "Back to Menu"
+    // (which scores the finished session) -- see ReversiGame.abortSession's KDoc. A finished
+    // board can always be left immediately; system back mirrors whichever the corner menu's
+    // "Back to Menu" item would do.
+    fun requestLeave() {
+        if (matchInProgress) showLeaveConfirm = true else game.leaveSession()
+    }
+    BackHandler(onBack = ::requestLeave)
 
-        if (s.justPassed) {
-            PassBanner(text = s.lastAction, palette = palette)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(palette.background)
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            StatusRow(s, game, palette)
+
             Spacer(Modifier.height(10.dp))
-        }
 
-        BoxWithConstraints(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
-            val squareSize = remember(maxWidth, maxHeight) {
-                (minOf(maxWidth, maxHeight) / 8).coerceIn(MIN_SQUARE_SIZE, MAX_SQUARE_SIZE)
+            if (s.justPassed) {
+                PassBanner(text = s.lastAction, palette = palette)
+                Spacer(Modifier.height(10.dp))
             }
 
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(palette.boardFelt)
-                    .border(3.dp, palette.boardFrame, RoundedCornerShape(6.dp))
-            ) {
-                for (row in 0 until 8) {
-                    Row {
-                        for (col in 0 until 8) {
-                            val index = row * 8 + col
-                            val isLegal = isMyTurn && !s.boardOver && index in s.legalMoves
-                            CellView(
-                                owner = s.cells[index],
-                                isLegal = isLegal,
-                                size = squareSize,
-                                palette = palette,
-                                onTap = {
-                                    game.placeDisc(index)
-                                    sounds.playTap()
-                                    haptics(HapticSignal.NORMAL_ACTION)
-                                }
-                            )
+            BoxWithConstraints(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+                // fitBoard never returns a footprint larger than this BoxWithConstraints's own
+                // measured space -- see its KDoc for the exact Chess/Checkers/Mancala bug class
+                // this replaces (a touch-target floor that could exceed its container).
+                val fit = remember(maxWidth, maxHeight) {
+                    fitBoard(
+                        availableWidthPx = maxWidth.value,
+                        availableHeightPx = maxHeight.value,
+                        columns = 8,
+                        rows = 8,
+                        minCellPx = 40f,
+                        maxCellPx = 56f
+                    )
+                }
+                val squareSize = fit.cellPx.dp
+
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(palette.boardFelt)
+                        .border(3.dp, palette.boardFrame, RoundedCornerShape(6.dp))
+                ) {
+                    for (row in 0 until 8) {
+                        Row {
+                            for (col in 0 until 8) {
+                                val index = row * 8 + col
+                                val isLegal = isMyTurn && !s.boardOver && index in s.legalMoves
+                                CellView(
+                                    owner = s.cells[index],
+                                    row = row,
+                                    col = col,
+                                    isLegal = isLegal,
+                                    size = squareSize,
+                                    palette = palette,
+                                    onTap = {
+                                        game.placeDisc(index)
+                                        sounds.playTap()
+                                        haptics(HapticSignal.NORMAL_ACTION)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
+
+            if (s.boardOver) {
+                Spacer(Modifier.height(16.dp))
+                FinishedPanel(s = s, game = game, palette = palette)
+            }
         }
 
-        if (s.boardOver) {
-            Spacer(Modifier.height(16.dp))
-            FinishedPanel(s = s, game = game, palette = palette)
+        // Corner menu: a single 44dp affordance rather than a permanent top bar, matching the
+        // "no chrome competing with the stage" quality the UNO/Air Hockey benchmarks both have --
+        // this just adds the two controls they're both missing (see this file's own KDoc).
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(palette.background)
+                    .border(1.dp, palette.textPrimary.copy(alpha = 0.35f), CircleShape)
+                    .clickable(
+                        onClickLabel = "Game menu",
+                        role = Role.Button,
+                        onClick = { showMenu = true }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⋮", color = palette.textPrimary, style = MaterialTheme.typography.titleLarge)
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(text = { Text("How to Play") }, onClick = { showMenu = false; showHelp = true })
+                DropdownMenuItem(text = { Text("Back to Menu") }, onClick = { showMenu = false; requestLeave() })
+            }
         }
+    }
+
+    if (showLeaveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirm = false },
+            title = { Text("Leave this board?") },
+            text = { Text("This board is still in progress. Leaving now won't count it as a win or a loss.") },
+            confirmButton = {
+                TextButton(onClick = { showLeaveConfirm = false; game.abortSession() }) { Text("Leave") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveConfirm = false }) { Text("Keep Playing") }
+            }
+        )
+    }
+
+    if (showHelp) {
+        AlertDialog(
+            onDismissRequest = { showHelp = false },
+            title = { Text("How to Play Reversi") },
+            text = {
+                Text(
+                    "Place a disc so it traps one or more of your opponent's discs between your " +
+                        "new disc and another disc of your own color, in any straight line. Every " +
+                        "trapped disc flips to your color.\n\n" +
+                        "If you have no legal move, your turn is skipped. The board ends once " +
+                        "neither player can move — whoever has more discs wins."
+                )
+            },
+            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Got it") } }
+        )
     }
 }
 
@@ -237,7 +346,10 @@ private fun StatusRow(s: ReversiState, game: ReversiGame, palette: ReversiPalett
     val sessionDraws by game.sessionDraws
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            // End padding reserves room for the corner menu button, which is aligned to the
+            // whole screen's top-end and would otherwise sit on top of (and clip) the CPU chip
+            // this row places at ITS end -- found on-device, not visible from source alone.
+            modifier = Modifier.fillMaxWidth().padding(end = 52.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -311,18 +423,50 @@ private fun PassBanner(text: String, palette: ReversiPalette) {
 }
 
 @Composable
-private fun CellView(owner: Int?, isLegal: Boolean, size: androidx.compose.ui.unit.Dp, palette: ReversiPalette, onTap: () -> Unit) {
+private fun CellView(
+    owner: Int?,
+    row: Int,
+    col: Int,
+    isLegal: Boolean,
+    size: androidx.compose.ui.unit.Dp,
+    palette: ReversiPalette,
+    onTap: () -> Unit
+) {
+    // Mirrors CheckersScreen's own squareDescription convention exactly (same owner/row/column
+    // phrasing, 1-indexed for a human reader) rather than inventing a new one.
+    val description = remember(owner, isLegal, row, col) {
+        val base = when {
+            owner == 0 -> "Dark disc"
+            owner == 1 -> "Light disc"
+            isLegal -> "Legal move"
+            else -> "Empty"
+        }
+        "$base, row ${row + 1}, column ${col + 1}"
+    }
+
     Box(
         modifier = Modifier
             .size(size)
             .border(0.5.dp, palette.gridLine)
             .background(if (isLegal) palette.legalTint else Color.Transparent)
-            .clickable(enabled = isLegal, onClick = onTap),
+            .clickable(enabled = isLegal, onClickLabel = "Place disc", role = Role.Button, onClick = onTap)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center
     ) {
         when {
             owner != null -> {
-                val discColor = if (owner == 0) palette.player0Disc else palette.player1Disc
+                // Cross-fades whenever an existing disc's owner changes -- a real capture-flip.
+                // This Box's composable identity stays stable across that transition (the branch
+                // taken here is "owner != null" both before and after a flip), which is exactly
+                // what lets animateColorAsState interpolate between the two colors instead of
+                // snapping. The one moment this doesn't animate -- a disc appearing on a
+                // previously-empty cell -- is a brand-new placement, not a flip, so a snap there
+                // reads correctly rather than as a missed animation.
+                val discColor by animateColorAsState(
+                    targetValue = if (owner == 0) palette.player0Disc else palette.player1Disc,
+                    animationSpec = tween(350),
+                    label = "reversi-disc-color"
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

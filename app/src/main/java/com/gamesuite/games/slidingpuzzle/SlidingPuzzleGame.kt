@@ -179,8 +179,17 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
      * background duration. `GameSessionManager.pause()`/`resume()` really do
      * forward from `MainActivity.onPause()`/`onResume()` — this is not a
      * theoretical/unwired path, it fires on every real backgrounding.
+     *
+     * Idempotent: a second pause() with no resume() in between is a no-op rather than moving
+     * the anchor forward. Without this, two pause() calls in a row (Android can deliver
+     * onPause() more than once without an intervening onResume() — e.g. overlapping
+     * focus-loss/multi-window transitions on a foldable or in DeX) would overwrite
+     * [pausedAtElapsedRealtime] with the LATER timestamp, so the eventual [resume] would
+     * subtract too little paused time and silently inflate the recorded solve time by however
+     * long elapsed between the two pause() calls.
      */
     override fun pause() {
+        if (pausedAtElapsedRealtime != null) return
         if (timerStartElapsedRealtime.value != null && state.value?.solved != true) {
             pausedAtElapsedRealtime = nowMillis()
         }
@@ -201,6 +210,7 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
 
     /** Tap a tile: if it's orthogonally adjacent to the blank, it slides into it. Otherwise a no-op. */
     fun tapTile(index: Int) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.solved) return
 

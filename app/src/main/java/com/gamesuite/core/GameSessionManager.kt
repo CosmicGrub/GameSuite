@@ -116,6 +116,24 @@ class GameSessionManager : ViewModel() {
         _activeContext.value = null
     }
 
+    /**
+     * Consumes [lastMatchOutcome] once the stats layer has recorded it — call this right
+     * after (see MainActivity's root LaunchedEffect). Without this, the outcome sits in the
+     * StateFlow forever, which causes two real bugs: (1) an Activity recreation with no new
+     * match (dark mode switching at sunset, a font-size change, ...) replays the same
+     * LaunchedEffect(lastMatchOutcome) on the fresh composition and records the same match a
+     * second time, since a brand-new composition has no memory of the LaunchedEffect that
+     * already ran in the destroyed one; (2) MutableStateFlow only emits on a value CHANGE, so
+     * two matches in a row that happen to produce an equal MatchOutcome (same game, same
+     * scores) collapse into a single emission and the second one is silently never recorded.
+     * Clearing back to null after every consumption fixes both: a recreation replays with a
+     * null key (no-op), and the next real match always transitions null -> outcome, which is
+     * always a change.
+     */
+    fun acknowledgeMatchOutcome() {
+        _lastMatchOutcome.value = null
+    }
+
     /** Resolves [result] to this device's own win/loss/draw — null for a spectator
      *  (localPlayerIndex == -1) or a result with nothing to score. */
     private fun localOutcomeFor(ctx: GameContext, result: GameResult): LocalOutcome? {

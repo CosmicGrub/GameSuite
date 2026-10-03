@@ -194,16 +194,32 @@ fun TileGameScreen(
     }
 
     val s = state ?: return
-    val activeContext = context ?: return
 
+    // Checked BEFORE `context ?: return` below on purpose. setOnMatchEnd (above) calls
+    // sessionManager.endActiveGame(result) synchronously, which nulls activeContext in the
+    // same beat that the engine's own s.matchOver flips true. The match-over panel below only
+    // ever reads `s` and `onMatchEnded`, never `context` — so with the context check ordered
+    // first, that null took the early return before this branch could ever run, and the
+    // screen went blank right when the match ended instead of showing a result.
     if (s.matchOver) {
-        val winner = s.players.maxByOrNull { it.score }
+        // TileGame.finishGame() marks EVERY player at the max score as a winner (isWinner =
+        // it.score == maxScore), so two or more players can tie. maxByOrNull alone would silently
+        // pick the first of them and announce a sole winner -- found in review once this panel
+        // became reachable. Same "It's a tie!" wording ConnectFour/DotsAndBoxes/Mancala/Reversi
+        // all already use for a draw, rather than inventing a new phrasing here.
+        val maxScore = s.players.maxOfOrNull { it.score } ?: 0
+        val winners = s.players.filter { it.score == maxScore }
+        val title = if (winners.size == 1) {
+            "${winners.first().displayName} wins with ${winners.first().score} points!"
+        } else {
+            "It's a tie!"
+        }
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("${winner?.displayName} wins with ${winner?.score} points!", style = MaterialTheme.typography.headlineSmall)
+            Text(title, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
             // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover use case,
             // docs/DEVICE_SPECIFIC_PLAN.md §4c) -- purely additive, no effect on touch.
@@ -211,6 +227,8 @@ fun TileGameScreen(
         }
         return
     }
+
+    val activeContext = context ?: return
 
     var selectedTileId by remember { mutableStateOf<Int?>(null) }
     // (row, col, blank tile's instanceId) — captured together so the letter dialog knows exactly which tile it's naming.

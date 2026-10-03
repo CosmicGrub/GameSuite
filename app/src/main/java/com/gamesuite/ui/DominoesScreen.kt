@@ -543,7 +543,15 @@ fun DominoesScreen(
                 .padding(top = 8.dp)
                 .onGloballyPositioned { handAnchorPos = it.positionInRoot() + Offset(24f, it.size.height / 2f) }
         ) {
-            val myHand = s.players.getOrNull(activePlayerIndex)?.hand ?: emptyList()
+            // The hand row follows whoever's turn it is (see activePlayerIndex above) so a
+            // second local human sees their own hand during hotseat play, same as the header
+            // text below. That's wrong when the active seat is a bot: there is no "pass the
+            // device" moment for a CPU turn, so it was showing the CPU's hand face-up, labeled
+            // "Your hand". Fall back to the local viewer's own hand whenever the active seat
+            // isn't human.
+            val myHand = s.players.getOrNull(activePlayerIndex)?.takeIf { !it.isBot }?.hand
+                ?: context?.let { ctx -> s.players.getOrNull(ctx.localPlayerIndex)?.hand }
+                ?: emptyList()
             itemsIndexed(myHand, key = { _, domino -> domino.instanceId }) { handIndex, domino ->
                 androidx.compose.animation.AnimatedVisibility(
                     visible = handIndex < dealtCount,
