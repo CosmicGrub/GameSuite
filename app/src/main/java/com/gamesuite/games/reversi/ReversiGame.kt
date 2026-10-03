@@ -174,9 +174,11 @@ class ReversiGame : GameModule {
         if (matchOver.value) return
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
+        // Only a strict leader wins the session: boards split evenly are a tie, not a win for both.
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
         val scores = context.players.map {
             val w = wins[it.playerId] ?: 0
-            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins)
+            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins && leaders == 1)
         }
         endMatch(GameResult(scores = scores))
     }
