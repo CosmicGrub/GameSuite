@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -536,6 +537,87 @@ class KenKenGameTest {
             "recorded solve time was ${recordedMillis}ms -- the [110,200] interval between the two pause() calls must count as paused, not active",
             recordedMillis < 100L
         )
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first entry, frozen while paused, and ends on the recorded time`() {
+        var clock = 0L
+        val game = KenKenGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+
+        assertNull("no clock before the first entry", game.activeElapsedMillis())
+        game.selectCell(0)
+        assertNull("selecting a cell must not start the clock", game.activeElapsedMillis())
+
+        clock = 100L
+        game.setValue(s.solution[0]) // starts the timer at t=100
+        clock = 160L
+        assertEquals(60L, game.activeElapsedMillis())
+
+        game.pause()
+        clock = 5_000L // a long time passes while paused
+        assertEquals("the reading must freeze at the pause instant", 60L, game.activeElapsedMillis())
+        game.pause() // a second pause must not move the frozen instant
+        assertEquals(60L, game.activeElapsedMillis())
+
+        game.resume() // 4_840ms of pause accumulated
+        clock = 5_040L
+        assertEquals("paused time must be excluded after resume", 100L, game.activeElapsedMillis())
+
+        for (i in s.cells.indices) {
+            if (i != 0) {
+                game.selectCell(i)
+                game.setValue(s.solution[i])
+            }
+        }
+        assertTrue(game.state.value!!.won)
+        assertEquals(100L, game.finishedElapsedMillis.value)
+        clock = 9_000L
+        assertEquals("once won the clock must end on exactly the recorded time", 100L, game.activeElapsedMillis())
+
+        game.startMatch(dailySeed = 6L)
+        assertNull("a fresh board starts with no clock", game.activeElapsedMillis())
+    }
+
+    @Test
+    fun `selectCell is rejected once the session has ended via leaveSession`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 5L)
+        game.selectCell(0)
+        assertEquals(0, game.state.value!!.selectedIndex)
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        val stateAtLeave = game.state.value
+
+        game.selectCell(1)
+        assertEquals("a selectCell() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
+    fun `selectCell is rejected once the board is won`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 9L)
+        val s = game.state.value!!
+        for (i in s.cells.indices) {
+            game.selectCell(i)
+            game.setValue(s.solution[i])
+        }
+        assertTrue(game.state.value!!.won)
+        val selectedAtWin = game.state.value!!.selectedIndex
+
+        game.selectCell(0)
+        assertEquals("a selectCell() on a won board must not move the selection", selectedAtWin, game.state.value!!.selectedIndex)
     }
 
     @Test

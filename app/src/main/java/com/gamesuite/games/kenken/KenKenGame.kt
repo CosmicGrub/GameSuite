@@ -383,10 +383,10 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         onMatchEnd?.invoke(result)
     }
 
-    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Every cell is selectable (there is no "given" cell here — see this class's KDoc). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every other invalid state gets in this batch. */
+    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Every cell is selectable (there is no "given" cell here — see this class's KDoc). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every other invalid state gets in this batch. Also a no-op once the board is won or the whole session has ended via [leaveSession]/[endMatch], like every other input method here. */
     fun selectCell(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
         state.value = s.copy(selectedIndex = index)
     }
@@ -460,6 +460,19 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     private fun freezeTimer() {
         val start = timerStartElapsedRealtime.value ?: nowMillis()
         finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
+    }
+
+    /**
+     * Pause-aware live reading of the current board's stopwatch, for the on-screen clock: null
+     * before the first real entry, frozen at the pause instant while [pause]d (so backgrounding
+     * never makes the display jump ahead), and exactly [finishedElapsedMillis] once the board is
+     * won (so the clock ends on the very number that gets recorded).
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
     }
 
     /** Called from the finished-board panel's "New Puzzle" button — keeps the running tally. */

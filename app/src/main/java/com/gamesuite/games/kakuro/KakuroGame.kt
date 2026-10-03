@@ -238,7 +238,19 @@ object KakuroTemplates {
 /** One horizontal or vertical maximal white run of length >= 2 (see [KakuroGame.computeRuns]'s KDoc for why shorter "runs" are never tracked). [clueCellIndex] is the BLACK cell immediately before [cells]' first entry, guaranteed to exist by every template's border convention. */
 private data class KakuroRun(val cells: List<Int>, val clueCellIndex: Int, val horizontal: Boolean)
 
-private data class KakuroGenerated(val template: KakuroTemplate, val solution: IntArray, val cells: List<KakuroCell>)
+/**
+ * One fully generated, uniqueness-verified puzzle that is not on the board yet: what
+ * [KakuroGame.generate] returns and [KakuroGame.beginPuzzle] puts on the board. Splitting the two
+ * lets a screen run the (potentially slow) generation on a background thread and apply the result
+ * on the main thread. Treat it as immutable; [solution] is row-major with a digit for every WHITE
+ * cell (the BLACK entries are 0 and never read).
+ */
+class KakuroPuzzle(
+    val tier: CpuDifficulty,
+    val template: KakuroTemplate,
+    val solution: IntArray,
+    val cells: List<KakuroCell>
+)
 
 /**
  * Kakuro: BLACK cells carry a down-sum and/or across-sum clue; WHITE cells
@@ -280,7 +292,10 @@ private data class KakuroGenerated(val template: KakuroTemplate, val solution: I
  * `startMatch(dailySeed)` seeds BOTH template choice and digit-fill
  * randomness from the same `Random` instance (matching every other solo
  * puzzle's exact `startMatch(dailySeed)` shape) -- see docs/KAKURO_DESIGN.md's
- * "Stats, daily seed, session shape" section.
+ * "Stats, daily seed, session shape" section. [startMatch] is generate-then-apply in one
+ * synchronous call; a screen that must not block its UI thread (HARD can take a while) calls
+ * [generate] on a background thread and [beginPuzzle] on the main one instead. The clock is
+ * pause-aware: [activeElapsedMillis] is what a live display shows.
  *
  * MISTAKES & FEEDBACK: Sudoku's model, not Nonogram's -- a wrong digit is
  * accepted (not blocked), compared directly against the cell's own known-
@@ -337,11 +352,34 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     override fun startMatch() = startMatch(dailySeed = null)
 
-    /** See this class's KDoc / SudokuGame.startMatch(dailySeed)'s KDoc for what this is for. */
+    /**
+     * See this class's KDoc / SudokuGame.startMatch(dailySeed)'s KDoc for what this is for.
+     * Synchronous: generation can take a noticeable time on HARD, so a screen should prefer
+     * [generate] on a background thread followed by [beginPuzzle] on the main one.
+     */
     fun startMatch(dailySeed: Long?) {
-        val random = dailySeed?.let { Random(it) } ?: Random.Default
-        val generated = generatePuzzle(difficulty, random)
+        beginPuzzle(generate(difficulty, dailySeed))
+    }
 
+    /**
+     * Generates a puzzle for [tier] without touching any engine state, so it is safe to call from
+     * a background thread (it only reads immutable templates and uses its own [Random]). A
+     * non-null [dailySeed] pins the result exactly as [startMatch] does: the same seed and tier
+     * always give the same puzzle. May take a while on HARD (a reject-and-retry search), which is
+     * why it is separate from [beginPuzzle].
+     */
+    fun generate(tier: CpuDifficulty, dailySeed: Long?): KakuroPuzzle {
+        val random = dailySeed?.let { Random(it) } ?: Random.Default
+        return generatePuzzle(tier, random)
+    }
+
+    /**
+     * Puts [puzzle] on the board and resets the per-board timer. [difficulty] becomes the
+     * puzzle's own tier, so the engine, the stats key and the board on screen can never disagree.
+     * Main thread only (it writes the Compose state the screen reads).
+     */
+    fun beginPuzzle(puzzle: KakuroPuzzle) {
+        difficulty = puzzle.tier
         timerStartElapsedRealtime.value = null
         finishedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
@@ -352,13 +390,13 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         // review, built in here from the start rather than rediscovered.
         matchOver.value = false
 
-        val size = generated.template.rows * generated.template.cols
+        val size = puzzle.template.rows * puzzle.template.cols
         state.value = KakuroState(
-            rows = generated.template.rows,
-            cols = generated.template.cols,
-            cells = generated.cells,
+            rows = puzzle.template.rows,
+            cols = puzzle.template.cols,
+            cells = puzzle.cells,
             solution = (0 until size).map { i ->
-                if (generated.template.layout[i] == KakuroCellType.WHITE) generated.solution[i] else null
+                if (puzzle.template.layout[i] == KakuroCellType.WHITE) puzzle.solution[i] else null
             }
         )
     }
@@ -378,15 +416,29 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first digit minus every paused
+     * interval, including a pause that is still running (so a display freezes while paused
+     * instead of ticking on and then jumping back at the solve). Null before the first digit.
+     * Once the board is won it is just [finishedElapsedMillis]. Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
     }
 
-    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Only a WHITE cell is selectable -- a BLACK cell never accepts player input, per docs/KAKURO_DESIGN.md's "Input model" section ("tap a white cell to select it"). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every invalid state gets in this batch. */
+    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Only a WHITE cell is selectable -- a BLACK cell never accepts player input, per docs/KAKURO_DESIGN.md's "Input model" section ("tap a white cell to select it"). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every invalid state gets in this batch. Also a no-op once the whole session has ended (see [setValue]'s KDoc for why). */
     fun selectCell(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
         if (s.cells[index].type != KakuroCellType.WHITE) return
         state.value = s.copy(selectedIndex = index)
@@ -496,7 +548,7 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * should be unreachable in practice (see the class KDoc's pipeline and
      * the timing/success-rate test), but never trusted blindly.
      */
-    private fun generatePuzzle(tier: CpuDifficulty, random: Random): KakuroGenerated {
+    private fun generatePuzzle(tier: CpuDifficulty, random: Random): KakuroPuzzle {
         val templates = KakuroTemplates.forTier(tier)
         var template = templates[random.nextInt(templates.size)]
         repeat(MAX_GENERATION_ATTEMPTS) { attempt ->
@@ -520,7 +572,7 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
                 callBudget = SOLVE_CALL_BUDGET
             )
             if (uniqueCount == 1) {
-                return KakuroGenerated(template = template, solution = filled, cells = buildCells(template, runs, runSums))
+                return KakuroPuzzle(tier = tier, template = template, solution = filled, cells = buildCells(template, runs, runSums))
             }
         }
         error("Kakuro generation failed to find a uniquely-solvable puzzle for tier=$tier after $MAX_GENERATION_ATTEMPTS attempts")
