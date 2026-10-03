@@ -9,6 +9,7 @@ import com.gamesuite.transport.LocalPassAndPlayTransport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -323,5 +324,139 @@ class ColorFloodGameTest {
         val gameB = newGame(CpuDifficulty.MEDIUM)
         gameB.startMatch(dailySeed = 42L)
         assertEquals(gameA.state.value!!.cellColors, gameB.state.value!!.cellColors)
+    }
+
+    @Test
+    fun `absorbCount predicts exactly how much a pick grows the territory, and never mutates state`() {
+        for (difficulty in CpuDifficulty.entries) {
+            for (seed in 1L..6L) {
+                val probe = newGame(difficulty)
+                probe.startMatch(dailySeed = seed)
+                val before = probe.state.value!!
+                val predicted = (0 until before.colorCount).map { probe.absorbCount(it) }
+                assertEquals("absorbCount must not change the board", before, probe.state.value)
+
+                for (color in 0 until before.colorCount) {
+                    if (color == before.currentColor) {
+                        assertEquals("difficulty=$difficulty seed=$seed: the current color adds nothing", 0, predicted[color])
+                        continue
+                    }
+                    // A daily seed reproduces the board, so a second game is the same board to pick on.
+                    val actual = newGame(difficulty)
+                    actual.startMatch(dailySeed = seed)
+                    actual.pick(color)
+                    val grew = actual.state.value!!.territory.size - before.territory.size
+                    assertEquals("difficulty=$difficulty seed=$seed color=$color", grew, predicted[color])
+                }
+            }
+        }
+    }
+
+    /**
+     * A hand-built 3x3 board (the randomized test above cannot guarantee it ever meets a color that
+     * touches nothing, or a chain):
+     *
+     *     0 1 2
+     *     3 1 1
+     *     2 2 3
+     *
+     * The territory is just the corner. Color 1 chains through (0,1) into the three 1s (+3), color 3
+     * takes only the 3 below the corner (+1), color 2 touches nothing (+0 but still a move), and
+     * color 0 is the current color.
+     */
+    @Test
+    fun `absorbCount on a hand-built board covers a chain, a single neighbor, a color that touches nothing, and the current color`() {
+        val colors = listOf(
+            0, 1, 2,
+            3, 1, 1,
+            2, 2, 3
+        )
+        fun boardGame(): ColorFloodGame {
+            val game = newGame(CpuDifficulty.EASY)
+            game.startMatch(dailySeed = 1L)
+            game.state.value = ColorFloodState(size = 3, colorCount = 4, cellColors = colors, territory = setOf(0))
+            return game
+        }
+
+        val probe = boardGame()
+        assertEquals("the current color adds nothing", 0, probe.absorbCount(0))
+        assertEquals("color 1 chains through the corner's neighbor into the three 1s", 3, probe.absorbCount(1))
+        assertEquals("color 2 touches nothing", 0, probe.absorbCount(2))
+        assertEquals("color 3 takes only the cell below the corner", 1, probe.absorbCount(3))
+
+        for (color in 1..3) {
+            val actual = boardGame()
+            actual.pick(color)
+            val after = actual.state.value!!
+            assertEquals("color=$color: one move, even when it absorbs nothing", 1, after.moves)
+            assertEquals(
+                "color=$color: pick grows the territory by exactly what absorbCount predicted",
+                probe.absorbCount(color),
+                after.territory.size - 1
+            )
+        }
+    }
+
+    @Test
+    fun `absorbCount is zero for an out-of-range color, a won board, and an ended session`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 1L)
+        val s0 = game.state.value!!
+        assertEquals(0, game.absorbCount(-1))
+        assertEquals(0, game.absorbCount(s0.colorCount))
+
+        solveByAlwaysGrowingTerritory(game)
+        assertTrue(game.state.value!!.won)
+        for (color in 0 until s0.colorCount) {
+            assertEquals("a won board has nothing left to absorb", 0, game.absorbCount(color))
+        }
+
+        game.startMatch(dailySeed = 2L)
+        val s1 = game.state.value!!
+        game.leaveSession()
+        for (color in 0 until s1.colorCount) {
+            assertEquals("an ended session absorbs nothing", 0, game.absorbCount(color))
+        }
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first pick, freezes while paused, and ends equal to the finished time`() {
+        var clock = 0L
+        val game = ColorFloodGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 1L)
+        assertNull("no stopwatch before the first pick", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.pick(colorThatGrowsTerritory(game.state.value!!)) // starts the timer at t=1000
+        assertFalse(game.state.value!!.won)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        solveByAlwaysGrowingTerritory(game)
+        assertEquals(3_000L, game.finishedElapsedMillis.value)
+        assertEquals(
+            "once won, the live clock reads exactly the recorded solve time",
+            game.finishedElapsedMillis.value,
+            game.activeElapsedMillis()
+        )
     }
 }

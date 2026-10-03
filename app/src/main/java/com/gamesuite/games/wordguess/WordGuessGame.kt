@@ -227,6 +227,19 @@ class WordGuessGame(
         finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
     }
 
+    /**
+     * Pause-aware live reading of the current round's stopwatch, for the on-screen clock: null
+     * before the first real guess, frozen at the pause instant while [pause]d (so backgrounding
+     * never makes the display jump ahead), and exactly [finishedElapsedMillis] once the round is
+     * decided (so the clock ends on the very number that gets recorded).
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     /** Called from the finished-round panel's "New Word" button — keeps the running tally. */
     fun playAgain() {
         if (matchOver.value) return

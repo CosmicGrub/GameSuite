@@ -163,6 +163,21 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first pick minus every paused
+     * interval, including a pause that is still running (so the display freezes while the app is
+     * backgrounded instead of ticking on and then jumping back at the win). Null before the first
+     * pick. Once the board is won it is just [finishedElapsedMillis]. Read-only; never mutates the
+     * timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -202,6 +217,21 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
             puzzlesSolved.value += 1
             freezeTimer()
         }
+    }
+
+    /**
+     * How many cells picking [colorIndex] would ADD to the territory right now: the same
+     * repaint-and-flood [pick] performs, without committing it. 0 for the territory's current
+     * color, an out-of-range index, a won board, an ended session, or before the first board.
+     * Lets the screen label each swatch with what it would absorb (a pick that touches nothing
+     * still costs a move, so "+0" is worth knowing). Read-only; agrees with [pick] by test.
+     */
+    fun absorbCount(colorIndex: Int): Int {
+        val s = state.value ?: return 0
+        if (matchOver.value || s.isOver) return 0
+        if (colorIndex !in 0 until s.colorCount || colorIndex == s.currentColor) return 0
+        val repainted = s.cellColors.mapIndexed { i, color -> if (i in s.territory) colorIndex else color }
+        return floodFrom(repainted, ORIGIN, s.size).size - s.territory.size
     }
 
     private fun freezeTimer() {
