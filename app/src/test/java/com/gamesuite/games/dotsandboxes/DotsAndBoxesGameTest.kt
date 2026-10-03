@@ -438,6 +438,135 @@ class DotsAndBoxesGameTest {
         assertFalse(first == second)
     }
 
+    /**
+     * Deterministically finishes the CURRENT board with [winner] (0 or 1) taking it 14 boxes to 11.
+     * Hand-builds a board with every edge drawn except H(0,0) and every box but (0,0) already
+     * owned, makes [winner] the mover, then draws H(0,0) through the real engine so the
+     * board-finishing, scoring and session-tally paths all run for real.
+     */
+    private fun winCurrentBoardFor(game: DotsAndBoxesGame, winner: Int) {
+        val s0 = game.state.value!!
+        val h = MutableList(s0.horizontalEdges.size) { true }.also { it[0] = false }
+        val v = List(s0.verticalEdges.size) { true }
+        val owners = MutableList<Int?>(s0.totalBoxes) { index ->
+            if (index == 0) null else if (index <= 13) winner else 1 - winner
+        }
+        val scores = MutableList(2) { 0 }
+        scores[winner] = 13
+        scores[1 - winner] = 11
+        game.state.value = s0.copy(
+            horizontalEdges = h,
+            verticalEdges = v,
+            boxOwner = owners,
+            scores = scores,
+            currentPlayerIndex = winner
+        )
+        game.drawHorizontalEdge(0, 0)
+        val s = game.state.value!!
+        assertTrue("fixture: the board must be over after the final edge", s.boardOver)
+        assertEquals("fixture: the board must be won by player $winner", s0.players[winner].playerId, s.winnerPlayerId)
+    }
+
+    @Test
+    fun `leaveSession on an evenly split session flags no winner, so it records as a draw rather than a win`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        winCurrentBoardFor(game, 0)
+        game.playAgain()
+        winCurrentBoardFor(game, 1)
+        assertEquals(1, game.sessionWins.value["p1"])
+        assertEquals(1, game.sessionWins.value["p2"])
+
+        game.leaveSession()
+        val scores = result!!.scores
+        assertEquals(2, scores.size)
+        assertTrue("a 1-1 session must not flag either player as the winner", scores.none { it.isWinner })
+        assertTrue(scores.all { it.score == 1 })
+    }
+
+    @Test
+    fun `leaveSession flags only the strict leader as the session winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        winCurrentBoardFor(game, 0)
+        game.playAgain()
+        winCurrentBoardFor(game, 1)
+        game.playAgain()
+        winCurrentBoardFor(game, 0)
+
+        game.leaveSession()
+        val scores = result!!.scores
+        val p1 = scores.first { it.playerId == "p1" }
+        val p2 = scores.first { it.playerId == "p2" }
+        assertEquals(2, p1.score)
+        assertEquals(1, p2.score)
+        assertTrue("the player ahead 2-1 is the session winner", p1.isWinner)
+        assertFalse("the player behind 1-2 is not", p2.isWinner)
+    }
+
+    @Test
+    fun `leaveSession with no board won flags no winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        game.leaveSession()
+        val scores = result!!.scores
+        assertEquals(2, scores.size)
+        assertTrue(scores.none { it.isWinner })
+    }
+
+    @Test
+    fun `lastAction wording reads correctly for the local player's display name, You`() {
+        // "You claimed 1 box and goes again" / "You wins the board!" were ungrammatical.
+        val game = newVsBotGame(CpuDifficulty.EASY)
+        game.startMatch()
+        val s0 = game.state.value!!
+        val h = s0.horizontalEdges.toMutableList().also { it[0] = true; it[s0.boxCols] = true } // H(0,0), H(1,0)
+        val v = s0.verticalEdges.toMutableList().also { it[0] = true } // V(0,0); V(0,1) completes box (0,0)
+        game.state.value = s0.copy(horizontalEdges = h, verticalEdges = v, currentPlayerIndex = 0)
+
+        game.drawVerticalEdge(0, 1)
+        assertEquals("You claimed 1 box, going again", game.state.value!!.lastAction)
+
+        winCurrentBoardFor(game, 0)
+        assertEquals("You won the board!", game.state.value!!.lastAction)
+    }
+
+    @Test
+    fun `lastAction counts several boxes claimed by one edge`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        game.drawHorizontalEdge(0, 0)
+        game.drawHorizontalEdge(1, 0)
+        game.drawVerticalEdge(0, 0)
+        game.drawHorizontalEdge(0, 1)
+        game.drawHorizontalEdge(1, 1)
+        game.drawVerticalEdge(0, 2)
+        val mover = game.state.value!!.players[game.state.value!!.currentPlayerIndex].displayName
+
+        game.drawVerticalEdge(0, 1) // completes box (0,0) AND box (0,1)
+        assertEquals("$mover claimed 2 boxes, going again", game.state.value!!.lastAction)
+    }
+
+    @Test
+    fun `pause and resume are safe to repeat and never change the board`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        game.drawHorizontalEdge(0, 0)
+        val before = game.state.value
+        game.pause()
+        game.pause()
+        game.resume()
+        game.resume()
+        assertEquals(before, game.state.value)
+        assertFalse(game.matchOver.value)
+    }
+
     /** Drives a full vs-bot game to completion: on each turn, either let the bot move, or -- for the human -- pick the first legal safe-ish move (or just the first legal move if none is "safe"), purely to exercise the engine end-to-end without crashing or looping forever. */
     private fun playFullGameAlternatingHumanTapsAndBotTurns(game: DotsAndBoxesGame) {
         var guard = 0

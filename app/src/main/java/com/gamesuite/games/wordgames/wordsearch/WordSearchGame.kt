@@ -35,8 +35,9 @@ data class WordSearchState(
 /**
  * Word search: pick N random dictionary words that fit an NxN grid, place
  * each along a random direction (8-way, including diagonals and reversed),
- * fill remaining cells with noise letters. Tap a start cell then an end
- * cell in a straight line to claim a word.
+ * fill remaining cells with noise letters. Select a start cell and an end
+ * cell in a straight line (the UI drags between them, or takes two taps from
+ * a screen reader) to claim a word.
  *
  * Research pass (README item 9k) added: a real difficulty ladder — like
  * Hangman/Crossword/Sliding Puzzle, this is a solo puzzle with no opponent,
@@ -54,8 +55,15 @@ data class WordSearchState(
  * flow, matching the Hangman pattern: solving a puzzle no longer calls
  * [endMatch] directly (it used to, ending the whole visit to this screen
  * the instant the last word was found) — only [leaveSession] does that now.
+ *
+ * [wordsOfLength] is the word source [generatePuzzle] draws from (lowercase words of exactly
+ * the requested length, in a STABLE order). It defaults to the shared offline
+ * [WordDictionary]; it is a constructor seam only so a plain JUnit test can supply a small
+ * fake list instead of the 359k-line asset, which needs a real Android Context to load.
  */
-class WordSearchGame : GameModule {
+class WordSearchGame(
+    private val wordsOfLength: (Int) -> List<String> = { length -> WordDictionary.wordsOfLength(length) }
+) : GameModule {
     override val gameId = "word-search"
     override val displayName = "Word Search"
     override val category = GameCategory.WORD
@@ -143,12 +151,12 @@ class WordSearchGame : GameModule {
      * [startMatch], so "New Puzzle" during a daily challenge still hands back a fresh, unseeded
      * board rather than looping the same one.
      *
-     * Note for whoever wires up daily puzzles: word *choice* isn't seeded yet.
-     * [WordDictionary.randomWordsOfLength] shuffles its candidate pool with the global unseeded
-     * Random internally, so two runs of the same seed currently produce identical placement
-     * geometry and filler letters but can still surface different actual words. Making that
-     * deterministic too means threading a Random through WordDictionary, which is out of this
-     * change's scope.
+     * Word *choice* is seeded too: [generatePuzzle] picks each word by indexing into
+     * `wordsOfLength(length)` (a stable, file-ordered list) with the same seeded Random, rather
+     * than going through [WordDictionary.randomWordsOfLength], which shuffles with the global
+     * unseeded Random. So the same [seed], the same [difficulty] and the same dictionary asset
+     * reproduce the identical puzzle, words included, for every player. (It also avoids that
+     * function's full-list shuffle on every one of up to 500 attempts.)
      */
     fun startMatch(seed: Long?) {
         state.value = generatePuzzle(tierParams(), seed)
@@ -165,13 +173,12 @@ class WordSearchGame : GameModule {
         while (placed.size < params.wordCount && attempts < 500) {
             attempts++
             val length = candidateLengths[attempts % candidateLengths.size]
-            // WordDictionary's pool is lowercase (see WordDictionary.kt); placed words are
-            // stored uppercase below, so the exclusion set must be lowercased too, or this
-            // filter is a silent no-op and the same word can be placed twice.
-            val word = WordDictionary.randomWordsOfLength(
-                length, 1,
-                excluding = placed.map { it.word.lowercase() }.toSet()
-            ).firstOrNull() ?: continue
+            val pool = wordsOfLength(length)
+            if (pool.isEmpty()) continue
+            val word = pool[rng.nextInt(pool.size)]
+            // The pool is lowercase (see WordDictionary.kt); placed words are stored uppercase
+            // below, so compare case-insensitively or the same word can be placed twice.
+            if (placed.any { it.word.equals(word, ignoreCase = true) }) continue
 
             val (dr, dc) = params.directions.random(rng)
             val startRow = rng.nextInt(gridSize)
@@ -215,6 +222,7 @@ class WordSearchGame : GameModule {
      * [attemptSelection]'s KDoc) as part of the drag-to-select pass.
      */
     fun setSelectionStart(pos: GridPos?) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.solved) return
         state.value = s.copy(selectionStart = pos)
@@ -232,6 +240,7 @@ class WordSearchGame : GameModule {
      * of a silent reset.
      */
     fun attemptSelection(start: GridPos, end: GridPos): SelectionResult? {
+        if (matchOver.value) return null
         val s = state.value ?: return null
         if (s.solved) {
             return null

@@ -166,15 +166,20 @@ class DotsAndBoxesGame : GameModule {
     /**
      * Called from the board-over panel's "Back to Menu" button — ends the
      * whole session (not just the current board), reporting the session's
-     * cumulative boards-won tally. Mirrors DominoGame.leaveSession().
+     * cumulative boards-won tally. Mirrors DominoGame.leaveSession(), except that only a
+     * STRICT leader is flagged the winner: an evenly split tally (1-1, 2-2) or one with no board
+     * won at all has no winner, so [com.gamesuite.core.GameSessionManager] records it as a draw.
+     * (It used to flag both players on an equal non-zero tally, which recorded a 1-1 session as a
+     * win for the local player. Same fix as ConnectFourGame.leaveSession.)
      */
     fun leaveSession() {
         if (matchOver.value) return
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
         val scores = context.players.map {
             val w = wins[it.playerId] ?: 0
-            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins)
+            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins && leaders == 1)
         }
         endMatch(GameResult(scores = scores))
     }
@@ -273,10 +278,13 @@ class DotsAndBoxesGame : GameModule {
             boardOver = allClaimed,
             winnerPlayerId = winnerId,
             lastBoxCompleted = boxCompletedEvent,
+            // Past tense / participle only, so the wording reads correctly whether the display
+            // name is "CPU", "Player 2" or the local player's "You" ("You wins the board!" and
+            // "You claimed 1 box and goes again" were both ungrammatical).
             lastAction = when {
-                allClaimed && winnerId != null -> "${s.players.first { it.playerId == winnerId }.displayName} wins the board!"
+                allClaimed && winnerId != null -> "${s.players.first { it.playerId == winnerId }.displayName} won the board!"
                 allClaimed -> "It's a tie!"
-                completedCount > 0 -> "${mover.displayName} claimed $completedCount box${if (completedCount > 1) "es" else ""} and goes again"
+                completedCount > 0 -> "${mover.displayName} claimed $completedCount box${if (completedCount > 1) "es" else ""}, going again"
                 else -> "${mover.displayName} drew a line"
             }
         )
