@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -148,7 +150,8 @@ fun GameChrome(
         AlertDialog(
             onDismissRequest = { showHelp = false },
             title = { Text(helpTitle) },
-            text = { Text(helpText) },
+            // Scrolls so a long rules text never clips on a short or narrow window (Fold cover, landscape).
+            text = { Text(helpText, modifier = Modifier.verticalScroll(rememberScrollState())) },
             confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Got it") } }
         )
     }

@@ -171,6 +171,17 @@ class TicTacToeGame : GameModule {
         onMatchEnd?.invoke(result)
     }
 
+    /**
+     * Idempotent: once the match has ended (leaving via [leaveSession], an earlier abort, or a
+     * host-broadcast `matchOver`), a second abort -- a double-tapped "Leave", or back pressed
+     * while the first leave is still propagating -- must not fire [onMatchEnd] a second time,
+     * since that would run the shell's navigation/session teardown twice.
+     */
+    override fun abortMatch() {
+        if (matchOver.value) return
+        endMatch(GameResult(wasAborted = true))
+    }
+
     /** Called when the shell wants to know when this match ends, e.g. to navigate back. */
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
@@ -196,6 +207,9 @@ class TicTacToeGame : GameModule {
      *  Networked + not host: forwarded to the host as an [TicTacToeIntentPayload.PlayAgain]
      *  intent instead of applied locally, same reasoning as [cellClicked]. */
     fun playAgain() {
+        // After the match has ended there is no next round; without this a networked guest
+        // would still forward a PlayAgain intent to the host.
+        if (matchOver.value) return
         if (isNetworked && !isHost) {
             sendToHost(TicTacToeIntentPayload.PlayAgain)
             return
@@ -318,6 +332,7 @@ class TicTacToeGame : GameModule {
      * [cellClicked] never reads [selectedSymbol].
      */
     fun chooseSymbol(symbol: Int) {
+        if (matchOver.value) return
         selectedSymbol.value = symbol
     }
 
@@ -326,6 +341,9 @@ class TicTacToeGame : GameModule {
      *  intent instead of applied locally -- the host validates and applies it, then
      *  broadcasts the result back (see [handleNetworkMessage]/[applyCellClicked]). */
     fun cellClicked(index: Int) {
+        // Checked before the networked-guest forward below so a finished match never sends an
+        // intent to the host (applyCellClicked has its own guard for the local/host path).
+        if (matchOver.value) return
         if (isNetworked && !isHost) {
             sendToHost(TicTacToeIntentPayload.CellClicked(index))
             return

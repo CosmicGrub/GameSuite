@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,8 +39,15 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -48,7 +56,9 @@ import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
+import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.cards.card3DFlip
 import com.gamesuite.games.chess.ChessGame
@@ -67,25 +77,59 @@ import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
+import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.specularSweep
 import com.gamesuite.ui.effects.victoryGlow
+import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.GameChromeEndInset
+import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.floor
 import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Mirrors MancalaScreen's shape exactly: two LaunchedEffects (one on `context`
- * to init/startMatch, one on `state` to trigger the bot's turn after a UI-layer
- * delay -- bot timing is always a screen concern, never the engine's), early-
- * return guards right after them, a plain-Column round-over panel (no
- * Scaffold/TopAppBar/BackHandler anywhere in this app), and touch input that
- * calls [ChessGame.playMove] directly (which silently rejects illegal calls) --
- * cheap UI-side checks here only gate which squares LOOK enabled/highlighted.
+ * Mirrors MancalaScreen's shape: two LaunchedEffects (one on `context` to init/startMatch, one
+ * on `state` to trigger the bot's turn after a UI-layer delay -- bot timing is always a screen
+ * concern, never the engine's), early-return guards right after them, a plain-Column round-over
+ * panel ([ChessResultPanel]), and touch input that calls [ChessGame.playMove] directly (which
+ * silently rejects illegal calls) -- cheap UI-side checks here only gate which squares LOOK
+ * enabled/highlighted.
+ *
+ * CHROME: the whole screen sits inside the shared [GameChrome] corner menu (How to Play, the
+ * piece-style and motion-tier switches that used to be an always-visible row, Back to Menu) plus
+ * its BackHandler. Leaving mid-game asks first and is an abort (never a win or loss) unless
+ * earlier games in this session already finished, in which case it goes through
+ * [ChessGame.leaveSession] so those results still count -- the same call the result panel's
+ * "Back to Menu" makes. The status text reserves [GameChromeEndInset] so the corner button never
+ * covers it.
+ *
+ * BOARD SIZING: [fitBoard] against the BoxWithConstraints that is the board's own slot (never an
+ * outer scope), cells clamped to [MIN_CELL_DP]..[MAX_CELL_DP]dp and floored to whole pixels so
+ * squares butt up with no hairline seams. The old 48dp-per-square floor made the board 384dp wide
+ * even in a 312dp pane (h-file clipped on the Fold 5 cover screen). If the slot can't give cells
+ * [MIN_CELL_DP]dp, the board stops shrinking and pans (vertical + horizontal scroll) instead.
+ * The slot itself is the largest square left after the status text (weight(1f, fill = false) +
+ * aspectRatio(1f)), with the whole group centred, so a narrow tall screen no longer shows big
+ * empty bands above and below the board. Portrait stacks status / board / captured-and-balance
+ * info; landscape puts the board left and a scrollable status panel right, under the corner
+ * button.
+ *
+ * RESULT: a checkmate celebration (haptic, fanfare, glow, Maximum-tier camera push) fires only
+ * when a HUMAN delivered the mate; a loss or draw gets a calm cue. Draws hold the final board
+ * for a beat like a mate does, and the headline is phrased from the local player's side
+ * ("You win by checkmate!"). The session context is held in a local so that leaving (which nulls
+ * it) does not blank the screen -- result panel included -- during the exit transition.
+ *
+ * ACCESSIBILITY: every square is a Button with a "a2, White pawn" description (algebraic
+ * coordinates -- ChessRotationTest addresses squares by exactly this text) plus a state
+ * description (selected / legal move / legal capture / king in check / last move). With
+ * [LocalColorblindMode] on, selected, last-move and check squares also get a non-color mark.
  *
  * Board orientation is fixed with White's home rank at the bottom (matching
  * the ESP32 firmware's own ChessDisplay.cpp convention of "a human player
@@ -146,6 +190,7 @@ fun ChessScreen(
     val state by game.state
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val reducedMotion = LocalReducedMotion.current
+    val colorblind = LocalColorblindMode.current
     val card3D = LocalCard3DMode.current && !reducedMotion
     // The app-wide "new juice/new motion" gate every screen already uses, per the shared infra
     // convention -- Chess's own Standard/Maximum tier (below) narrows this further, it never
@@ -213,27 +258,54 @@ fun ChessScreen(
     }
 
     val s = state ?: return
-    val ctx = context ?: return
+    // The session context is HELD here rather than read live past this point: leaving (or the
+    // match ending) calls endActiveGame, which nulls it in the same beat the game flips to
+    // finished, and an early return on null would blank the screen -- result panel included --
+    // for the whole exit transition. Plain non-state holder, same idiom as BoardMemory below.
+    val ctxHolder = remember { arrayOfNulls<GameContext>(1) }
+    context?.let { ctxHolder[0] = it }
+    val ctx = ctxHolder[0] ?: return
 
     val isCheckmate = s.result == ChessResult.WHITE_WINS || s.result == ChessResult.BLACK_WINS
 
-    // Checkmate as a real moment, not the same shared dialog stalemate gets: hold the board on
-    // screen for a short beat (Maximum tier layers a hit-stop + camera-push into that beat, see
-    // the checkmatePush Animatable below) before handing off to the round-over panel. Stalemate
-    // and reduced motion both skip straight to the panel, matching today's instant behavior.
+    // Who delivered the mate, from THIS device's point of view. The celebration (haptic, fanfare,
+    // glow, camera push) used to fire for any checkmate, including the CPU mating the human --
+    // it now needs a human winner. Pass-and-play has two humans on one device, so any mate there
+    // is somebody's win; otherwise the winner must be the local seat.
+    val winnerIndex = ctx.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+    val winner = ctx.players.getOrNull(winnerIndex)
+    val humanWon = isCheckmate && winner != null && !winner.isBot &&
+        (ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY || winnerIndex == ctx.localPlayerIndex)
+    val winnerIsLocal = winnerIndex >= 0 && winnerIndex == ctx.localPlayerIndex &&
+        ctx.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+
+    // Session tally. Drives the result panel, and whether leaving mid-game must still score the
+    // games already finished (see the GameChrome call below).
+    val scoreWhite by game.scoreP1
+    val scoreBlack by game.scoreP2
+    val drawCount by game.draws
+    val finishedGames = scoreWhite + scoreBlack + drawCount
+
+    // Every result is a real moment, not just a mate: hold the board on screen for a short beat
+    // before handing off to the round-over panel, so the final position gets a look (draws used
+    // to swap straight to the panel the instant the move landed). Maximum tier layers a
+    // hit-stop + camera-push into a HUMAN's mate, see the checkmatePush Animatable below; reduced
+    // motion skips the hold and goes straight to the panel.
     var revealRoundOverPanel by remember { mutableStateOf(false) }
     val checkmatePush = remember { Animatable(1f) }
-    LaunchedEffect(s.roundOver, isCheckmate) {
+    LaunchedEffect(s.roundOver, isCheckmate, humanWon) {
         if (!s.roundOver) {
             revealRoundOverPanel = false
             checkmatePush.snapTo(1f)
             return@LaunchedEffect
         }
-        if (!isCheckmate || reducedMotion) {
+        if (reducedMotion) {
             revealRoundOverPanel = true
             return@LaunchedEffect
         }
-        if (maximum) {
+        if (!isCheckmate) {
+            delay(600) // stalemate / repetition: a beat to take in the final position
+        } else if (maximum && humanWon) {
             checkmatePush.snapTo(1f)
             delay(70) // hit-stop: a brief freeze before the camera reacts
             checkmatePush.animateTo(1.06f, animationSpec = tween(160))
@@ -241,55 +313,17 @@ fun ChessScreen(
             checkmatePush.animateTo(1f, animationSpec = tween(180))
             delay(120)
         } else {
-            delay(420) // Standard tier: no hit-stop/push, but still a beat to see the mate
+            delay(420) // Standard tier, or the human got mated: no push, but still a beat to see it
         }
         revealRoundOverPanel = true
     }
 
-    if (s.roundOver && revealRoundOverPanel) {
-        val winner = ctx.players.firstOrNull { it.playerId == s.winnerPlayerId }
-        val whiteName = ctx.players.getOrNull(0)?.displayName ?: "White"
-        val blackName = ctx.players.getOrNull(1)?.displayName ?: "Black"
-        val scoreP1 by game.scoreP1
-        val scoreP2 by game.scoreP2
-        val draws by game.draws
-        val headline = when (s.result) {
-            ChessResult.WHITE_WINS, ChessResult.BLACK_WINS -> "${winner?.displayName ?: "?"} wins by checkmate!"
-            ChessResult.DRAW_STALEMATE -> "Draw by stalemate"
-            ChessResult.DRAW_REPETITION -> "Draw by repetition"
-            ChessResult.IN_PROGRESS -> ""
-        }
-        Column(
-            // AGSL deepening: same shared "big win" glow as the other flagship screens,
-            // gated on isCheckmate specifically (a draw gets this same panel but no
-            // glow) and on reducedMotion. This panel is only ever composed once the
-            // result is already final, so the no-arg victoryGlow() (fires once on
-            // entering composition) fits here, same as UnoScreen's MatchOverContent.
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .let { if (isCheckmate && !reducedMotion) it.victoryGlow() else it },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(headline, style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "$whiteName: $scoreP1 · $blackName: $scoreP2" + if (draws > 0) " · Draws: $draws" else "",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = game::playAgain,
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            ) { Text("Play Again") }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = game::leaveSession,
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            ) { Text("Back to Menu") }
-        }
-        return
+    val headline = when (s.result) {
+        ChessResult.WHITE_WINS, ChessResult.BLACK_WINS ->
+            if (winnerIsLocal) "You win by checkmate!" else "${winner?.displayName ?: "?"} wins by checkmate!"
+        ChessResult.DRAW_STALEMATE -> "Draw by stalemate"
+        ChessResult.DRAW_REPETITION -> "Draw by repetition"
+        ChessResult.IN_PROGRESS -> ""
     }
 
     val currentPlayerIndex = playerIndexForColor(s.sideToMove)
@@ -297,74 +331,79 @@ fun ChessScreen(
     val legalDestinations = selectedSquare?.let { if (isHumanTurn) game.legalDestinationsFor(it) else emptySet() } ?: emptySet()
     val checkedKingSquare = if (s.inCheck) s.board.indexOfFirst { it?.type == PieceType.KING && it.color == s.sideToMove } else -1
 
-    // Turn status / piece-style + motion-tier pickers / captured tray / balance bar -- reused
-    // as-is by both the portrait (stacked above the board) and landscape (beside the board)
-    // arrangements below, so these existing controls stay reachable and are never the thing
-    // silently eating the vertical budget a short window needs for the board itself.
-    val chromeBlock: @Composable (Modifier) -> Unit = { chromeModifier ->
-        Column(modifier = chromeModifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    // Turn status: whose move it is plus the last move played. The title + last move are one
+    // polite live region (merged into a single node) so a screen reader announces each move and
+    // each change of turn; the CPU-difficulty line is outside it, as it never changes mid-game.
+    // The caller adds the GameChromeEndInset padding: this block sits where the corner menu
+    // button does.
+    val statusBlock: @Composable (Modifier) -> Unit = { statusModifier ->
+        Column(modifier = statusModifier, horizontalAlignment = Alignment.CenterHorizontally) {
             val sideName = if (s.sideToMove == PieceColor.WHITE) "White" else "Black"
-            // The round-over PANEL already distinguishes "wins by checkmate!" from "Draw by
-            // stalemate" above (confirmed before touching this -- it already did). This is this
+            // The round-over PANEL phrases the result from the local player's side; this is this
             // screen's own transient title during the brief "moment" window where roundOver is
             // true but the panel hasn't taken over yet.
             val titleText = when {
                 s.roundOver && isCheckmate -> "Checkmate!"
+                s.result == ChessResult.DRAW_REPETITION -> "Draw by repetition"
                 s.roundOver -> "Stalemate"
                 isHumanTurn -> "Your turn ($sideName) — tap a piece"
                 else -> "Opponent's turn ($sideName)"
             }
-            Text(titleText, style = MaterialTheme.typography.titleMedium)
-            Text(s.lastAction, style = MaterialTheme.typography.bodySmall)
+            Column(
+                modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(titleText, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                // minLines keeps the block's height steady whether the last-move text wraps or
+                // not, so the board slot below it does not resize (and the board jitter) every move.
+                Text(s.lastAction, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, minLines = 2)
+            }
             if (ctx.players.any { it.isBot }) {
                 Text(
                     "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center
                 )
             }
+        }
+    }
 
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Pieces:", style = MaterialTheme.typography.labelSmall)
-                TextButton(
-                    onClick = {
-                        val next = if (pieceStyle == ChessPieceStyle.CLASSIC) ChessPieceStyle.MINIMALIST else ChessPieceStyle.CLASSIC
-                        scope.launch { prefsStore.setPieceStyle(next) }
-                    },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                ) {
-                    Text(if (pieceStyle == ChessPieceStyle.CLASSIC) "Classic" else "Minimalist")
-                }
-                Spacer(Modifier.width(8.dp))
-                Text("Motion:", style = MaterialTheme.typography.labelSmall)
-                TextButton(
-                    onClick = {
-                        val next = if (motionTier == ChessMotionTier.STANDARD) ChessMotionTier.MAXIMUM else ChessMotionTier.STANDARD
-                        scope.launch { prefsStore.setMotionTier(next) }
-                    },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                ) {
-                    Text(if (motionTier == ChessMotionTier.STANDARD) "Standard" else "Maximum")
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
+    // Captured tray + position-balance bar. The piece-style and motion-tier switches that used to
+    // be a row here now live in the corner menu (GameChrome extraItems), so the stage carries
+    // only status and information.
+    val infoBlock: @Composable (Modifier) -> Unit = { infoModifier ->
+        Column(modifier = infoModifier, horizontalAlignment = Alignment.CenterHorizontally) {
             CapturedPieceTray(board = s.board, pieceStyle = pieceStyle)
             Spacer(Modifier.height(6.dp))
             PositionBalanceBar(balance = game.positionBalance())
         }
     }
 
-    // The board itself. Sized from BOTH the available width AND height (never width alone --
-    // this was the one clear "classic bug" instance in this bundle: squareSize used to be
-    // derived from maxWidth alone, which stretched/overflowed in any orientation where height
-    // was the tighter dimension), with squareSize floored to MIN_TOUCH_TARGET so an 8x8 grid
-    // never produces an untappable square regardless of how little space is actually available.
+    // The board itself, sized by [fitBoard] from the measured space of ITS OWN slot (the square
+    // box the caller hands in), so the footprint can never exceed that slot -- the old
+    // `(min(w, h) / 8).coerceIn(48.dp, 64.dp)` floor made the board 384dp wide in a 312dp pane,
+    // clipping the h-file on the Fold 5 cover screen. Cells are floored to whole pixels so squares
+    // meet with no seams. Below MIN_CELL_DP the board stops shrinking and pans instead.
     val boardBlock: @Composable (Modifier) -> Unit = { boardModifier ->
         BoxWithConstraints(modifier = boardModifier, contentAlignment = Alignment.Center) {
-            val squareSize = (minOf(maxWidth, maxHeight) / 8).coerceIn(MIN_TOUCH_TARGET, 64.dp)
+            val density = LocalDensity.current
+            val fit = remember(maxWidth, maxHeight) {
+                fitBoard(
+                    availableWidthPx = maxWidth.value,
+                    availableHeightPx = maxHeight.value,
+                    columns = 8,
+                    rows = 8,
+                    minCellPx = MIN_CELL_DP,
+                    maxCellPx = MAX_CELL_DP
+                )
+            }
+            val boardPans = !fit.meetsMinimum
+            val cellDp = if (boardPans) MIN_CELL_DP else fit.cellPx
+            val squarePx = floor(cellDp * density.density)
+            val squareSize = with(density) { squarePx.toDp() }
             val boardSize = squareSize * 8
-            val squarePx = with(LocalDensity.current) { squareSize.toPx() }
+            val verticalPan = rememberScrollState()
+            val horizontalPan = rememberScrollState()
 
             val moveKey = s.lastFrom to s.lastTo
             val rookSquares = castleRookSquares(s.lastFrom, s.lastTo, s.board.getOrNull(s.lastTo ?: -1))
@@ -380,8 +419,11 @@ fun ChessScreen(
                 else -> tween(300)
             }
 
-            val moverAnim = remember(moveKey) { Animatable(offsetPxFor(s.lastFrom ?: s.lastTo ?: 0, squarePx), Offset.VectorConverter) }
-            LaunchedEffect(moveKey) {
+            // Keyed on squarePx too: these offsets are in pixels, so a resize of the board slot
+            // (fold/unfold, split-screen) with the same last move would otherwise leave the moved
+            // piece's overlay at the OLD pixel position while the squares re-laid-out around it.
+            val moverAnim = remember(moveKey, squarePx) { Animatable(offsetPxFor(s.lastFrom ?: s.lastTo ?: 0, squarePx), Offset.VectorConverter) }
+            LaunchedEffect(moveKey, squarePx) {
                 // Local vals, not a direct smart-cast on s.lastFrom/lastTo: ChessState now comes
                 // from the :shared module (see docs/ENGINE_DECISION.md Action Item 5), and Kotlin
                 // never smart-casts a nullable val property declared in a different module, even
@@ -394,10 +436,10 @@ fun ChessScreen(
                     moverAnim.animateTo(offsetPxFor(lastTo, squarePx), animationSpec = landingSpec)
                 }
             }
-            val rookAnim = remember(moveKey) {
+            val rookAnim = remember(moveKey, squarePx) {
                 Animatable(offsetPxFor(rookSquares?.first ?: 0, squarePx), Offset.VectorConverter)
             }
-            LaunchedEffect(moveKey) {
+            LaunchedEffect(moveKey, squarePx) {
                 if (rookSquares != null) {
                     rookAnim.snapTo(offsetPxFor(rookSquares.first, squarePx))
                     rookAnim.animateTo(offsetPxFor(rookSquares.second, squarePx), animationSpec = landingSpec)
@@ -466,20 +508,25 @@ fun ChessScreen(
             // bucket means). Sound is layered by staggering 2-3 calls to CardSounds' EXISTING
             // clips rather than a single fixed one, so a quiet move alternates between two
             // clips, a capture layers two in quick succession for a heavier thud, and
-            // checkmate gets a short 3-note staggered fanfare -- CardSounds.kt itself is out of
-            // this bundle's file list, so true per-play pitch/rate jitter isn't reachable here;
-            // distinct-clip layering is this pass's stand-in for that same "not the same sound
-            // every time" goal.
+            // a human-delivered checkmate gets a short 3-note staggered fanfare (a mate against
+            // the human is just a single calm thud with a failure haptic -- never a celebration)
+            // -- CardSounds.kt itself is out of this bundle's file list, so true per-play
+            // pitch/rate jitter isn't reachable here; distinct-clip layering is this pass's
+            // stand-in for that same "not the same sound every time" goal.
             LaunchedEffect(moveKey) {
                 if (s.lastFrom == null || s.lastTo == null) return@LaunchedEffect
                 when {
-                    isCheckmate -> {
+                    isCheckmate && humanWon -> {
                         haptics(HapticSignal.CELEBRATION)
                         sounds.playPlace()
                         delay(90)
                         sounds.playDraw()
                         delay(110)
                         sounds.playShuffle()
+                    }
+                    isCheckmate -> {
+                        haptics(HapticSignal.FAILURE)
+                        sounds.playPlace()
                     }
                     s.result == ChessResult.DRAW_STALEMATE || s.result == ChessResult.DRAW_REPETITION -> {
                         haptics(HapticSignal.FAILURE)
@@ -538,190 +585,390 @@ fun ChessScreen(
                 if (s.roundOver && isCheckmate) game.checkingPieceSquares() else emptySet()
             }
 
+            // Pan wrapper: a plain slot-filling Box when the board fits. When it does not (a window
+            // so short that cells would fall under MIN_CELL_DP) it scrolls both ways instead of
+            // shrinking the squares into unusable slivers.
             Box(
                 modifier = Modifier
-                    .size(boardSize)
-                    .graphicsLayer { scaleX = checkmatePush.value; scaleY = checkmatePush.value }
-                    .let { if (card3D) it.tablePerspectiveTilt() else it }
-                    // Shared PremiumShaders sheen: shared infra's default gate (card3D && !reducedMotion)
-                    // AND this game's own Maximum-tier restriction, per this file's Chess-specific notes.
-                    .specularSweep(enabled = card3D && maximum, tint = BOARD_SHEEN_TINT)
+                    .fillMaxSize()
+                    .then(
+                        if (boardPans) Modifier.verticalScroll(verticalPan).horizontalScroll(horizontalPan)
+                        else Modifier
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                for (square in 0 until 64) {
-                    val col = square % 8
-                    val displayRow = 7 - (square / 8)
-                    val isDark = (square / 8 + col) % 2 == 0
-                    val isSelected = selectedSquare == square
-                    val isLegalDest = square in legalDestinations
-                    val isLastMoveSquare = square == s.lastFrom || square == s.lastTo
-                    val isCheckSquare = square == checkedKingSquare
-                    val piece = s.board.getOrNull(square)
+                Box(
+                    modifier = Modifier
+                        .size(boardSize)
+                        .graphicsLayer { scaleX = checkmatePush.value; scaleY = checkmatePush.value }
+                        .let { if (card3D) it.tablePerspectiveTilt() else it }
+                        // Shared PremiumShaders sheen: shared infra's default gate (card3D && !reducedMotion)
+                        // AND this game's own Maximum-tier restriction, per this file's Chess-specific notes.
+                        .specularSweep(enabled = card3D && maximum, tint = BOARD_SHEEN_TINT)
+                ) {
+                    for (square in 0 until 64) {
+                        val col = square % 8
+                        val displayRow = 7 - (square / 8)
+                        val isDark = (square / 8 + col) % 2 == 0
+                        val isSelected = selectedSquare == square
+                        val isLegalDest = square in legalDestinations
+                        val isLastMoveSquare = square == s.lastFrom || square == s.lastTo
+                        val isCheckSquare = square == checkedKingSquare
+                        val piece = s.board.getOrNull(square)
+                        val ownPiece = piece != null && piece.color == s.sideToMove
+                        // Only squares that can do something are enabled: with nothing selected
+                        // that is the mover's own pieces; with a selection, every square (a tap
+                        // elsewhere clears it, with a buzz).
+                        val squareEnabled = isHumanTurn && !s.roundOver && (selectedSquare != null || ownPiece)
+                        val clickLabel = when {
+                            isLegalDest -> "Move here"
+                            ownPiece -> "Select piece"
+                            else -> "Clear selection"
+                        }
+                        val squareState = squareStateDescription(isSelected, isLegalDest, piece != null, isCheckSquare, isLastMoveSquare)
 
-                    Box(
-                        modifier = Modifier
-                            .offset(x = squareSize * col, y = squareSize * displayRow)
-                            .size(squareSize)
-                            .drawBehind {
-                                val bmp = if (isDark) darkWoodBitmap else lightWoodBitmap
-                                drawImage(bmp, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
-                            }
-                            .clickable(enabled = isHumanTurn && !s.roundOver) {
-                                val sel = selectedSquare
-                                when {
-                                    sel != null && square in legalDestinations -> {
-                                        game.playMove(currentPlayerIndex, sel, square)
-                                    }
-                                    piece != null && piece.color == s.sideToMove -> {
-                                        selectedSquare = square
-                                        haptics(HapticSignal.LIGHT_TICK)
-                                    }
-                                    else -> {
-                                        // A piece was selected and the player tapped a square it
-                                        // can't legally move to (previously silent -- deselection
-                                        // alone gave no feedback that the attempted move failed).
-                                        if (sel != null) playSfx(SfxKind.INVALID_BUZZ)
-                                        selectedSquare = null
-                                    }
-                                }
-                            }
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .semantics { contentDescription = squareDescription(square, piece) }
-                    ) {
-                        if (isLastMoveSquare) Box(Modifier.matchParentSize().background(LAST_MOVE_TINT))
-                        if (isCheckSquare) Box(Modifier.matchParentSize().background(CHECK_TINT))
-                        if (isSelected) Box(Modifier.matchParentSize().background(SELECTED_TINT))
-                        if (idlePulseActive && square == idleTargetSquare) {
-                            Box(Modifier.matchParentSize().background(IDLE_PULSE_COLOR.copy(alpha = idlePulseAlpha.value)))
-                        }
-                        if (isLegalDest) {
-                            Box(
-                                Modifier.align(Alignment.Center).size(squareSize * 0.32f).clip(CircleShape).background(LEGAL_DOT_COLOR)
-                            )
-                        }
-                        if (square !in animatedSquares && piece != null) {
-                            val lift = if (isSelected) 1f + selectionPulse.value * 0.14f else 1f
-                            val shadow = if (isSelected) selectionPulse.value * 0.6f else 0f
-                            ChessPieceToken(piece, squareSize, pieceStyle, Modifier.fillMaxSize(), liftScale = lift, shadowAlpha = shadow)
-                        }
-                    }
-                }
-
-                // Transient overlay(s) for the piece(s) that just moved -- see this file's KDoc.
-                // Local val, not a direct smart-cast -- see the earlier lastFrom/lastTo fixes above.
-                val overlayLastTo = s.lastTo
-                if (s.lastFrom != null && overlayLastTo != null) {
-                    s.board.getOrNull(overlayLastTo)?.let { movedPiece ->
-                        val showPromotionFlip = promotionInfo != null && card3D
-                        Box(
-                            modifier = Modifier
-                                .size(squareSize)
-                                .graphicsLayer { translationX = moverAnim.value.x; translationY = moverAnim.value.y }
-                                .let { if (showPromotionFlip) it.card3DFlip(flipProgress.value) else it }
-                        ) {
-                            // card3DFlip's documented contract: swap the rendered face at the
-                            // halfway point where the piece is edge-on. Below that, show the
-                            // pawn about to promote; at/after it, the promoted piece.
-                            val flippingFrom = promotionInfo?.takeIf { showPromotionFlip }
-                            if (flippingFrom != null && flipProgress.value < 0.5f) {
-                                ChessPieceToken(flippingFrom.fromPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
-                            } else {
-                                ChessPieceToken(movedPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
-                            }
-                        }
-                    }
-                    if (rookSquares != null) {
-                        s.board.getOrNull(rookSquares.second)?.let { rookPiece ->
-                            Box(
-                                modifier = Modifier
-                                    .size(squareSize)
-                                    .graphicsLayer { translationX = rookAnim.value.x; translationY = rookAnim.value.y }
-                            ) {
-                                ChessPieceToken(rookPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
-                            }
-                        }
-                    }
-                    // Captured-piece fade: rendered fixed at the square it was actually captured
-                    // on (== s.lastTo for an ordinary capture, but a different square for en
-                    // passant -- see findCapturedSquare) instead of vanishing the instant the
-                    // board recomposes.
-                    capturedInfo?.let { info ->
-                        val col = info.square % 8
-                        val displayRow = 7 - (info.square / 8)
                         Box(
                             modifier = Modifier
                                 .offset(x = squareSize * col, y = squareSize * displayRow)
                                 .size(squareSize)
-                                .graphicsLayer {
-                                    alpha = captureFade.value
-                                    scaleX = captureFade.value
-                                    scaleY = captureFade.value
+                                .drawBehind {
+                                    val bmp = if (isDark) darkWoodBitmap else lightWoodBitmap
+                                    drawImage(bmp, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
+                                }
+                                .clickable(enabled = squareEnabled, onClickLabel = clickLabel, role = Role.Button) {
+                                    val sel = selectedSquare
+                                    when {
+                                        sel != null && square in legalDestinations -> {
+                                            game.playMove(currentPlayerIndex, sel, square)
+                                        }
+                                        piece != null && piece.color == s.sideToMove -> {
+                                            selectedSquare = square
+                                            haptics(HapticSignal.LIGHT_TICK)
+                                        }
+                                        else -> {
+                                            // A piece was selected and the player tapped a square it
+                                            // can't legally move to (previously silent -- deselection
+                                            // alone gave no feedback that the attempted move failed).
+                                            if (sel != null) playSfx(SfxKind.INVALID_BUZZ)
+                                            selectedSquare = null
+                                        }
+                                    }
+                                }
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .semantics {
+                                    contentDescription = squareDescription(square, piece)
+                                    if (squareState != null) stateDescription = squareState
                                 }
                         ) {
-                            ChessPieceToken(info.piece, squareSize, pieceStyle, Modifier.fillMaxSize())
+                            if (isLastMoveSquare) Box(Modifier.matchParentSize().background(LAST_MOVE_TINT))
+                            if (isCheckSquare) Box(Modifier.matchParentSize().background(CHECK_TINT))
+                            if (isSelected) Box(Modifier.matchParentSize().background(SELECTED_TINT))
+                            if (idlePulseActive && square == idleTargetSquare) {
+                                // The pulse alpha is read in the draw phase, not here: reading it in
+                                // composition recomposed the whole board every frame of the loop.
+                                Box(
+                                    Modifier.matchParentSize().drawBehind {
+                                        drawRect(IDLE_PULSE_COLOR.copy(alpha = idlePulseAlpha.value))
+                                    }
+                                )
+                            }
+                            // a-h along the bottom rank, 1-8 along the a-file; skipped when squares
+                            // are so small the text would be unreadable. Drawn under the piece.
+                            if (squareSize >= 32.dp) CoordinateLabels(col, square / 8 + 1, displayRow, isDark, squareSize)
+                            if (isLegalDest) {
+                                if (piece == null) {
+                                    Box(
+                                        Modifier.align(Alignment.Center).size(squareSize * 0.32f).clip(CircleShape).background(LEGAL_DOT_COLOR)
+                                    )
+                                } else {
+                                    // A capture target is covered by its own piece token, so a
+                                    // centred dot would be invisible there (captures were never
+                                    // marked at all): ring the piece instead. Shape, not hue,
+                                    // carries the cue.
+                                    Box(
+                                        Modifier
+                                            .matchParentSize()
+                                            .padding(squareSize * 0.02f)
+                                            .border(squareSize * 0.07f, CAPTURE_RING_COLOR, CircleShape)
+                                    )
+                                }
+                            }
+                            if (square !in animatedSquares && piece != null) {
+                                val lift = if (isSelected) 1f + selectionPulse.value * 0.14f else 1f
+                                val shadow = if (isSelected) selectionPulse.value * 0.6f else 0f
+                                ChessPieceToken(piece, squareSize, pieceStyle, Modifier.fillMaxSize(), liftScale = lift, shadowAlpha = shadow)
+                            }
+                            // Colorblind-safe mode: selected / last-move / check were tints only (the
+                            // same yellow even meant both selected and last-move). Add a mark per state.
+                            if (colorblind && (isSelected || isLastMoveSquare || isCheckSquare)) {
+                                SquareStateMarks(isSelected, isLastMoveSquare, isCheckSquare, squareSize)
+                            }
                         }
                     }
-                }
 
-                // Checkmate attack line: mating piece(s) -> king, drawn on top of everything else.
-                if (attackerSquares.isNotEmpty() && checkedKingSquare >= 0) {
-                    Canvas(modifier = Modifier.matchParentSize()) {
-                        val kingCenter = Offset(
-                            (checkedKingSquare % 8) * squarePx + squarePx / 2f,
-                            (7 - checkedKingSquare / 8) * squarePx + squarePx / 2f
-                        )
-                        attackerSquares.forEach { atk ->
-                            val atkCenter = Offset(
-                                (atk % 8) * squarePx + squarePx / 2f,
-                                (7 - atk / 8) * squarePx + squarePx / 2f
-                            )
-                            drawLine(color = ATTACK_LINE_COLOR, start = atkCenter, end = kingCenter, strokeWidth = squarePx * 0.05f, cap = StrokeCap.Round)
-                            drawCircle(color = ATTACK_LINE_COLOR, radius = squarePx * 0.09f, center = atkCenter)
+                    // Transient overlay(s) for the piece(s) that just moved -- see this file's KDoc.
+                    // Local val, not a direct smart-cast -- see the earlier lastFrom/lastTo fixes above.
+                    val overlayLastTo = s.lastTo
+                    if (s.lastFrom != null && overlayLastTo != null) {
+                        s.board.getOrNull(overlayLastTo)?.let { movedPiece ->
+                            val showPromotionFlip = promotionInfo != null && card3D
+                            Box(
+                                modifier = Modifier
+                                    .size(squareSize)
+                                    .graphicsLayer { translationX = moverAnim.value.x; translationY = moverAnim.value.y }
+                                    .let { if (showPromotionFlip) it.card3DFlip(flipProgress.value) else it }
+                            ) {
+                                // card3DFlip's documented contract: swap the rendered face at the
+                                // halfway point where the piece is edge-on. Below that, show the
+                                // pawn about to promote; at/after it, the promoted piece.
+                                val flippingFrom = promotionInfo?.takeIf { showPromotionFlip }
+                                if (flippingFrom != null && flipProgress.value < 0.5f) {
+                                    ChessPieceToken(flippingFrom.fromPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
+                                } else {
+                                    ChessPieceToken(movedPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
+                                }
+                            }
                         }
-                        drawCircle(color = ATTACK_LINE_COLOR, radius = squarePx * 0.13f, center = kingCenter)
+                        if (rookSquares != null) {
+                            s.board.getOrNull(rookSquares.second)?.let { rookPiece ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(squareSize)
+                                        .graphicsLayer { translationX = rookAnim.value.x; translationY = rookAnim.value.y }
+                                ) {
+                                    ChessPieceToken(rookPiece, squareSize, pieceStyle, Modifier.fillMaxSize())
+                                }
+                            }
+                        }
+                        // Captured-piece fade: rendered fixed at the square it was actually captured
+                        // on (== s.lastTo for an ordinary capture, but a different square for en
+                        // passant -- see findCapturedSquare) instead of vanishing the instant the
+                        // board recomposes.
+                        capturedInfo?.let { info ->
+                            val col = info.square % 8
+                            val displayRow = 7 - (info.square / 8)
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = squareSize * col, y = squareSize * displayRow)
+                                    .size(squareSize)
+                                    .graphicsLayer {
+                                        alpha = captureFade.value
+                                        scaleX = captureFade.value
+                                        scaleY = captureFade.value
+                                    }
+                            ) {
+                                ChessPieceToken(info.piece, squareSize, pieceStyle, Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+
+                    // Checkmate attack line: mating piece(s) -> king, drawn on top of everything else.
+                    if (attackerSquares.isNotEmpty() && checkedKingSquare >= 0) {
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val kingCenter = Offset(
+                                (checkedKingSquare % 8) * squarePx + squarePx / 2f,
+                                (7 - checkedKingSquare / 8) * squarePx + squarePx / 2f
+                            )
+                            attackerSquares.forEach { atk ->
+                                val atkCenter = Offset(
+                                    (atk % 8) * squarePx + squarePx / 2f,
+                                    (7 - atk / 8) * squarePx + squarePx / 2f
+                                )
+                                drawLine(color = ATTACK_LINE_COLOR, start = atkCenter, end = kingCenter, strokeWidth = squarePx * 0.05f, cap = StrokeCap.Round)
+                                drawCircle(color = ATTACK_LINE_COLOR, radius = squarePx * 0.09f, center = atkCenter)
+                            }
+                            drawCircle(color = ATTACK_LINE_COLOR, radius = squarePx * 0.13f, center = kingCenter)
+                        }
                     }
                 }
             }
         }
     }
 
-    // Wired into AdaptiveTwoPane (secondary = null -- Chess has no natural "hand" pane) so a
-    // Tab S9 or a fully-unfolded Fold 5 in landscape (TABLET mode) caps the board's width at
-    // 840dp instead of stretching it across the whole window, matching every other game in the
-    // suite. Inside primary, an aspect check reflows the chrome BESIDE the board (Row) rather
-    // than above it (Column) whenever the window is wider than it is tall -- the tightest real
-    // case being the Fold 5 cover screen rotated to landscape (~344dp tall) -- and in both
-    // arrangements the board's own BoxWithConstraints sits in a weight(1f) slot so it receives a
-    // REAL bounded/reduced maxHeight (the space actually left after the chrome), not the whole
-    // pane's height as if the chrome took none of it.
-    AdaptiveTwoPane(
-        foldState = LocalFoldState.current,
-        secondary = null,
-        primary = {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                if (maxWidth > maxHeight) {
-                    Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                        chromeBlock(
-                            Modifier
-                                .widthIn(max = 220.dp)
-                                .fillMaxHeight()
-                                .verticalScroll(rememberScrollState())
-                        )
-                        Spacer(Modifier.width(16.dp))
-                        boardBlock(Modifier.weight(1f).fillMaxHeight())
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        chromeBlock(Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(12.dp))
-                        boardBlock(Modifier.weight(1f).fillMaxWidth())
+    // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-game discards
+    // ONLY the unfinished game: if earlier games this session were already won, lost or drawn,
+    // leaving goes through leaveSession() (the same call the result panel's "Back to Menu" makes)
+    // so those results still count; a session with nothing finished is a pure abort, never a win
+    // or a loss. The screen has no background of its own (it sits on the app theme), so the
+    // button takes the theme's background / onBackground, which are also GameChrome's defaults.
+    GameChrome(
+        helpTitle = "How to Play Chess",
+        helpText = "Tap one of your pieces, then tap a highlighted square to move it: a dot marks a " +
+            "move to an empty square and a ring marks a capture.\n\n" +
+            "Standard rules apply, including castling and en passant, and a pawn reaching the " +
+            "far rank always becomes a queen. Checkmate wins; stalemate, or the same position " +
+            "occurring three times, is a draw. There is no 50-move or insufficient-material " +
+            "rule, so a game neither side can win ends only by repetition or by leaving from " +
+            "this menu.\n\n" +
+            "White moves first and sits at the bottom.",
+        matchInProgress = !s.roundOver,
+        onLeave = game::leaveSession,
+        onAbort = { if (finishedGames > 0) game.leaveSession() else game.abortMatch() },
+        buttonFill = MaterialTheme.colorScheme.background,
+        buttonContent = MaterialTheme.colorScheme.onBackground,
+        leaveTitle = "Leave this game?",
+        leaveBody = if (finishedGames > 0) {
+            "This game is still in progress and won't count, but the games you've already finished stay on your record."
+        } else {
+            "This game is still in progress. Leaving now won't count it as a win or a loss."
+        },
+        extraItems = { dismiss ->
+            DropdownMenuItem(
+                text = {
+                    Text(if (pieceStyle == ChessPieceStyle.CLASSIC) "Switch to Minimalist pieces" else "Switch to Classic pieces")
+                },
+                onClick = {
+                    dismiss()
+                    val next = if (pieceStyle == ChessPieceStyle.CLASSIC) ChessPieceStyle.MINIMALIST else ChessPieceStyle.CLASSIC
+                    scope.launch { prefsStore.setPieceStyle(next) }
+                }
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(if (motionTier == ChessMotionTier.STANDARD) "Switch to Maximum motion" else "Switch to Standard motion")
+                },
+                onClick = {
+                    dismiss()
+                    val next = if (motionTier == ChessMotionTier.STANDARD) ChessMotionTier.MAXIMUM else ChessMotionTier.STANDARD
+                    scope.launch { prefsStore.setMotionTier(next) }
+                }
+            )
+        }
+    ) {
+        if (s.roundOver && revealRoundOverPanel) {
+            ChessResultPanel(
+                headline = headline,
+                whiteName = ctx.players.getOrNull(0)?.displayName ?: "White",
+                blackName = ctx.players.getOrNull(1)?.displayName ?: "Black",
+                whiteScore = scoreWhite,
+                blackScore = scoreBlack,
+                draws = drawCount,
+                celebrate = humanWon && !reducedMotion,
+                reducedMotion = reducedMotion,
+                onPlayAgain = game::playAgain,
+                onLeave = game::leaveSession
+            )
+        } else {
+            // Wired into AdaptiveTwoPane (secondary = null -- Chess has no natural "hand" pane) so a
+            // Tab S9 or a fully-unfolded Fold 5 in landscape (TABLET mode) caps the board's width at
+            // 840dp instead of stretching it across the whole window, matching every other game in
+            // the suite. Inside primary, an aspect check picks the arrangement: in a window wider
+            // than it is tall (the tightest real case being the Fold 5 cover screen rotated, ~344dp
+            // tall) the board gets the left and a scrollable status panel the right, where the
+            // corner menu button is; otherwise status sits above the board and captured/balance
+            // info below it. In both, the board's slot is weight(1f, fill = false) + aspectRatio(1f):
+            // the largest SQUARE left after the status text (a REAL bounded size, not the whole pane
+            // as if that text took none of it), which the board's own BoxWithConstraints then fits
+            // exactly. A square slot, with the whole group centred, replaces the old tall weight(1f)
+            // slot that left large empty bands above and below the board on a narrow screen.
+            AdaptiveTwoPane(
+                foldState = LocalFoldState.current,
+                secondary = null,
+                primary = {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        if (maxWidth > maxHeight) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                boardBlock(Modifier.weight(1f, fill = false).aspectRatio(1f))
+                                Spacer(Modifier.width(16.dp))
+                                // Fixed width (not wrap-content) so the board slot does not resize
+                                // whenever the status text changes length.
+                                Column(
+                                    modifier = Modifier
+                                        .width(208.dp)
+                                        .fillMaxHeight()
+                                        .verticalScroll(rememberScrollState()),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
+                                    Spacer(Modifier.height(12.dp))
+                                    infoBlock(Modifier.fillMaxWidth())
+                                }
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                // Symmetric inset keeps the centred status text centred while still
+                                // clearing the corner button at the top-right.
+                                statusBlock(Modifier.fillMaxWidth().padding(horizontal = GameChromeEndInset))
+                                Spacer(Modifier.height(12.dp))
+                                boardBlock(Modifier.weight(1f, fill = false).aspectRatio(1f))
+                                Spacer(Modifier.height(12.dp))
+                                infoBlock(Modifier.fillMaxWidth())
+                            }
+                        }
                     }
                 }
-            }
+            )
         }
-    )
+    }
+}
+
+/**
+ * The round-over panel: the headline (phrased from the local player's side), the running session
+ * tally, and Play Again / Back to Menu. [celebrate] is true only for a human-delivered mate and
+ * adds the shared [victoryGlow]; the panel fades in over 300ms unless [reducedMotion], so the
+ * hand-off from the board is not an instant swap.
+ */
+@Composable
+private fun ChessResultPanel(
+    headline: String,
+    whiteName: String,
+    blackName: String,
+    whiteScore: Int,
+    blackScore: Int,
+    draws: Int,
+    celebrate: Boolean,
+    reducedMotion: Boolean,
+    onPlayAgain: () -> Unit,
+    onLeave: () -> Unit
+) {
+    val fade = remember { Animatable(if (reducedMotion) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (!reducedMotion) fade.animateTo(1f, animationSpec = tween(300))
+    }
+    Column(
+        // AGSL deepening: the shared "big win" glow, gated on `celebrate` (a human mate only --
+        // a loss or a draw gets this same panel but no glow). This panel is only ever composed
+        // once the result is already final, so the no-arg victoryGlow() (fires once on entering
+        // composition) fits here, same as UnoScreen's MatchOverContent.
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = fade.value }
+            .padding(24.dp)
+            .let { if (celebrate) it.victoryGlow() else it },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            headline,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "$whiteName: $whiteScore · $blackName: $blackScore" + if (draws > 0) " · Draws: $draws" else "",
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onPlayAgain,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Play Again") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onLeave,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Back to Menu") }
+    }
 }
 
 /**
@@ -938,8 +1185,10 @@ private fun CapturedPieceTray(board: List<Piece?>, pieceStyle: ChessPieceStyle, 
     val blackCaptured = remember(board) { capturedPiecesFor(board, PieceColor.WHITE) }
     val materialDiff = remember(board) { materialAdvantageForWhite(board) }
     Column(modifier = modifier.fillMaxWidth(0.9f)) {
-        CapturedRow("White captured", whiteCaptured, PieceColor.BLACK, pieceStyle)
-        CapturedRow("Black captured", blackCaptured, PieceColor.WHITE, pieceStyle)
+        // Header for the two short row labels below; each row carries its own full description.
+        Text("Captured by", style = MaterialTheme.typography.labelSmall, modifier = Modifier.clearAndSetSemantics {})
+        CapturedRow("White", whiteCaptured, PieceColor.BLACK, pieceStyle)
+        CapturedRow("Black", blackCaptured, PieceColor.WHITE, pieceStyle)
         val diffText = when {
             materialDiff > 0 -> "Material: White +%.1f".format(materialDiff / 100f)
             materialDiff < 0 -> "Material: Black +%.1f".format(-materialDiff / 100f)
@@ -949,23 +1198,46 @@ private fun CapturedPieceTray(board: List<Piece?>, pieceStyle: ChessPieceStyle, 
     }
 }
 
+/**
+ * One side's captured pieces. [label] is the capturing side ("White" = the Black pieces White has
+ * taken, drawn in [pieceColorForIcon]). The label is short so the pieces get the width: the token
+ * size shrinks (from 22dp) when many are captured, instead of the row overflowing and squashing
+ * the later tokens to nothing as it used to late in a game.
+ */
 @Composable
 private fun CapturedRow(label: String, pieces: List<PieceType>, pieceColorForIcon: PieceColor, pieceStyle: ChessPieceStyle) {
+    // One node for the whole row ("White captured: pawn, pawn, knight") instead of a bare count
+    // with the label and the picture-only tokens as separate, mute nodes.
+    val description = if (pieces.isEmpty()) {
+        "$label captured: none"
+    } else {
+        "$label captured: ${pieces.joinToString(", ") { pieceTypeName(it) }}"
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "$label: ${pieces.size}" }
+            .heightIn(min = 24.dp)
+            .clearAndSetSemantics { contentDescription = description }
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(100.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            for (type in pieces) {
-                ChessPieceToken(
-                    piece = Piece(type, pieceColorForIcon),
-                    squareSize = 22.dp,
-                    pieceStyle = pieceStyle,
-                    modifier = Modifier.size(22.dp)
-                )
+        Text(
+            "$label:",
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.width(44.dp)
+        )
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val gap = 2.dp
+            val count = pieces.size.coerceAtLeast(1)
+            val tokenSize = minOf(22.dp, ((maxWidth - gap * (count - 1)) / count).coerceAtLeast(0.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                for (type in pieces) {
+                    ChessPieceToken(
+                        piece = Piece(type, pieceColorForIcon),
+                        squareSize = tokenSize,
+                        pieceStyle = pieceStyle,
+                        modifier = Modifier.size(tokenSize)
+                    )
+                }
             }
         }
     }
@@ -982,7 +1254,13 @@ private fun PositionBalanceBar(balance: Int, modifier: Modifier = Modifier) {
     // heuristic's modest positional terms without letting one huge material swing pin the bar.
     val clamped = balance.coerceIn(-800, 800)
     val whiteFraction = ((clamped + 800) / 1600f).coerceIn(0f, 1f)
-    Column(modifier = modifier.fillMaxWidth(0.75f)) {
+    // One spoken node ("Position balance: White slightly ahead"): the bar itself is just two
+    // colored boxes, which a screen reader would otherwise skip entirely.
+    Column(
+        modifier = modifier
+            .fillMaxWidth(0.75f)
+            .clearAndSetSemantics { contentDescription = balanceDescription(balance) }
+    ) {
         Text("Position Balance", style = MaterialTheme.typography.labelSmall)
         Spacer(Modifier.height(3.dp))
         Box(
@@ -1045,11 +1323,139 @@ private fun generateWoodGrainBitmap(baseColor: Color, grainColor: Color, seed: I
     return bitmap
 }
 
+/**
+ * Screen-reader label for a square: algebraic coordinates (file letter + 1-indexed rank, the same
+ * information as "row 2, column 1") then the occupant. The occupied form ("a2, White pawn") is
+ * exactly what ChessRotationTest addresses squares by, so do not reword it.
+ */
 private fun squareDescription(square: Int, piece: Piece?): String {
     val name = "${'a' + square % 8}${square / 8 + 1}"
-    if (piece == null) return name
+    if (piece == null) return "$name, empty"
     val color = if (piece.color == PieceColor.WHITE) "White" else "Black"
     return "$name, $color ${pieceTypeName(piece.type)}"
+}
+
+/**
+ * The state half of a square's semantics (selected / legal move / capture / check / last move),
+ * announced after [squareDescription]; null when the square is in none of those states. Kept
+ * separate from the label so the label stays stable and the state is read as a state.
+ */
+private fun squareStateDescription(
+    isSelected: Boolean,
+    isLegalDest: Boolean,
+    hasPiece: Boolean,
+    isCheck: Boolean,
+    isLastMove: Boolean
+): String? {
+    val parts = buildList<String> {
+        if (isSelected) add("Selected")
+        if (isLegalDest) add(if (hasPiece) "Legal capture" else "Legal move")
+        if (isCheck) add("King in check")
+        if (isLastMove) add("Last move")
+    }
+    return if (parts.isEmpty()) null else parts.joinToString(", ")
+}
+
+/** Spoken form of the balance bar, bucketed so it never reads as an engine evaluation. */
+private fun balanceDescription(balance: Int): String {
+    val side = if (balance > 0) "White" else "Black"
+    return when {
+        kotlin.math.abs(balance) < 50 -> "Position balance: roughly even"
+        kotlin.math.abs(balance) < 200 -> "Position balance: $side slightly ahead"
+        else -> "Position balance: $side clearly ahead"
+    }
+}
+
+/**
+ * a-h along the bottom rank and 1-8 down the a-file, drawn in the opposite square color in the
+ * corner of the edge squares (like most chess apps) so they cost no board space. Decorative:
+ * [squareDescription] already carries the coordinates for a screen reader.
+ */
+@Composable
+private fun BoxScope.CoordinateLabels(col: Int, rank: Int, displayRow: Int, isDark: Boolean, squareSize: Dp) {
+    val labelColor = if (isDark) LIGHT_SQUARE else DARK_SQUARE
+    val labelSize = with(LocalDensity.current) { (squareSize * 0.22f).toSp() }
+    if (col == 0) {
+        Text(
+            text = rank.toString(),
+            color = labelColor,
+            fontSize = labelSize,
+            lineHeight = labelSize,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 2.dp, top = 1.dp)
+                .clearAndSetSemantics {}
+        )
+    }
+    if (displayRow == 7) {
+        Text(
+            text = ('a' + col).toString(),
+            color = labelColor,
+            fontSize = labelSize,
+            lineHeight = labelSize,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 2.dp, bottom = 1.dp)
+                .clearAndSetSemantics {}
+        )
+    }
+}
+
+/**
+ * Non-color marks for the three tint-only square states, shown in colorblind-safe mode: a dark
+ * inset ring for the selected square, two corner triangles for the last move, and a dark ring
+ * plus an exclamation badge for a king in check. Decorative (the state is already in
+ * [squareStateDescription]). Drawn above the piece so the badge is never hidden by its token.
+ */
+@Composable
+private fun BoxScope.SquareStateMarks(isSelected: Boolean, isLastMove: Boolean, isCheck: Boolean, squareSize: Dp) {
+    if (isLastMove) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .drawBehind {
+                    val t = size.minDimension * 0.30f
+                    val topLeft = Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(t, 0f)
+                        lineTo(0f, t)
+                        close()
+                    }
+                    val bottomRight = Path().apply {
+                        moveTo(size.width, size.height)
+                        lineTo(size.width - t, size.height)
+                        lineTo(size.width, size.height - t)
+                        close()
+                    }
+                    drawPath(topLeft, STATE_MARK_COLOR)
+                    drawPath(bottomRight, STATE_MARK_COLOR)
+                }
+        )
+    }
+    if (isSelected || isCheck) {
+        Box(Modifier.matchParentSize().border(3.dp, STATE_MARK_COLOR))
+    }
+    if (isCheck) {
+        Canvas(
+            Modifier
+                .align(Alignment.TopEnd)
+                .size(squareSize * 0.36f)
+                .clearAndSetSemantics {}
+        ) {
+            drawCircle(color = STATE_MARK_COLOR)
+            val cx = size.width / 2f
+            drawLine(
+                color = WHITE_PIECE,
+                start = Offset(cx, size.height * 0.20f),
+                end = Offset(cx, size.height * 0.58f),
+                strokeWidth = size.width * 0.13f,
+                cap = StrokeCap.Round
+            )
+            drawCircle(color = WHITE_PIECE, radius = size.width * 0.075f, center = Offset(cx, size.height * 0.78f))
+        }
+    }
 }
 
 private fun pieceTypeName(type: PieceType): String = when (type) {
@@ -1131,15 +1537,22 @@ private val SELECTED_TINT = Color(0xFFF7EC5B).copy(alpha = 0.55f)
 private val LAST_MOVE_TINT = Color(0xFFF7EC5B).copy(alpha = 0.30f)
 private val CHECK_TINT = Color(0xFFE5544D).copy(alpha = 0.70f)
 private val LEGAL_DOT_COLOR = Color(0xFF2B2724).copy(alpha = 0.30f)
+private val CAPTURE_RING_COLOR = Color(0xFF2B2724).copy(alpha = 0.55f)
 private val IDLE_PULSE_COLOR = Color(0xFF6FA8DC)
 private val ATTACK_LINE_COLOR = Color(0xFFE5544D)
 private val BOARD_SHEEN_TINT = Color(0xFFFFF3C4).copy(alpha = 0.30f)
 private val WHITE_PIECE = Color(0xFFF5F1E8)
 private val BLACK_PIECE = Color(0xFF2B2724)
 
-/** Real touch-target floor for a board square -- coerced onto squareSize regardless of how
- *  little space is actually available (same "floor, never let it shrink below a usable tap
- *  size" pattern as [com.gamesuite.games.cards.CardScale]'s own multiplier), so an 8x8 grid
- *  never produces an untappable square even in the tightest window (e.g. the Fold 5 cover
- *  screen). */
-private val MIN_TOUCH_TARGET = 48.dp
+/** Dark mark drawn for selected / last-move / check squares in colorblind-safe mode: reads on
+ *  both the light and the dark square, unlike the yellow and red tints it backs up. */
+private val STATE_MARK_COLOR = Color(0xFF2B2724)
+
+/** Smallest board cell, in dp, [fitBoard] reports as acceptable. This is a "stop shrinking and
+ *  pan instead" threshold, NOT a floor on the size: the old 48dp-per-square floor made the board
+ *  384dp wide even in a 312dp pane, which is exactly the clipping bug [fitBoard] exists to
+ *  prevent. */
+private const val MIN_CELL_DP = 28f
+
+/** Largest board cell, in dp, so the board does not sprawl on a tablet (72 * 8 = 576dp). */
+private const val MAX_CELL_DP = 72f

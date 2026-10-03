@@ -136,7 +136,8 @@ class CheckersGame : GameModule {
     val scoreP1 = mutableStateOf(0)
     val scoreP2 = mutableStateOf(0)
 
-    /** True only once the whole session ends (user leaves via the round-over panel), not per-round. */
+    /** True only once the whole session ends ([leaveSession] or [abortMatch]), not per-round. While
+     *  true, [playMove] and [playBotTurn] are no-ops so a late tap or bot turn cannot touch the board. */
     val matchOver = mutableStateOf(false)
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
@@ -373,7 +374,9 @@ class CheckersGame : GameModule {
      */
     fun playMove(playerIndex: Int, fromRow: Int, fromCol: Int, toRow: Int, toCol: Int) {
         val s = state.value ?: return
-        if (s.gameOver || playerIndex != s.currentPlayerIndex) return
+        // matchOver: the whole session already ended (leaveSession/abortMatch). A tap that was
+        // already in flight when the player left must not mutate the finished board.
+        if (matchOver.value || s.gameOver || playerIndex != s.currentPlayerIndex) return
         val pos = positionOf(s)
         val move = generateMoves(pos).firstOrNull {
             it.fromRow == fromRow && it.fromCol == fromCol && it.toRow == toRow && it.toCol == toCol
@@ -394,7 +397,9 @@ class CheckersGame : GameModule {
      */
     fun playBotTurn() {
         val s = state.value ?: return
-        if (s.gameOver) return
+        // matchOver: the screen's bot-turn effect sleeps before calling this, so the player can
+        // leave (abort) during that delay -- the bot must not then move on the abandoned board.
+        if (matchOver.value || s.gameOver) return
         val botIndex = s.currentPlayerIndex
         if (context.players.getOrNull(botIndex)?.isBot != true) return
 

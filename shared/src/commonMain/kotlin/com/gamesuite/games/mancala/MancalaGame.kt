@@ -164,6 +164,9 @@ class MancalaGame : GameModule {
     }
 
     fun sow(playerIndex: Int, pitIndex: Int) {
+        // Once the session has ended (leaveSession / abortMatch) a stray tap or an in-flight bot
+        // turn must not mutate the board or tally another win into the already-reported scores.
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.roundOver || playerIndex != s.currentPlayerIndex) return
 
@@ -263,6 +266,7 @@ class MancalaGame : GameModule {
      * non-empty pit.
      */
     fun playBotTurn() {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.roundOver) return
         val botIndex = s.currentPlayerIndex

@@ -151,15 +151,20 @@ class ConnectFourGame : GameModule {
     /**
      * Called from the board-over panel's "Back to Menu" button — ends the
      * whole session (not just the current board), reporting the session's
-     * cumulative boards-won tally. Mirrors DotsAndBoxesGame.leaveSession().
+     * cumulative boards-won tally. Mirrors DotsAndBoxesGame.leaveSession(), except that only a
+     * STRICT leader is flagged the winner: an evenly split tally (1-1, 2-2) or one with no board
+     * won at all has no winner, so [com.gamesuite.core.GameSessionManager] records it as a draw.
+     * (It used to flag both players on an equal non-zero tally, which recorded a 1-1 session as a
+     * win for the local player.)
      */
     fun leaveSession() {
         if (matchOver.value) return
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
         val scores = context.players.map {
             val w = wins[it.playerId] ?: 0
-            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins)
+            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins && leaders == 1)
         }
         endMatch(GameResult(scores = scores))
     }
