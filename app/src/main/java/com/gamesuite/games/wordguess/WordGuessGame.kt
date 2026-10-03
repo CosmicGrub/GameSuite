@@ -89,6 +89,11 @@ class WordGuessGame(
     val state = mutableStateOf<WordGuessState?>(null)
     val puzzlesSolved = mutableStateOf(0)
 
+    /** Words lost to running out of guesses this session. Only the screen's abort policy reads it:
+     *  a finished loss is a finished unit, so abandoning the NEXT word must leave through
+     *  [leaveSession] (keeping the loss on the record) rather than [abortMatch] (discarding it). */
+    val puzzlesFailed = mutableStateOf(0)
+
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-round. */
     val matchOver = mutableStateOf(false)
 
@@ -120,6 +125,7 @@ class WordGuessGame(
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
+        puzzlesFailed.value = 0
         matchOver.value = false
     }
 
@@ -218,6 +224,7 @@ class WordGuessGame(
             puzzlesSolved.value += 1
             freezeTimer()
         } else if (outOfGuesses) {
+            puzzlesFailed.value += 1
             freezeTimer()
         }
     }

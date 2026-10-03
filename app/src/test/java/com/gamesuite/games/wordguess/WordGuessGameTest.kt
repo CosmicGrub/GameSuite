@@ -213,6 +213,38 @@ class WordGuessGameTest {
     }
 
     @Test
+    fun `a lost word is counted once in puzzlesFailed, a solve is not, and init resets it`() {
+        val game = newGame(CpuDifficulty.HARD, acceptAnyGuess = true) // 5 guesses
+        game.startMatch()
+        assertEquals(0, game.puzzlesFailed.value)
+
+        withSecret(game, "apple")
+        repeat(5) { game.submitGuess("brown") }
+        assertEquals("running out of guesses is one finished (lost) word", 1, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+
+        game.submitGuess("brown") // rejected: the round is already decided
+        assertEquals("a guess after the loss must not count it again", 1, game.puzzlesFailed.value)
+
+        game.playAgain()
+        withSecret(game, "apple")
+        game.submitGuess("apple")
+        assertEquals(1, game.puzzlesSolved.value)
+        assertEquals("a solved word is not a failed one", 1, game.puzzlesFailed.value)
+
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        assertEquals(0, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+    }
+
+    @Test
     fun `submitGuess rejects the wrong length or a word outside the valid-guess set, without crashing or mutating state`() {
         val game = newGame()
         game.startMatch()

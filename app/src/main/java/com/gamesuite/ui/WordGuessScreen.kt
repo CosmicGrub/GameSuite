@@ -102,10 +102,10 @@ private const val HELP_TEXT =
  *
  * CHROME: the shared [GameChrome] corner menu (How to Play, Back to Menu) plus its BackHandler.
  * The unit of this session is a WORD, so leaving mid-word discards only the unfinished word: with
- * no word solved yet it is a pure `abortMatch()` (never recorded), but once the session has solved
- * words it goes through `leaveSession()`, the same call the finished panel's "Back to Menu" makes,
- * so those results still count (the confirm dialog says so). Words lost to running out of guesses
- * are not tracked by the engine, so they do not make a session count on their own. Switching
+ * no word decided yet it is a pure `abortMatch()` (never recorded), but once the session has decided
+ * words (solved, or lost to running out of guesses: the engine counts both) it goes through
+ * `leaveSession()`, the same call the finished panel's "Back to Menu" makes, so those results
+ * still count (the confirm dialog says so). Switching
  * difficulty mid-word asks first, since it discards the guesses so far; on the today's-word route
  * a switch made mid-word replays today's word at the new guess allowance, while a switch made
  * after the word is decided (and "New Word") deals a random word and drops the "Today's word"
@@ -250,9 +250,9 @@ fun WordGuessScreen(
         best
     }
 
-    // "Finished units" for the abort policy: words already solved this session. If any exist,
-    // leaving mid-word must still score them -- see onAbort below.
-    val finishedWords = game.puzzlesSolved.value
+    // "Finished units" for the abort policy: words already decided this session, solved OR lost to
+    // running out of guesses. If any exist, leaving mid-word must still keep them -- see onAbort below.
+    val finishedWords = game.puzzlesSolved.value + game.puzzlesFailed.value
 
     val startRound: (Boolean) -> Unit = { daily ->
         if (!game.matchOver.value) {
@@ -325,10 +325,10 @@ fun WordGuessScreen(
     }
 
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-word discards
-    // ONLY the unfinished word: if words were already solved this session, leaving goes through
-    // leaveSession() (the same call the finished panel's "Back to Menu" makes) so they still
-    // count; with nothing solved it is a pure abort (never a win or loss). A decided word leaves
-    // through leaveSession() too, which scores the session.
+    // ONLY the unfinished word: if words were already decided this session (solved or lost),
+    // leaving goes through leaveSession() (the same call the finished panel's "Back to Menu" makes)
+    // so they still count; with none decided it is a pure abort (never a win or loss). A decided
+    // word leaves through leaveSession() too, which scores the session.
     GameChrome(
         helpTitle = "How to Play Word Guess",
         helpText = HELP_TEXT,
@@ -339,7 +339,7 @@ fun WordGuessScreen(
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this word?",
         leaveBody = if (finishedWords > 0) {
-            "This word is still unsolved and won't count, but the words you've already solved stay on your record."
+            "This word is still unsolved and won't count, but the words you've already finished stay on your record."
         } else {
             "This word is still unsolved. Leaving now won't count it as a win or a loss."
         }
@@ -431,27 +431,46 @@ fun WordGuessScreen(
                 // fill = false, so a board that reaches its max tile size stays that size and the
                 // whole stack centres). WordGuessBoard sizes itself from this slot with fitBoard and
                 // pans if the slot cannot give a MIN_TILE_DP tile.
+                //
+                // A window too short to leave the board a usable slot (compact landscape under the
+                // side-by-side width, split-screen) scrolls the WHOLE column instead, and the board
+                // gets the height its minimum-size tiles need, rather than a sliver of what is left.
+                val compactHeight = availableHeight < STACKED_MIN_HEIGHT
+                val compactBoardHeight = ((MIN_TILE_DP + TILE_GAP_DP) * s.maxGuesses).dp
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                     Column(
                         modifier = Modifier
                             .widthIn(max = CONTENT_MAX_WIDTH)
                             .fillMaxWidth()
-                            .fillMaxHeight(),
+                            .then(
+                                if (compactHeight) {
+                                    Modifier.verticalScroll(rememberScrollState())
+                                } else {
+                                    Modifier.fillMaxHeight()
+                                }
+                            ),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         header(Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        board(Modifier.weight(1f, fill = false).fillMaxWidth())
+                        board(
+                            if (compactHeight) {
+                                Modifier.fillMaxWidth().height(compactBoardHeight)
+                            } else {
+                                Modifier.weight(1f, fill = false).fillMaxWidth()
+                            }
+                        )
                         Spacer(Modifier.height(8.dp))
                         // Capped so a large font scale cannot push the board out of the slot above;
                         // the result panel scrolls inside its own cap instead. The keyboard is a
-                        // fixed height and is never capped.
+                        // fixed height and is never capped. (Not capped when the whole column
+                        // already scrolls: nesting a second scroller there would only fight it.)
                         inputZone(
                             Modifier
                                 .fillMaxWidth()
                                 .then(
-                                    if (s.isOver) {
+                                    if (s.isOver && !compactHeight) {
                                         Modifier
                                             .heightIn(max = availableHeight * 0.45f)
                                             .verticalScroll(rememberScrollState())
@@ -527,6 +546,13 @@ private const val REVEAL_FLIP_MS = 120
 
 /** Portrait content never stretches wider than this, so a tablet in portrait is not a sea of cream. */
 private val CONTENT_MAX_WIDTH = 520.dp
+
+/**
+ * Below this window height the stacked layout scrolls as a whole: header (~80dp) + the fixed
+ * 3-row keyboard zone (~180dp) + spacing leave a measured board slot too small to read once the
+ * window is much shorter than this (about 20dp at 320dp tall).
+ */
+private val STACKED_MIN_HEIGHT = 480.dp
 
 /** Wide-window layout: the right-hand column's width, and the cap on the whole board-plus-column row. */
 private val SIDE_PANE_WIDTH = 360.dp
