@@ -510,4 +510,110 @@ class KakuroGameTest {
         game.leaveSession()
         assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
     }
+
+    // -- Pause-aware clock, generate/beginPuzzle split, selectCell session guard --
+
+    @Test
+    fun `activeElapsedMillis is null before the first digit, freezes while paused, and equals the recorded time once solved`() {
+        var clock = 0L
+        val game = KakuroGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val whiteIndices = s.cells.indices.filter { s.cells[it].type == KakuroCellType.WHITE }
+
+        clock = 100L
+        assertNull("no digit placed yet, so the clock has not started", game.activeElapsedMillis())
+        // A pencil mark does not start the clock either -- only a digit does.
+        game.selectCell(whiteIndices[0])
+        game.toggleNote(1)
+        assertNull(game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.setValue(s.solution[whiteIndices[0]]!!) // starts the timer at 1000
+        clock = 1_500L
+        assertEquals(500L, game.activeElapsedMillis())
+
+        game.pause()
+        clock = 61_500L // a minute passes while paused
+        assertEquals("the reading is frozen while paused", 500L, game.activeElapsedMillis())
+        game.pause() // idempotent: must not move the anchor forward
+        assertEquals(500L, game.activeElapsedMillis())
+
+        game.resume()
+        clock = 62_000L
+        assertEquals("it resumes from where it froze", 1_000L, game.activeElapsedMillis())
+
+        for (i in whiteIndices.drop(1)) {
+            game.selectCell(i)
+            game.setValue(s.solution[i]!!)
+        }
+        assertTrue(game.state.value!!.won)
+        val recorded = game.finishedElapsedMillis.value!!
+        assertEquals(1_000L, recorded)
+        clock = 99_999L
+        assertEquals("after the solve the reading is exactly the recorded time", recorded, game.activeElapsedMillis())
+    }
+
+    @Test
+    fun `generate leaves the engine untouched and beginPuzzle puts exactly that puzzle on the board, same as startMatch for the same seed`() {
+        val viaStart = newGame(CpuDifficulty.EASY)
+        viaStart.startMatch(dailySeed = 7L)
+
+        val viaSplit = newGame(CpuDifficulty.EASY)
+        val puzzle = viaSplit.generate(CpuDifficulty.EASY, dailySeed = 7L)
+        assertNull("generate must not put anything on the board", viaSplit.state.value)
+        viaSplit.beginPuzzle(puzzle)
+
+        assertEquals(viaStart.state.value, viaSplit.state.value)
+    }
+
+    @Test
+    fun `beginPuzzle adopts the puzzle's tier, resets the timer and the selection, and clears a stale matchOver`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 1L)
+        val s = game.state.value!!
+        val white = s.cells.indices.first { s.cells[it].type == KakuroCellType.WHITE }
+        game.selectCell(white)
+        game.setValue((s.solution[white]!! % 9) + 1) // a wrong digit: starts the timer and counts a mistake
+        assertNotNull(game.timerStartElapsedRealtime.value)
+        assertEquals(1, game.state.value!!.mistakes)
+        game.endMatch(GameResult(scores = emptyList()))
+        assertTrue(game.matchOver.value)
+
+        val medium = game.generate(CpuDifficulty.MEDIUM, dailySeed = 2L)
+        game.beginPuzzle(medium)
+
+        assertEquals(CpuDifficulty.MEDIUM, game.difficulty)
+        assertEquals(9, game.state.value!!.rows)
+        assertNull(game.timerStartElapsedRealtime.value)
+        assertNull(game.finishedElapsedMillis.value)
+        assertNull(game.activeElapsedMillis())
+        assertFalse("a fresh board is always playable", game.matchOver.value)
+        assertNull(game.state.value!!.selectedIndex)
+        assertEquals(0, game.state.value!!.mistakes)
+    }
+
+    @Test
+    fun `selectCell is rejected once the session has ended via leaveSession`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val white = s.cells.indices.filter { s.cells[it].type == KakuroCellType.WHITE }
+        game.selectCell(white[0])
+        assertEquals(white[0], game.state.value!!.selectedIndex)
+
+        game.leaveSession()
+        assertTrue(game.matchOver.value)
+        game.selectCell(white[1])
+        assertEquals("a selectCell() after leaveSession() must be a no-op", white[0], game.state.value!!.selectedIndex)
+    }
 }

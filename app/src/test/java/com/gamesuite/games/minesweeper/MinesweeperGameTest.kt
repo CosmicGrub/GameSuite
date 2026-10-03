@@ -7,6 +7,7 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -316,5 +317,148 @@ class MinesweeperGameTest {
 
         game.leaveSession()
         assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Screen-facing state: the exploded cell, flags surviving a loss, the finished-board tally,
+    // the per-board counter and the pause-aware live clock.
+    // ---------------------------------------------------------------------------------------
+
+    private fun testContext() = GameContext(
+        activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+        players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+        localPlayerIndex = 0,
+        transport = LocalPassAndPlayTransport()
+    )
+
+    /**
+     * A daily seed whose first reveal at cell 0 leaves EASY's board still live (neither won nor
+     * lost). A flood from one corner opening every safe cell is astronomically unlikely, but
+     * searching for a seed makes that a certainty instead of a hope: the tests below can then
+     * assert on a board that has hidden safe cells and hidden mines left.
+     */
+    private fun liveSeed(): Long = (1L..200L).first { seed ->
+        val probe = newGame(CpuDifficulty.EASY)
+        probe.startMatch(dailySeed = seed)
+        probe.revealCell(0)
+        !probe.state.value!!.isOver
+    }
+
+    private fun liveGame(): MinesweeperGame {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = liveSeed())
+        game.revealCell(0)
+        assertFalse("precondition: the first reveal must leave a live board", game.state.value!!.isOver)
+        return game
+    }
+
+    @Test
+    fun `losing a board records the exploded cell, keeps flags on the board, and counts as a finished board`() {
+        val game = liveGame()
+        val before = game.state.value!!
+        assertNull("no exploded cell on a live board", before.explodedIndex)
+
+        val mines = before.cells.indices.filter { before.cells[it].isMine }
+        val wrongFlag = before.cells.indices.first { !before.cells[it].isMine && before.cells[it].state == CellState.HIDDEN }
+        val flaggedMine = mines[0]
+        val hitMine = mines[1]
+        game.toggleFlag(flaggedMine)
+        game.toggleFlag(wrongFlag)
+        assertEquals(0, game.puzzlesFailed.value)
+
+        game.revealCell(hitMine)
+
+        val s = game.state.value!!
+        assertTrue(s.exploded)
+        assertFalse(s.won)
+        assertEquals("the exploded cell is the mine that was revealed", hitMine, s.explodedIndex)
+        assertEquals(CellState.REVEALED, s.cells[hitMine].state)
+        assertEquals("a correctly flagged mine keeps its flag", CellState.FLAGGED, s.cells[flaggedMine].state)
+        assertEquals("a wrong flag stays on the board so it can be marked", CellState.FLAGGED, s.cells[wrongFlag].state)
+        assertEquals(2, s.flagCount)
+        assertEquals("flagCount must keep agreeing with the flags on the board", s.flagCount, s.cells.count { it.state == CellState.FLAGGED })
+        assertTrue(
+            "every unflagged mine is revealed",
+            mines.filter { it != flaggedMine }.all { s.cells[it].state == CellState.REVEALED }
+        )
+        assertEquals("a lost board is a finished board", 1, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+
+        // The lost board takes no more input, and is counted exactly once.
+        game.revealCell(mines[2])
+        game.toggleFlag(flaggedMine)
+        assertEquals(s, game.state.value)
+        assertEquals(1, game.puzzlesFailed.value)
+    }
+
+    @Test
+    fun `winning a board leaves explodedIndex null and does not count it as failed`() {
+        val game = liveGame()
+        val safeIndices = game.state.value!!.cells.indices.filter { !game.state.value!!.cells[it].isMine }
+        for (i in safeIndices) game.revealCell(i)
+
+        val s = game.state.value!!
+        assertTrue(s.won)
+        assertNull(s.explodedIndex)
+        assertEquals(1, game.puzzlesSolved.value)
+        assertEquals(0, game.puzzlesFailed.value)
+    }
+
+    @Test
+    fun `boardNumber counts every fresh board, and a new session clears the failed tally`() {
+        val game = liveGame()
+        val first = game.boardNumber.value
+        assertTrue("a board has been dealt", first > 0)
+
+        val mine = game.state.value!!.cells.indices.first { game.state.value!!.cells[it].isMine }
+        game.revealCell(mine)
+        assertEquals(1, game.puzzlesFailed.value)
+
+        game.playAgain()
+        assertEquals(first + 1, game.boardNumber.value)
+        game.startMatch(dailySeed = 5L)
+        game.startMatch(dailySeed = 5L) // re-dealing the same daily seed is still a distinct board
+        assertEquals(first + 3, game.boardNumber.value)
+        assertEquals("dealing boards must not clear the session tally", 1, game.puzzlesFailed.value)
+
+        game.init(testContext())
+        assertEquals("a new session starts with nothing finished", 0, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first reveal, freezes while paused, and ends equal to the finished time`() {
+        var clock = 0L
+        val game = MinesweeperGame(nowMillis = { clock })
+        game.init(testContext())
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch(dailySeed = liveSeed())
+        assertNull("no stopwatch before the first reveal", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.revealCell(0) // starts the timer at t=1000
+        assertFalse(game.state.value!!.isOver)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        val mine = game.state.value!!.cells.indices.first { game.state.value!!.cells[it].isMine }
+        game.revealCell(mine) // losing the board freezes the clock too
+        assertEquals(3_000L, game.finishedElapsedMillis.value)
+        clock = 50_000L
+        assertEquals(
+            "once the board is decided, the live clock reads exactly the recorded time",
+            game.finishedElapsedMillis.value,
+            game.activeElapsedMillis()
+        )
     }
 }
