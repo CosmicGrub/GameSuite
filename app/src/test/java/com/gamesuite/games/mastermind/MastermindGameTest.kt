@@ -371,4 +371,108 @@ class MastermindGameTest {
         assertEquals("a second leaveSession() must not re-invoke the listener", 1, invocations)
         assertEquals("a second leaveSession() must not mutate state further", stateAfterFirstLeave, game.state.value)
     }
+
+    private fun testContext() = GameContext(
+        activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+        players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+        localPlayerIndex = 0,
+        transport = LocalPassAndPlayTransport()
+    )
+
+    @Test
+    fun `a lost code counts toward puzzlesFailed exactly once, a solved one does not, and init resets both tallies`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch()
+        val colorCount = game.state.value!!.colorCount
+        // Every peg one color higher than the secret's, wrapping: never an exact match.
+        val wrongGuess = game.state.value!!.secret.map { (it + 1) % colorCount }
+
+        repeat(MastermindGame.MAX_GUESSES - 1) { game.submitGuess(wrongGuess) }
+        assertEquals("a code still in progress is not a finished code", 0, game.puzzlesFailed.value)
+
+        game.submitGuess(wrongGuess)
+        assertTrue(game.state.value!!.outOfGuesses)
+        assertEquals(1, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+
+        game.submitGuess(wrongGuess) // rejected: the round is already decided
+        assertEquals("a guess after the loss must not count the loss a second time", 1, game.puzzlesFailed.value)
+
+        game.playAgain()
+        game.submitGuess(game.state.value!!.secret)
+        assertTrue(game.state.value!!.solved)
+        assertEquals("a solve must not touch the failed tally", 1, game.puzzlesFailed.value)
+        assertEquals(1, game.puzzlesSolved.value)
+
+        game.init(testContext())
+        assertEquals(0, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first guess, freezes while paused, and ends equal to the finished time`() {
+        var clock = 0L
+        val game = MastermindGame(nowMillis = { clock })
+        game.init(testContext())
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch()
+        val secret = game.state.value!!.secret
+        val colorCount = game.state.value!!.colorCount
+        assertNull("no stopwatch before the first guess", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.submitGuess(secret.map { (it + 1) % colorCount }) // wrong: starts the timer at t=1000
+        assertFalse(game.state.value!!.isOver)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        game.submitGuess(secret) // the exact secret: solves the round
+        assertTrue(game.state.value!!.solved)
+        assertEquals(3_000L, game.finishedElapsedMillis.value)
+        assertEquals(
+            "once decided, the live clock reads exactly the recorded time",
+            game.finishedElapsedMillis.value,
+            game.activeElapsedMillis()
+        )
+    }
+
+    @Test
+    fun `roundNumber advances on every fresh code even when the secret repeats, and never on a guess`() {
+        val game = newGame(CpuDifficulty.EASY)
+        val before = game.roundNumber.value
+
+        game.startMatch(dailySeed = 42L)
+        val firstSecret = game.state.value!!.secret
+        val first = game.roundNumber.value
+        assertEquals("the first code must get a new number", before + 1, first)
+
+        val colorCount = game.state.value!!.colorCount
+        game.submitGuess(firstSecret.map { (it + 1) % colorCount })
+        assertEquals("a guess is not a new code", first, game.roundNumber.value)
+        game.pause()
+        game.resume()
+        assertEquals("pause/resume is not a new code", first, game.roundNumber.value)
+
+        // The same seed deals the identical secret, so a screen keyed on the secret could not tell
+        // this code from the one before it. The counter must.
+        game.startMatch(dailySeed = 42L)
+        assertEquals("the same seed must deal the same secret", firstSecret, game.state.value!!.secret)
+        assertEquals(first + 1, game.roundNumber.value)
+
+        game.playAgain()
+        assertEquals("New Secret is a fresh code too", first + 2, game.roundNumber.value)
+
+        game.init(testContext())
+        assertEquals("init must not rewind the counter", first + 2, game.roundNumber.value)
+    }
 }

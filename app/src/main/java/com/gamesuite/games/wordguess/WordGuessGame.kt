@@ -89,6 +89,11 @@ class WordGuessGame(
     val state = mutableStateOf<WordGuessState?>(null)
     val puzzlesSolved = mutableStateOf(0)
 
+    /** Words lost to running out of guesses this session. Only the screen's abort policy reads it:
+     *  a finished loss is a finished unit, so abandoning the NEXT word must leave through
+     *  [leaveSession] (keeping the loss on the record) rather than [abortMatch] (discarding it). */
+    val puzzlesFailed = mutableStateOf(0)
+
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-round. */
     val matchOver = mutableStateOf(false)
 
@@ -120,6 +125,7 @@ class WordGuessGame(
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
+        puzzlesFailed.value = 0
         matchOver.value = false
     }
 
@@ -218,6 +224,7 @@ class WordGuessGame(
             puzzlesSolved.value += 1
             freezeTimer()
         } else if (outOfGuesses) {
+            puzzlesFailed.value += 1
             freezeTimer()
         }
     }
@@ -225,6 +232,19 @@ class WordGuessGame(
     private fun freezeTimer() {
         val start = timerStartElapsedRealtime.value ?: nowMillis()
         finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
+    }
+
+    /**
+     * Pause-aware live reading of the current round's stopwatch, for the on-screen clock: null
+     * before the first real guess, frozen at the pause instant while [pause]d (so backgrounding
+     * never makes the display jump ahead), and exactly [finishedElapsedMillis] once the round is
+     * decided (so the clock ends on the very number that gets recorded).
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
     }
 
     /** Called from the finished-round panel's "New Word" button — keeps the running tally. */
