@@ -189,19 +189,6 @@ class ReversiGame : GameModule {
     }
 
     /**
-     * Called from the mid-match Back confirmation (BackHandler or the corner menu), NOT the
-     * board-over panel's own "Back to Menu" — [leaveSession] scores the session's cumulative
-     * tally, which only makes sense once at least one board has actually finished. This ends
-     * the session immediately regardless of board state, with `wasAborted=true` and no scores,
-     * so GameSessionManager never records it to stats (see its own KDoc) — quitting mid-board
-     * is not a loss.
-     */
-    fun abortSession() {
-        if (matchOver.value) return
-        endMatch(GameResult(wasAborted = true))
-    }
-
-    /**
      * Places the current player's disc at [index], flips every disc it flanks, and advances the
      * turn (including through a pass or into a board-over — see [buildStateAfterMove]). A total
      * no-op if the board/session is already over or [index] is not one of the current player's own
