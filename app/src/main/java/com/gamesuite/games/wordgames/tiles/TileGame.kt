@@ -147,6 +147,13 @@ class TileGame : GameModule, ResumableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * The roster seat that takes the first turn of the NEXT [startMatch] (Game Hub "who goes first").
+     * Out-of-range values are clamped. Consumed (reset to 0) by [startMatch]; a restored game never
+     * reads it, since its snapshot already knows whose turn it is.
+     */
+    var firstMoverIndex: Int = 0
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var onWordPlayed: ((WordPlayResult) -> Unit)? = null
@@ -299,10 +306,12 @@ class TileGame : GameModule, ResumableGame {
                 rack = drawTiles(7)
             )
         }
+        val first = firstMoverIndex.coerceIn(0, maxOf(0, players.size - 1))
+        firstMoverIndex = 0
         state.value = TileGameState(
             board = board,
             players = players,
-            currentPlayerIndex = 0,
+            currentPlayerIndex = first,
             bagCount = bag.size,
             lastAction = "Game started"
         )

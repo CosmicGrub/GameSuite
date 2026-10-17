@@ -17,11 +17,14 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.OnlineLobbyMessage
 import com.gamesuite.transport.isFromHost
+import com.gamesuite.transport.lobbyGameProblem
+import com.gamesuite.transport.lobbyRejectionText
 import com.gamesuite.transport.localSeatIndex
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -41,11 +44,21 @@ private const val ROOM_CODE_LENGTH = 4
 fun OnlineJoinLobbyScreen(
     sessionManager: GameSessionManager,
     onGameStarted: (route: String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** The game this guest opened the lobby for (its Hub). A room playing a different or unplayable game is refused. */
+    gameId: String? = null,
+    gameDisplayName: String? = null
 ) {
     val transport = sessionManager.pendingOnlineTransport ?: run {
         LaunchedEffect(Unit) { onBack() }
         return
+    }
+    val title = gameDisplayName ?: gameId?.let { GameHubSpecs.byId(it)?.title }
+    // Set when the host turned us away (room full) or the room plays a game we must not start into. Written from
+    // OkHttp's thread (a Compose state write is thread-safe); the disconnect below runs on the main thread.
+    var refusal by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(refusal) {
+        if (refusal != null) transport.disconnect()
     }
 
     val context = LocalContext.current
@@ -78,6 +91,12 @@ fun OnlineJoinLobbyScreen(
 
     LaunchedEffect(pendingGameStart) {
         val message = pendingGameStart ?: return@LaunchedEffect
+        // A room playing a game we did not open, or one this build can't play over a network: say so, don't start.
+        val problem = lobbyGameProblem(message.gameRoute, message.gameDisplayName, gameId)
+        if (problem != null) {
+            refusal = problem
+            return@LaunchedEffect
+        }
         // localSeatIndex: -1 for a spectator (legitimately absent from the roster, server-side playerList()
         // excludes spectators by design, and never seated even if a roster claims to), the seat for a
         // validly seated player, and null for a non-spectator genuinely missing or not validly seated,
@@ -106,10 +125,17 @@ fun OnlineJoinLobbyScreen(
             if (message is OnlineLobbyMessage.GameStart && message.isFromHost(fromPlayerId, transport.hostPlayerId)) {
                 pendingGameStart = message
             }
+            // Only the host can turn a guest away (the room holds more guests than the game has seats).
+            if (message is OnlineLobbyMessage.Rejected && message.isFromHost(fromPlayerId, transport.hostPlayerId)) {
+                refusal = lobbyRejectionText(message.reason)
+            }
         }
         onDispose {
             if (sessionManager.activeContext.value?.transport !== transport) {
+                // Leaving the lobby: stop listening, leave the room, forget the dead transport.
+                transport.onRawMessageReceived { _, _ -> }
                 transport.disconnect()
+                if (sessionManager.pendingOnlineTransport === transport) sessionManager.pendingOnlineTransport = null
             }
         }
     }
@@ -126,9 +152,17 @@ fun OnlineJoinLobbyScreen(
         verticalArrangement = Arrangement.Center
     ) {
         when {
+            refusal != null -> {
+                Text("Can't join", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(8.dp))
+                Text(refusal ?: "", color = MaterialTheme.colorScheme.error)
+            }
             hasJoined -> {
                 Text(
-                    if (joinedAsSpectator) "Watching!" else "Connected!",
+                    when {
+                        joinedAsSpectator -> if (title != null) "Watching $title" else "Watching!"
+                        else -> if (title != null) "Joining $title" else "Connected!"
+                    },
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(8.dp))
@@ -141,7 +175,10 @@ fun OnlineJoinLobbyScreen(
                 )
             }
             else -> {
-                Text("Join an online game", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    if (title != null) "Join an online $title game" else "Join an online game",
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = roomCodeInput,

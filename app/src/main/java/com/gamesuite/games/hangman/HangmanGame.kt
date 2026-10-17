@@ -5,6 +5,38 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Hangman session back exactly as it was: the SAME hidden word, the
+ * letters already guessed, the wrong-guess count, how many hints this word has used, the session
+ * tally (words won / lost), the difficulty and the recent-word history (so "New Word" variety
+ * continues across a resume). Not stored because they are transient: the screen's animation
+ * state and the in-flight letter arcs.
+ */
+@Serializable
+private data class HangmanSnapshot(
+    val word: String,
+    /** Guessed letters as one string (sorted, no duplicates). */
+    val guessed: String,
+    val wrongGuesses: Int,
+    val maxWrongGuesses: Int,
+    /** True once this word is won or lost (its result panel is showing). */
+    val wordOver: Boolean,
+    val won: Boolean,
+    val hintsUsed: Int,
+    val wins: Int,
+    val losses: Int,
+    val difficulty: String,
+    val recentWords: List<String>,
+    val players: List<HangmanSnapshotPlayer>
+)
+
+@Serializable
+private data class HangmanSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val hangmanSnapshotJson = Json { ignoreUnknownKeys = true }
 
 data class HangmanState(
     val word: String,
@@ -12,7 +44,9 @@ data class HangmanState(
     val wrongGuesses: Int,
     val maxWrongGuesses: Int,
     val matchOver: Boolean = false,
-    val won: Boolean = false
+    val won: Boolean = false,
+    /** Hints used on THIS word; a word with hints is "assisted". Reset for every new word. */
+    val hintsUsed: Int = 0
 ) {
     val revealedWord: String get() = word.map { if (it in guessedLetters) it else '_' }.joinToString(" ")
     val remainingGuesses: Int get() = maxWrongGuesses - wrongGuesses
@@ -38,8 +72,12 @@ data class HangmanState(
  * random draw, so mashing "New Word" doesn't keep re-serving the same word
  * out of these small pools — it falls back to allowing a repeat only once
  * excluding history would leave nothing to pick from.
+ *
+ * Resume + Hint: implements [ResumableGame] (the snapshot carries the hidden word, so a resume
+ * continues the SAME word) and offers [hint], which reveals one correct letter and marks the word
+ * assisted ([HangmanState.hintsUsed]). There is no Undo: a guess is the whole move.
  */
-class HangmanGame : GameModule {
+class HangmanGame : GameModule, ResumableGame {
     override val gameId = "hangman"
     override val displayName = "Hangman"
     override val category = GameCategory.WORD
@@ -52,7 +90,23 @@ class HangmanGame : GameModule {
 
     val state = mutableStateOf<HangmanState?>(null)
     val wins = mutableStateOf(0)
+
+    /** Words lost this session (the counterpart of [wins]; same role as WordGuessGame.puzzlesFailed). */
     val losses = mutableStateOf(0)
+
+    /**
+     * Words finished this session, solved or lost. A word still in progress is NOT finished.
+     * The screen's abort policy keys off this: with finished words, leaving goes through
+     * [leaveSession] so they still count; with none, leaving is a pure abort.
+     */
+    val finishedWords: Int get() = wins.value + losses.value
+
+    /** True while a hint could still reveal a letter (word in progress, a hidden letter left). */
+    val canHint: Boolean
+        get() {
+            val s = state.value ?: return false
+            return !matchOver.value && !s.matchOver && s.word.any { it !in s.guessedLetters }
+        }
 
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-word. */
     val matchOver = mutableStateOf(false)
@@ -149,7 +203,7 @@ class HangmanGame : GameModule {
             word = pickWord(wordPoolFor(difficulty)),
             guessedLetters = emptySet(),
             wrongGuesses = 0,
-            maxWrongGuesses = 6
+            maxWrongGuesses = MAX_WRONG_GUESSES
         )
     }
 
@@ -178,7 +232,10 @@ class HangmanGame : GameModule {
         onMatchEnd?.invoke(result)
     }
 
-    fun guessLetter(letter: Char) {
+    fun guessLetter(letter: Char) = applyGuess(letter, hinted = false)
+
+    private fun applyGuess(letter: Char, hinted: Boolean) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.matchOver || letter in s.guessedLetters) return
 
@@ -189,12 +246,127 @@ class HangmanGame : GameModule {
         val won = s.word.all { it in newGuessed }
         val lost = newWrong >= s.maxWrongGuesses
 
-        state.value = s.copy(guessedLetters = newGuessed, wrongGuesses = newWrong)
+        state.value = s.copy(
+            guessedLetters = newGuessed,
+            wrongGuesses = newWrong,
+            hintsUsed = if (hinted) s.hintsUsed + 1 else s.hintsUsed
+        )
 
         if (won || lost) {
             if (won) wins.value += 1 else losses.value += 1
             state.value = state.value?.copy(matchOver = true, won = won)
         }
+    }
+
+    /**
+     * Reveals one correct letter (the first hidden one, left to right) and returns it, or null
+     * when hinting makes no sense (no word, word already over, session over). It is a real
+     * guess that can never be wrong, but it counts: [HangmanState.hintsUsed] goes up so the
+     * result panel can say the word was assisted. Hangman keeps no best-time/best-score record, so
+     * an assisted word still counts as solved for the session tally.
+     */
+    fun hint(): Char? {
+        if (matchOver.value) return null
+        val s = state.value ?: return null
+        if (s.matchOver) return null
+        val letter = s.word.firstOrNull { it !in s.guessedLetters } ?: return null
+        applyGuess(letter, hinted = true)
+        return letter
+    }
+
+    /** Test seam: starts a word with a known answer instead of a random draw. */
+    internal fun startMatchWithWord(word: String) {
+        state.value = HangmanState(
+            word = word.uppercase(),
+            guessedLetters = emptySet(),
+            wrongGuesses = 0,
+            maxWrongGuesses = MAX_WRONG_GUESSES
+        )
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun isLocalMode(): Boolean =
+        context.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT ||
+            context.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+
+    /** Null when there is nothing to save: no word yet, the session already ended, or an online/nearby mode. */
+    override fun snapshot(): String? {
+        if (!::context.isInitialized) return null
+        val s = state.value ?: return null
+        if (matchOver.value || !isLocalMode()) return null
+        return try {
+            hangmanSnapshotJson.encodeToString(
+                HangmanSnapshot.serializer(),
+                HangmanSnapshot(
+                    word = s.word,
+                    guessed = s.guessedLetters.sorted().joinToString(""),
+                    wrongGuesses = s.wrongGuesses,
+                    maxWrongGuesses = s.maxWrongGuesses,
+                    wordOver = s.matchOver,
+                    won = s.won,
+                    hintsUsed = s.hintsUsed,
+                    wins = wins.value,
+                    losses = losses.value,
+                    difficulty = difficulty.name,
+                    recentWords = recentWords.toList(),
+                    players = context.players.map { HangmanSnapshotPlayer(it.playerId, it.isBot) }
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Decodes a snapshot and checks it is internally consistent and belongs to THIS roster; null if unusable. */
+    private fun decodeSnapshot(text: String): HangmanSnapshot? {
+        val snap = try {
+            hangmanSnapshotJson.decodeFromString(HangmanSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        val guessed = snap.guessed.toSet()
+        val won = snap.word.isNotEmpty() && snap.word.all { it in guessed }
+        val lost = snap.wrongGuesses >= snap.maxWrongGuesses
+        val valid = snap.word.isNotEmpty() &&
+            snap.word.length <= MAX_SNAPSHOT_WORD_LENGTH &&
+            snap.word.all { it in 'A'..'Z' } &&
+            snap.maxWrongGuesses == MAX_WRONG_GUESSES &&
+            guessed.size == snap.guessed.length &&
+            guessed.all { it in 'A'..'Z' } &&
+            snap.wrongGuesses == guessed.count { it !in snap.word } &&
+            snap.wordOver == (won || lost) &&
+            snap.won == won &&
+            snap.hintsUsed >= 0 && snap.wins >= 0 && snap.losses >= 0 &&
+            snap.players.size == roster.size &&
+            snap.players.indices.all {
+                snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
+            }
+        return if (valid) snap else null
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        if (!::context.isInitialized) return false
+        val snap = decodeSnapshot(snapshot) ?: return false
+        // Everything above is validated; from here on nothing can fail, so the engine is
+        // assigned all-or-nothing.
+        matchOver.value = false
+        state.value = HangmanState(
+            word = snap.word,
+            guessedLetters = snap.guessed.toSet(),
+            wrongGuesses = snap.wrongGuesses,
+            maxWrongGuesses = snap.maxWrongGuesses,
+            matchOver = snap.wordOver,
+            won = snap.won,
+            hintsUsed = snap.hintsUsed
+        )
+        wins.value = snap.wins
+        losses.value = snap.losses
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        recentWords.clear()
+        recentWords.addAll(snap.recentWords.takeLast(WORD_HISTORY_SIZE))
+        return true
     }
 
     /** Called from the round-over panel's "New Word" button — keeps the running score. */
@@ -216,8 +388,14 @@ class HangmanGame : GameModule {
     }
 
     companion object {
+        /** Classic six wrong guesses, the same at every difficulty (the word pool is the difficulty lever). */
+        const val MAX_WRONG_GUESSES = 6
+
         /** How many past words [pickWord] avoids repeating. */
         private const val WORD_HISTORY_SIZE = 5
+
+        /** Longest word a restored snapshot may carry (the pools top out far below this). */
+        private const val MAX_SNAPSHOT_WORD_LENGTH = 40
 
         /** How many dictionary words [wordPoolFor] samples per length, per tier — see its KDoc for the 40-60-per-tier target this feeds into. */
         private const val DICTIONARY_WORDS_PER_LENGTH = 15

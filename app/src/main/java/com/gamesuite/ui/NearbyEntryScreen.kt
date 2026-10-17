@@ -29,13 +29,16 @@ import com.gamesuite.transport.NearbyConnectionsTransport
  * Gates entry into Nearby multiplayer behind (1) the runtime permissions Nearby
  * Connections needs and (2) both radios actually being on — see NearbyPermissions.kt
  * and DEVICE_SPECIFIC_PLAN.md §2's radio-auto-enable-removal note. Once both are
- * satisfied, offers Host vs. Join.
+ * satisfied, offers Host vs. Join. [gameId] is carried on to both lobbies (the join lobby uses it to
+ * refuse a host playing a different or unplayable game); [gameDisplayName] only titles this screen.
  */
 @Composable
 fun NearbyEntryScreen(
     sessionManager: GameSessionManager,
-    onNavigateToHostLobby: () -> Unit,
-    onNavigateToJoinLobby: () -> Unit,
+    gameId: String,
+    gameDisplayName: String,
+    onNavigateToHostLobby: (gameId: String) -> Unit,
+    onNavigateToJoinLobby: (gameId: String) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -89,7 +92,7 @@ fun NearbyEntryScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Play Nearby", style = MaterialTheme.typography.headlineSmall)
+        Text("Play $gameDisplayName Nearby", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text(
             "Connect to another device over Bluetooth/Wi-Fi Direct — no internet needed. Both devices need this screen.",
@@ -141,7 +144,7 @@ fun NearbyEntryScreen(
                 Button(
                     onClick = {
                         sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
-                        onNavigateToHostLobby()
+                        onNavigateToHostLobby(gameId)
                     },
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                 ) {
@@ -151,7 +154,7 @@ fun NearbyEntryScreen(
                 Button(
                     onClick = {
                         sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)
-                        onNavigateToJoinLobby()
+                        onNavigateToJoinLobby(gameId)
                     },
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                 ) {

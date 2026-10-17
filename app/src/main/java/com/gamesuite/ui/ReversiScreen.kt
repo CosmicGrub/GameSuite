@@ -32,11 +32,13 @@ import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.reversi.ReversiGame
 import com.gamesuite.games.reversi.ReversiState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.uikit.GameChrome
@@ -102,20 +104,31 @@ fun ReversiScreen(
     val hintMove by game.hintMove
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = reversiPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
+    val gameSpeed = LocalGameSpeed.current
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        // Per-launch Hub choices, read once before init/tryResume (a resumed game ignores the
+        // first mover: its snapshot restores its own alternation).
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
+        // Networked play is never resumable: the host deals (a guest waits for the host's state).
+        val networkedStart = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
         // Picking this game from the menu after leaving it mid-board offers Resume; when the
         // player took it, the engine is put back exactly as it was instead of dealing a new board.
         // (Difficulty is restored by the engine; this screen keeps no other state of its own.)
-        if (!sessionManager.tryResume(game)) game.startMatch()
+        if (networkedStart || !sessionManager.tryResume(game)) game.startMatch()
     }
+
+    val activeCtx = context
+    val isNetworked = activeCtx?.activeMode == PlayMode.LOCAL_AD_HOC || activeCtx?.activeMode == PlayMode.ONLINE
+    val localSeat = activeCtx?.localPlayerIndex ?: 0
+    val opponentLeft by game.opponentLeft
 
     // Same idiom as ConnectFourScreen's own bot-turn trigger -- a short delay so a bot's move
     // doesn't feel instantaneous. A single playBotTurn() call always either ends the board, passes
@@ -127,12 +140,33 @@ fun ReversiScreen(
         val s = state ?: return@LaunchedEffect
         if (s.boardOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(800)
+            val thinkMs = gameSpeed.scale(800L)
+            if (thinkMs > 60L) delay(thinkMs)
             game.playBotTurn()
         }
     }
 
-    val s = state ?: return
+    val s = state
+    if (s == null) {
+        // A networked guest has no board until the host's first state arrives.
+        if (isNetworked) {
+            GameChrome(
+                helpTitle = "How to Play Reversi",
+                helpText = "Waiting for the host to deal the board.",
+                matchInProgress = true,
+                onLeave = game::abortMatch,
+                onAbort = { game.abortMatch() },
+                leaveKeepsProgress = false,
+                buttonFill = palette.background,
+                buttonContent = palette.textPrimary
+            ) {
+                Box(Modifier.fillMaxSize().background(palette.background), contentAlignment = Alignment.Center) {
+                    Text("Waiting for the host…", color = palette.textPrimary, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+        return
+    }
 
     LaunchedEffect(s.boardOver) {
         if (s.boardOver) haptics(if (s.winnerPlayerId != null) HapticSignal.CELEBRATION else HapticSignal.NORMAL_ACTION)
@@ -141,7 +175,16 @@ fun ReversiScreen(
         if (s.justPassed) haptics(HapticSignal.NORMAL_ACTION)
     }
 
-    val isMyTurn = !s.players[s.currentPlayerIndex].isBot
+    // A seat is playable by touch when it is not a bot -- seat 0 is NOT assumed to be the human, so
+    // a two-human Pass & Play table lets either seat move, and a CPU-first game waits for the CPU.
+    // Networked: only my own seat's turn, and never once the opponent has left.
+    val isMyTurn = if (isNetworked) {
+        s.currentPlayerIndex == localSeat && !opponentLeft
+    } else {
+        !s.players[s.currentPlayerIndex].isBot
+    }
+    val isPassAndPlay = !isNetworked && s.players.none { it.isBot }
+    val opponentSeat = if (localSeat == 0) 1 else 0
     val matchInProgress = !s.boardOver
     val finishedBoards = game.sessionWins.value.values.sum() + game.sessionDraws.value
 
@@ -162,9 +205,9 @@ fun ReversiScreen(
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
         leaveKeepsProgress = finishedBoards == 0,
-        onUndo = { game.undo() },
+        onUndo = if (isNetworked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = { game.hint() },
+        onHint = if (isNetworked) null else ({ game.hint() }),
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -182,6 +225,40 @@ fun ReversiScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StatusRow(s, game, palette)
+
+            if (isPassAndPlay && !s.boardOver) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${s.players[s.currentPlayerIndex].displayName}'s turn (${if (s.currentPlayerIndex == 0) "dark" else "light"} discs)",
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (isNetworked) {
+                Spacer(Modifier.height(4.dp))
+                val oppName = s.players.getOrNull(opponentSeat)?.displayName ?: "Opponent"
+                Text(
+                    "vs $oppName · you play ${if (localSeat == 0) "dark" else "light"} discs",
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (opponentLeft) {
+                    Text(
+                        "Opponent disconnected",
+                        color = palette.textPrimary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else if (!s.boardOver) {
+                    Text(
+                        if (isMyTurn) "Your turn" else "Waiting for $oppName",
+                        color = palette.textPrimary.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
 
             Spacer(Modifier.height(10.dp))
 
@@ -237,19 +314,27 @@ fun ReversiScreen(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-            ReversiControlsRow(
-                canUndo = game.canUndo,
-                canHint = isMyTurn && !s.boardOver,
-                hintUnavailableReason = if (s.boardOver) "the board is over" else "it is not your turn",
-                onUndo = { game.undo() },
-                onHint = { game.hint() },
-                palette = palette
-            )
+            if (!isNetworked) {
+                Spacer(Modifier.height(8.dp))
+                ReversiControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = isMyTurn && !s.boardOver,
+                    hintUnavailableReason = if (s.boardOver) "the board is over" else "the CPU is playing",
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
+                )
+            }
 
             if (s.boardOver) {
                 Spacer(Modifier.height(16.dp))
-                FinishedPanel(s = s, game = game, palette = palette)
+                FinishedPanel(
+                    s = s,
+                    game = game,
+                    palette = palette,
+                    localSeat = if (isNetworked) localSeat else null,
+                    canPlayAgain = !opponentLeft
+                )
             }
         }
     }
@@ -499,7 +584,13 @@ private fun CellView(
 }
 
 @Composable
-private fun FinishedPanel(s: ReversiState, game: ReversiGame, palette: ReversiPalette) {
+private fun FinishedPanel(
+    s: ReversiState,
+    game: ReversiGame,
+    palette: ReversiPalette,
+    localSeat: Int? = null,
+    canPlayAgain: Boolean = true
+) {
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
     Card {
@@ -513,6 +604,19 @@ private fun FinishedPanel(s: ReversiState, game: ReversiGame, palette: ReversiPa
                 "It's a tie!"
             }
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (localSeat != null) {
+                Spacer(Modifier.height(2.dp))
+                val youWon = s.winnerPlayerId != null && s.players.getOrNull(localSeat)?.playerId == s.winnerPlayerId
+                Text(
+                    when {
+                        s.winnerPlayerId == null -> "A draw."
+                        youWon -> "You won!"
+                        else -> "You lost."
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = palette.textPrimary
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 "Final: ${s.players.joinToString(" — ") { "${it.displayName} ${s.scores[s.players.indexOf(it)]}" }}",
@@ -531,7 +635,7 @@ private fun FinishedPanel(s: ReversiState, game: ReversiGame, palette: ReversiPa
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { game.playAgain() }) { Text("Play Again") }
+                Button(onClick = { game.playAgain() }, enabled = canPlayAgain) { Text("Play Again") }
                 OutlinedButton(onClick = { game.leaveSession() }) { Text("Back to Menu") }
             }
         }

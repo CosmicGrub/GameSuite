@@ -118,6 +118,14 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * Hub "who plays first" override: the roster seat that opens the FIRST hand of the session
+     * (consumed by the first [startMatch]; later hands, resumes and null use the standard rule
+     * of highest double / heaviest tile). Seat 0 is left to that standard rule by the screen
+     * (it only sets this for another seat), because the rule is fair and not "seat 0 always".
+     */
+    var firstOpenerIndex: Int? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var boneyard: MutableList<Domino> = mutableListOf()
@@ -138,6 +146,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         sessionScores.value = context.players.associate { it.playerId to 0 }
         handsFinished.value = 0
         history.clear()
+        firstOpenerIndex = null
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -311,11 +320,13 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
             } ?: 0
         }
 
+        val override = firstOpenerIndex?.takeIf { it in players.indices }
+        firstOpenerIndex = null // one-shot: only the first hand is overridden
         state.value = DominoState(
             players = players,
             boneyardSize = boneyard.size,
             chain = emptyList(),
-            currentPlayerIndex = startIndex,
+            currentPlayerIndex = override ?: startIndex,
             consecutivePasses = 0,
             lastAction = "Game started"
         )

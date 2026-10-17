@@ -23,7 +23,28 @@ data class SavedGame(
     val savedAtEpochDay: Long,
     val snapshot: String,
     /** The nav route to open to resume it. [route] is the storage key (route + launch configuration); this is the plain destination. */
-    val navRoute: String = route
+    val navRoute: String = route,
+    /**
+     * How the game was launched (mode, roster, per-launch options), so the Game Hub can resume it
+     * on its own without the menu having to re-install the same launch first. Null on saves from
+     * before this existed: those still load, but only the legacy menu path can resume them.
+     */
+    val launch: SavedLaunch? = null,
+    /** One line for the Hub's Resume card, e.g. "You vs CPU" or "4 players". */
+    val summary: String = ""
+)
+
+@Serializable
+data class SavedSeat(val id: String, val name: String, val isBot: Boolean = false, val teamId: Int = -1)
+
+@Serializable
+data class SavedLaunch(
+    val mode: String,
+    val seats: List<SavedSeat>,
+    val localPlayerIndex: Int = 0,
+    val cpuDifficulty: String? = null,
+    val firstMoverIndex: Int = 0,
+    val extras: Map<String, String> = emptyMap()
 )
 
 /**

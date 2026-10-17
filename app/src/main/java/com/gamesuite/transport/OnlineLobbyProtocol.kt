@@ -18,8 +18,35 @@ import kotlinx.serialization.Serializable
 sealed class OnlineLobbyMessage {
     /** Host -> all connected guests. [gameRoute] is the NavHost route to launch (e.g. "uno"). */
     @Serializable
-    data class GameStart(val gameRoute: String, val players: List<PlayerInfo>) : OnlineLobbyMessage()
+    data class GameStart(
+        val gameRoute: String,
+        val players: List<PlayerInfo>,
+        /** The game's display name ("Chess"), for the guest's "Joining Chess" text; cosmetic only. */
+        val gameDisplayName: String? = null,
+    ) : OnlineLobbyMessage()
+
+    /**
+     * Host -> one guest (addressed): the room has more guests than the game has seats and this one did not get
+     * a seat. [reason] is text to show; the guest leaves. A guest only believes it from the host ([isFromHost]).
+     */
+    @Serializable
+    data class Rejected(val reason: String) : OnlineLobbyMessage()
 }
+
+/** Whether a guest should act on this [OnlineLobbyMessage.Rejected]: only the room's host can turn a guest away. */
+fun OnlineLobbyMessage.Rejected.isFromHost(fromPlayerId: String, hostPlayerId: String?): Boolean =
+    hostPlayerId != null && fromPlayerId == hostPlayerId
+
+/** Who gets a seat in an Online room and who is turned away; see [seatOnlineGuests]. */
+class OnlineSeating(val seated: List<OnlinePlayer>, val overflow: List<OnlinePlayer>)
+
+/**
+ * The relay seats up to 8 per room, regardless of the game, so the HOST enforces the game's seat count: the first
+ * `limits.maxGuests` guests in join order are seated, anyone beyond that is overflow (sent a
+ * [OnlineLobbyMessage.Rejected] and left out of the announced roster).
+ */
+fun seatOnlineGuests(connected: List<OnlinePlayer>, limits: LobbySeatLimits): OnlineSeating =
+    OnlineSeating(connected.take(limits.maxGuests), connected.drop(limits.maxGuests))
 
 /**
  * Whether a guest should act on this [OnlineLobbyMessage.GameStart]: the relay stamped it as

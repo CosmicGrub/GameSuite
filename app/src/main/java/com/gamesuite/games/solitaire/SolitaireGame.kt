@@ -6,6 +6,51 @@ import com.gamesuite.games.cards.Card
 import com.gamesuite.games.cards.Deck
 import com.gamesuite.games.cards.Rank
 import com.gamesuite.games.cards.Suit
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Klondike session back exactly as it was. One shape serves both Resume
+ * (written to disk by the shell) and Undo (kept in memory in a [SnapshotHistory]), so a deal and its
+ * tally can never be restored out of step with each other. Cards are stored as their stable 0..51
+ * [Card.id] (see [Deck.fresh52]); the ORDER of every list is the order the engine uses, so the stock
+ * order (the secret part of the deal) survives exactly. Not stored, on purpose: [SolitaireGame.drawThree]
+ * (a player preference the screen re-applies from its own store), the hint (transient), and the
+ * auto-complete flag (a resumed deal simply offers the button again).
+ */
+@Serializable
+private data class SolitaireSnapshot(
+    val playerId: String,
+    /** Per tableau column, bottom-to-top, face-down cards. */
+    val tableauDown: List<List<Int>>,
+    /** Per tableau column, bottom-to-top, face-up cards. */
+    val tableauUp: List<List<Int>>,
+    val stock: List<Int>,
+    val waste: List<Int>,
+    /** One list per suit, in [Suit.entries] order, Ace first. */
+    val foundations: List<List<Int>>,
+    /** [SOLITAIRE_SELECTED_NONE], [SOLITAIRE_SELECTED_WASTE] or a tableau column index. */
+    val selected: Int,
+    val score: Int,
+    val won: Boolean,
+    val gamesWon: Int
+)
+
+private const val SOLITAIRE_SELECTED_NONE = -1
+private const val SOLITAIRE_SELECTED_WASTE = -2
+
+private val solitaireSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/** A snapshot already validated and turned back into live types. */
+private class SolitaireDecoded(val state: SolitaireState, val gamesWon: Int)
+
+/**
+ * A suggested move for the human. [source] and [destination] are both null for "draw from the stock
+ * (or recycle the waste)"; otherwise they name the card to pick up and where it should go.
+ */
+data class SolitaireHint(val source: SelectionSource?, val destination: MoveDestination?) {
+    val isStockDraw: Boolean get() = source == null
+}
 
 /**
  * One tableau column. [faceDown] and [faceUp] are both bottom-to-top order,
@@ -107,7 +152,7 @@ data class SolitaireState(
  * between "this round finished" and "the whole visit to this screen is
  * over".
  */
-class SolitaireGame : GameModule {
+class SolitaireGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "solitaire"
     override val displayName = "Klondike Solitaire"
     override val category = GameCategory.CARD
@@ -118,7 +163,7 @@ class SolitaireGame : GameModule {
     val state = mutableStateOf<SolitaireState?>(null)
 
     /**
-     * Bounded undo history — a snapshot of [state] taken immediately before
+     * Bounded undo history — a [SolitaireSnapshot] taken immediately before
      * each mutating move (draw/recycle the stock, or move a card to a
      * tableau column or foundation), oldest dropped once [MAX_UNDO] is
      * exceeded. Selecting/deselecting a card doesn't push a snapshot: those
@@ -127,10 +172,24 @@ class SolitaireGame : GameModule {
      * expects "undo my last move" to do. Cleared on every fresh deal (see
      * [startMatch]) so undo never reaches back into a previous deal.
      */
-    private val history = ArrayDeque<SolitaireState>()
+    private val history = SnapshotHistory(MAX_UNDO)
 
-    /** True once [history] holds at least one snapshot — drives the Undo button's enabled state in SolitaireScreen, same reactive-flag pattern as [gamesWon]/[matchOver]. */
-    val canUndo = mutableStateOf(false)
+    /**
+     * True while there is a move to take back. Reads Compose state ([SnapshotHistory.depth], [state],
+     * [matchOver], [isAutoCompleting]) so the Undo buttons recompose on their own. False once the deal
+     * is won: undoing the winning move behind the Solved panel would let one deal be "won" repeatedly.
+     */
+    override val canUndo: Boolean
+        get() = history.depth > 0 && !matchOver.value && state.value?.won != true && !isAutoCompleting.value
+
+    /** Bumped once per FRESH deal ([startMatch]), never by [restore] or [undo]. The screen keys its deal-in animation on this instead of parsing [SolitaireState.lastAction]. */
+    val dealSeq = mutableStateOf(0)
+
+    /** Bumped each time a tap is rejected as an illegal placement, so the screen can give failure feedback without parsing [SolitaireState.lastAction]. */
+    val rejectedCount = mutableStateOf(0)
+
+    /** The move the last [hint] suggested, shown until the next tap, undo, new deal or restore. */
+    val hintMove = mutableStateOf<SolitaireHint?>(null)
 
     /**
      * True while [autoCompleteStep] is being driven, one step at a time, by
@@ -174,6 +233,177 @@ class SolitaireGame : GameModule {
         this.context = context
         gamesWon.value = 0
         matchOver.value = false
+        isAutoCompleting.value = false
+        history.clear()
+        hintMove.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun localPlayerId(): String =
+        if (::context.isInitialized) context.players.getOrNull(context.localPlayerIndex)?.playerId.orEmpty() else ""
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return solitaireSnapshotJson.encodeToString(
+            SolitaireSnapshot.serializer(),
+            SolitaireSnapshot(
+                playerId = localPlayerId(),
+                tableauDown = s.tableau.map { col -> col.faceDown.map { it.id } },
+                tableauUp = s.tableau.map { col -> col.faceUp.map { it.id } },
+                stock = s.stock.map { it.id },
+                waste = s.waste.map { it.id },
+                foundations = Suit.entries.map { suit -> (s.foundations[suit] ?: emptyList()).map { it.id } },
+                selected = when (val sel = s.selected) {
+                    null -> SOLITAIRE_SELECTED_NONE
+                    SelectionSource.Waste -> SOLITAIRE_SELECTED_WASTE
+                    is SelectionSource.Tableau -> sel.index
+                },
+                score = s.score,
+                won = s.won,
+                gamesWon = gamesWon.value
+            )
+        )
+    }
+
+    /** Decodes and validates [text] against THIS roster and the real 52-card deck; null if it is unusable. Never throws. */
+    private fun decodeSnapshot(text: String): SolitaireDecoded? {
+        val snap = try {
+            solitaireSnapshotJson.decodeFromString(SolitaireSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        return try {
+            buildFromSnapshot(snap)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun buildFromSnapshot(snap: SolitaireSnapshot): SolitaireDecoded? {
+        if (snap.playerId != localPlayerId()) return null
+        val deck = Deck.fresh52()
+        val columnCount = 7
+        if (snap.tableauDown.size != columnCount || snap.tableauUp.size != columnCount) return null
+        if (snap.foundations.size != Suit.entries.size) return null
+        // Every one of the 52 cards must appear exactly once across all piles.
+        val allIds = snap.tableauDown.flatten() + snap.tableauUp.flatten() + snap.stock + snap.waste + snap.foundations.flatten()
+        if (allIds.size != deck.size || allIds.toSet().size != deck.size || allIds.any { it !in deck.indices }) return null
+
+        fun cardsOf(ids: List<Int>): List<Card> = ids.map { deck[it] }
+        val tableau = (0 until columnCount).map { TableauColumn(faceDown = cardsOf(snap.tableauDown[it]), faceUp = cardsOf(snap.tableauUp[it])) }
+        // A column with hidden cards always has a face-up card on top of them.
+        if (tableau.any { it.faceUp.isEmpty() && it.faceDown.isNotEmpty() }) return null
+
+        val foundations: Map<Suit, List<Card>> = Suit.entries.mapIndexed { i, suit -> suit to cardsOf(snap.foundations[i]) }.toMap()
+        for ((suit, pile) in foundations) {
+            pile.forEachIndexed { k, card ->
+                if (card.suit != suit || lowAceValue(card.rank) != k + 1) return null
+            }
+        }
+        val won = foundations.values.all { it.size == Rank.entries.size }
+        if (won != snap.won || snap.score < 0 || snap.gamesWon < 0) return null
+
+        val waste = cardsOf(snap.waste)
+        val selected: SelectionSource? = when {
+            snap.selected == SOLITAIRE_SELECTED_NONE -> null
+            snap.selected == SOLITAIRE_SELECTED_WASTE -> if (waste.isEmpty()) return null else SelectionSource.Waste
+            snap.selected in 0 until columnCount -> if (tableau[snap.selected].faceUp.isEmpty()) return null else SelectionSource.Tableau(snap.selected)
+            else -> return null
+        }
+        return SolitaireDecoded(
+            state = SolitaireState(
+                tableau = tableau,
+                stock = cardsOf(snap.stock),
+                waste = waste,
+                foundations = foundations,
+                selected = selected,
+                score = snap.score,
+                lastAction = "",
+                won = won
+            ),
+            gamesWon = snap.gamesWon
+        )
+    }
+
+    /** Null when there is nothing to save: no deal yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        if (matchOver.value || state.value == null || !::context.isInitialized) return null
+        val mode = context.activeMode
+        if (mode != PlayMode.SINGLE_PLAYER_VS_BOT && mode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+        return try {
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val decoded = decodeSnapshot(snapshot) ?: return false
+            matchOver.value = false
+            isAutoCompleting.value = false
+            history.clear()
+            hintMove.value = null
+            gamesWon.value = decoded.gamesWon
+            state.value = decoded.state.copy(lastAction = "Game resumed")
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    /**
+     * Takes back the last move (a stock draw/recycle or a card move), restoring the board and score.
+     * Selection is cleared. [gamesWon] only ever goes up, so it keeps the larger of the current and
+     * saved values. Does nothing once the deal is won or the session has ended.
+     */
+    override fun undo() {
+        if (matchOver.value || isAutoCompleting.value || state.value?.won == true) return
+        val previous = history.pop() ?: return
+        val decoded = decodeSnapshot(previous) ?: return
+        state.value = decoded.state.copy(selected = null, lastAction = "Undid last move")
+        gamesWon.value = maxOf(gamesWon.value, decoded.gamesWon)
+        hintMove.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests one useful move and exposes it as [hintMove]: a card that can go straight to a
+     * foundation, a tableau move that turns a face-down card up, a waste card with a tableau home,
+     * a move that uncovers a foundation-ready card, and finally drawing from the stock. Null when
+     * there is nothing to suggest (deal won, no cards left to play or draw). Solitaire keeps no
+     * records, so a hint costs nothing.
+     */
+    fun hint(): SolitaireHint? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.won || isAutoCompleting.value) return null
+        val suggestion = computeHint(s)
+        hintMove.value = suggestion
+        // Nothing playable and nothing to draw: say so in the status line (a live region on the screen).
+        if (suggestion == null) state.value = s.copy(lastAction = "No moves left. Try Undo or deal again.")
+        return suggestion
+    }
+
+    private fun computeHint(s: SolitaireState): SolitaireHint? {
+        findFoundationMove(s)?.let { (source, suit, _) -> return SolitaireHint(source, MoveDestination.Foundation(suit)) }
+        s.tableau.forEachIndexed { srcIndex, srcCol ->
+            val top = srcCol.faceUp.lastOrNull() ?: return@forEachIndexed
+            if (srcCol.faceUp.size != 1 || srcCol.faceDown.isEmpty()) return@forEachIndexed
+            val dest = s.tableau.indices.firstOrNull { it != srcIndex && canPlaceOnTableau(top, s.tableau[it].faceUp.lastOrNull()) }
+            if (dest != null) return SolitaireHint(SelectionSource.Tableau(srcIndex), MoveDestination.Tableau(dest))
+        }
+        val wasteTop = s.waste.lastOrNull()
+        if (wasteTop != null) {
+            val dest = s.tableau.indices.firstOrNull { canPlaceOnTableau(wasteTop, s.tableau[it].faceUp.lastOrNull()) }
+            if (dest != null) return SolitaireHint(SelectionSource.Waste, MoveDestination.Tableau(dest))
+        }
+        findUnblockingTableauMove(s)?.let { (source, destIndex) -> return SolitaireHint(source, MoveDestination.Tableau(destIndex)) }
+        if (s.stock.isNotEmpty() || s.waste.isNotEmpty()) return SolitaireHint(null, null)
+        return null
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -186,9 +416,10 @@ class SolitaireGame : GameModule {
 
     override fun startMatch() {
         history.clear()
-        canUndo.value = false
+        hintMove.value = null
         isAutoCompleting.value = false
         state.value = deal()
+        dealSeq.value += 1
     }
 
     override fun pause() {}
@@ -237,10 +468,11 @@ class SolitaireGame : GameModule {
      */
     fun tapStock() {
         val s = state.value ?: return
-        if (s.won || isAutoCompleting.value) return
+        if (matchOver.value || s.won || isAutoCompleting.value) return
+        hintMove.value = null
         state.value = when {
             s.stock.isNotEmpty() -> {
-                recordHistory(s)
+                recordHistory()
                 val count = minOf(if (drawThree) 3 else 1, s.stock.size)
                 val drawn = s.stock.takeLast(count)
                 s.copy(
@@ -251,7 +483,7 @@ class SolitaireGame : GameModule {
                 )
             }
             s.waste.isNotEmpty() -> {
-                recordHistory(s)
+                recordHistory()
                 s.copy(stock = s.waste.reversed(), waste = emptyList(), selected = null, lastAction = "Recycled waste into stock")
             }
             else -> s.copy(lastAction = "Stock is empty")
@@ -260,7 +492,8 @@ class SolitaireGame : GameModule {
 
     fun tapWaste() {
         val s = state.value ?: return
-        if (s.won || isAutoCompleting.value) return
+        if (matchOver.value || s.won || isAutoCompleting.value) return
+        hintMove.value = null
         if (s.selected == SelectionSource.Waste) {
             state.value = s.copy(selected = null, lastAction = "Deselected")
             return
@@ -284,7 +517,8 @@ class SolitaireGame : GameModule {
      */
     fun tapTableau(index: Int) {
         val s = state.value ?: return
-        if (s.won || isAutoCompleting.value) return
+        if (matchOver.value || s.won || isAutoCompleting.value) return
+        hintMove.value = null
         val selected = s.selected
 
         if (selected is SelectionSource.Tableau && selected.index == index) {
@@ -297,7 +531,7 @@ class SolitaireGame : GameModule {
         if (selected != null) {
             val movingCard = s.cardAt(selected)
             if (movingCard != null && canPlaceOnTableau(movingCard, destTop)) {
-                recordHistory(s)
+                recordHistory()
                 state.value = applyMoveToTableau(s, selected, index, movingCard)
                 return
             }
@@ -306,13 +540,15 @@ class SolitaireGame : GameModule {
         state.value = if (destTop != null) {
             s.copy(selected = SelectionSource.Tableau(index), lastAction = "Selected ${destTop.label}")
         } else {
+            if (selected != null) rejectedCount.value += 1
             s.copy(lastAction = if (selected != null) "Can't place there" else "Empty column")
         }
     }
 
     fun tapFoundation(suit: Suit) {
         val s = state.value ?: return
-        if (s.won || isAutoCompleting.value) return
+        if (matchOver.value || s.won || isAutoCompleting.value) return
+        hintMove.value = null
         val selected = s.selected
         if (selected == null) {
             state.value = s.copy(lastAction = "Select a card first")
@@ -320,10 +556,11 @@ class SolitaireGame : GameModule {
         }
         val movingCard = s.cardAt(selected) ?: return
         if (!canPlaceOnFoundation(movingCard, suit, s.foundations)) {
+            rejectedCount.value += 1
             state.value = s.copy(lastAction = "Can't place ${movingCard.label} there")
             return
         }
-        recordHistory(s)
+        recordHistory()
         val next = applyMoveToFoundation(s, selected, suit, movingCard)
         if (next.won) gamesWon.value += 1
         state.value = next
@@ -436,37 +673,19 @@ class SolitaireGame : GameModule {
     }
 
     /**
-     * Snapshots [s] onto [history] right before a mutating move overwrites
-     * [state], so [undo] has something to restore. Keeps at most
-     * [MAX_UNDO] entries — the oldest is dropped once full — matching the
-     * task's "3-5 step history" sizing rather than growing unbounded across
-     * a long deal.
+     * Snapshots the CURRENT [state] onto [history] right before a mutating move overwrites it, so
+     * [undo] has something to restore. Callers invoke this after the move has been validated and
+     * before they assign the new state. Keeps at most [MAX_UNDO] entries; the oldest is dropped once full.
      */
-    private fun recordHistory(s: SolitaireState) {
-        history.addLast(s)
-        if (history.size > MAX_UNDO) history.removeFirst()
-        canUndo.value = true
-    }
-
-    /**
-     * Pops the most recent pre-move snapshot off [history] (if any) and
-     * makes it the current state. The popped snapshot isn't pushed back
-     * anywhere, so calling this repeatedly walks further back through the
-     * last few moves, one at a time, same as any standard undo stack.
-     * No-ops when there's nothing to undo (including before a deal exists),
-     * so wiring the Undo button straight to this call is always safe.
-     */
-    fun undo() {
-        if (isAutoCompleting.value) return
-        val previous = history.removeLastOrNull() ?: return
-        state.value = previous
-        canUndo.value = history.isNotEmpty()
+    private fun recordHistory() {
+        captureSnapshot()?.let { history.push(it) }
     }
 
     /** Called from the "Auto-complete" button — only starts if [SolitaireState.autoCompleteAvailable] actually holds; SolitaireScreen's LaunchedEffect takes it from here, calling [autoCompleteStep] on a delay until it stops. */
     fun startAutoComplete() {
         val s = state.value ?: return
-        if (!s.autoCompleteAvailable) return
+        if (matchOver.value || !s.autoCompleteAvailable) return
+        hintMove.value = null
         isAutoCompleting.value = true
     }
 
@@ -502,7 +721,7 @@ class SolitaireGame : GameModule {
     fun autoCompleteStep() {
         if (!isAutoCompleting.value) return
         val s = state.value
-        if (s == null || s.won) {
+        if (s == null || s.won || matchOver.value) {
             isAutoCompleting.value = false
             return
         }
@@ -510,7 +729,7 @@ class SolitaireGame : GameModule {
         val foundationMove = findFoundationMove(s)
         if (foundationMove != null) {
             val (source, suit, card) = foundationMove
-            recordHistory(s)
+            recordHistory()
             val next = applyMoveToFoundation(s, source, suit, card)
             if (next.won) {
                 gamesWon.value += 1
@@ -525,7 +744,7 @@ class SolitaireGame : GameModule {
             val (source, destIndex) = bufferMove
             val card = s.cardAt(source)
             if (card != null) {
-                recordHistory(s)
+                recordHistory()
                 state.value = applyMoveToTableau(s, source, destIndex, card)
                 return
             }
@@ -578,6 +797,6 @@ class SolitaireGame : GameModule {
 
     private companion object {
         /** How many moves back [undo] can reach — see [history]'s KDoc. */
-        const val MAX_UNDO = 5
+        const val MAX_UNDO = 50
     }
 }

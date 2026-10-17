@@ -10,7 +10,7 @@
     <string name="menu_settings">⚙ Ajustes</string>
 
     <string name="onboarding_title">Bienvenido a GameSuite</string>
-    <string name="onboarding_body">Toca cualquier juego para empezar — cada uno tiene sus propios controles (arrastra las cartas para jugarlas, toca las fichas para moverlas). Consulta Ajustes para la dificultad de la IA, el tamaño de las cartas y las opciones de accesibilidad, y Mis estadísticas para ver tu historial después de jugar algunas partidas.</string>
+    <string name="onboarding_body">Abre Juegos para elegir a qué jugar. Cada juego tiene su propio Centro: elige cómo quieres jugar (contra la IA, con amigos o el reto diario), ajusta las opciones y pulsa Jugar. Se recuerda tu última configuración y las partidas sin terminar esperan en Continuar. En Ajustes encuentras el nivel de la IA, la velocidad del juego, el tamaño de las cartas y la accesibilidad; Estadísticas guarda tu historial.</string>
     <string name="onboarding_dismiss">Entendido</string>
 
     <string name="menu_continue_playing">Continuar jugando</string>
@@ -52,4 +52,27 @@
     <string name="game_air_hockey_vs_cpu">Hockey de aire (contra la CPU)</string>
     <string name="game_air_hockey_pass_play">Hockey de aire (pasar y jugar)</string>
     <string name="game_sliding_puzzle">Puzle deslizante</string>
+
+    <!-- Estructura de la app: barra de navegación, Inicio, Juegos, tarjetas de juego -->
+    <string name="section_party_toolkit">Kit de fiesta</string>
+    <string name="nav_home">Inicio</string>
+    <string name="nav_games">Juegos</string>
+    <string name="nav_stats">Estadísticas</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="home_today">Hoy</string>
+    <string name="home_continue">Continuar</string>
+    <string name="home_favourites">Favoritos</string>
+    <string name="home_recent">Jugados recientemente</string>
+    <string name="home_browse_games">Ver todos los juegos</string>
+    <string name="games_search_label">Buscar juegos</string>
+    <string name="games_search_clear">Borrar búsqueda</string>
+    <string name="games_filter_all">Todos</string>
+    <string name="games_no_results">Ningún juego coincide con tu búsqueda.</string>
+    <string name="badge_daily">Diario</string>
+    <string name="badge_online">En línea</string>
+    <string name="badge_resume">Reanudar</string>
+    <string name="fav_add">Añadir %1$s a favoritos</string>
+    <string name="fav_remove">Quitar %1$s de favoritos</string>
+    <string name="fav_state_on">En favoritos</string>
+    <string name="fav_state_off">No es favorito</string>
 </resources>

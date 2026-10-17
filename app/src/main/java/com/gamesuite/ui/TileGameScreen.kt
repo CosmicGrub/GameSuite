@@ -78,6 +78,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -164,6 +165,7 @@ fun TileGameScreen(
     // 3D Perspective Mode -- gates the tile gloss sheen, same combine rule as every other screen.
     val card3D = LocalCard3DMode.current && !reducedMotion
     val colorblind = LocalColorblindMode.current
+    val gameSpeed = LocalGameSpeed.current
     val state by game.state
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val screenBackground = MaterialTheme.colorScheme.background
@@ -211,7 +213,8 @@ fun TileGameScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.firstMoverIndex = sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
         game.loadDictionary(androidContext)
         // A finished game stays on screen for its result panel (its button calls onMatchEnded). An
@@ -250,7 +253,8 @@ fun TileGameScreen(
         val s = state ?: return@LaunchedEffect
         if (s.matchOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(900)
+            val thinkMs = gameSpeed.scale(900L)
+            if (thinkMs > 60L) delay(thinkMs)
             game.playBotTurn()
         }
     }
@@ -293,6 +297,8 @@ fun TileGameScreen(
                 topPlayers = topPlayers,
                 ink = screenInk,
                 background = screenBackground,
+                namedWinner = context?.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY ||
+                    lastContext[0]?.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
                 onBackToMenu = onMatchEnded
             )
         }
@@ -390,7 +396,14 @@ fun TileGameScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val humanIndex = humanIndex(s, activeContext)
-    val isMyTurn = s.currentPlayerIndex == humanIndex && !s.matchOver
+    // Pass and play: the seat whose player has tapped "I'm ready" on the hand-over cover. While it
+    // differs from the seat to move, the cover hides the screen (and the rack is withheld from the
+    // composition, so a screen reader cannot read it either). -1 = nobody yet, so the first mover
+    // (and a resumed game) also starts behind the cover.
+    val isPassPlay = activeContext.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+    var readySeat by remember { mutableStateOf(-1) }
+    val covered = isPassPlay && !s.matchOver && readySeat != s.currentPlayerIndex
+    val isMyTurn = s.currentPlayerIndex == humanIndex && !s.matchOver && !covered
     val tileSizePx = with(density) { TILE_RACK_TILE.toPx() }
 
     LaunchedEffect(s.currentPlayerIndex) {
@@ -444,14 +457,16 @@ fun TileGameScreen(
         append("Bag ${s.bagCount}")
         if (vsBot) {
             append(" · CPU ")
-            append(settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() })
+            append(game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() })
         }
     }
+    val rackOwner = if (isPassPlay) "${current.displayName}'s rack" else "Your rack"
     val rackTitle = if (swapMode) "Swap mode — tap tiles to exchange, then Swap"
-    else "Your rack — tap a tile, then a square, or drag it onto the board"
+    else "$rackOwner — tap a tile, then a square, or drag it onto the board"
 
     val stagedIds = s.pending.map { it.tile.instanceId }.toSet()
-    val visibleRack = (s.players.getOrNull(humanIndex)?.rack ?: emptyList()).filter { it.instanceId !in stagedIds }
+    val visibleRack = if (covered) emptyList<RackTile>()
+    else (s.players.getOrNull(humanIndex)?.rack ?: emptyList()).filter { it.instanceId !in stagedIds }
 
     // Which pane sits in the top-right corner, under the chrome's corner button: the rack pane when
     // it is the right-hand pane (book posture, or the wide side-pane layout), otherwise the score row.
@@ -787,6 +802,21 @@ fun TileGameScreen(
             // (applies on Standard too); only the camera micro-punch above is Maximum-exclusive.
             if (enhanced) {
                 WordPlayFlourishOverlay(flourish = wordFlourish, nonce = wordFlourishNonce, modifier = Modifier.align(Alignment.Center))
+            }
+
+            // Pass and play hand-over cover: opaque and on top of everything, so the player who just
+            // moved hands the device over without the next player seeing a rack.
+            if (covered) {
+                TileHandoverCover(
+                    nextName = current.displayName,
+                    lastAction = s.lastAction,
+                    ink = screenInk,
+                    background = screenBackground,
+                    onReady = {
+                        readySeat = s.currentPlayerIndex
+                        currentHaptics(HapticSignal.LIGHT_TICK)
+                    }
+                )
             }
         }
     }
@@ -1510,6 +1540,7 @@ private fun TileResultPanel(
     topPlayers: List<TilePlayerState>,
     ink: Color,
     background: Color,
+    namedWinner: Boolean = false,
     onBackToMenu: () -> Unit
 ) {
     val topIds = topPlayers.map { it.playerId }.toSet()
@@ -1523,7 +1554,7 @@ private fun TileResultPanel(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            tileResultTitle(topPlayers),
+            tileResultTitle(topPlayers, namedWinner),
             style = MaterialTheme.typography.headlineSmall,
             color = ink,
             textAlign = TextAlign.Center,
@@ -1555,13 +1586,63 @@ private fun TileResultPanel(
     }
 }
 
+/**
+ * Pass and play hand-over screen: covers the whole play area between turns so the next player does
+ * not see the previous player's rack, and names who the device goes to. Only the button dismisses it
+ * (a stray tap by the player who just moved must not reveal the next rack).
+ */
+@Composable
+private fun TileHandoverCover(
+    nextName: String,
+    lastAction: String,
+    ink: Color,
+    background: Color,
+    onReady: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+            // Swallows touches so nothing underneath (board, rack, actions) can be reached.
+            .clickable(enabled = true, onClick = {})
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "Pass the device to",
+            style = MaterialTheme.typography.titleMedium,
+            color = ink,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            nextName,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = ink,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        if (lastAction.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(lastAction, style = MaterialTheme.typography.bodyMedium, color = ink.copy(alpha = 0.8f), textAlign = TextAlign.Center)
+        }
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onReady,
+            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("I'm ready") }
+    }
+}
+
 /** "You win with 120 points!" / "CPU wins with 98 points!" / "It's a tie!". */
-private fun tileResultTitle(topPlayers: List<TilePlayerState>): String = when {
+private fun tileResultTitle(topPlayers: List<TilePlayerState>, namedWinner: Boolean = false): String = when {
     topPlayers.isEmpty() -> "Game over"
     topPlayers.size > 1 -> "It's a tie!"
     else -> {
         val winner = topPlayers.first()
-        if (winner.displayName.equals("You", ignoreCase = true)) {
+        // Pass and play always names the winner ("Player 2 wins"), even if a player typed "You".
+        if (!namedWinner && winner.displayName.equals("You", ignoreCase = true)) {
             "You win with ${winner.score} points!"
         } else {
             "${winner.displayName} wins with ${winner.score} points!"

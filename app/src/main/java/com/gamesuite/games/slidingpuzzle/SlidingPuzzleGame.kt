@@ -4,7 +4,36 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Sliding Puzzle session back exactly as it was: the board, its original
+ * scramble (so Reset still works), the session tally, difficulty, daily seed, picture source, hints
+ * used and the pause-adjusted stopwatch. One shape serves Resume (written to disk) and Undo (kept in
+ * memory), so a board and its counters are never restored out of step.
+ */
+@Serializable
+private data class SlidingPuzzleSnapshot(
+    val size: Int,
+    val tiles: List<Int>,
+    val moveCount: Int,
+    val solved: Boolean,
+    val initialTiles: List<Int>,
+    val puzzlesSolved: Int,
+    val difficulty: String,
+    val dailySeed: Long? = null,
+    val imageSource: String = "NUMBERS",
+    val hintsUsed: Int = 0,
+    /** False until the first real slide; then [activeElapsedMillis] is meaningful. */
+    val timerStarted: Boolean = false,
+    /** Pause-adjusted milliseconds of active play (the frozen solve time once [solved]); never a clock reading. */
+    val activeElapsedMillis: Long = 0L,
+    val playerId: String
+)
+
+private val slidingPuzzleSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * One puzzle's board: [size] x [size] cells in row-major order, [tiles]
@@ -78,8 +107,15 @@ data class SlidingPuzzleState(
  * mocked" under plain JUnit (no Robolectric in this project); this seam
  * mirrors the one MinesweeperGame/SudokuGame/LightsOutGame added for the
  * exact same reason.
+ *
+ * RESUME / UNDO / HINT: [snapshot]/[restore] (see [SlidingPuzzleSnapshot]) put an in-progress session
+ * back exactly as it was, with the stopwatch rebuilt from its ACTIVE elapsed time so the time the app
+ * was gone is not counted. [undo] takes back one tile slide (the clock keeps running, [hintsUsed] never
+ * goes down, and a solved board cannot be undone since its record is already written). [hint] suggests
+ * one tile to slide using a short Manhattan-distance lookahead: a heuristic, not a shortest-path solve.
+ * Any hint marks the puzzle assisted ([hintsUsed] > 0) and the screen then skips the best-record write.
  */
-class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "sliding-puzzle"
     override val displayName = "Sliding Puzzle"
     override val category = GameCategory.PUZZLE
@@ -116,6 +152,26 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
      */
     private var initialArrangement: List<Int>? = null
 
+    /** Tile value the last [hint] suggested, highlighted until the next slide, undo, reset or new puzzle. */
+    val hintTile = mutableStateOf<Int?>(null)
+
+    /** Hints taken on the CURRENT puzzle (kept across Reset, which replays the same scramble). Any value above 0 means an assisted solve. */
+    val hintsUsed = mutableStateOf(0)
+
+    /**
+     * Which picture the screen cuts the tiles from ("NUMBERS", "BUILT_IN_SUNSET", "BUILT_IN_KOI",
+     * "CUSTOM"). The screen owns the images; the engine only carries the tag so a saved game can put
+     * the same picture mode back. A custom photo cannot be saved, so the screen falls back to NUMBERS.
+     */
+    var imageSourceTag: String = "NUMBERS"
+
+    /** The seed the current puzzle was scrambled from, or null for an ordinary random one. Set by [startMatch]. */
+    var activeDailySeed: Long? = null
+        private set
+
+    /** Boards before each human slide, newest last; popping one is Undo. Per puzzle: a new puzzle starts empty. */
+    private val history = SnapshotHistory()
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -136,6 +192,10 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        history.clear()
+        hintTile.value = null
+        hintsUsed.value = 0
+        imageSourceTag = "NUMBERS"
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -161,9 +221,215 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
         // puzzle's endMatch() left matchOver stuck true (see the class KDoc's
         // note on this fix) -- found by adversarial review, see that note.
         matchOver.value = false
+        // A new puzzle starts a new undo history and a clean hint record.
+        history.clear()
+        hintTile.value = null
+        hintsUsed.value = 0
+        activeDailySeed = dailySeed
         val puzzle = generatePuzzle(size, scrambleMoves, dailySeed)
         state.value = puzzle
         initialArrangement = puzzle.tiles
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    /** Pause-adjusted active milliseconds since the stopwatch started at [start]; frozen at the pause anchor while paused. */
+    private fun activeElapsedMillis(start: Long): Long =
+        ((pausedAtElapsedRealtime ?: nowMillis()) - start - totalPausedMillis).coerceAtLeast(0L)
+
+    private fun captureSnapshot(): String? {
+        if (!::context.isInitialized) return null
+        val s = state.value ?: return null
+        val initial = initialArrangement ?: return null
+        val playerId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return null
+        val start = timerStartElapsedRealtime.value
+        val elapsed = when {
+            s.solved -> solvedElapsedMillis.value ?: 0L
+            start == null -> 0L
+            else -> activeElapsedMillis(start)
+        }
+        return slidingPuzzleSnapshotJson.encodeToString(
+            SlidingPuzzleSnapshot.serializer(),
+            SlidingPuzzleSnapshot(
+                size = s.size,
+                tiles = s.tiles,
+                moveCount = s.moveCount,
+                solved = s.solved,
+                initialTiles = initial,
+                puzzlesSolved = puzzlesSolved.value,
+                difficulty = difficulty.name,
+                dailySeed = activeDailySeed,
+                imageSource = imageSourceTag,
+                hintsUsed = hintsUsed.value,
+                timerStarted = start != null,
+                activeElapsedMillis = elapsed,
+                playerId = playerId
+            )
+        )
+    }
+
+    /** True when [list] holds each of 0 until [count] exactly once. */
+    private fun isPermutation(list: List<Int>, count: Int): Boolean =
+        list.size == count && list.sorted() == (0 until count).toList()
+
+    /** Decodes and sanity-checks a snapshot against THIS game's grid sizes and roster; null if it is unusable. */
+    private fun decodeSnapshot(text: String): SlidingPuzzleSnapshot? {
+        if (!::context.isInitialized) return null
+        val snap = try {
+            slidingPuzzleSnapshotJson.decodeFromString(SlidingPuzzleSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val cells = snap.size * snap.size
+        // The tier must be a real one and own this grid size, or the best-record key would not match the board.
+        val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty }
+        val valid = tier != null && difficultyConfig[tier]?.first == snap.size &&
+            isPermutation(snap.tiles, cells) &&
+            isPermutation(snap.initialTiles, cells) &&
+            snap.moveCount >= 0 &&
+            snap.puzzlesSolved >= 0 &&
+            snap.hintsUsed >= 0 &&
+            snap.activeElapsedMillis >= 0L &&
+            snap.solved == (snap.tiles == solvedTiles(snap.size)) &&
+            (!snap.solved || snap.timerStarted) &&
+            snap.playerId == context.players.getOrNull(context.localPlayerIndex)?.playerId
+        return if (valid) snap else null
+    }
+
+    /** Null when there is nothing to save: no puzzle yet, the session already ended, or a mode that cannot be resumed. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (!::context.isInitialized || context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            // Everything is validated; from here on only assignments, so a restore is all-or-nothing.
+            val now = nowMillis()
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            // The clock continues from the active elapsed time; the time the app was gone is not counted.
+            timerStartElapsedRealtime.value = if (snap.timerStarted) now - snap.activeElapsedMillis else null
+            solvedElapsedMillis.value = if (snap.solved) snap.activeElapsedMillis else null
+            matchOver.value = false
+            puzzlesSolved.value = snap.puzzlesSolved
+            difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+            activeDailySeed = snap.dailySeed
+            imageSourceTag = snap.imageSource
+            hintsUsed.value = snap.hintsUsed
+            hintTile.value = null
+            initialArrangement = snap.initialTiles
+            history.clear()
+            state.value = SlidingPuzzleState(size = snap.size, tiles = snap.tiles, moveCount = snap.moveCount, solved = snap.solved)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.solved != true
+
+    /**
+     * Takes back the last tile slide. The clock keeps running (elapsed time is never rewound),
+     * [hintsUsed] keeps its maximum, and a solved board cannot be undone (its result is already
+     * recorded). The board and move counter go back to what they were before that slide.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        if (s.solved) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        if (snap.size != s.size) return
+        state.value = s.copy(tiles = snap.tiles, moveCount = snap.moveCount, solved = false)
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintTile.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests the tile to slide next and highlights it ([hintTile]). Heuristic, not a solver: it
+     * looks [HINT_LOOKAHEAD] slides ahead (never straight back over the previous slide) and picks the
+     * first slide of the line that ends with the smallest total Manhattan distance to the goal.
+     * Null when the puzzle is solved or the session over. Every new suggestion counts in [hintsUsed];
+     * asking again while one is showing returns it without counting twice.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.solved) return null
+        hintTile.value?.let { return it }
+        val tile = chooseHintTile(s.tiles, s.size) ?: return null
+        hintsUsed.value += 1
+        hintTile.value = tile
+        return tile
+    }
+
+    private fun tileDistance(tile: Int, position: Int, size: Int): Int {
+        val home = tile - 1
+        return kotlin.math.abs(position / size - home / size) + kotlin.math.abs(position % size - home % size)
+    }
+
+    private fun totalDistance(tiles: IntArray, size: Int): Int {
+        var sum = 0
+        for (i in tiles.indices) if (tiles[i] != 0) sum += tileDistance(tiles[i], i, size)
+        return sum
+    }
+
+    /** Smallest total Manhattan distance reachable within [depth] more slides; mutates [tiles] but restores it. */
+    private fun hintSearch(tiles: IntArray, size: Int, blank: Int, cameFrom: Int, depth: Int, distance: Int): Int {
+        if (distance == 0 || depth == 0) return distance
+        var best = Int.MAX_VALUE
+        for (next in neighborsOf(blank, size)) {
+            if (next == cameFrom) continue
+            val tile = tiles[next]
+            val delta = tileDistance(tile, blank, size) - tileDistance(tile, next, size)
+            tiles[blank] = tile
+            tiles[next] = 0
+            val result = hintSearch(tiles, size, next, blank, depth - 1, distance + delta)
+            tiles[next] = tile
+            tiles[blank] = 0
+            if (result < best) best = result
+        }
+        return if (best == Int.MAX_VALUE) distance else best
+    }
+
+    private fun chooseHintTile(board: List<Int>, size: Int): Int? {
+        val tiles = board.toIntArray()
+        val blank = tiles.indexOf(0)
+        if (blank < 0) return null
+        val startDistance = totalDistance(tiles, size)
+        var bestTile: Int? = null
+        var bestScore = Int.MAX_VALUE
+        var bestImmediate = Int.MAX_VALUE
+        for (index in neighborsOf(blank, size)) {
+            val tile = tiles[index]
+            val immediate = startDistance + tileDistance(tile, blank, size) - tileDistance(tile, index, size)
+            tiles[blank] = tile
+            tiles[index] = 0
+            val score = hintSearch(tiles, size, index, blank, HINT_LOOKAHEAD - 1, immediate)
+            tiles[index] = tile
+            tiles[blank] = 0
+            if (score < bestScore || (score == bestScore && immediate < bestImmediate)) {
+                bestScore = score
+                bestImmediate = immediate
+                bestTile = tile
+            }
+        }
+        return bestTile
+    }
+
+    private companion object {
+        /** Slides the hint looks ahead, the suggested one included. */
+        const val HINT_LOOKAHEAD = 5
     }
 
     /**
@@ -217,6 +483,11 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
         val blankIndex = s.tiles.indexOf(0)
         if (index !in neighborsOf(blankIndex, s.size)) return
 
+        // The move is valid: remember the board as it is now (a rejected tap above leaves no step),
+        // and drop any showing hint, which was about the board that is about to change.
+        captureSnapshot()?.let { history.push(it) }
+        hintTile.value = null
+
         // Stopwatch starts on the first *actual* slide, not on puzzle generation — a no-op
         // tap above never reaches this line, so idle time before the player's first real
         // move is never counted.
@@ -252,6 +523,8 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
         solvedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        history.clear()
+        hintTile.value = null
         state.value = s.copy(tiles = initial, moveCount = 0, solved = false)
     }
 

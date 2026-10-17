@@ -61,6 +61,8 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.tictactoe.TicTacToeGame
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.settings.GameSpeed
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
@@ -149,6 +151,8 @@ fun TicTacToeScreen(
     val colorblind = LocalColorblindMode.current
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val gameSpeed = LocalGameSpeed.current
+    val botDelayMs = scaledPause(gameSpeed, 500L)
 
     // Audio infra wiring (audio pass): ambient music respects BOTH the
     // ambient-music setting AND the master sound toggle, same AND pattern
@@ -162,7 +166,8 @@ fun TicTacToeScreen(
     var gameReady by remember { mutableStateOf(false) }
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         game.misere = misere
         game.wild = wild
         game.init(ctx)
@@ -200,8 +205,13 @@ fun TicTacToeScreen(
     val isBotTurn = players.getOrNull(currentPlayer - 1)?.isBot == true
     // Whether THIS device may place a mark right now. Network play keys on the local seat (a
     // guest used to be able to tap on the host's turn); local play only blocks the CPU's turn.
-    val canAct = gameReady && ctx != null && !roundOver &&
+    val opponentLeft = networked && game.opponentLeft.value
+    val canAct = gameReady && ctx != null && !roundOver && !opponentLeft &&
         (if (networked) localSeat == currentPlayer else !isBotTurn)
+    // Network play is always the classic rules, whatever the route's variant flags say.
+    val misereRules = misere && !networked
+    val wildRules = wild && !networked
+    val opponentName = if (localSeat != null) players.getOrNull(2 - localSeat)?.displayName else null
     val finishedRounds = scoreP1 + scoreP2 + draws
 
     // Winning-line draw-on animation (animation/physics pitch): the three
@@ -230,7 +240,7 @@ fun TicTacToeScreen(
     // point (the engine returns before flipping it), which roundWinnerSeat relies on.
     LaunchedEffect(roundOver, winningLine) {
         if (!roundOver) return@LaunchedEffect
-        val winner = roundWinnerSeat(winningLine, currentPlayer, misere)
+        val winner = roundWinnerSeat(winningLine, currentPlayer, misereRules)
         when {
             winner == null -> haptics(HapticSignal.NORMAL_ACTION)
             localSeat == null -> {
@@ -256,7 +266,7 @@ fun TicTacToeScreen(
         if (!roundOver) {
             resultReady = false
         } else {
-            if (winningLine != null && !reducedMotion) delay(RESULT_HOLD_MS)
+            if (winningLine != null && !reducedMotion) delay(scaledPause(gameSpeed, RESULT_HOLD_MS))
             resultReady = true
         }
     }
@@ -311,7 +321,9 @@ fun TicTacToeScreen(
      *  old marks dismiss together. */
     fun handlePlayAgain() {
         if (isClearingRound) return
-        if (reducedMotion) {
+        // Networked: the host re-deals and the guest's board only resets when the host's state
+        // arrives, so there is nothing local to animate out (it would flash the old marks back).
+        if (reducedMotion || networked) {
             game.playAgain()
             return
         }
@@ -341,7 +353,7 @@ fun TicTacToeScreen(
         val c = context ?: return@LaunchedEffect
         if (!gameReady || roundOver) return@LaunchedEffect
         if (c.players.getOrNull(currentPlayer - 1)?.isBot == true) {
-            delay(500)
+            delay(botDelayMs)
             game.playBotTurn()
             // The bot's placement is otherwise silent (sounds.playTap() only fires from the
             // human's tap). A light tick + haptic gives the CPU's move the same "something
@@ -373,15 +385,18 @@ fun TicTacToeScreen(
 
     val scoreText = "$p1Name: $scoreP1 · $p2Name: $scoreP2" + if (draws > 0) " · Draws: $draws" else ""
     val infoText = buildList<String> {
-        if (!wild && localSeat != null) add("You are ${if (localSeat == 1) "X" else "O"}")
+        if (networked && opponentName != null) add("vs $opponentName")
+        if (!wildRules && localSeat != null) add("You are ${if (localSeat == 1) "X" else "O"}")
+        if (!wildRules && localSeat == null && !networked && ctx != null) add("$p1Name is X, $p2Name is O")
         if (vsCpu) {
             // From the engine, not Settings: a resumed game keeps the difficulty it was saved with.
             add("CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
         }
-        if (misere) add("Misere mode: completing a line loses!")
-        if (wild) add("Wild mode: choose X or O each turn")
+        if (misereRules) add("Misere mode: completing a line loses!")
+        if (wildRules) add("Wild mode: choose X or O each turn")
     }.joinToString(" · ")
     val turnText = when {
+        opponentLeft -> "Opponent disconnected"
         roundOver -> "Round over"
         networked -> if (canAct) "Your turn" else "Waiting for $currentName..."
         isBotTurn -> "$currentName is thinking..."
@@ -440,7 +455,7 @@ fun TicTacToeScreen(
                         // rules fix that to the player's own mark, so there's nothing
                         // to choose. Stays on screen (disabled off-turn) rather than
                         // appearing and disappearing, so the board doesn't jump.
-                        if (wild) {
+                        if (wildRules) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(1 to "X", 2 to "O").forEach { (symbol, label) ->
@@ -637,7 +652,12 @@ fun TicTacToeScreen(
                             }
                         ) {
                             RoundOverPanel(
-                                resultText = roundResultText(winningLine, currentPlayer, misere, localSeat, p1Name, p2Name),
+                                resultText = if (networked) {
+                                    networkRoundResultText(winningLine, currentPlayer, localSeat, p1Name, p2Name)
+                                } else {
+                                    roundResultText(winningLine, currentPlayer, misere, localSeat, p1Name, p2Name)
+                                },
+                                canPlayAgain = !opponentLeft,
                                 onPlayAgain = ::handlePlayAgain,
                                 onBackToMenu = game::leaveSession
                             )
@@ -717,6 +737,9 @@ private const val RESULT_HOLD_MS = 350L
 
 private const val TTT_STAGGER_MS = 35L
 
+/** A pause multiplied by the player's game speed; very short beats (<= 60ms) are left alone. */
+internal fun scaledPause(speed: GameSpeed, baseMs: Long): Long = if (baseMs <= 60L) baseMs else speed.scale(baseMs)
+
 /** "You" -> "Your" (not "You's"); any other display name -> "Name's". */
 private fun possessive(name: String): String = if (name == "You") "Your" else "$name's"
 
@@ -773,6 +796,27 @@ internal fun roundResultText(
         misere -> "$moverName made a line and loses!"
         moverIsLocal -> "You win!"
         else -> "$moverName wins!"
+    }
+}
+
+/**
+ * Round headline for network play (classic rules only): names the winner and says whether the
+ * local player won. A draw is "It's a draw!". [localSeat] null (a spectator) falls back to the
+ * plain "<name> wins!".
+ */
+internal fun networkRoundResultText(
+    winningLine: List<Int>?,
+    moverSeat: Int,
+    localSeat: Int?,
+    p1Name: String,
+    p2Name: String
+): String {
+    if (winningLine == null) return "It's a draw!"
+    val moverName = if (moverSeat == 1) p1Name else p2Name
+    return when {
+        localSeat == null -> "$moverName wins!"
+        moverSeat == localSeat -> "You win!"
+        else -> "$moverName wins - you lose"
     }
 }
 
@@ -996,6 +1040,7 @@ private fun TicTacToeControlsRow(
 @Composable
 private fun RoundOverPanel(
     resultText: String,
+    canPlayAgain: Boolean = true,
     onPlayAgain: () -> Unit,
     onBackToMenu: () -> Unit
 ) {
@@ -1015,6 +1060,7 @@ private fun RoundOverPanel(
             // height for the touch-target floor.
             Button(
                 onClick = onPlayAgain,
+                enabled = canPlayAgain,
                 modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
             ) {
                 Text("Play Again")

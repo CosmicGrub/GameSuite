@@ -38,6 +38,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setEnhancedAnimationsEnabled(enabled: Boolean) = viewModelScope.launch { repository.setEnhancedAnimationsEnabled(enabled) }
     fun setDefaultCpuDifficulty(difficulty: CpuDifficulty) =
         viewModelScope.launch { repository.setDefaultCpuDifficulty(difficulty) }
+    fun setGameSpeed(speed: GameSpeed) = viewModelScope.launch { repository.setGameSpeed(speed) }
     fun setCardSizePreference(preference: Float) =
         viewModelScope.launch { repository.setCardSizePreference(preference) }
     fun setOnlineServerUrl(url: String) = viewModelScope.launch { repository.setOnlineServerUrl(url) }

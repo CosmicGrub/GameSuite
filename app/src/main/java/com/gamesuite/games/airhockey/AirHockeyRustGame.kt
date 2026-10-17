@@ -106,12 +106,16 @@ class AirHockeyRustGame : GameModule {
     }
 
     override fun startMatch() {
+        paused = false
         sim.startMatch()
         syncStateFromSim()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /** While true, [tick] is a no-op so the puck freezes (the corner menu is open). Idempotent. */
+    private var paused = false
+
+    override fun pause() { paused = true }
+    override fun resume() { paused = false }
 
     override fun endMatch(result: GameResult) {
         state.value = state.value.copy(matchOver = true)
@@ -134,6 +138,7 @@ class AirHockeyRustGame : GameModule {
      *  same "fires exactly once" guarantee [AirHockeyGame.tick] has (it early-returns before
      *  reaching that code on every subsequent call once `matchOver` is true). */
     fun tick(dtSeconds: Float) {
+        if (paused) return
         val wasMatchOver = state.value.matchOver
         sim.tick(dtSeconds)
         syncStateFromSim()

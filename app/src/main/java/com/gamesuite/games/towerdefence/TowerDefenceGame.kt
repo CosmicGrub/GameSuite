@@ -287,6 +287,12 @@ class TowerDefenceGame : GameModule {
     )
     val matchOver = mutableStateOf(false)
 
+    /** How many runs have ended (won or lost) this session, across every [playAgain]. The UI uses
+     *  it to decide whether leaving mid-run must still go through [leaveSession] so those finished
+     *  runs count, instead of a pure abort. Bumped once per run, in [tick], the only place a run
+     *  can end (which no-ops once the run is over). */
+    val runsFinished = mutableStateOf(0)
+
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(), same
      *  idiom as every other engine's own `difficulty` var. */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
@@ -576,7 +582,10 @@ class TowerDefenceGame : GameModule {
         }
 
         if (runResult == TowerDefenceRunResult.WON) everWonThisSession = true
-        if (runResult != null) bestWaveThisSession = maxOf(bestWaveThisSession, waveNumber)
+        if (runResult != null) {
+            bestWaveThisSession = maxOf(bestWaveThisSession, waveNumber)
+            runsFinished.value += 1
+        }
 
         state.value = s.copy(
             lives = lives, gold = gold, enemies = enemies, towers = towers, projectiles = projectiles,

@@ -20,6 +20,7 @@ import com.gamesuite.games.cards.LocalCardScale
 import com.gamesuite.games.cards.PlayingCardView
 import com.gamesuite.settings.AppSettings
 import com.gamesuite.settings.CpuDifficulty
+import com.gamesuite.settings.GameSpeed
 import com.gamesuite.settings.NamedTheme
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.settings.ThemeMode
@@ -181,6 +182,17 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(8.dp))
             DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
+
+            Spacer(Modifier.height(20.dp))
+            Text("Game speed", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "How long opponents take to move and how long big moments hold. Slow gives you " +
+                    "time to read the table between turns; Quick keeps things snappy. " + settings.gameSpeed.description,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Spacer(Modifier.height(8.dp))
+            GameSpeedSelector(settings.gameSpeed, onSelect = viewModel::setGameSpeed)
 
             Spacer(Modifier.height(24.dp))
             SectionHeader("Online multiplayer")
@@ -398,6 +410,26 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
             Text(
                 "Disable dynamic color to pick a palette",
                 style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun GameSpeedSelector(selected: GameSpeed, onSelect: (GameSpeed) -> Unit) {
+    // focusGroup() (§4c): the speed chips are one selectable cluster. A wrapping row: four chips do
+    // not fit a foldable's cover screen in one line.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.focusGroup()
+    ) {
+        GameSpeed.values().forEach { speed ->
+            FilterChip(
+                selected = selected == speed,
+                onClick = { onSelect(speed) },
+                label = { Text(speed.label) },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
         }
     }

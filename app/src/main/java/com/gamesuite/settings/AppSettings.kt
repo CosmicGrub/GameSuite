@@ -78,6 +78,8 @@ data class AppSettings(
      */
     val enhancedAnimationsEnabled: Boolean = true,
     val defaultCpuDifficulty: CpuDifficulty = CpuDifficulty.MEDIUM,
+    /** How fast opponents act and how long dramatic beats hold, app-wide. See [GameSpeed]. */
+    val gameSpeed: GameSpeed = GameSpeed.NORMAL,
     /**
      * 0f..1f slider position, not an absolute size — see
      * games/cards/CardScale.kt's rememberCardScaleMultiplier() for how this

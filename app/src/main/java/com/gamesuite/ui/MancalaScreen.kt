@@ -52,6 +52,7 @@ import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
@@ -65,6 +66,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -83,6 +85,12 @@ import kotlinx.coroutines.launch
 /**
  * Renders MancalaGame's state: a 2x6 pit board with a store at each end (standard Kalah rules,
  * all in the engine), a CPU/pass-and-play turn prompt, and a result panel.
+ *
+ * ORIENTATION: fixed in every mode. Seat 0 (You / Player 1) owns the near (bottom) row with its
+ * store on the right; seat 1 (CPU / Player 2) owns the far row with its store on the left. In
+ * pass and play the board is NOT flipped per turn (a flip would also teleport the seed-hop
+ * animation); the turn prompt names whose pits are live. Per-launch Hub choices: CPU difficulty
+ * comes from the launch (else Settings) and the first-mover seat via [MancalaGame.openingSeatIndex].
  *
  * LAYOUT AND SIZING: the board is sized with [fitBoard] from the measured slot it lives in (never
  * an outer scope). One layout unit `u` is a quarter of a pit's pitch: a pit slot is 4u x 5u, a
@@ -152,10 +160,15 @@ fun MancalaScreen(
     val motionPrefs = remember { MancalaMotionPrefs(androidContext) }
     val motionTier by motionPrefs.tier.collectAsState(initial = MancalaMotionTier.STANDARD)
     val scope = rememberCoroutineScope()
+    // Settings -> Gameplay speed: scales the bot's think pause and the result hold.
+    val gameSpeed = LocalGameSpeed.current
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        // Per-launch Hub choices (read once, before tryResume/startMatch; a resumed game's snapshot
+        // overrides both): the CPU level and which roster seat sows first on the first board.
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex.coerceIn(0, 1)
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -175,12 +188,34 @@ fun MancalaScreen(
         val ctx = context ?: return@LaunchedEffect
         if (s.roundOver) return@LaunchedEffect
         if (ctx.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(700)
+            val thinkMs = gameSpeed.scale(BOT_THINK_MS)
+            if (thinkMs > 60L) delay(thinkMs)
             game.playBotTurn()
         }
     }
 
-    val s = state ?: return
+    // Networked play (Nearby / Online): the seat this device plays, or -1 for local play. Cached like
+    // the players below because endActiveGame nulls the context while the exit transition runs, and
+    // the board must not un-flip (or the "waiting" state flicker) at that moment.
+    val netSeatCache = remember { IntArray(1) { -1 } }
+    context?.let { c ->
+        netSeatCache[0] = if (c.activeMode == PlayMode.LOCAL_AD_HOC || c.activeMode == PlayMode.ONLINE) {
+            c.localPlayerIndex.coerceIn(0, 1)
+        } else {
+            -1
+        }
+    }
+    val networked = netSeatCache[0] >= 0
+    // Whose pits are drawn on the bottom row: the local seat when networked (the guest's board is
+    // the host's rotated half a turn), always seat 0 otherwise.
+    val viewSeat = if (networked) netSeatCache[0] else 0
+    val opponentGone by game.opponentDisconnected
+
+    val s = state ?: run {
+        // A guest has no board until the host's first StateSync arrives.
+        if (networked) MancalaWaitingForHost(onLeave = game::leaveSession)
+        return
+    }
     // Deliberately NOT `context ?: return`: setOnMatchEnd (above) calls endActiveGame, which nulls
     // activeContext the same beat the session ends, and nothing below may be skipped (or its
     // remembered state thrown away) because of that. The last known players are kept so the
@@ -190,10 +225,12 @@ fun MancalaScreen(
     val players: List<PlayerInfo> = context?.players ?: playersCache[0] ?: emptyList()
     val hasBot = players.any { it.isBot }
     val mover = players.getOrNull(s.currentPlayerIndex)
-    val ownerLabel0 = ownerLabelFor(0, players, hasBot)
-    val ownerLabel1 = ownerLabelFor(1, players, hasBot)
+    val ownerLabel0 = ownerLabelFor(0, players, hasBot, if (networked) viewSeat else null)
+    val ownerLabel1 = ownerLabelFor(1, players, hasBot, if (networked) viewSeat else null)
     val p0Name = players.getOrNull(0)?.displayName ?: "Player 1"
     val p1Name = players.getOrNull(1)?.displayName ?: "Player 2"
+    val localPlayer = if (networked) players.getOrNull(viewSeat) else null
+    val opponentName = if (networked) players.getOrNull(1 - viewSeat)?.displayName ?: "Opponent" else ""
 
     val hintPit by game.hintPit
     val scoreP1 by game.scoreP1
@@ -204,7 +241,9 @@ fun MancalaScreen(
 
     val winner = if (s.roundOver) players.firstOrNull { it.playerId == s.winnerPlayerId } else null
     // Celebration (haptic, chime) is for a HUMAN's win only -- never the CPU's win or a tie.
-    val humanWon = winner != null && !winner.isBot
+    // Networked: only the local player's own win counts (the opponent is human too).
+    val humanWon = if (networked) winner != null && winner == localPlayer else winner != null && !winner.isBot
+    val youWon = networked && humanWon
 
     // Rows are gated by whose pits they are and whose turn it currently is — NOT by a
     // fixed "human index" (SINGLE_DEVICE_PASS_AND_PLAY has two non-bot players, so a
@@ -212,7 +251,11 @@ fun MancalaScreen(
     // isHumanTurn additionally blocks the human from tapping while a bot is thinking,
     // preserving vs-bot behavior without needing to know which side "the human" is.
     val isHumanTurn = mover?.isBot != true
-    val humanCanMove = isHumanTurn && !s.roundOver
+    val humanCanMove = if (networked) {
+        !s.roundOver && s.currentPlayerIndex == viewSeat && !opponentGone
+    } else {
+        isHumanTurn && !s.roundOver
+    }
 
     // Capture preview: outline whichever of the current human player's legal pits would
     // land the last stone in an empty pit of theirs. Reuses MancalaGame.captureCandidates
@@ -338,7 +381,9 @@ fun MancalaScreen(
 
         val capture = s.lastCapture
         val roundJustEnded = s.roundOver && !prev.roundOver
-        val moverWasBot = players.getOrNull(prev.currentPlayerIndex)?.isBot == true
+        // "Not the local human": a bot, or (networked) the remote opponent.
+        val moverWasBot = players.getOrNull(prev.currentPlayerIndex)?.isBot == true ||
+            (networked && prev.currentPlayerIndex != viewSeat)
         // A non-capturing sow that lands exactly in the mover's own store keeps
         // currentPlayerIndex unchanged -- see MancalaGame.sow's `extraTurn` branch.
         val isExtraTurn = !s.roundOver && capture == null && s.currentPlayerIndex == prev.currentPlayerIndex
@@ -384,15 +429,32 @@ fun MancalaScreen(
     // The && keeps the panel off a freshly dealt board during the one frame before the effect above resets it.
     val showResult = resultVisible && s.roundOver
 
-    val prompt = turnPrompt(mover = mover, hasBot = hasBot, extraTurn = extraTurnOwed, roundOver = s.roundOver)
+    val prompt = if (networked) {
+        networkedPrompt(
+            myTurn = s.currentPlayerIndex == viewSeat,
+            opponentName = opponentName,
+            extraTurn = extraTurnOwed,
+            roundOver = s.roundOver,
+            opponentGone = opponentGone
+        )
+    } else {
+        turnPrompt(mover = mover, hasBot = hasBot, extraTurn = extraTurnOwed, roundOver = s.roundOver)
+    }
     val summary = moveSummary(s, players)
     val detailLines = buildList<String> {
+        if (networked) add("Playing against $opponentName")
         if (hasBot) {
             add("CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
         }
         if (finishedRounds > 0 && !s.roundOver) add(sessionLine(p0Name, p1Name, scoreP1, scoreP2, draws))
     }
-    val resultTitle = if (winner != null) winTitle(winner.displayName) else "It's a tie!"
+    val resultTitle = when {
+        winner == null -> "It's a tie!"
+        networked -> if (youWon) "${winner.displayName} wins - you won!" else "${winner.displayName} wins - you lost"
+        else -> winTitle(winner.displayName)
+    }
+    // Play Again needs the other player to still be there.
+    val canPlayAgain = !(networked && opponentGone)
     val stonesLine = "Final stones: $p0Name ${s.pits[6]} · $p1Name ${s.pits[13]}"
     val resultSessionLine = sessionLine(p0Name, p1Name, scoreP1, scoreP2, draws)
 
@@ -414,9 +476,10 @@ fun MancalaScreen(
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
         leaveKeepsProgress = finishedRounds == 0,
-        onUndo = { game.undo() },
-        canUndo = game.canUndo,
-        onHint = { game.hint() },
+        // Networked play has no takebacks or hints (the opponent is a person).
+        onUndo = if (networked) null else ({ game.undo() }),
+        canUndo = !networked && game.canUndo,
+        onHint = if (networked) null else ({ game.hint() }),
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -479,69 +542,54 @@ fun MancalaScreen(
                             .border(2.dp, WOOD_DEEP, SlabShape)
                             .padding(SLAB_PADDING)
                     ) {
+                        // Local play: seat 1 on the far row (12 downTo 7), seat 0 on the near row (0..5),
+                        // stores 13 | 6. Networked: the same layout turned half a turn for seat 1, so
+                        // each player's own pits are on the near row and their store on the right
+                        // (near row 7..12, far row 5 downTo 0, stores 6 | 13). Pit numbers always count
+                        // from the pit farthest from the owner's store, so they do not change.
+                        val leftStore = if (viewSeat == 0) 13 else 6
+                        val rightStore = if (viewSeat == 0) 6 else 13
+                        val farRow: IntProgression = if (viewSeat == 0) (12 downTo 7) else (5 downTo 0)
+                        val nearRow: IntProgression = if (viewSeat == 0) (0..5) else (7..12)
+                        val pitCell: @Composable (Int) -> Unit = { pit ->
+                            val seat = if (pit <= 5) 0 else 1
+                            Box(modifier = Modifier.onGloballyPositioned { pitPositions[pit] = it.pitCenter() }) {
+                                PitView(
+                                    count = s.pits[pit],
+                                    enabled = humanCanMove && s.currentPlayerIndex == seat && s.pits[pit] > 0 &&
+                                        (!networked || seat == viewSeat),
+                                    highlightCapture = pit in captureCandidates,
+                                    hinted = pit == hintPit,
+                                    ownerLabel = if (seat == 0) ownerLabel0 else ownerLabel1,
+                                    pitNumber = if (seat == 0) pit + 1 else pit - 6,
+                                    unit = u,
+                                    card3D = card3D,
+                                    jostleActive = jostleActive,
+                                    physics = seedPhysics,
+                                    slotIndex = pit,
+                                    physicsFrame = physicsFrame,
+                                    onClick = { game.sow(seat, pit) }
+                                )
+                            }
+                        }
+                        val storeCell: @Composable (Int) -> Unit = { store ->
+                            Box(modifier = Modifier.onGloballyPositioned { pitPositions[store] = it.pitCenter() }) {
+                                StoreView(
+                                    count = s.pits[store],
+                                    ownerLabel = if (store == 6) ownerLabel0 else ownerLabel1,
+                                    unit = u,
+                                    card3D = card3D, jostleActive = jostleActive, physics = seedPhysics,
+                                    slotIndex = store, physicsFrame = physicsFrame
+                                )
+                            }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.onGloballyPositioned { pitPositions[13] = it.pitCenter() }) {
-                                StoreView(
-                                    count = s.pits[13], ownerLabel = ownerLabel1, unit = u,
-                                    card3D = card3D, jostleActive = jostleActive, physics = seedPhysics,
-                                    slotIndex = 13, physicsFrame = physicsFrame
-                                )
-                            }
+                            storeCell(leftStore)
                             Column {
-                                Row {
-                                    // Player 1's row runs right-to-left visually (12 downTo 7), but
-                                    // their pit numbering still counts up from 1 starting at the pit
-                                    // farthest from their store -- pit 7 -- matching how player 0's
-                                    // row (below) numbers from the pit farthest from their store (0).
-                                    (12 downTo 7).forEach { pit ->
-                                        Box(modifier = Modifier.onGloballyPositioned { pitPositions[pit] = it.pitCenter() }) {
-                                            PitView(
-                                                count = s.pits[pit],
-                                                enabled = humanCanMove && s.currentPlayerIndex == 1 && s.pits[pit] > 0,
-                                                highlightCapture = pit in captureCandidates,
-                                                hinted = pit == hintPit,
-                                                ownerLabel = ownerLabel1,
-                                                pitNumber = pit - 6,
-                                                unit = u,
-                                                card3D = card3D,
-                                                jostleActive = jostleActive,
-                                                physics = seedPhysics,
-                                                slotIndex = pit,
-                                                physicsFrame = physicsFrame,
-                                                onClick = { game.sow(1, pit) }
-                                            )
-                                        }
-                                    }
-                                }
-                                Row {
-                                    (0..5).forEach { pit ->
-                                        Box(modifier = Modifier.onGloballyPositioned { pitPositions[pit] = it.pitCenter() }) {
-                                            PitView(
-                                                count = s.pits[pit],
-                                                enabled = humanCanMove && s.currentPlayerIndex == 0 && s.pits[pit] > 0,
-                                                highlightCapture = pit in captureCandidates,
-                                                hinted = pit == hintPit,
-                                                ownerLabel = ownerLabel0,
-                                                pitNumber = pit + 1,
-                                                unit = u,
-                                                card3D = card3D,
-                                                jostleActive = jostleActive,
-                                                physics = seedPhysics,
-                                                slotIndex = pit,
-                                                physicsFrame = physicsFrame,
-                                                onClick = { game.sow(0, pit) }
-                                            )
-                                        }
-                                    }
-                                }
+                                Row { farRow.forEach { pit -> pitCell(pit) } }
+                                Row { nearRow.forEach { pit -> pitCell(pit) } }
                             }
-                            Box(modifier = Modifier.onGloballyPositioned { pitPositions[6] = it.pitCenter() }) {
-                                StoreView(
-                                    count = s.pits[6], ownerLabel = ownerLabel0, unit = u,
-                                    card3D = card3D, jostleActive = jostleActive, physics = seedPhysics,
-                                    slotIndex = 6, physicsFrame = physicsFrame
-                                )
-                            }
+                            storeCell(rightStore)
                         }
                     }
                 }
@@ -580,6 +628,7 @@ fun MancalaScreen(
                                             stackButtons = true,
                                             reducedMotion = reducedMotion,
                                             onPlayAgain = game::playAgain,
+                                            canPlayAgain = canPlayAgain,
                                             onLeave = game::leaveSession,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -592,12 +641,14 @@ fun MancalaScreen(
                                         )
                                     }
                                     Spacer(Modifier.height(12.dp))
-                                    MancalaControlsRow(
-                                        canUndo = game.canUndo,
-                                        canHint = humanCanMove,
-                                        onUndo = { game.undo() },
-                                        onHint = { game.hint() }
-                                    )
+                                    if (!networked) {
+                                        MancalaControlsRow(
+                                            canUndo = game.canUndo,
+                                            canHint = humanCanMove,
+                                            onUndo = { game.undo() },
+                                            onHint = { game.hint() }
+                                        )
+                                    }
                                 }
                                 Spacer(Modifier.width(16.dp))
                                 // The corner menu button sits over the top 56dp of the screen's
@@ -622,12 +673,14 @@ fun MancalaScreen(
                                     modifier = Modifier.fillMaxWidth().padding(end = GameChromeEndInset)
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                MancalaControlsRow(
-                                    canUndo = game.canUndo,
-                                    canHint = humanCanMove,
-                                    onUndo = { game.undo() },
-                                    onHint = { game.hint() }
-                                )
+                                if (!networked) {
+                                    MancalaControlsRow(
+                                        canUndo = game.canUndo,
+                                        canHint = humanCanMove,
+                                        onUndo = { game.undo() },
+                                        onHint = { game.hint() }
+                                    )
+                                }
                                 Spacer(Modifier.height(8.dp))
                                 boardBlock(Modifier.weight(1f).fillMaxWidth())
                             }
@@ -639,6 +692,7 @@ fun MancalaScreen(
                                     stackButtons = false,
                                     reducedMotion = reducedMotion,
                                     onPlayAgain = game::playAgain,
+                                    canPlayAgain = canPlayAgain,
                                     onLeave = game::leaveSession,
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
@@ -709,8 +763,9 @@ private fun winTitle(name: String): String = if (name.equals("You", ignoreCase =
  * wording the instrumented rotation test looks for); in pass-and-play both sides are named, since
  * "Your" would be wrong for one of two people sharing the screen.
  */
-private fun ownerLabelFor(index: Int, players: List<PlayerInfo>, hasBot: Boolean): String {
+private fun ownerLabelFor(index: Int, players: List<PlayerInfo>, hasBot: Boolean, networkedViewSeat: Int? = null): String {
     val player = players.getOrNull(index)
+    if (networkedViewSeat != null) return if (index == networkedViewSeat) "Your" else "Opponent"
     return if (hasBot) {
         if (player?.isBot == true) "Opponent" else "Your"
     } else {
@@ -728,8 +783,45 @@ private fun turnPrompt(mover: PlayerInfo?, hasBot: Boolean, extraTurn: Boolean, 
     return if (mover?.isBot == true) {
         if (extraTurn) "$name sows again…" else "$name is thinking…"
     } else {
-        val who = if (hasBot) "Your" else possessive(name)
-        if (extraTurn) "$who extra turn — sow again" else "$who turn — tap a pit to sow"
+        if (!hasBot) {
+            // Pass and play: two people share the screen, so say by name who is up / goes again.
+            if (extraTurn) "$name goes again — sow once more" else "${possessive(name)} turn — tap a pit to sow"
+        } else {
+            if (extraTurn) "Your extra turn — sow again" else "Your turn — tap a pit to sow"
+        }
+    }
+}
+
+/** The prompt line for a networked game: two people on two devices, so "Your" / the opponent's name. */
+private fun networkedPrompt(
+    myTurn: Boolean,
+    opponentName: String,
+    extraTurn: Boolean,
+    roundOver: Boolean,
+    opponentGone: Boolean
+): String = when {
+    opponentGone -> "Opponent disconnected"
+    roundOver -> "Game over"
+    myTurn -> if (extraTurn) "Your extra turn — sow again" else "Your turn — tap a pit to sow"
+    else -> if (extraTurn) "$opponentName sows again…" else "Waiting for $opponentName…"
+}
+
+/** A guest's screen until the host's first board arrives. */
+@Composable
+private fun MancalaWaitingForHost(onLeave: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Waiting for the host…",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onLeave,
+                modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Back to Menu") }
+        }
     }
 }
 
@@ -834,7 +926,9 @@ private fun MancalaResultPanel(
     reducedMotion: Boolean,
     onPlayAgain: () -> Unit,
     onLeave: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** False when the networked opponent has left: only Back to Menu remains. */
+    canPlayAgain: Boolean = true
 ) {
     val fade = remember { Animatable(if (reducedMotion) 1f else 0f) }
     LaunchedEffect(Unit) {
@@ -857,21 +951,25 @@ private fun MancalaResultPanel(
             Text(sessionLine, style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(12.dp))
             if (stackButtons) {
-                Button(
-                    onClick = onPlayAgain,
-                    modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
-                ) { Text("Play Again") }
-                Spacer(Modifier.height(8.dp))
+                if (canPlayAgain) {
+                    Button(
+                        onClick = onPlayAgain,
+                        modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
+                    ) { Text("Play Again") }
+                    Spacer(Modifier.height(8.dp))
+                }
                 OutlinedButton(
                     onClick = onLeave,
                     modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
                 ) { Text("Back to Menu") }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = onPlayAgain,
-                        modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)
-                    ) { Text("Play Again") }
+                    if (canPlayAgain) {
+                        Button(
+                            onClick = onPlayAgain,
+                            modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)
+                        ) { Text("Play Again") }
+                    }
                     OutlinedButton(
                         onClick = onLeave,
                         modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)
@@ -914,6 +1012,9 @@ private const val BIG_CAPTURE_STONE_THRESHOLD = 6
 
 /** Camera-shake impulses in dp (the old px pattern, 14/10/7/4, at the ~2.6x density it was tuned on). */
 private val SHAKE_PATTERN_DP = listOf(-5f, 4f, -3f, 1.5f, 0f)
+
+/** Base pause before the CPU sows; multiplied by the app's game speed (skipped when <= 60ms). */
+private const val BOT_THINK_MS = 700L
 
 private const val MIN_RESULT_HOLD_MS = 600L
 private const val MAX_RESULT_HOLD_MS = 2500L

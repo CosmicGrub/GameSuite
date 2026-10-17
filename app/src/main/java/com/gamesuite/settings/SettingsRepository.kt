@@ -40,6 +40,7 @@ class SettingsRepository(private val context: Context) {
         val ENHANCED_ANIMATIONS_ENABLED = booleanPreferencesKey("enhanced_animations_enabled")
         val DEFAULT_CPU_DIFFICULTY = stringPreferencesKey("default_cpu_difficulty")
         val CARD_SIZE_PREFERENCE = floatPreferencesKey("card_size_preference")
+        val GAME_SPEED = stringPreferencesKey("game_speed")
         val ONLINE_SERVER_URL = stringPreferencesKey("online_server_url")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
     }
@@ -63,6 +64,7 @@ class SettingsRepository(private val context: Context) {
                 ?.let { runCatching { CpuDifficulty.valueOf(it) }.getOrNull() }
                 ?: CpuDifficulty.MEDIUM,
             cardSizePreference = prefs[Keys.CARD_SIZE_PREFERENCE] ?: 0.4f,
+            gameSpeed = GameSpeed.fromName(prefs[Keys.GAME_SPEED]),
             onlineServerUrl = prefs[Keys.ONLINE_SERVER_URL] ?: "",
             hasSeenOnboarding = prefs[Keys.HAS_SEEN_ONBOARDING] ?: false
         )
@@ -81,6 +83,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setEnhancedAnimationsEnabled(enabled: Boolean) = edit { it[Keys.ENHANCED_ANIMATIONS_ENABLED] = enabled }
     suspend fun setDefaultCpuDifficulty(difficulty: CpuDifficulty) =
         edit { it[Keys.DEFAULT_CPU_DIFFICULTY] = difficulty.name }
+    suspend fun setGameSpeed(speed: GameSpeed) = edit { it[Keys.GAME_SPEED] = speed.name }
     suspend fun setCardSizePreference(preference: Float) =
         edit { it[Keys.CARD_SIZE_PREFERENCE] = preference.coerceIn(0f, 1f) }
     suspend fun setOnlineServerUrl(url: String) = edit { it[Keys.ONLINE_SERVER_URL] = url.trim() }

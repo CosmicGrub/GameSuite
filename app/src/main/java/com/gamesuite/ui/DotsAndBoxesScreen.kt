@@ -52,6 +52,7 @@ import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesHintEdge
@@ -59,6 +60,7 @@ import com.gamesuite.games.dotsandboxes.DotsAndBoxesState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalColorblindMode
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -177,6 +179,8 @@ fun DotsAndBoxesScreen(
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
     val hintEdge by game.hintEdge
+    val gameSpeed = LocalGameSpeed.current
+    val opponentLeft by game.opponentLeft
 
     // JUICE: two CameraShake instances (a per-claim nudge and the whole-board win shake are
     // different weights of the same gesture, and a shake's magnitude is fixed per
@@ -205,7 +209,12 @@ fun DotsAndBoxesScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        // Hub's first-mover choice: the named roster seat opens the first board (a resumed game
+        // overwrites it from its snapshot).
+        // Networked play has no first-mover choice: the host opens the first board.
+        val networkedLaunch = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
+        game.firstOpenerIndex = if (networkedLaunch) 0 else sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -222,7 +231,8 @@ fun DotsAndBoxesScreen(
         val s = state ?: return@LaunchedEffect
         if (s.boardOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(800)
+            val thinkMs = gameSpeed.scale(800L)
+            if (thinkMs > 60L) delay(thinkMs)
             val boxesBefore = s.scores.sum()
             game.playBotTurn()
             val after = game.state.value
@@ -230,20 +240,62 @@ fun DotsAndBoxesScreen(
         }
     }
 
-    val s = state ?: return
+    val networked = game.isNetworkedMode
+    val localSeat = game.localSeat
+
+    val maybeState = state
+    if (maybeState == null) {
+        // A guest has nothing to draw until the host's first StateSync arrives.
+        if (networked) {
+            GameChrome(
+                helpTitle = "How to Play Dots and Boxes",
+                helpText = "Take turns drawing one line between two neighboring dots. Close a box to claim it and move again.",
+                matchInProgress = false,
+                onLeave = { game.abortMatch() },
+                onAbort = { game.abortMatch() },
+                buttonFill = palette.background,
+                buttonContent = palette.textPrimary
+            ) {
+                Box(modifier = Modifier.fillMaxSize().background(palette.background), contentAlignment = Alignment.Center) {
+                    Text(
+                        if (opponentLeft) "Opponent disconnected" else "Waiting for the host…",
+                        color = palette.textPrimary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
+            }
+        }
+        return
+    }
+    val s = maybeState
 
     val current = s.players[s.currentPlayerIndex]
-    val isMyTurn = !current.isBot
+    val isMyTurn = if (networked) s.currentPlayerIndex == localSeat && !opponentLeft else !current.isBot
     val vsBot = s.players.any { it.isBot }
     val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
     // Pass-and-play has two humans, so any win there is a human win; against the CPU only the
     // human's is. A tie has no winner and never celebrates (the engine's 25 boxes make one
-    // impossible today, but the panel still renders it as a tie).
-    val humanWon = s.boardOver && winnerIndex >= 0 && !s.players[winnerIndex].isBot
+    // impossible today, but the panel still renders it as a tie). Online, it is a win only if
+    // it is THIS device's seat that won.
+    val humanWon = if (networked) {
+        s.boardOver && winnerIndex >= 0 && winnerIndex == localSeat
+    } else {
+        s.boardOver && winnerIndex >= 0 && !s.players[winnerIndex].isBot
+    }
+    // After a claim the same player moves again; say so by name (pass and play hands the device
+    // to whoever is named, so the name matters there).
+    val goesAgain = s.lastAction.endsWith("going again")
     val statusText = when {
+        networked && s.boardOver -> resultTitle(s, localSeat)
+        networked && opponentLeft -> "Opponent disconnected"
+        networked && isMyTurn -> if (goesAgain) "Your turn again — tap a line" else "Your turn — tap a line"
+        networked -> if (goesAgain) "${current.displayName} moves again…" else "${current.displayName}'s turn…"
         s.boardOver -> resultTitle(s)
         current.isBot -> "${current.displayName} is thinking…"
+        vsBot && goesAgain -> "Your turn again — tap a line"
         vsBot -> "Your turn — tap a line"
+        goesAgain -> "${current.displayName} moves again — tap a line"
         else -> "${current.displayName}'s turn — tap a line"
     }
 
@@ -297,6 +349,15 @@ fun DotsAndBoxesScreen(
     }
 
     val finishedBoards = sessionWins.values.sum() + sessionDraws
+    // Leaving with finished boards records them (leaveSession); with none it is a pure abort.
+    val leaveAction: () -> Unit = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() }
+    // Online: who the opponent is and which colour is mine, so the board's two tints are unambiguous.
+    val matchupLine: String? = if (networked && localSeat in 0..1) {
+        val opponent = s.players.getOrNull(1 - localSeat)?.displayName ?: "Opponent"
+        val colourName = if (localSeat == 1) "teal" else "terracotta"
+        val shape = if (colorblind) (if (localSeat == 1) ", diamond" else ", ring") else ""
+        "Playing $opponent · your boxes are $colourName$shape"
+    } else null
 
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-board
     // discards ONLY the unfinished board: if earlier boards in this session were already won,
@@ -311,13 +372,15 @@ fun DotsAndBoxesScreen(
             "When every box on the 5 by 5 board is claimed, whoever claimed more wins.\n\n" +
             "Play Again keeps the session tally, and the player who moves first alternates " +
             "each board.",
-        matchInProgress = !s.boardOver,
-        onLeave = game::leaveSession,
-        onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
-        leaveKeepsProgress = finishedBoards == 0,
-        onUndo = { game.undo() },
+        // A vanished opponent leaves nothing to confirm: leave straight away.
+        matchInProgress = !s.boardOver && !(networked && opponentLeft),
+        onLeave = if (networked && opponentLeft) leaveAction else game::leaveSession,
+        onAbort = leaveAction,
+        leaveKeepsProgress = finishedBoards == 0 && !networked,
+        // No take-backs or hints against another person.
+        onUndo = if (networked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = { game.hint() },
+        onHint = if (networked) null else ({ game.hint() }),
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -345,17 +408,26 @@ fun DotsAndBoxesScreen(
                     statusText = statusText,
                     isMyTurn = isMyTurn,
                     palette = palette,
-                    colorblind = colorblind
+                    colorblind = colorblind,
+                    matchupLine = matchupLine
                 )
             }
             val controlsRow: @Composable () -> Unit = {
-                DotsAndBoxesControlsRow(
-                    canUndo = game.canUndo,
-                    canHint = isMyTurn && !s.boardOver,
-                    onUndo = { game.undo() },
-                    onHint = { game.hint() },
-                    palette = palette
-                )
+                if (!networked) {
+                    DotsAndBoxesControlsRow(
+                        canUndo = game.canUndo,
+                        canHint = isMyTurn && !s.boardOver,
+                        onUndo = { game.undo() },
+                        onHint = { game.hint() },
+                        palette = palette
+                    )
+                } else if (opponentLeft && !s.boardOver) {
+                    OutlinedButton(
+                        onClick = leaveAction,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) { Text("Back to Menu") }
+                }
             }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
                 BoardSlot(
@@ -376,13 +448,23 @@ fun DotsAndBoxesScreen(
                         // Re-read the live state: the enabled flag an edge was composed with can
                         // be a frame stale, and drawEdge itself does not know whose turn it is.
                         val live = game.state.value
-                        if (live != null && !live.boardOver && !live.players[live.currentPlayerIndex].isBot) {
+                        val mayTap = if (networked) {
+                            live != null && !live.boardOver && !opponentLeft && live.currentPlayerIndex == localSeat
+                        } else {
+                            live != null && !live.boardOver && !live.players[live.currentPlayerIndex].isBot
+                        }
+                        if (live != null && mayTap) {
                             val boxesBefore = live.scores.sum()
                             if (horizontal) game.drawHorizontalEdge(row, col) else game.drawVerticalEdge(row, col)
                             val after = game.state.value
-                            // A claim is announced by the claim effect (STRONG_ACTION + thunk), so
-                            // the plain tap cue is only for a line that claimed nothing.
-                            if (after != null && after !== live && after.scores.sum() == boxesBefore) {
+                            if (networked && localSeat != 0) {
+                                // A guest's engine does not change on a tap (the host's broadcast
+                                // will), so cue the tap itself.
+                                sounds.playTap()
+                                haptics(HapticSignal.NORMAL_ACTION)
+                            } else if (after != null && after !== live && after.scores.sum() == boxesBefore) {
+                                // A claim is announced by the claim effect (STRONG_ACTION + thunk), so
+                                // the plain tap cue is only for a line that claimed nothing.
                                 sounds.playTap()
                                 haptics(HapticSignal.NORMAL_ACTION)
                             }
@@ -397,6 +479,8 @@ fun DotsAndBoxesScreen(
                     sessionWins = sessionWins,
                     sessionDraws = sessionDraws,
                     palette = palette,
+                    localSeat = if (networked) localSeat else -1,
+                    playAgainEnabled = !(networked && opponentLeft),
                     onPlayAgain = { game.playAgain() },
                     onBackToMenu = { game.leaveSession() },
                     modifier = panelModifier
@@ -498,8 +582,13 @@ private fun dotsAndBoxesPalette(isDark: Boolean): DotsAndBoxesPalette = if (!isD
 
 /** "You win!" / "CPU wins!" / "It's a tie!". The engine's displayName for the local player is
  *  "You", and "You wins!" is not grammatical, so the screen words the result itself. */
-private fun resultTitle(s: DotsAndBoxesState): String {
-    val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId } ?: return "It's a tie!"
+private fun resultTitle(s: DotsAndBoxesState, localSeat: Int = -1): String {
+    val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+    val winner = s.players.getOrNull(winnerIndex) ?: return "It's a tie!"
+    // Online (localSeat >= 0): name the winner and say plainly whether this device won.
+    if (localSeat >= 0) {
+        return if (winnerIndex == localSeat) "You win!" else "${winner.displayName} wins. You lost."
+    }
     return if (winner.displayName.equals("You", ignoreCase = true)) "You win!" else "${winner.displayName} wins!"
 }
 
@@ -620,7 +709,8 @@ private fun StatusRow(
     statusText: String,
     isMyTurn: Boolean,
     palette: DotsAndBoxesPalette,
-    colorblind: Boolean
+    colorblind: Boolean,
+    matchupLine: String? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -652,6 +742,15 @@ private fun StatusRow(
                 palette = palette,
                 colorblind = colorblind,
                 modifier = Modifier.weight(1f, fill = false)
+            )
+        }
+        if (matchupLine != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                matchupLine,
+                color = palette.textPrimary.copy(alpha = 0.75f),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -691,7 +790,7 @@ private fun PlayerScoreChip(
     val description = buildString {
         append(name)
         append(if (score == 1) ", 1 box" else ", $score boxes")
-        if (isTurn) append(if (isMyTurn) ", to move" else ", thinking")
+        if (isTurn) append(if (isMyTurn) ", to move" else ", their turn")
     }
     Row(
         modifier = modifier
@@ -1111,7 +1210,9 @@ private fun ResultPanel(
     palette: DotsAndBoxesPalette,
     onPlayAgain: () -> Unit,
     onBackToMenu: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    localSeat: Int = -1,
+    playAgainEnabled: Boolean = true
 ) {
     Card(
         modifier = modifier,
@@ -1126,7 +1227,7 @@ private fun ResultPanel(
         ) {
             // The same words the status line already announces, so no live region here.
             Text(
-                resultTitle(s),
+                resultTitle(s, localSeat),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -1152,6 +1253,7 @@ private fun ResultPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onPlayAgain,
+                    enabled = playAgainEnabled,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Play Again", textAlign = TextAlign.Center) }
