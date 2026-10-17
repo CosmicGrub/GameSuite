@@ -3,6 +3,51 @@ package com.gamesuite.games.wordgames.crossword
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Crossword session back exactly as it was: the full puzzle (grid with
+ * its hidden answer letters, entries, clues), which entries are solved, which letters a hint gave,
+ * the remaining hint budget, the session tally, the difficulty and the recent-seed history. The
+ * puzzle is stored rather than regenerated because generation is random: a resumed game must
+ * continue the SAME puzzle. Transient UI state (the selected cell/entry, the one-shot flash
+ * signals) is deliberately not saved.
+ */
+@Serializable
+private data class CrosswordSnapshot(
+    val gridSize: Int,
+    val cells: List<CrosswordSnapshotCell>,
+    val entries: List<CrosswordSnapshotEntry>,
+    val solvedEntryIds: List<String>,
+    val hintsUsedByEntry: Map<String, Int>,
+    val hintedCells: List<Int>,
+    val puzzleOver: Boolean,
+    val puzzlesSolved: Int,
+    val hintsRemaining: Int,
+    val difficulty: String,
+    val recentSeedWords: List<String>,
+    val players: List<CrosswordSnapshotPlayer>
+)
+
+@Serializable
+private data class CrosswordSnapshotCell(val letter: String?, val number: Int?, val revealed: Boolean)
+
+@Serializable
+private data class CrosswordSnapshotEntry(
+    val id: String,
+    val word: String,
+    val clue: String,
+    val direction: String,
+    val row: Int,
+    val col: Int,
+    val number: Int
+)
+
+@Serializable
+private data class CrosswordSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val crosswordSnapshotJson = Json { ignoreUnknownKeys = true }
 
 enum class Direction { ACROSS, DOWN }
 
@@ -73,7 +118,7 @@ data class CrosswordState(
  * [puzzlesSolved]) so back-to-back "New Puzzle" taps don't keep re-anchoring
  * on the same word.
  */
-class CrosswordGame(private val gridSize: Int = 15) : GameModule {
+class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame {
     override val gameId = "crossword"
     override val displayName = "Crossword"
     override val category = GameCategory.WORD
@@ -105,6 +150,19 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
      * via [clearJustHinted] once the UI's pulse animation finishes playing.
      */
     val justHintedCells = mutableStateOf<Set<CrosswordPos>>(emptySet())
+
+    /**
+     * Every cell a hint has revealed in the CURRENT puzzle. Unlike [justHintedCells] (a one-shot
+     * flash) this persists, so the board can keep marking a given letter apart from an earned one
+     * with a non-colour cue. Its size is also the puzzle's "solved with N hints" count.
+     */
+    val hintedCells = mutableStateOf<Set<CrosswordPos>>(emptySet())
+
+    /**
+     * The cell the player last tapped (or the first open cell of the clue they picked); always a
+     * member of the selected entry. Null when nothing is selected. Transient: not saved.
+     */
+    val selectedCell = mutableStateOf<CrosswordPos?>(null)
 
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-puzzle. */
     val matchOver = mutableStateOf(false)
@@ -157,6 +215,126 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         recentSeedWords.clear()
         justSolvedCells.value = emptySet()
         justHintedCells.value = emptySet()
+        hintedCells.value = emptySet()
+        selectedCell.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    /** Null when there is nothing to save: no puzzle yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        if (!::context.isInitialized) return null
+        val s = state.value ?: return null
+        if (matchOver.value) return null
+        if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT &&
+            context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+        ) return null
+        return try {
+            crosswordSnapshotJson.encodeToString(
+                CrosswordSnapshot.serializer(),
+                CrosswordSnapshot(
+                    gridSize = gridSize,
+                    cells = s.grid.flatten().map { CrosswordSnapshotCell(it.letter?.toString(), it.number, it.revealed) },
+                    entries = s.entries.map {
+                        CrosswordSnapshotEntry(it.id, it.word, it.clue, it.direction.name, it.start.row, it.start.col, it.number)
+                    },
+                    solvedEntryIds = s.solvedEntryIds.toList(),
+                    hintsUsedByEntry = s.hintsUsedByEntry,
+                    hintedCells = hintedCells.value.map { it.row * gridSize + it.col },
+                    puzzleOver = s.matchOver,
+                    puzzlesSolved = puzzlesSolved.value,
+                    hintsRemaining = hintsRemaining.value,
+                    difficulty = difficulty.name,
+                    recentSeedWords = recentSeedWords.toList(),
+                    players = context.players.map { CrosswordSnapshotPlayer(it.playerId, it.isBot) }
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Decodes and fully validates a snapshot against THIS game's grid size and roster; null if it is unusable. */
+    private fun decodeSnapshot(text: String): CrosswordSnapshot? {
+        if (!::context.isInitialized) return null
+        val snap = try {
+            crosswordSnapshotJson.decodeFromString(CrosswordSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        if (snap.players.size != roster.size) return null
+        for (i in roster.indices) {
+            if (snap.players[i].playerId != roster[i].playerId || snap.players[i].isBot != roster[i].isBot) return null
+        }
+        if (snap.gridSize != gridSize || snap.cells.size != gridSize * gridSize) return null
+        if (snap.cells.any { it.letter != null && it.letter.length != 1 }) return null
+
+        val ids = snap.entries.map { it.id }.toSet()
+        if (ids.size != snap.entries.size) return null
+        for (e in snap.entries) {
+            if (e.word.isEmpty()) return null
+            val down = when (e.direction) {
+                Direction.DOWN.name -> true
+                Direction.ACROSS.name -> false
+                else -> return null
+            }
+            val endRow = if (down) e.row + e.word.length - 1 else e.row
+            val endCol = if (down) e.col else e.col + e.word.length - 1
+            if (e.row !in 0 until gridSize || e.col !in 0 until gridSize) return null
+            if (endRow !in 0 until gridSize || endCol !in 0 until gridSize) return null
+            for (i in e.word.indices) {
+                val r = if (down) e.row + i else e.row
+                val c = if (down) e.col else e.col + i
+                val letter = snap.cells[r * gridSize + c].letter ?: return null
+                if (letter[0] != e.word[i]) return null
+            }
+        }
+        if (!snap.solvedEntryIds.all { it in ids }) return null
+        if (!snap.hintsUsedByEntry.keys.all { it in ids }) return null
+        if (snap.hintedCells.any { it !in 0 until gridSize * gridSize }) return null
+        if (snap.hintsRemaining !in 0..MAX_SNAPSHOT_HINTS) return null
+        if (snap.puzzlesSolved < 0) return null
+        return snap
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        val snap = decodeSnapshot(snapshot) ?: return false
+        val grid = (0 until gridSize).map { r ->
+            (0 until gridSize).map { c ->
+                val sc = snap.cells[r * gridSize + c]
+                CrosswordCell(letter = sc.letter?.firstOrNull(), number = sc.number, revealed = sc.revealed)
+            }
+        }
+        val entries = snap.entries.map {
+            CrosswordEntry(
+                id = it.id,
+                word = it.word,
+                clue = it.clue,
+                direction = if (it.direction == Direction.DOWN.name) Direction.DOWN else Direction.ACROSS,
+                start = CrosswordPos(it.row, it.col),
+                number = it.number
+            )
+        }
+        matchOver.value = false
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        puzzlesSolved.value = snap.puzzlesSolved
+        hintsRemaining.value = snap.hintsRemaining
+        recentSeedWords.clear()
+        recentSeedWords.addAll(snap.recentSeedWords)
+        hintedCells.value = snap.hintedCells.map { CrosswordPos(it / gridSize, it % gridSize) }.toSet()
+        justSolvedCells.value = emptySet()
+        justHintedCells.value = emptySet()
+        selectedCell.value = null
+        state.value = CrosswordState(
+            grid = grid,
+            entries = entries,
+            solvedEntryIds = snap.solvedEntryIds.toSet(),
+            selectedEntryId = null,
+            matchOver = snap.puzzleOver,
+            hintsUsedByEntry = snap.hintsUsedByEntry
+        )
+        return true
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -169,6 +347,8 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         hintsRemaining.value = maxHintsForDifficulty()
         justSolvedCells.value = emptySet()
         justHintedCells.value = emptySet()
+        hintedCells.value = emptySet()
+        selectedCell.value = null
         state.value = CrosswordState(
             grid = grid,
             entries = entries,
@@ -184,13 +364,41 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         onMatchEnd?.invoke(result)
     }
 
+    /** Selects [entryId] (from the clue list) and parks the cursor on its first open cell. */
     fun selectEntry(entryId: String) {
+        if (matchOver.value) return
         val s = state.value ?: return
+        val entry = s.entries.firstOrNull { it.id == entryId } ?: return
+        selectedCell.value = entry.cells.firstOrNull { !s.grid[it.row][it.col].revealed } ?: entry.cells.firstOrNull()
         state.value = s.copy(selectedEntryId = entryId)
+    }
+
+    /**
+     * Tap on a grid cell. Picks an unsolved entry running through [pos] (across before down); tapping
+     * the already-selected cell again switches to the crossing entry when there is one. A cell
+     * whose entries are all solved, or one outside any entry, changes nothing.
+     */
+    fun selectCell(pos: CrosswordPos) {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        if (s.matchOver) return
+        val candidates = s.entries
+            .filter { it.id !in s.solvedEntryIds && pos in it.cells }
+            .sortedBy { it.direction.ordinal }
+        if (candidates.isEmpty()) return
+        val current = candidates.firstOrNull { it.id == s.selectedEntryId }
+        val next = when {
+            current == null -> candidates.first()
+            selectedCell.value == pos && candidates.size > 1 -> candidates[(candidates.indexOf(current) + 1) % candidates.size]
+            else -> current
+        }
+        selectedCell.value = pos
+        state.value = s.copy(selectedEntryId = next.id)
     }
 
     fun clearSelection() {
         val s = state.value ?: return
+        selectedCell.value = null
         state.value = s.copy(selectedEntryId = null)
     }
 
@@ -202,6 +410,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
      * incorrect-guess indication in the UI instead of failing silently.
      */
     fun submitAnswer(entryId: String, answer: String): Boolean {
+        if (matchOver.value) return false
         val s = state.value ?: return false
         val entry = s.entries.firstOrNull { it.id == entryId } ?: return false
         if (!answer.equals(entry.word, ignoreCase = true)) return false
@@ -221,6 +430,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
             selectedEntryId = null,
             matchOver = allSolved
         )
+        selectedCell.value = null
 
         // Signals CrosswordScreen to flash/pulse just these cells instead of an instant
         // recolor — see [justSolvedCells]'s KDoc. Cleared back to empty via [clearJustSolved]
@@ -255,6 +465,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
      * an exhausted hint budget.
      */
     fun revealNextLetter() {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.matchOver) return
         if (hintsRemaining.value <= 0) return
@@ -262,18 +473,56 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
         if (entryId in s.solvedEntryIds) return
         val entry = s.entries.firstOrNull { it.id == entryId } ?: return
 
-        val newGrid = s.grid.map { it.toMutableList() }
-        val nextIndex = entry.cells.indexOfFirst { pos -> !newGrid[pos.row][pos.col].revealed }
+        val nextIndex = entry.cells.indexOfFirst { pos -> !s.grid[pos.row][pos.col].revealed }
         if (nextIndex < 0) return // entry already fully revealed
-        val pos = entry.cells[nextIndex]
-        newGrid[pos.row][pos.col] = newGrid[pos.row][pos.col].copy(revealed = true)
+        revealHintCell(s, entry, entry.cells[nextIndex])
+    }
 
+    /** Reveals [pos] as a hint: spends one hint, marks the cell as given, flashes it. */
+    private fun revealHintCell(s: CrosswordState, entry: CrosswordEntry, pos: CrosswordPos) {
+        val newGrid = s.grid.map { it.toMutableList() }
+        newGrid[pos.row][pos.col] = newGrid[pos.row][pos.col].copy(revealed = true)
         hintsRemaining.value -= 1
+        hintedCells.value = hintedCells.value + pos
+        selectedCell.value = pos
         state.value = s.copy(
             grid = newGrid,
-            hintsUsedByEntry = s.hintsUsedByEntry + (entryId to ((s.hintsUsedByEntry[entryId] ?: 0) + 1))
+            selectedEntryId = entry.id,
+            hintsUsedByEntry = s.hintsUsedByEntry + (entry.id to ((s.hintsUsedByEntry[entry.id] ?: 0) + 1))
         )
         justHintedCells.value = setOf(pos)
+    }
+
+    /**
+     * True while [hint] has something to do: a hint is left in the budget, the puzzle is not over,
+     * and some unsolved entry still has a hidden letter. Backed by Compose state.
+     */
+    val canHint: Boolean
+        get() {
+            val s = state.value ?: return false
+            if (matchOver.value || s.matchOver || hintsRemaining.value <= 0) return false
+            return s.entries.any { e -> e.id !in s.solvedEntryIds && e.cells.any { !s.grid[it.row][it.col].revealed } }
+        }
+
+    /**
+     * Reveals one letter: the selected cell if it is still hidden, otherwise the first hidden cell of
+     * the selected entry; with nothing selected it opens the lowest-numbered unsolved entry. Costs
+     * one hint of the per-puzzle budget (the same one [revealNextLetter] spends) and marks the cell
+     * in [hintedCells]. Returns the revealed cell, or null when [canHint] is false. Crossword
+     * keeps no best-time or best-score records, so "assisted" only shows on the result panel.
+     */
+    fun hint(): CrosswordPos? {
+        if (!canHint) return null
+        val s = state.value ?: return null
+        fun hasHidden(e: CrosswordEntry) = e.id !in s.solvedEntryIds && e.cells.any { !s.grid[it.row][it.col].revealed }
+        val entry = s.entries.firstOrNull { it.id == s.selectedEntryId }?.takeIf { hasHidden(it) }
+            ?: s.entries.sortedBy { it.number }.firstOrNull { hasHidden(it) }
+            ?: return null
+        val target = selectedCell.value?.takeIf { it in entry.cells && !s.grid[it.row][it.col].revealed }
+            ?: entry.cells.firstOrNull { !s.grid[it.row][it.col].revealed }
+            ?: return null
+        revealHintCell(s, entry, target)
+        return target
     }
 
     /** Called by the UI once the hint-cell pulse animation (see [justHintedCells]) finishes playing. */
@@ -432,5 +681,8 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule {
          * [maxHintsForDifficulty] for the actual per-difficulty values used in play.
          */
         private const val DEFAULT_MAX_HINTS = 3
+
+        /** Sanity ceiling when validating a saved hint budget (the real maximum is 5). */
+        private const val MAX_SNAPSHOT_HINTS = 99
     }
 }

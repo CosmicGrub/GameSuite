@@ -195,6 +195,37 @@ class TowerDefenceGameTest {
     }
 
     @Test
+    fun `runsFinished counts each ended run once and survives playAgain`() {
+        val game = newGame(CpuDifficulty.MEDIUM, SHORT_LEAK_LEVEL)
+        game.startMatch()
+        assertEquals(0, game.runsFinished.value)
+
+        assertTrue(tickUntil(game) { game.state.value.runOver })
+        assertEquals(1, game.runsFinished.value)
+        game.tick(0.05f) // a tick after the run ended must not count it again
+        game.tick(0.05f)
+        assertEquals(1, game.runsFinished.value)
+
+        game.playAgain()
+        assertEquals("a restart alone is not a finished run", 1, game.runsFinished.value)
+        assertTrue(tickUntil(game) { game.state.value.runOver })
+        assertEquals(2, game.runsFinished.value)
+    }
+
+    @Test
+    fun `pause and resume are idempotent`() {
+        val game = newGame()
+        game.startMatch()
+        game.pause()
+        game.pause()
+        assertTrue(game.state.value.paused)
+        game.resume()
+        assertFalse(game.state.value.paused)
+        game.resume() // a second resume with nothing to clear is a no-op
+        assertFalse(game.state.value.paused)
+    }
+
+    @Test
     fun `losing every life ends the run as LOST and further ticks become no-ops`() {
         // No towers placed -- every spawned enemy leaks on this level's near-zero-length path.
         val game = newGame(CpuDifficulty.MEDIUM, SHORT_LEAK_LEVEL)

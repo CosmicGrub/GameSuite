@@ -54,6 +54,8 @@ import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.ui.effects.BurstParticle
 import com.gamesuite.ui.effects.PremiumShaders
 import com.gamesuite.ui.effects.cameraShake
@@ -99,6 +101,12 @@ import kotlinx.coroutines.launch
  * Hockey is the one game in this pass that genuinely stacks enough
  * independent compounding effects to earn one. See each read site below for
  * exactly what layers in at which tier.
+ *
+ * Chrome: the shared [GameChrome] corner menu (How to Play, Back to Menu with a leave
+ * confirmation, system-back handling). Opening the menu pauses the sim via
+ * [AirHockeyRustGame.pause]; leaving mid-match is `abortMatch()` (never scored) followed by the
+ * same `onMatchEnded` navigation the finished panel uses. The header is inset by
+ * [GameChromeEndInset] so the corner button never covers it.
  */
 @Composable
 fun AirHockeyScreen(
@@ -148,7 +156,7 @@ fun AirHockeyScreen(
         val event = state.goalEvent ?: return@LaunchedEffect
         airHockeySounds.playGoal()
         when {
-            event.matchOver -> haptics(HapticSignal.CELEBRATION)
+            event.matchOver && (event.scoredByPlayer || isPassAndPlay) -> haptics(HapticSignal.CELEBRATION)
             event.scoredByPlayer -> haptics(HapticSignal.STRONG_ACTION)
             else -> haptics(HapticSignal.FAILURE)
         }
@@ -324,11 +332,41 @@ fun AirHockeyScreen(
     // Primary-only (no secondary/hand content in this game) — on a Tab S9 or
     // unfolded Fold this caps + centers the table instead of stretching the
     // square Canvas's surrounding column across the full (very wide) screen.
+    GameChrome(
+        helpTitle = "How to Play Air Hockey",
+        helpText = "Drag your finger on the table to move your paddle; it follows your finger " +
+            "within your half. Hit the puck into the yellow goal mouth at the far end to score.\n\n" +
+            "First to ${game.matchTarget} goals wins. Against the CPU you play the bottom half " +
+            "(difficulty comes from Settings). In pass and play, Player 1 drags the bottom half " +
+            "and Player 2 drags the top half at the same time.\n\n" +
+            "Opening this menu freezes the puck. Leaving mid-match doesn't count as a win or a loss.",
+        matchInProgress = !state.matchOver,
+        // Same exit the finished-match panel's "Back to menu" button uses.
+        onLeave = onMatchEnded,
+        // Air Hockey has no finished sub-units (one match = one result), so leaving is a pure
+        // abort (never recorded), then the same navigation as the finished panel.
+        onAbort = {
+            game.abortMatch()
+            onMatchEnded()
+        },
+        leaveTitle = "Leave this match?",
+        leaveBody = "This match is still in progress. Leaving now won't count it as a win or a loss.",
+        // The menu's content is composed only while it is open, so this effect pauses the puck
+        // exactly for as long as the menu is showing.
+        extraItems = { _ ->
+            DisposableEffect(Unit) {
+                game.pause()
+                onDispose { game.resume() }
+            }
+        }
+    ) {
     AdaptiveTwoPane(
         foldState = LocalFoldState.current,
         modifier = Modifier.fillMaxSize(),
         primary = {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+              // The corner menu button sits at the screen's top-right; keep the header clear of it.
+              Column(modifier = Modifier.padding(end = GameChromeEndInset)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isPassAndPlay) {
                         Text("Player 1: ", style = MaterialTheme.typography.titleMedium)
@@ -360,6 +398,7 @@ fun AirHockeyScreen(
                         prefsScope.launch { prefsStore.setMotionTier(AirHockeyMotionTier.MAXIMUM) }
                     }
                 }
+              }
                 Spacer(Modifier.height(8.dp))
 
                 // Locked to a square aspect ratio: the physics in AirHockeyGame works in normalized 0f..1f
@@ -597,6 +636,7 @@ fun AirHockeyScreen(
             }
         }
     )
+    }
 }
 
 /** One label of the Standard/Maximum motion-tier control — a plain clickable Text rather than

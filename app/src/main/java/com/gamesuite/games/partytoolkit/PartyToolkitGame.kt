@@ -69,6 +69,74 @@ class PartyToolkitGame : GameModule {
 }
 
 /**
+ * Immutable snapshot of the Hourglass countdown. Time is wall-clock based: while [running] the
+ * remaining time is `deadlineMs - now` (callers pass a monotonic clock such as
+ * `SystemClock.elapsedRealtime()`), so the countdown never drifts the way a decrement-per-delay
+ * loop does and survives the screen being recomposed or the tool tab being switched away from.
+ * [finishSeq] increments exactly once each time the countdown reaches zero, so a UI can fire its
+ * finished cue from a `LaunchedEffect(finishSeq)`.
+ */
+data class PartyToolkitTimerState(
+    val totalSeconds: Int,
+    val remainingMs: Long,
+    val running: Boolean = false,
+    val deadlineMs: Long = 0L,
+    val finishSeq: Int = 0
+)
+
+/** Pure transitions for [PartyToolkitTimerState]; every function returns a new state. */
+object PartyToolkitTimer {
+    const val DEFAULT_SECONDS = 5 * 60
+
+    fun initial(totalSeconds: Int = DEFAULT_SECONDS): PartyToolkitTimerState {
+        val seconds = totalSeconds.coerceAtLeast(1)
+        return PartyToolkitTimerState(totalSeconds = seconds, remainingMs = seconds * 1000L)
+    }
+
+    /** Starts (or resumes) counting down. No-op while already running or when nothing remains. */
+    fun start(state: PartyToolkitTimerState, nowMs: Long): PartyToolkitTimerState {
+        if (state.running || state.remainingMs <= 0L) return state
+        return state.copy(running = true, deadlineMs = nowMs + state.remainingMs)
+    }
+
+    /** Advances to [nowMs]. Reaching zero stops the timer and bumps [PartyToolkitTimerState.finishSeq] once. */
+    fun tick(state: PartyToolkitTimerState, nowMs: Long): PartyToolkitTimerState {
+        if (!state.running) return state
+        val left = state.deadlineMs - nowMs
+        return if (left <= 0L) {
+            state.copy(remainingMs = 0L, running = false, finishSeq = state.finishSeq + 1)
+        } else {
+            state.copy(remainingMs = left)
+        }
+    }
+
+    /** Freezes the remaining time at [nowMs]; if that already reached zero it finishes instead. */
+    fun pause(state: PartyToolkitTimerState, nowMs: Long): PartyToolkitTimerState {
+        val ticked = tick(state, nowMs)
+        return if (ticked.running) ticked.copy(running = false) else ticked
+    }
+
+    /** Back to the full [PartyToolkitTimerState.totalSeconds], stopped. */
+    fun reset(state: PartyToolkitTimerState): PartyToolkitTimerState =
+        state.copy(running = false, remainingMs = state.totalSeconds * 1000L)
+
+    /** New duration, stopped and full. */
+    fun setTotal(state: PartyToolkitTimerState, seconds: Int): PartyToolkitTimerState {
+        val clamped = seconds.coerceAtLeast(1)
+        return state.copy(totalSeconds = clamped, remainingMs = clamped * 1000L, running = false)
+    }
+
+    /** Whole seconds to display, rounded up so "0:00" only shows once the timer has truly finished. */
+    fun remainingSeconds(state: PartyToolkitTimerState): Int = ((state.remainingMs + 999L) / 1000L).toInt()
+
+    /** 1f = full, 0f = done. */
+    fun progress(state: PartyToolkitTimerState): Float {
+        val total = state.totalSeconds * 1000f
+        return if (total <= 0f) 0f else (state.remainingMs / total).coerceIn(0f, 1f)
+    }
+}
+
+/**
  * Pure, stateless, independently-testable logic for every "random pick"
  * tool in the toolkit (Dice/Coin Toss/Random Letter/First Player/Teams).
  * [random] is threaded through (rather than each function reaching for the
