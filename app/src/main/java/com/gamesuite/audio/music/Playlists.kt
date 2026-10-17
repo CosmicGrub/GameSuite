@@ -168,6 +168,14 @@ object Crossfade {
         return if (wait > slackMs) wait else 0L
     }
 
+    /**
+     * The hold applied to a prepared track, by who asked for it. Only a NATURAL near-end hand-over
+     * ([nearEnd]) may wait for its fade window; an explicit change (Next, Previous, picking a track,
+     * switching context) must start at once, however much of the current track remains.
+     */
+    fun handoffDelayMs(nearEnd: Boolean, remainingMs: Long, fadeMs: Long, slackMs: Long = 150L): Long =
+        if (nearEnd) handoffDelayMs(remainingMs, fadeMs, slackMs) else 0L
+
     fun shouldStartNext(positionMs: Long, durationMs: Long, crossfadeMs: Long): Boolean =
         crossfadeMs > 0L && durationMs > 0L && durationMs - positionMs <= crossfadeMs
 }

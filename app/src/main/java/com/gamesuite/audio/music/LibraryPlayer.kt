@@ -208,9 +208,9 @@ class LibraryPlayer(
     private fun maybeStartHandoff(slot: Slot) {
         if (slot !== pending) return
         val current = active
-        if (slot.holdForTail && current != null && slot.fadeMs > 0L && current.durationMs > 0L) {
+        if (current != null && slot.fadeMs > 0L && current.durationMs > 0L) {
             val remaining = current.durationMs - (try { current.player.currentPosition.toLong() } catch (_: Exception) { 0L })
-            val wait = Crossfade.handoffDelayMs(remaining, slot.fadeMs)
+            val wait = Crossfade.handoffDelayMs(slot.holdForTail, remaining, slot.fadeMs)
             if (wait > 0L) {
                 handler.postDelayed({ maybeStartHandoff(slot) }, wait)
                 return
