@@ -56,6 +56,9 @@ class GameSessionManager : ViewModel() {
      */
     var pendingResume: SavedGame? = null
 
+    /** The old file of a resumed save whose key changed; deleted once [tryResume] restores it. */
+    private var staleSaveKey: String? = null
+
     /**
      * Held here (a ViewModel, so it survives navigation) between "user picked Host/Join"
      * and either [launchGame] (which captures it inside GameContext) or the user backing
@@ -159,7 +162,6 @@ class GameSessionManager : ViewModel() {
      */
     fun resumeSavedGame(saved: SavedGame): Boolean {
         // A save written before the Hub has no launch config; rebuild it from its storage key.
-        val legacy = saved.launch == null
         val launch = saved.launch ?: legacyLaunchFromKey(saved.route, saved.navRoute) ?: return false
         val mode = runCatching { PlayMode.valueOf(launch.mode) }.getOrNull() ?: return false
         if (launch.seats.isEmpty()) return false
@@ -174,9 +176,12 @@ class GameSessionManager : ViewModel() {
             )
         )
         pendingResume = saved
-        // The rebuilt launch may key differently than the old file (team ids are part of the key now):
-        // drop the old file; the snapshot is already in memory and the next save lands under the new key.
-        if (legacy) savedGames?.delete(saved.route)
+        // The launch may key differently than the old file (a pre-Hub save, or a Hub save from before
+        // team ids joined the key). Remember the old key and drop that file only AFTER the restore
+        // succeeds (see tryResume), so a kill or a failed navigation in between cannot lose the save.
+        val ctx = _activeContext.value
+        val currentKey = if (ctx != null) saveKey(saved.navRoute, ctx) else saved.route
+        staleSaveKey = if (currentKey != saved.route) saved.route else null
         return true
     }
 
@@ -197,6 +202,8 @@ class GameSessionManager : ViewModel() {
             false
         }
         if (!restored) savedGames?.delete(saved.route)
+        else staleSaveKey?.let { savedGames?.delete(it) }
+        staleSaveKey = null
         return restored
     }
 
@@ -219,6 +226,7 @@ class GameSessionManager : ViewModel() {
         val transport = createTransport(mode)
         transport.connect()
         launchOptions = options
+        staleSaveKey = null
         _activeContext.value = GameContext(
             activeMode = mode,
             players = players,

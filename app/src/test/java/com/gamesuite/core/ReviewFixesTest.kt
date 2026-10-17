@@ -93,6 +93,7 @@ class ReviewFixesTest {
         val m = GameSessionManager().also { it.savedGames = store }
         val saved = store.load(legacyKey)!!
         assertTrue("a legacy save must resume", m.resumeSavedGame(saved))
+        assertNotNull("the file stays until the restore succeeds", store.load(legacyKey))
         val ctx = m.activeContext.value!!
         assertEquals(PlayMode.SINGLE_PLAYER_VS_BOT, ctx.activeMode)
         assertEquals(listOf("p1", "bot1"), ctx.players.map { it.playerId })
@@ -101,6 +102,48 @@ class ReviewFixesTest {
         m.setActiveModule(module, "chess")
         assertTrue(m.tryResume(module))
         assertEquals("legacy-state", module.restored)
+    }
+
+    @Test
+    fun aSaveWhoseKeyChangedKeepsItsOldFileUntilTheRestoreSucceedsThenDropsIt() {
+        val store = SavedGameStore(File(tmp.root, "saves3"))
+        val oldKey = "uno-teams@SINGLE_DEVICE_PASS_AND_PLAY@p1,p2,p3,p4"   // no team suffixes: pre-change key
+        val save = SavedGame(
+            route = oldKey, label = "UNO", savedAtMillis = System.currentTimeMillis(),
+            savedAtEpochDay = java.time.LocalDate.now().toEpochDay(), snapshot = "teams-state",
+            navRoute = "uno-teams", launch = null
+        )
+        store.save(save)
+        val m = GameSessionManager().also { it.savedGames = store }
+        assertTrue(m.resumeSavedGame(save))
+        assertNotNull("kept while the restore is pending", store.load(oldKey))
+        val module = Resumable()
+        m.setActiveModule(module, "uno-teams")
+        assertTrue(m.tryResume(module))
+        assertNull("dropped once restored, because the key changed", store.load(oldKey))
+    }
+
+    @Test
+    fun aRejectedRestoreStillDeletesTheSaveAndNeverTheNewKeyFile() {
+        val store = SavedGameStore(File(tmp.root, "saves4"))
+        val key = "chess@SINGLE_PLAYER_VS_BOT@p1,bot1!"
+        val save = SavedGame(key, "Chess", System.currentTimeMillis(), java.time.LocalDate.now().toEpochDay(), "x", navRoute = "chess", launch = null)
+        store.save(save)
+        val m = GameSessionManager().also { it.savedGames = store }
+        assertTrue(m.resumeSavedGame(save))
+        val rejecting = object : GameModule by Resumable(), ResumableGame {
+            override fun snapshot(): String? = null
+            override fun restore(snapshot: String) = false
+        }
+        m.setActiveModule(rejecting, "chess")
+        assertFalse(m.tryResume(rejecting))
+        assertNull(store.load(key))
+    }
+
+    @Test
+    fun theUnoSpecKeepsItsLegacyRoutesSoOldSavesGetAResumeCard() {
+        val routes = GameHubSpecs.get("uno").routes()
+        assertTrue(routes.containsAll(listOf("uno", "uno-teams", "uno-custom")))
     }
 
     @Test
@@ -148,7 +191,7 @@ class ReviewFixesTest {
 
     @Test
     fun onlyUnoCanBeWatchedAndOnlineTablesNeverExceedTheRelayLimit() {
-        assertEquals(setOf("uno"), GameHubSpecs.spectatorGames)
+        assertTrue("no engine delivers state to spectators yet, so Watch stays hidden", GameHubSpecs.spectatorGames.isEmpty())
         val net = GameHubSpecs.buildAll(GameHubSpecs.networkedGames)
         val uno = net.first { it.gameId == "uno" }
         assertEquals(10, uno.mode("nearby")!!.maxSeats)

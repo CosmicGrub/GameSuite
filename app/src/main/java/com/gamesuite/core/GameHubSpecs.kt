@@ -10,11 +10,12 @@ package com.gamesuite.core
 object GameHubSpecs {
     /** Games whose engine and screen support Nearby / Online play. Grows as each game is finished. */
     /**
-     * Networked games that can also be WATCHED: their state is broadcast to everyone in the room. The
-     * seat-addressed board games send state only to the two seated players, so a spectator would sit
-     * in a game that never loads (the Online lobby hides Watch for them).
+     * Networked games that can also be WATCHED. None yet: every networked engine (UNO included) sends
+     * state only to the seated players, so a spectator would sit in a game that never loads. Add a
+     * game here only once it delivers state to spectators (and to one who joins after Start); the
+     * Online lobby hides Watch for everything else.
      */
-    val spectatorGames: Set<String> = setOf("uno")
+    val spectatorGames: Set<String> = emptySet()
 
     /** The relay's room size (host included): an Online table can never have more seats than this. */
     const val ONLINE_MAX_SEATS: Int = 8
@@ -124,6 +125,12 @@ object GameHubSpecs {
         )
     )
 
+    /**
+     * Saves made before the Hub live under UNO's old routes (Teams, house rules). They stay reachable
+     * so the Hub lists them for Resume; nothing launches new games on these routes any more.
+     */
+    private val LEGACY_UNO_ROUTES = listOf("uno-teams", "uno-custom")
+
     // ---- UNO ----------------------------------------------------------------------------------
 
     private fun toggle(
@@ -187,19 +194,19 @@ object GameHubSpecs {
                 HubMode(
                     id = "cpu", kind = HubModeKind.VS_CPU, title = "vs Computers",
                     blurb = "You against 1 to 9 computer players.",
-                    route = "uno", start = HubStart.IMMEDIATE, defaultCpus = 2, minSeats = 2, maxSeats = 10,
+                    route = "uno", extraRoutes = LEGACY_UNO_ROUTES, start = HubStart.IMMEDIATE, defaultCpus = 2, minSeats = 2, maxSeats = 10,
                     options = listOf(HubOptions.cpus(1, 9, 2), HubOptions.difficulty()) + rules
                 ),
                 HubMode(
                     id = "pass", kind = HubModeKind.PASS_AND_PLAY, title = "Pass & Play",
                     blurb = "Friends share this device. Computers can fill empty seats.",
-                    route = "uno", start = HubStart.READY_SCREEN, minSeats = 2, maxSeats = 10,
+                    route = "uno", extraRoutes = LEGACY_UNO_ROUTES, start = HubStart.READY_SCREEN, minSeats = 2, maxSeats = 10,
                     options = listOf(HubOptions.humans(2, 6, 4), HubOptions.cpus(0, 8, 0), HubOptions.difficulty()) + rules
                 ),
                 HubMode(
                     id = "teams", kind = HubModeKind.PASS_AND_PLAY, title = "Teams",
                     blurb = "Partners sit opposite and win together. Needs an even table.",
-                    route = "uno", start = HubStart.READY_SCREEN, minSeats = 4, maxSeats = 10,
+                    route = "uno", extraRoutes = LEGACY_UNO_ROUTES, start = HubStart.READY_SCREEN, minSeats = 4, maxSeats = 10,
                     options = listOf(
                         HubOptions.humans(1, 6, 2), HubOptions.cpus(0, 8, 2), HubOptions.difficulty(),
                         HubOption.Toggle(HubKeys.TEAMS, "Team play", true, visibleWhen = { false })
