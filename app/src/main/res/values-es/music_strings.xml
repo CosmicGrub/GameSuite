@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="music_title">Música</string>
+    <string name="music_back">Atrás</string>
+
+    <string name="music_section_source">Fuente de música</string>
+    <string name="music_source_off">Desactivada</string>
+    <string name="music_source_off_desc">Sin música de esta aplicación.</string>
+    <string name="music_source_ambience">Ambiente integrado</string>
+    <string name="music_source_ambience_desc">Música de fondo tranquila generada en tu dispositivo. No hay nada que configurar.</string>
+    <string name="music_source_library">Mi biblioteca</string>
+    <string name="music_source_library_desc">Reproduce canciones de una carpeta que elijas. Las demás aplicaciones se pausan mientras suena.</string>
+    <string name="music_source_other_apps">Otras aplicaciones</string>
+    <string name="music_source_other_apps_desc">Esta aplicación se mantiene en silencio para que Spotify, YouTube Music u otro reproductor siga sonando bajo los efectos del juego.</string>
+
+    <string name="music_section_library">Tu carpeta de música</string>
+    <string name="music_no_folder">Aún no has elegido ninguna carpeta. La aplicación solo lee la carpeta que elijas.</string>
+    <string name="music_folder_current">Carpeta: %1$s</string>
+    <string name="music_choose_folder">Elegir carpeta</string>
+    <string name="music_change_folder">Cambiar carpeta</string>
+    <string name="music_rescan">Volver a escanear</string>
+    <string name="music_forget_folder">Olvidar carpeta</string>
+    <string name="music_scanning">Escaneando… %1$d pistas encontradas</string>
+    <string name="music_track_count">%1$d pistas</string>
+
+    <string name="music_section_playlists">Listas de reproducción</string>
+    <string name="music_playlists_hint">Cada parte de la aplicación tiene su propia lista. Desmarca una pista para omitirla ahí y usa las flechas para cambiar el orden.</string>
+    <string name="music_context_menu">Menús</string>
+    <string name="music_context_board">Juegos de mesa</string>
+    <string name="music_context_card">Juegos de cartas</string>
+    <string name="music_context_puzzle">Puzles y palabras</string>
+    <string name="music_context_arcade">Arcade</string>
+    <string name="music_use_all">Usar todas las pistas</string>
+    <string name="music_track_enabled">Reproducir %1$s en esta lista</string>
+    <string name="music_move_up">Subir %1$s</string>
+    <string name="music_move_down">Bajar %1$s</string>
+    <string name="music_unknown_artist">Artista desconocido</string>
+
+    <string name="music_section_playback">Reproducción</string>
+    <string name="music_volume">Volumen: %1$d%%</string>
+    <string name="music_shuffle">Aleatorio</string>
+    <string name="music_shuffle_desc">Reproduce cada pista una vez antes de repetir.</string>
+    <string name="music_crossfade_label">Fundido cruzado: %1$d s</string>
+    <string name="music_crossfade_off">Fundido cruzado: desactivado</string>
+
+    <string name="music_section_now_playing">Reproduciendo</string>
+    <string name="music_nothing_playing">No se está reproduciendo nada</string>
+    <string name="music_previous">Anterior</string>
+    <string name="music_next">Siguiente</string>
+    <string name="music_play">Reproducir</string>
+    <string name="music_pause">Pausa</string>
+
+    <string name="music_empty_playlist">No hay pistas marcadas para esta parte de la aplicación, así que no suena nada. Elige una carpeta o marca algunas pistas.</string>
+    <string name="music_msg_folder_access_lost">La aplicación ya no puede leer tu carpeta de música. Vuelve a elegirla.</string>
+    <string name="music_msg_scan_failed">No se pudo leer la carpeta. Prueba a elegirla de nuevo.</string>
+    <string name="music_msg_no_tracks">No se encontraron archivos de audio en esa carpeta.</string>
+    <string name="music_msg_playback_failed">No se pudo reproducir ninguna de tus pistas. Comprueba que los archivos siguen ahí o vuelve a escanear.</string>
+    <string name="music_msg_focus_denied">Otra aplicación (por ejemplo una llamada) está usando el audio ahora. Pulsa Reproducir para intentarlo de nuevo.</string>
+    <string name="music_msg_save_failed">No se pudieron guardar los cambios de la lista.</string>
+</resources>

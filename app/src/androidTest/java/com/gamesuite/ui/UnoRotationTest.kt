@@ -8,6 +8,7 @@ import androidx.lifecycle.Lifecycle
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -89,14 +90,11 @@ class UnoRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        // Found by its REAL string resource -- see MainMenuScreen.kt's
-        // GameEntry(stringResource(R.string.game_uno_vs_cpu)) -- never a
-        // hardcoded literal copy of the button's English text. See class
-        // KDoc for why this is a plain click with no post-click
-        // confirmation, unlike every other game in this suite.
-        composeTestRule.onNodeWithText(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_uno_vs_cpu)
-        ).performScrollTo().performClick()
+        // New shell flow: bottom bar "Games" -> the "UNO." card -> its Game Hub -> the big
+        // "Play: ..." button (default mode: vs computers). See class KDoc for why the final
+        // click is plain with no post-click confirmation (confirmLanded = false), unlike
+        // every other game in this suite.
+        composeTestRule.openGameFromMenu("UNO", confirmLanded = false)
         // Let the game screen's own entrance animation (staggered initial
         // deal, shuffle SFX, etc.) actually start/settle before rotating.
         Thread.sleep(600)

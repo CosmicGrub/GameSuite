@@ -12,7 +12,7 @@ import com.gamesuite.MainActivity
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import com.gamesuite.NavRotationTestSupport.waitForNode
 import com.gamesuite.R
 import org.junit.Assert.assertEquals
@@ -51,9 +51,7 @@ class TicTacToeCheckersRotationTest {
     fun ticTacToe_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_tictactoe_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Tic-Tac-Toe")
         Thread.sleep(600) // let the game screen's own entrance animation actually start/settle
 
         NavRotationTestSupport.captureJankAround("ticTacToe") {
@@ -83,9 +81,7 @@ class TicTacToeCheckersRotationTest {
     fun ticTacToe_interactThenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_tictactoe_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Tic-Tac-Toe")
         Thread.sleep(600)
 
         // DIAGNOSTIC (temporary): dump the real on-device semantics tree.
@@ -124,9 +120,7 @@ class TicTacToeCheckersRotationTest {
     fun checkers_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_checkers_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Checkers")
         Thread.sleep(600)
 
         NavRotationTestSupport.captureJankAround("checkers") {

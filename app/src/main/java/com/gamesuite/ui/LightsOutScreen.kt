@@ -68,6 +68,7 @@ import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
 import kotlin.math.floor
@@ -935,6 +936,12 @@ private fun LightsOutResultPanel(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Back to Menu", textAlign = TextAlign.Center) }
             }
+            Spacer(Modifier.height(8.dp))
+            ChangeSetupButton(
+                onLeave = onBackToMenu,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+            )
         }
     }
 }

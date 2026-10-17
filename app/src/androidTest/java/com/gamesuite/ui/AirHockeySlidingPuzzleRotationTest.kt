@@ -17,7 +17,7 @@ import com.gamesuite.MainActivity
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import com.gamesuite.NavRotationTestSupport.waitForNode
 import com.gamesuite.R
 import org.junit.Assert.assertEquals
@@ -84,14 +84,15 @@ class AirHockeySlidingPuzzleRotationTest {
         // AirHockeyScreen.kt's continuous withFrameNanos physics tick loop
         // means Compose's test framework never considers it "idle," and every
         // ComposeTestRule synchronization point on it -- including
-        // navigateFromMenu's own internal waitUntil(), and a pure-UiAutomator
+        // openGameFromMenu's own post-click waitUntil() (confirmLanded), and a pure-UiAutomator
         // click that was also tried here -- either hangs or silently fails to
         // register. A plain, unconfirmed click reliably lands on this screen
         // every time across every earlier on-device run before any of that
         // was attempted).
-        composeTestRule.onNodeWithText(
-            composeTestRule.activity.getString(R.string.game_air_hockey_vs_cpu)
-        ).performScrollTo().performClick()
+        // New shell: Games tab -> "Air Hockey" card -> Hub -> "Play: ..." button. Everything up to
+        // that last click happens on static screens; confirmLanded=false keeps the final click
+        // unconfirmed, exactly like the old plain click.
+        composeTestRule.openGameFromMenu("Air Hockey", confirmLanded = false)
         Thread.sleep(600) // let the table entrance settle and the tick loop spin up
 
         NavRotationTestSupport.captureJankAround("airHockey") {
@@ -123,9 +124,7 @@ class AirHockeySlidingPuzzleRotationTest {
     fun slidingPuzzle_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_sliding_puzzle)
-        )
+        composeTestRule.openGameFromMenu("Sliding Puzzle")
         Thread.sleep(600) // let the fresh-scramble entrance animation actually start/settle
 
         NavRotationTestSupport.captureJankAround("slidingPuzzle") {
@@ -152,9 +151,7 @@ class AirHockeySlidingPuzzleRotationTest {
     fun slidingPuzzle_tileSlideThenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_sliding_puzzle)
-        )
+        composeTestRule.openGameFromMenu("Sliding Puzzle")
         Thread.sleep(600)
 
         val blankMatcher = hasContentDescription("Blank space", substring = true)

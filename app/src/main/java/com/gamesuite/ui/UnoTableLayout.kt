@@ -55,7 +55,13 @@ internal data class TableLayout(
     val clusterHalfW: Float,
     val clusterTop: Float,
     val clusterBottom: Float,
-    val clusterCenterX: Float
+    val clusterCenterX: Float,
+    /**
+     * Widest the status pill and an opponent's turn tag may be (dp): the free gap between the seats
+     * flanking the lower part of the cluster, never narrower than the cluster itself and never wider
+     * than 80% of the table. Longer text shrinks/ellipsizes instead of running under a seat plate.
+     */
+    val statusMaxW: Float
 )
 
 /**
@@ -307,6 +313,19 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
     val hUnit = if (finalCompact) SEAT_H_COMPACT else SEAT_H_UNIT
     val seats: List<TableSeatPos> = rows ?: arcSeats
 
+    // The status pill / turn tag sit below the piles. Seats beside that band bound how wide they may be.
+    val seatW = plateWidth(wUnit, seatScale)
+    val seatH = hUnit * seatScale
+    val bandTop = clusterTop + discardH
+    var gapLeft = cx - feltLeft
+    var gapRight = feltRight - cx
+    for (p in seats) {
+        if (p.cy + seatH / 2f <= bandTop || p.cy - seatH / 2f >= clusterBottom) continue
+        if (p.cx < cx) gapLeft = min(gapLeft, cx - (p.cx + seatW / 2f)) else gapRight = min(gapRight, (p.cx - seatW / 2f) - cx)
+    }
+    val statusMaxW = maxOf(2f * min(gapLeft, gapRight) - 8f, 2f * clusterHalfW)
+        .coerceAtMost(tableW * 0.8f)
+
     return TableLayout(
         discardW = discardW,
         discardH = discardH,
@@ -325,6 +344,7 @@ internal fun computeTableLayout(tableW: Float, tableH: Float, seatCount: Int, us
         clusterHalfW = clusterHalfW,
         clusterTop = clusterTop,
         clusterBottom = clusterBottom,
-        clusterCenterX = cx
+        clusterCenterX = cx,
+        statusMaxW = statusMaxW
     )
 }

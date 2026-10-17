@@ -1,52 +1,161 @@
 package com.gamesuite.ui
 
 import android.os.Build
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.games.cards.CardVisual
 import com.gamesuite.games.cards.LocalCardScale
 import com.gamesuite.games.cards.PlayingCardView
-import com.gamesuite.settings.AppSettings
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.GameSpeed
+import com.gamesuite.settings.MusicSource
 import com.gamesuite.settings.NamedTheme
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.settings.ThemeMode
 import com.gamesuite.ui.effects.DialogBackdropBlur
+import kotlin.math.roundToInt
 
 /**
- * App-wide settings only — per-game settings (UNO house rules, per-game
- * difficulty overrides, ...) belong on each game's own setup screen, not
- * here. See docs/SETTINGS_THEMING_ACCESSIBILITY.md §1's design note.
+ * App-wide settings only; per-game settings (UNO house rules, per-game difficulty overrides, ...)
+ * belong on each game's own setup screen, not here. See docs/SETTINGS_THEMING_ACCESSIBILITY.md §1.
+ *
+ * Grouped into titled sections (Play, Look & feel, Sound & music, Accessibility, Online, About) with a
+ * search field on top that filters rows by label/description/section title ([settingMatches]).
+ * Music has its own screen (route "music"); this screen only shows a row that opens it.
  */
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenMusic: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var showResetConfirmation by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
 
-    // Wide-window fix (Fold/Tab compatibility audit): this is a form screen — a plain
-    // fillMaxSize() column would stretch every label/switch row (and the full-width
-    // slider/text field) edge to edge across a Tab S9 landscape or Fold-unfolded window,
-    // leaving a huge gap between e.g. a switch's label and the switch itself. Same
-    // widthIn(max = 840.dp)-before-fillMaxWidth() centering trick as AdaptiveTwoPane/
-    // MainMenuScreen caps this screen to a sane reading width instead — no grid reflow
-    // needed here, unlike MainMenuScreen's button list, since a form's rows are already
-    // one-per-line by nature.
+    // Labels (also the text the search field matches against).
+    val secPlay = stringResource(R.string.settings_section_play)
+    val secLook = stringResource(R.string.settings_section_look)
+    val secSound = stringResource(R.string.settings_section_sound)
+    val secAccess = stringResource(R.string.settings_section_access)
+    val secOnline = stringResource(R.string.settings_section_online)
+    val secAbout = stringResource(R.string.settings_section_about)
+
+    val lblCpu = stringResource(R.string.settings_cpu_difficulty)
+    val descCpu = stringResource(R.string.settings_cpu_difficulty_desc)
+    val lblSpeed = stringResource(R.string.settings_game_speed)
+    val descSpeed = stringResource(R.string.settings_game_speed_desc)
+
+    val lblTheme = stringResource(R.string.settings_theme_mode)
+    val lblThemeSystem = stringResource(R.string.settings_theme_system)
+    val lblThemeLight = stringResource(R.string.settings_theme_light)
+    val lblThemeDark = stringResource(R.string.settings_theme_dark)
+    val lblDynamic = stringResource(R.string.settings_dynamic_color)
+    val descDynamic = stringResource(R.string.settings_dynamic_color_desc)
+    val lblPalette = stringResource(R.string.settings_palette)
+    val lblPaletteClassic = stringResource(R.string.settings_palette_classic)
+    val lblPaletteHc = stringResource(R.string.settings_palette_high_contrast)
+    val lblPaletteMidnight = stringResource(R.string.settings_palette_midnight)
+    val lblTextSize = stringResource(R.string.settings_text_size_label)
+    val textSizeValue = stringResource(R.string.settings_text_size_value, (settings.textScale * 100).roundToInt())
+    val lblCardSize = stringResource(R.string.settings_card_size)
+    val descCardSize = stringResource(R.string.settings_card_size_desc)
+    val lbl3d = stringResource(R.string.settings_3d)
+    val desc3d = stringResource(R.string.settings_3d_desc)
+    val lblAnim = stringResource(R.string.settings_animations)
+    val descAnim = stringResource(R.string.settings_animations_desc)
+
+    val lblSound = stringResource(R.string.settings_sound)
+    val lblHaptics = stringResource(R.string.settings_haptics)
+    val lblMusic = stringResource(R.string.settings_music)
+    val descMusic = stringResource(R.string.settings_music_desc)
+
+    val lblMotion = stringResource(R.string.settings_reduced_motion)
+    val descMotion = stringResource(R.string.settings_reduced_motion_desc)
+    val lblColorblind = stringResource(R.string.settings_colorblind)
+    val descColorblind = stringResource(R.string.settings_colorblind_desc)
+
+    val lblServer = stringResource(R.string.settings_online_server)
+    val descServer = stringResource(R.string.settings_online_server_desc)
+
+    val lblVersion = stringResource(R.string.settings_version)
+    val blurb = stringResource(R.string.settings_about_blurb)
+    val lblReset = stringResource(R.string.settings_reset_all)
+
+    // Row visibility. A query that matches a section title shows that whole section.
+    fun inSection(title: String) = settingMatches(query, title)
+    fun row(title: String, vararg texts: String) = inSection(title) || settingMatches(query, *texts)
+
+    val showCpu = row(secPlay, lblCpu, descCpu)
+    val showSpeed = row(secPlay, lblSpeed, descSpeed)
+    val showPlay = showCpu || showSpeed
+
+    val showTheme = row(secLook, lblTheme, lblThemeSystem, lblThemeLight, lblThemeDark)
+    val showDynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && row(secLook, lblDynamic, descDynamic)
+    val showPalette = row(secLook, lblPalette, lblPaletteClassic, lblPaletteHc, lblPaletteMidnight)
+    val showTextSize = row(secLook, lblTextSize)
+    val showCardSize = row(secLook, lblCardSize, descCardSize)
+    val show3d = row(secLook, lbl3d, desc3d)
+    val showAnim = row(secLook, lblAnim, descAnim)
+    val showLook = showTheme || showDynamic || showPalette || showTextSize || showCardSize || show3d || showAnim
+
+    val showSound = row(secSound, lblSound)
+    val showHaptics = row(secSound, lblHaptics)
+    val showMusic = row(secSound, lblMusic, descMusic)
+    val showSoundSection = showSound || showHaptics || showMusic
+
+    val showMotion = row(secAccess, lblMotion, descMotion)
+    val showColorblind = row(secAccess, lblColorblind, descColorblind)
+    val showAccess = showMotion || showColorblind
+
+    val showServer = row(secOnline, lblServer, descServer)
+
+    val showVersion = row(secAbout, lblVersion)
+    val showBlurb = row(secAbout, blurb)
+    val showResetRow = row(secAbout, lblReset)
+    val showAbout = showVersion || showBlurb || showResetRow
+
+    val anyVisible = showPlay || showLook || showSoundSection || showAccess || showServer || showAbout
+
+    // Version name + code via PackageManager (BuildConfig may be disabled in this module).
+    val context = LocalContext.current
+    val versionText = remember(context) {
+        try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            @Suppress("DEPRECATION")
+            val code: Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+            Pair(info.versionName ?: "?", code)
+        } catch (e: Exception) {
+            Pair("?", 0L)
+        }
+    }
+
+    // Wide-window fix: cap the form to a sane reading width so label/switch rows are not stretched
+    // edge to edge on a tablet or unfolded Fold.
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -54,228 +163,281 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .fillMaxHeight()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
+                .padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
                     onClick = onBack,
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                ) { Text("← Back") }
+                    modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                ) { Text(stringResource(R.string.settings_back)) }
             }
             Spacer(Modifier.height(8.dp))
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(24.dp))
-
-            SectionHeader("Theme")
-            ThemeModeSelector(settings.themeMode, onSelect = viewModel::setThemeMode)
+            Text(
+                stringResource(R.string.settings_title),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.semantics { heading() }
+            )
             Spacer(Modifier.height(12.dp))
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                SettingSwitchRow(
-                    label = "Dynamic color (Material You)",
-                    description = "Match your wallpaper's colors",
-                    checked = settings.dynamicColor,
-                    onCheckedChange = viewModel::setDynamicColor
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            NamedThemeSelector(
-                selected = settings.namedTheme,
-                enabled = !settings.dynamicColor,
-                onSelect = viewModel::setNamedTheme
-            )
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Sound & feedback")
-            // focusGroup() (§4c): the three toggles below are one logical cluster — Tab
-            // moves through them together before jumping to the next section header.
-            Column(modifier = Modifier.focusGroup()) {
-                SettingSwitchRow(
-                    label = "Sound effects",
-                    description = null,
-                    checked = settings.soundEnabled,
-                    onCheckedChange = viewModel::setSoundEnabled
-                )
-                SettingSwitchRow(
-                    label = "Haptics",
-                    description = null,
-                    checked = settings.hapticsEnabled,
-                    onCheckedChange = viewModel::setHapticsEnabled
-                )
-                SettingSwitchRow(
-                    label = "Ambient music",
-                    description = "Calming background music while you play",
-                    checked = settings.musicEnabled,
-                    onCheckedChange = viewModel::setMusicEnabled
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Accessibility")
-            // focusGroup() (§4c): same clustering as "Sound & feedback" above, including
-            // the text-size slider since it's part of the same accessibility control set.
-            Column(modifier = Modifier.focusGroup()) {
-                SettingSwitchRow(
-                    label = "Reduced motion",
-                    description = "Minimize animations across all games",
-                    checked = settings.reducedMotion,
-                    onCheckedChange = viewModel::setReducedMotion
-                )
-                SettingSwitchRow(
-                    label = "Colorblind-safe mode",
-                    description = "Add shape/pattern cues alongside color (e.g. UNO card colors)",
-                    checked = settings.colorblindMode,
-                    onCheckedChange = viewModel::setColorblindMode
-                )
-                SettingSwitchRow(
-                    label = "3D perspective mode",
-                    description = "Cards and pieces get real depth and perspective flips, and boards/tables get a resting tilt",
-                    checked = settings.card3DEnabled,
-                    onCheckedChange = viewModel::setCard3DEnabled
-                )
-                SettingSwitchRow(
-                    label = "Enhanced move animations",
-                    description = "Pieces and cards move with weight instead of snapping instantly — lift-and-place, capture fades, fly-to-target tosses",
-                    checked = settings.enhancedAnimationsEnabled,
-                    onCheckedChange = viewModel::setEnhancedAnimationsEnabled
-                )
-                Spacer(Modifier.height(8.dp))
-                Text("Text size: ${"%.0f".format(settings.textScale * 100)}%", style = MaterialTheme.typography.bodyMedium)
-                Slider(
-                    value = settings.textScale,
-                    onValueChange = viewModel::setTextScale,
-                    valueRange = 0.85f..1.5f,
-                    steps = 12
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Card size")
-            Text(
-                "Applies to every card game. Cards are capped to a size range computed " +
-                    "for this device — the smallest setting stays comfortably tappable, and " +
-                    "the largest still fits the table, so the game stays fully playable at " +
-                    "either end.",
-                style = MaterialTheme.typography.labelSmall
-            )
-            Spacer(Modifier.height(12.dp))
-            CardSizePreview()
-            Spacer(Modifier.height(4.dp))
-            Slider(
-                value = settings.cardSizePreference,
-                onValueChange = viewModel::setCardSizePreference,
-                valueRange = 0f..1f
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Small", style = MaterialTheme.typography.labelSmall)
-                Text("Large", style = MaterialTheme.typography.labelSmall)
-            }
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Gameplay")
-            Text("Default CPU difficulty", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Pre-selects each game's own difficulty picker — you can still override per match.",
-                style = MaterialTheme.typography.labelSmall
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text(stringResource(R.string.settings_search_label)) },
+                singleLine = true,
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        TextButton(
+                            onClick = { query = "" },
+                            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                        ) { Text(stringResource(R.string.settings_search_clear)) }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { }),
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
-            DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
 
-            Spacer(Modifier.height(20.dp))
-            Text("Game speed", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "How long opponents take to move and how long big moments hold. Slow gives you " +
-                    "time to read the table between turns; Quick keeps things snappy. " + settings.gameSpeed.description,
-                style = MaterialTheme.typography.labelSmall
-            )
-            Spacer(Modifier.height(8.dp))
-            GameSpeedSelector(settings.gameSpeed, onSelect = viewModel::setGameSpeed)
+            if (!anyVisible) {
+                Spacer(Modifier.height(24.dp))
+                Text(stringResource(R.string.settings_no_match), style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.settings_no_match_hint), style = MaterialTheme.typography.bodyMedium)
+            }
 
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Online multiplayer")
-            Text(
-                "A ws:// or wss:// address for the relay server UNO's online mode connects " +
-                    "through — see server/README.md. Leave blank and Online play stays disabled.",
-                style = MaterialTheme.typography.labelSmall
-            )
-            Spacer(Modifier.height(8.dp))
-            var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
-            // focusGroup() (§4c): the address field and its Save button are one cluster.
-            Column(modifier = Modifier.focusGroup()) {
-                OutlinedTextField(
-                    value = serverUrlDraft,
-                    onValueChange = { serverUrlDraft = it },
-                    label = { Text("Online server") },
-                    placeholder = { Text("ws://192.168.1.23:8080") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                        onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
-                    )
-                )
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                ) {
-                    Text("Save server address")
+            // ---------------- Play ----------------
+            if (showPlay) {
+                SettingsSection(secPlay) {
+                    if (showCpu) {
+                        SettingTitle(lblCpu, descCpu)
+                        DifficultySelector(settings.defaultCpuDifficulty, onSelect = viewModel::setDefaultCpuDifficulty)
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    if (showSpeed) {
+                        SettingTitle(lblSpeed, descSpeed + " " + settings.gameSpeed.description)
+                        GameSpeedSelector(settings.gameSpeed, onSelect = viewModel::setGameSpeed)
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("About")
-            Text(
-                "Also available: a standalone hardware version of part of this " +
-                    "project runs as a physical ESP32-based arcade cabinet — the " +
-                    "same game logic and AI, built from scratch in C++ for a " +
-                    "touchscreen microcontroller with no Android involved.",
-                style = MaterialTheme.typography.labelSmall
-            )
+            // ---------------- Look & feel ----------------
+            if (showLook) {
+                SettingsSection(secLook) {
+                    if (showTheme) {
+                        SettingTitle(lblTheme, null)
+                        ThemeModeSelector(settings.themeMode, onSelect = viewModel::setThemeMode)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (showDynamic) {
+                        SettingSwitchRow(
+                            label = lblDynamic,
+                            description = descDynamic,
+                            checked = settings.dynamicColor,
+                            onCheckedChange = viewModel::setDynamicColor
+                        )
+                    }
+                    if (showPalette) {
+                        SettingTitle(lblPalette, null)
+                        NamedThemeSelector(
+                            selected = settings.namedTheme,
+                            enabled = !settings.dynamicColor,
+                            onSelect = viewModel::setNamedTheme
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (showTextSize) {
+                        Text(textSizeValue, style = MaterialTheme.typography.bodyLarge)
+                        Slider(
+                            value = settings.textScale,
+                            onValueChange = viewModel::setTextScale,
+                            valueRange = 0.85f..1.5f,
+                            steps = 12,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        )
+                    }
+                    if (showCardSize) {
+                        Spacer(Modifier.height(8.dp))
+                        SettingTitle(lblCardSize, descCardSize)
+                        CardSizePreview()
+                        Slider(
+                            value = settings.cardSizePreference,
+                            onValueChange = viewModel::setCardSizePreference,
+                            valueRange = 0f..1f,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.settings_card_size_small), style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.settings_card_size_large), style = MaterialTheme.typography.labelSmall)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (show3d) {
+                        SettingSwitchRow(
+                            label = lbl3d,
+                            description = desc3d,
+                            checked = settings.card3DEnabled,
+                            onCheckedChange = viewModel::setCard3DEnabled
+                        )
+                    }
+                    if (showAnim) {
+                        SettingSwitchRow(
+                            label = lblAnim,
+                            description = descAnim,
+                            checked = settings.enhancedAnimationsEnabled,
+                            onCheckedChange = viewModel::setEnhancedAnimationsEnabled
+                        )
+                    }
+                }
+            }
 
-            Spacer(Modifier.height(32.dp))
-            OutlinedButton(
-                onClick = { showResetConfirmation = true },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            ) {
-                Text("Reset all settings")
+            // ---------------- Sound & music ----------------
+            if (showSoundSection) {
+                SettingsSection(secSound) {
+                    if (showSound) {
+                        SettingSwitchRow(
+                            label = lblSound,
+                            description = null,
+                            checked = settings.soundEnabled,
+                            onCheckedChange = viewModel::setSoundEnabled
+                        )
+                    }
+                    if (showHaptics) {
+                        SettingSwitchRow(
+                            label = lblHaptics,
+                            description = null,
+                            checked = settings.hapticsEnabled,
+                            onCheckedChange = viewModel::setHapticsEnabled
+                        )
+                    }
+                    if (showMusic) {
+                        val sourceLabel = when (settings.musicSource) {
+                            MusicSource.OFF -> stringResource(R.string.settings_music_off)
+                            MusicSource.AMBIENCE -> stringResource(R.string.settings_music_ambience)
+                            MusicSource.LIBRARY -> stringResource(R.string.settings_music_library)
+                            MusicSource.OTHER_APPS -> stringResource(R.string.settings_music_other_apps)
+                            else -> ""
+                        }
+                        NavigationRow(
+                            label = lblMusic,
+                            description = descMusic,
+                            value = sourceLabel,
+                            onClick = onOpenMusic
+                        )
+                    }
+                }
+            }
+
+            // ---------------- Accessibility ----------------
+            if (showAccess) {
+                SettingsSection(secAccess) {
+                    if (showMotion) {
+                        SettingSwitchRow(
+                            label = lblMotion,
+                            description = descMotion,
+                            checked = settings.reducedMotion,
+                            onCheckedChange = viewModel::setReducedMotion
+                        )
+                    }
+                    if (showColorblind) {
+                        SettingSwitchRow(
+                            label = lblColorblind,
+                            description = descColorblind,
+                            checked = settings.colorblindMode,
+                            onCheckedChange = viewModel::setColorblindMode
+                        )
+                    }
+                }
+            }
+
+            // ---------------- Online ----------------
+            if (showServer) {
+                SettingsSection(secOnline) {
+                    Text(descServer, style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.height(8.dp))
+                    var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
+                    OutlinedTextField(
+                        value = serverUrlDraft,
+                        onValueChange = { serverUrlDraft = it },
+                        label = { Text(lblServer) },
+                        placeholder = { Text("ws://192.168.1.23:8080") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
+                        )
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) },
+                        modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(stringResource(R.string.settings_online_save))
+                    }
+                }
+            }
+
+            // ---------------- About ----------------
+            if (showAbout) {
+                SettingsSection(secAbout) {
+                    if (showVersion) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(lblVersion, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.settings_version_value, versionText.first, versionText.second),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    if (showBlurb) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(blurb, style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (showResetRow) {
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = { showResetConfirmation = true },
+                            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                        ) {
+                            Text(lblReset)
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(24.dp))
         }
     }
 
-    // resetAll() wipes every setting on this screen (theme, sound, accessibility,
-    // card size, difficulty, server address) in one shot with no undo — confirm
-    // before calling it rather than firing straight off the button tap.
+    // resetAll() restores every setting (theme, sound, music, accessibility, card size, difficulty,
+    // server address) to its default in one shot with no undo, so confirm first.
     if (showResetConfirmation) {
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
-            // AGSL deepening (backdrop blur half): real OS-compositor blur behind this
-            // dialog's own window, see DialogBackdropBlur's own doc for why this needs
-            // to run inside a dialog content slot rather than as a modifier out on the
-            // calling screen.
-            title = { DialogBackdropBlur(); Text("Reset all settings?") },
-            text = { Text("This can't be undone.") },
+            // Real OS-compositor blur behind this dialog's window; see DialogBackdropBlur's doc.
+            title = { DialogBackdropBlur(); Text(stringResource(R.string.settings_reset_title)) },
+            text = { Text(stringResource(R.string.settings_reset_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showResetConfirmation = false
                         viewModel.resetAll()
                     },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                 ) {
-                    Text("Reset")
+                    Text(stringResource(R.string.settings_reset_confirm))
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showResetConfirmation = false },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.settings_cancel))
                 }
             }
         )
@@ -283,17 +445,10 @@ fun SettingsScreen(
 }
 
 /**
- * Reads the exact same `LocalCardScale` every real card in the app reads
- * (provided once at MainActivity's root from this same
- * `settings.cardSizePreference`) and applies it itself — PlayingCardView
- * deliberately never scales on its own (see CardScale.kt's KDoc: components
- * like FannedHand compute overlap/fan-width FROM the size they're given, so
- * scaling twice — once there, once again silently inside PlayingCardView —
- * would desync the two). Every card-drawing call site is responsible for
- * applying the multiplier itself; this preview is no exception, it's just
- * reading the same live value the rest of the app does, so what's shown here
- * updates instantly as the slider moves and matches a real in-game card
- * exactly, not a separate approximation of one.
+ * Reads the exact same `LocalCardScale` every real card in the app reads (provided once at
+ * MainActivity's root from `settings.cardSizePreference`) and applies it itself; PlayingCardView
+ * deliberately never scales on its own (see CardScale.kt's KDoc), so this preview updates live as
+ * the slider moves and matches a real in-game card exactly.
  */
 @Composable
 private fun CardSizePreview() {
@@ -303,9 +458,7 @@ private fun CardSizePreview() {
             card = CardVisual(
                 id = 0,
                 label = "7",
-                // UNO's own red (matches UnoScreen's private colorFor(RED) exactly) —
-                // a real card color makes it obvious this preview is showing actual
-                // game cards, not a generic placeholder swatch.
+                // UNO's own red, so the preview reads as an actual game card.
                 backgroundColor = Color(0xFFD32F2F)
             ),
             width = 64.dp * scale,
@@ -314,16 +467,41 @@ private fun CardSizePreview() {
     }
 }
 
+/** A titled group of rows: a heading, then the rows as one focus cluster. */
 @Composable
-private fun SectionHeader(title: String) {
-    Text(title, style = MaterialTheme.typography.titleMedium)
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Spacer(Modifier.height(20.dp))
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.semantics { heading() }
+    )
+    HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+    Column(modifier = Modifier.focusGroup(), content = content)
+}
+
+@Composable
+private fun SettingTitle(label: String, description: String?) {
+    Text(label, style = MaterialTheme.typography.bodyLarge)
+    if (description != null) {
+        Spacer(Modifier.height(2.dp))
+        Text(description, style = MaterialTheme.typography.labelSmall)
+    }
     Spacer(Modifier.height(8.dp))
 }
 
 @Composable
 private fun SettingSwitchRow(label: String, description: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    // The whole row is the toggle target (48dp min, one Tab stop, one semantics node); the Switch
+    // inside is a pure indicator.
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 8.dp)
+            .pointerHoverIcon(PointerIcon.Hand),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -333,41 +511,53 @@ private fun SettingSwitchRow(label: String, description: String?, checked: Boole
                 Text(description, style = MaterialTheme.typography.labelSmall)
             }
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-        )
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+@Composable
+private fun NavigationRow(label: String, description: String?, value: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp)
+            .pointerHoverIcon(PointerIcon.Hand),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (description != null) {
+                Text(description, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Text("$value  ›", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
 
 @Composable
 private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
-    // focusGroup() (§4c): the theme-mode options are one selectable cluster.
     Column(modifier = Modifier.focusGroup()) {
         ThemeMode.entries.forEach { mode ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .selectable(selected = selected == mode, onClick = { onSelect(mode) })
+                    .heightIn(min = 48.dp)
+                    .selectable(selected = selected == mode, role = Role.RadioButton, onClick = { onSelect(mode) })
                     .padding(vertical = 4.dp)
                     .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // onClick = null (not a duplicate of the Row's own .selectable() above):
-                // the standard Material3 pattern for a RadioButton inside a selectable
-                // row -- otherwise the RadioButton attaches its OWN independent
-                // clickable/focusable semantics node on top of the Row's, and a
-                // keyboard user has to Tab through both to get past a single visual
-                // option. Confirmed as a real bug on-device (Tab order genuinely
-                // double-stopped per row) before this fix, not a hypothetical.
+                // onClick = null: the Row's own .selectable() is the real target (one Tab stop).
                 RadioButton(selected = selected == mode, onClick = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when (mode) {
-                        ThemeMode.SYSTEM -> "Follow system"
-                        ThemeMode.LIGHT -> "Light"
-                        ThemeMode.DARK -> "Dark"
+                        ThemeMode.SYSTEM -> stringResource(R.string.settings_theme_system)
+                        ThemeMode.LIGHT -> stringResource(R.string.settings_theme_light)
+                        ThemeMode.DARK -> stringResource(R.string.settings_theme_dark)
                     }
                 )
             }
@@ -377,30 +567,26 @@ private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit
 
 @Composable
 private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect: (NamedTheme) -> Unit) {
-    // Classic, High Contrast, and Midnight Arcade ship with real palettes —
-    // see NamedTheme's KDoc. Felt Table remains future work.
+    // Felt Table remains future work (no palette yet).
     val available = listOf(NamedTheme.CLASSIC, NamedTheme.HIGH_CONTRAST, NamedTheme.MIDNIGHT_ARCADE)
-    // focusGroup() (§4c): the palette options are one selectable cluster.
     Column(modifier = Modifier.focusGroup()) {
         available.forEach { theme ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .selectable(selected = selected == theme, enabled = enabled, onClick = { onSelect(theme) })
+                    .heightIn(min = 48.dp)
+                    .selectable(selected = selected == theme, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(theme) })
                     .padding(vertical = 4.dp)
                     .pointerHoverIcon(PointerIcon.Hand),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // onClick = null -- see ThemeModeSelector's matching comment above for
-                // why: the Row's own .selectable() is the real target, this is a pure
-                // visual indicator now, not a second independent Tab stop.
                 RadioButton(selected = selected == theme, enabled = enabled, onClick = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when (theme) {
-                        NamedTheme.CLASSIC -> "Classic"
-                        NamedTheme.HIGH_CONTRAST -> "High Contrast"
-                        NamedTheme.MIDNIGHT_ARCADE -> "Midnight Arcade"
+                        NamedTheme.CLASSIC -> stringResource(R.string.settings_palette_classic)
+                        NamedTheme.HIGH_CONTRAST -> stringResource(R.string.settings_palette_high_contrast)
+                        NamedTheme.MIDNIGHT_ARCADE -> stringResource(R.string.settings_palette_midnight)
                         NamedTheme.FELT_TABLE -> "Felt Table"
                     }
                 )
@@ -408,7 +594,7 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
         }
         if (!enabled) {
             Text(
-                "Disable dynamic color to pick a palette",
+                stringResource(R.string.settings_palette_disabled),
                 style = MaterialTheme.typography.labelSmall
             )
         }
@@ -418,9 +604,8 @@ private fun NamedThemeSelector(selected: NamedTheme, enabled: Boolean, onSelect:
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun GameSpeedSelector(selected: GameSpeed, onSelect: (GameSpeed) -> Unit) {
-    // focusGroup() (§4c): the speed chips are one selectable cluster. A wrapping row: four chips do
-    // not fit a foldable's cover screen in one line.
-    androidx.compose.foundation.layout.FlowRow(
+    // A wrapping row: four chips do not fit a foldable's cover screen in one line.
+    FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.focusGroup()
     ) {
@@ -436,9 +621,9 @@ private fun GameSpeedSelector(selected: GameSpeed, onSelect: (GameSpeed) -> Unit
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun DifficultySelector(selected: CpuDifficulty, onSelect: (CpuDifficulty) -> Unit) {
-    // focusGroup() (§4c): the difficulty chips are one selectable cluster.
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusGroup()) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusGroup()) {
         CpuDifficulty.entries.forEach { difficulty ->
             FilterChip(
                 selected = selected == difficulty,

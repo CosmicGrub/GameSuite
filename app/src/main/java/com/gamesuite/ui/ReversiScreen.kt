@@ -41,6 +41,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
@@ -583,6 +584,7 @@ private fun CellView(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FinishedPanel(
     s: ReversiState,
@@ -634,9 +636,20 @@ private fun FinishedPanel(
                 )
             }
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { game.playAgain() }, enabled = canPlayAgain) { Text("Play Again") }
-                OutlinedButton(onClick = { game.leaveSession() }) { Text("Back to Menu") }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { game.playAgain() },
+                    enabled = canPlayAgain,
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text("Play Again") }
+                ChangeSetupButton(onLeave = { game.leaveSession() })
+                OutlinedButton(
+                    onClick = { game.leaveSession() },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text("Back to Menu") }
             }
         }
     }

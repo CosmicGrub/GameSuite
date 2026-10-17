@@ -70,6 +70,7 @@ import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
@@ -917,6 +918,7 @@ private fun MancalaControlsRow(
  * Menu. Fades in over 250ms (instant with Reduced Motion). [stackButtons] stacks the buttons for
  * the narrow side column of the landscape layout.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MancalaResultPanel(
     title: String,
@@ -958,21 +960,33 @@ private fun MancalaResultPanel(
                     ) { Text("Play Again") }
                     Spacer(Modifier.height(8.dp))
                 }
+                ChangeSetupButton(
+                    onLeave = onLeave,
+                    modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
+                )
+                Spacer(Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onLeave,
                     modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
                 ) { Text("Back to Menu") }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     if (canPlayAgain) {
                         Button(
                             onClick = onPlayAgain,
-                            modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)
+                            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                         ) { Text("Play Again") }
                     }
+                    ChangeSetupButton(
+                        onLeave = onLeave,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    )
                     OutlinedButton(
                         onClick = onLeave,
-                        modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)
+                        modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                     ) { Text("Back to Menu") }
                 }
             }

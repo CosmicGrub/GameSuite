@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared result-panel action: back to the game's Hub (modes and options) instead of the menu. -->
+    <string name="result_change_setup">Change setup</string>
+</resources>

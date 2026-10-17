@@ -996,7 +996,8 @@ fun UnoScreen(
                             // screen-reader user otherwise has to re-explore after every move.
                             Box(
                                 modifier = Modifier
-                                    .widthIn(max = tableW * 0.8f)
+                                    // Capped to the free gap between the seats beside it, not just the table.
+                                    .widthIn(max = minOf(tableW * 0.8f, layout.statusMaxW.dp))
                                     .background(Color(0xFF120C24).copy(alpha = 0.72f), RoundedCornerShape(50))
                                     .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
                                     .padding(horizontal = 14.dp, vertical = 5.dp)
@@ -1016,7 +1017,10 @@ fun UnoScreen(
                             val actor = s.players.getOrNull(s.currentPlayerIndex)
                             if (actor != null && s.currentPlayerIndex != myIndex && !s.roundOver) {
                                 Spacer(Modifier.height(6.dp))
-                                TurnTag(text = "${actor.displayName}: ${turnPrompt(s)}")
+                                TurnTag(
+                                    text = "${actor.displayName}: ${turnPrompt(s)}",
+                                    maxWidth = minOf(tableW * 0.8f, layout.statusMaxW.dp)
+                                )
                             }
 
                             Spacer(Modifier.height(12.dp))
@@ -1157,8 +1161,14 @@ fun UnoScreen(
             // In landscape the hand pane sits at the top right, exactly where the corner menu button is
             // drawn: keep the hand clear of it.
             val landscapeHand = LocalConfiguration.current.screenWidthDp > LocalConfiguration.current.screenHeightDp
+            // Side by side (expanded-width window: the hand pane is a full-height column next to the
+            // table): fill that column and center the hand vertically in it instead of leaving it
+            // wrap-height at the top with a large empty area below. The stacked layouts are untouched.
+            val sideBySide = com.gamesuite.foldable.rememberAdaptiveLayoutMode(foldState) ==
+                com.gamesuite.foldable.AdaptiveLayoutMode.TABLET
+            val fillPane = splitPane || sideBySide
             BoxWithConstraints(
-                modifier = (if (splitPane) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                modifier = (if (fillPane) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                     .then(if (landscapeHand && !splitPane) Modifier.padding(top = com.gamesuite.uikit.GameChromeEndInset) else Modifier)
                     // The drawn-card flight's actual landing target -- tracked on this whole pane
                     // rather than any one card slot, since the exact fan position of a not-yet-added
@@ -1188,7 +1198,7 @@ fun UnoScreen(
                 // Flights (a drawn card landing in the hand) read this to arrive at the hand's own size.
                 SideEffect { handCardWidth = handCardWFinal }
                 Column(
-                    modifier = (if (splitPane) Modifier.align(Alignment.Center) else Modifier).fillMaxWidth(),
+                    modifier = (if (fillPane) Modifier.align(Alignment.Center) else Modifier).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1609,6 +1619,12 @@ private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: ()
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
                 modifier = Modifier.heightIn(min = 46.dp)
             ) { Text("Back to menu", fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(8.dp))
+            com.gamesuite.uikit.ChangeSetupButton(
+                onLeave = onDone,
+                modifier = Modifier.heightIn(min = 48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            )
         }
     }
 }
@@ -2993,10 +3009,13 @@ private fun PendingDrawBadge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TurnTag(text: String, modifier: Modifier = Modifier) {
+private fun TurnTag(text: String, modifier: Modifier = Modifier, maxWidth: Dp = Dp.Unspecified) {
     Text(
         text,
+        maxLines = if (maxWidth == Dp.Unspecified) Int.MAX_VALUE else 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            .then(if (maxWidth == Dp.Unspecified) Modifier else Modifier.widthIn(max = maxWidth))
             // liveRegion: this tag is re-anchored to a new seat (or re-worded, e.g.
             // "Draw or stack") every time the turn advances — without this a
             // screen-reader user only learns whose turn it is by hunting for it.

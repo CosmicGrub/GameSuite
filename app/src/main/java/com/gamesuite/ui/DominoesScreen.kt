@@ -81,6 +81,7 @@ import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.specularSweep
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.Job
@@ -1345,6 +1346,11 @@ private fun DominoHandResultPanel(
             onClick = onPlayAgain,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
         ) { Text("Play Again") }
+        Spacer(Modifier.height(8.dp))
+        ChangeSetupButton(
+            onLeave = onBackToMenu,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        )
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
             onClick = onBackToMenu,

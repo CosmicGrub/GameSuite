@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +44,10 @@ class SettingsRepository(private val context: Context) {
         val GAME_SPEED = stringPreferencesKey("game_speed")
         val ONLINE_SERVER_URL = stringPreferencesKey("online_server_url")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
+        val MUSIC_SOURCE = stringPreferencesKey("music_source")
+        val MUSIC_VOLUME = floatPreferencesKey("music_volume")
+        val MUSIC_SHUFFLE = booleanPreferencesKey("music_shuffle")
+        val MUSIC_CROSSFADE_SECONDS = intPreferencesKey("music_crossfade_seconds")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { prefs ->
@@ -66,7 +71,14 @@ class SettingsRepository(private val context: Context) {
             cardSizePreference = prefs[Keys.CARD_SIZE_PREFERENCE] ?: 0.4f,
             gameSpeed = GameSpeed.fromName(prefs[Keys.GAME_SPEED]),
             onlineServerUrl = prefs[Keys.ONLINE_SERVER_URL] ?: "",
-            hasSeenOnboarding = prefs[Keys.HAS_SEEN_ONBOARDING] ?: false
+            hasSeenOnboarding = prefs[Keys.HAS_SEEN_ONBOARDING] ?: false,
+            // The source is the single truth for music. Before it existed there was only the on/off
+            // switch, so a stored "off" migrates to OFF (not to a silent "Built-in ambience").
+            musicSource = prefs[Keys.MUSIC_SOURCE]?.let { runCatching { MusicSource.valueOf(it) }.getOrNull() }
+                ?: if (prefs[Keys.MUSIC_ENABLED] == false) MusicSource.OFF else MusicSource.AMBIENCE,
+            musicVolume = (prefs[Keys.MUSIC_VOLUME] ?: 0.6f).coerceIn(0f, 1f),
+            musicShuffle = prefs[Keys.MUSIC_SHUFFLE] ?: true,
+            musicCrossfadeSeconds = (prefs[Keys.MUSIC_CROSSFADE_SECONDS] ?: 3).coerceIn(0, 8)
         )
     }
 
@@ -88,6 +100,11 @@ class SettingsRepository(private val context: Context) {
         edit { it[Keys.CARD_SIZE_PREFERENCE] = preference.coerceIn(0f, 1f) }
     suspend fun setOnlineServerUrl(url: String) = edit { it[Keys.ONLINE_SERVER_URL] = url.trim() }
     suspend fun setHasSeenOnboarding(seen: Boolean) = edit { it[Keys.HAS_SEEN_ONBOARDING] = seen }
+
+    suspend fun setMusicSource(source: MusicSource) = edit { it[Keys.MUSIC_SOURCE] = source.name }
+    suspend fun setMusicVolume(volume: Float) = edit { it[Keys.MUSIC_VOLUME] = volume.coerceIn(0f, 1f) }
+    suspend fun setMusicShuffle(enabled: Boolean) = edit { it[Keys.MUSIC_SHUFFLE] = enabled }
+    suspend fun setMusicCrossfadeSeconds(seconds: Int) = edit { it[Keys.MUSIC_CROSSFADE_SECONDS] = seconds.coerceIn(0, 8) }
 
     suspend fun resetAll() = edit { it.clear() }
 

@@ -87,6 +87,7 @@ import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.specularSweep
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -1153,6 +1154,12 @@ private fun WordSearchResultPanel(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Back to Menu", textAlign = TextAlign.Center) }
             }
+            Spacer(Modifier.height(8.dp))
+            ChangeSetupButton(
+                onLeave = onBackToMenu,
+                modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = WS_INK)
+            )
         }
     }
 }

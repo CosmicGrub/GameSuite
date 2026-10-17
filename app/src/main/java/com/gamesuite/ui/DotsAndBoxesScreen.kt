@@ -69,6 +69,7 @@ import com.gamesuite.ui.effects.ParticleBurst
 import com.gamesuite.ui.effects.cameraShake
 import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
@@ -1202,6 +1203,7 @@ private fun markInk(color: Color): Color = if (color.luminance() > 0.3f) MARK_IN
 // Result panel
 // ---------------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ResultPanel(
     s: DotsAndBoxesState,
@@ -1250,16 +1252,21 @@ private fun ResultPanel(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
                     onClick = onPlayAgain,
                     enabled = playAgainEnabled,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Play Again", textAlign = TextAlign.Center) }
+                ChangeSetupButton(onLeave = onBackToMenu, modifier = Modifier)
                 OutlinedButton(
                     onClick = onBackToMenu,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Back to Menu", textAlign = TextAlign.Center) }
             }

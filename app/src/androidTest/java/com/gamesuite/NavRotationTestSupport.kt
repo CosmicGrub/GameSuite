@@ -1,12 +1,17 @@
 package com.gamesuite
 
 import android.util.Log
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -90,15 +95,26 @@ object NavRotationTestSupport {
     }
 
     /** Presses the real hardware/gesture back action and settles -- used to
-     *  return to the main menu between games in a multi-game test. A game that
+     *  return to the app shell between games in a multi-game test. A game that
      *  is mid-match shows `GameChrome`'s "Leave" confirmation first, so this
-     *  confirms it when present (a no-op for screens without that dialog). */
+     *  confirms it when present (a no-op for screens without that dialog).
+     *  A game now sits behind its Game Hub (Games -> Hub -> game), so one back
+     *  press from a game lands on the Hub; this keeps pressing back (at most
+     *  twice more) until the bottom bar's "Games" tab is on screen again. */
     fun UiDevice.backToMenu() {
         pressBack()
         Thread.sleep(SETTLE_MS)
         findObject(androidx.test.uiautomator.By.text("Leave"))?.let {
             it.click()
             Thread.sleep(SETTLE_MS)
+        }
+        val gamesLabel = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(com.gamesuite.R.string.nav_games)
+        repeat(2) {
+            if (findObject(androidx.test.uiautomator.By.text(gamesLabel)) == null) {
+                pressBack()
+                Thread.sleep(SETTLE_MS)
+            }
         }
     }
 
@@ -120,7 +136,7 @@ object NavRotationTestSupport {
      * navigation-commit timing -- `waitForIdle()` plus a fixed sleep is not
      * proof the click's SIDE EFFECT (NavController actually changing screens)
      * has landed, only that Compose's own snapshot/frame queue is drained.
-     * [navigateFromMenu] is the actual fix for that specific race; this
+     * [openGameFromMenu] is the actual fix for that specific race; this
      * function is still the right tool for waiting on an in-screen element
      * once navigation is already confirmed.
      */
@@ -130,31 +146,59 @@ object NavRotationTestSupport {
         }
     }
 
+    /** The Games-tab card for [title]: its content description is "Title. Tagline[. badges]" (see GameCard). */
+    private fun gameCardMatcher(title: String): SemanticsMatcher =
+        SemanticsMatcher("contentDescription starts with \"$title. \"") { node ->
+            SemanticsProperties.ContentDescription in node.config &&
+                node.config[SemanticsProperties.ContentDescription].any { it.startsWith("$title. ") }
+        }
+
+    /** The Game Hub's big Play button; its text is "Play: <mode>" (see GameHubScreen's HubPlayButton). */
+    private fun hubPlayMatcher(): SemanticsMatcher =
+        hasText("Play: ", substring = true) and hasClickAction()
+
     /**
-     * Clicks the main-menu button whose text is exactly [buttonText], then
-     * polls until that same button's node is no longer part of the semantics
-     * tree -- real proof the click's navigation side effect actually landed,
-     * not just that the click action fired without throwing. See
-     * [waitForNode]'s own KDoc for the real on-device failure this fixes:
-     * `performClick()` succeeding is not proof `NavController.navigate(...)`
-     * has actually committed yet on real hardware.
+     * Opens the game titled [title] the way a player does in the new app shell: bottom bar "Games" ->
+     * the game's card -> its Game Hub -> the big "Play: ..." button -> the game. Replaces the old flat
+     * menu's one-button-per-mode lookup (e.g. "Chess (vs CPU)"); the Play button repeats the Hub's
+     * last/default mode, which for every game used by these tests is the vs-CPU / solo / free-play one.
      *
-     * Every game-launch button's text is unique across the whole main menu
-     * (confirmed against `strings.xml` and `MainMenuScreen.kt`), and no game
-     * screen re-renders that same literal string anywhere in its own content,
-     * so "the button's text is gone" is a safe, specific signal that the menu
-     * itself is no longer what's on screen.
+     * [familyChipLabel] (e.g. `getString(R.string.section_board_games)`) optionally taps that family
+     * filter chip first to shorten the list; the Games list is also scrolled to the card
+     * (`performScrollToNode`, since the card may not be composed yet in the lazy list).
+     *
+     * [confirmLanded]: when true, polls until the Play button is gone (the Hub was left, i.e. the
+     * navigation side effect really landed -- see [waitForNode]'s KDoc for the on-device race). Pass
+     * false for the continuously-animating screens (UNO, Air Hockey) whose tests deliberately issue no
+     * Compose sync after the final click. Not for games with `skipsHub` (Breakout, Tower Defence, Party
+     * Toolkit): their card launches straight in, so the Play wait here would time out.
      */
-    fun ComposeTestRule.navigateFromMenu(buttonText: String, timeoutMillis: Long = 15000L) {
-        // performScrollTo() first unconditionally -- several menu entries sit
-        // below the fold in the scrollable menu list, and a real click
-        // gesture (not just a semantics action invocation) needs the node's
-        // actual on-screen bounds to be meaningful. A harmless no-op for a
-        // button already fully visible.
-        onNodeWithText(buttonText).performScrollTo().performClick()
-        val buttonMatcher = hasText(buttonText)
-        waitUntil(timeoutMillis) {
-            onAllNodes(buttonMatcher).fetchSemanticsNodes().isEmpty()
+    fun ComposeTestRule.openGameFromMenu(
+        title: String,
+        familyChipLabel: String? = null,
+        confirmLanded: Boolean = true,
+        timeoutMillis: Long = 15000L
+    ) {
+        val card = gameCardMatcher(title)
+        val play = hubPlayMatcher()
+        if (onAllNodes(card).fetchSemanticsNodes().isEmpty()) {
+            val gamesLabel = InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(com.gamesuite.R.string.nav_games)
+            // The tab label comes first in the tree; on the Games screen itself the heading "Games" is a harmless no-op click.
+            onAllNodesWithText(gamesLabel).onFirst().performClick()
+            waitForNode(hasScrollToNodeAction(), timeoutMillis)
+        }
+        if (familyChipLabel != null) {
+            onAllNodesWithText(familyChipLabel).onFirst().performClick()
+        }
+        onNode(hasScrollToNodeAction()).performScrollToNode(card)
+        onNode(card).performClick()
+        waitForNode(play, timeoutMillis)
+        onNode(play).performScrollTo().performClick()
+        if (confirmLanded) {
+            waitUntil(timeoutMillis) {
+                onAllNodes(play).fetchSemanticsNodes().isEmpty()
+            }
         }
         // Deliberately NOT calling waitForIdle() here -- at least one real
         // destination screen (UNO) runs a continuous rememberInfiniteTransition
@@ -165,7 +209,7 @@ object NavRotationTestSupport {
         // settling should use a bounded Thread.sleep() instead.
     }
 
-    // A pure-UiAutomator alternative to navigateFromMenu/waitForNode was
+    // A pure-UiAutomator alternative to openGameFromMenu/waitForNode was
     // tried and removed here (see UnoRotationTest's and
     // AirHockeySlidingPuzzleRotationTest's own class KDocs for the full
     // story): for a screen with a continuous animation running, UiAutomator

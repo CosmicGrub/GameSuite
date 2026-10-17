@@ -310,6 +310,11 @@ fun AirHockeyScreen(
                 onClick = onMatchEnded,
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             ) { Text("Back to menu") }
+            Spacer(Modifier.height(8.dp))
+            com.gamesuite.uikit.ChangeSetupButton(
+                onLeave = onMatchEnded,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
         }
         return
     }

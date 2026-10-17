@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -26,7 +28,6 @@ import com.gamesuite.core.dailyModeOf
 import com.gamesuite.core.gameGlyph
 import com.gamesuite.core.gameIdForRoute
 import com.gamesuite.core.launchHubMode
-import com.gamesuite.core.savedAgoText
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.stats.StatsViewModel
@@ -54,6 +55,10 @@ fun MainMenuScreen(
     val favorites = rememberFavorites()
     val saves = rememberSavedGames(sessionManager)
     val reducedMotion = LocalReducedMotion.current
+    val context = LocalContext.current
+    // Reading the configuration re-resolves the catalog text when the locale changes.
+    val configuration = LocalConfiguration.current
+    val localize: (String) -> String = remember(context, configuration) { { text -> HubText.resolve(context, text) } }
 
     // Saved games that belong to a Hub game, newest first (a save from a retired route has no Hub and is skipped).
     val continueItems = remember(saves) {
@@ -110,7 +115,7 @@ fun MainMenuScreen(
                         val mode = dailyModeOf(spec) ?: return@forEach
                         GameTile(
                             glyph = gameGlyph(spec.gameId),
-                            title = "${spec.title} · ${mode.title}",
+                            title = "${localize(spec.title)} · ${localize(mode.title)}",
                             subtitle = "",
                             accent = familyAccent(spec.family),
                             onClick = {
@@ -132,8 +137,8 @@ fun MainMenuScreen(
                     continueItems.forEach { (spec, saved) ->
                         GameTile(
                             glyph = gameGlyph(spec.gameId),
-                            title = saved.label.ifBlank { spec.title },
-                            subtitle = saved.summary.ifBlank { savedAgoText(saved.savedAtMillis, System.currentTimeMillis()) },
+                            title = saved.label.ifBlank { localize(spec.title) },
+                            subtitle = saved.summary.ifBlank { HubText.savedAgo(context, saved.savedAtMillis, System.currentTimeMillis()) },
                             accent = familyAccent(spec.family),
                             onClick = { onNavigate("hub/${spec.gameId}") }
                         )
@@ -146,8 +151,8 @@ fun MainMenuScreen(
                     favoriteSpecs.forEach { spec ->
                         GameTile(
                             glyph = gameGlyph(spec.gameId),
-                            title = spec.title,
-                            subtitle = spec.tagline,
+                            title = localize(spec.title),
+                            subtitle = localize(spec.tagline),
                             accent = familyAccent(spec.family),
                             onClick = { openGameFromCard(spec, sessionManager, onNavigate) }
                         )
@@ -162,8 +167,8 @@ fun MainMenuScreen(
                         Box {
                             GameTile(
                                 glyph = gameGlyph(spec.gameId),
-                                title = spec.title,
-                                subtitle = "${s.wins}W – ${s.losses}L",
+                                title = localize(spec.title),
+                                subtitle = stringResource(R.string.home_record, s.wins, s.losses),
                                 accent = familyAccent(spec.family),
                                 onClick = { openGameFromCard(spec, sessionManager, onNavigate) },
                                 // Long-press: hide this tile from the row (the win/loss record is untouched).

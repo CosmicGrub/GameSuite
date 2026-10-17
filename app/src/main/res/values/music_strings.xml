@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="music_title">Music</string>
+    <string name="music_back">Back</string>
+
+    <string name="music_section_source">Music source</string>
+    <string name="music_source_off">Off</string>
+    <string name="music_source_off_desc">No music from this app.</string>
+    <string name="music_source_ambience">Built-in ambience</string>
+    <string name="music_source_ambience_desc">Calm generated background music made on your device. Nothing to set up.</string>
+    <string name="music_source_library">My library</string>
+    <string name="music_source_library_desc">Plays songs from a folder you choose. Other apps pause while this plays.</string>
+    <string name="music_source_other_apps">Other apps playing</string>
+    <string name="music_source_other_apps_desc">This app stays quiet so Spotify, YouTube Music or any other player keeps going underneath the game sounds.</string>
+
+    <string name="music_section_library">Your music folder</string>
+    <string name="music_no_folder">No folder chosen yet. The app only reads the folder you pick.</string>
+    <string name="music_folder_current">Folder: %1$s</string>
+    <string name="music_choose_folder">Choose folder</string>
+    <string name="music_change_folder">Change folder</string>
+    <string name="music_rescan">Rescan</string>
+    <string name="music_forget_folder">Forget folder</string>
+    <string name="music_scanning">Scanning… %1$d tracks found</string>
+    <string name="music_track_count">%1$d tracks</string>
+
+    <string name="music_section_playlists">Playlists</string>
+    <string name="music_playlists_hint">Each part of the app has its own list. Untick a track to skip it there, and use the arrows to change the order.</string>
+    <string name="music_context_menu">Menus</string>
+    <string name="music_context_board">Board games</string>
+    <string name="music_context_card">Card games</string>
+    <string name="music_context_puzzle">Puzzle and word</string>
+    <string name="music_context_arcade">Arcade</string>
+    <string name="music_use_all">Use all tracks</string>
+    <string name="music_track_enabled">Play %1$s in this list</string>
+    <string name="music_move_up">Move %1$s up</string>
+    <string name="music_move_down">Move %1$s down</string>
+    <string name="music_unknown_artist">Unknown artist</string>
+
+    <string name="music_section_playback">Playback</string>
+    <string name="music_volume">Volume: %1$d%%</string>
+    <string name="music_shuffle">Shuffle</string>
+    <string name="music_shuffle_desc">Plays every track once before any repeats.</string>
+    <string name="music_crossfade_label">Crossfade: %1$d s</string>
+    <string name="music_crossfade_off">Crossfade: off</string>
+
+    <string name="music_section_now_playing">Now playing</string>
+    <string name="music_nothing_playing">Nothing playing</string>
+    <string name="music_previous">Previous</string>
+    <string name="music_next">Next</string>
+    <string name="music_play">Play</string>
+    <string name="music_pause">Pause</string>
+
+    <string name="music_empty_playlist">No tracks are ticked for this part of the app, so it stays quiet. Choose a folder or tick some tracks.</string>
+    <string name="music_msg_folder_access_lost">The app can no longer read your music folder. Choose it again.</string>
+    <string name="music_msg_scan_failed">Could not read the folder. Try choosing it again.</string>
+    <string name="music_msg_no_tracks">No audio files were found in that folder.</string>
+    <string name="music_msg_playback_failed">None of your tracks could be played. Check that the files are still there, or rescan.</string>
+    <string name="music_msg_focus_denied">Another app (for example a phone call) is using the audio right now. Press Play to try again.</string>
+    <string name="music_msg_save_failed">Could not save your playlist changes.</string>
+</resources>
