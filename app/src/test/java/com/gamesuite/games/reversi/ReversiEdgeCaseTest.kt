@@ -943,9 +943,9 @@ class ReversiEdgeCaseTest {
         assertEquals(1, results.size)
     }
 
-    /** Equal positive win counts make BOTH players winners; zero wins for everyone makes NOBODY a winner. */
+    /** Only a STRICT leader is a winner: an evenly split tally is a tie (nobody flagged), and so is zero wins for everyone. */
     @Test
-    fun `leaveSession marks tied leaders as winners but never marks anyone when no board was won`() {
+    fun `leaveSession flags no winner for an evenly split tally or when no board was won`() {
         val tiedGame = newGame()
         val tied = mutableListOf<GameResult>()
         tiedGame.setOnMatchEnd { tied += it }
@@ -953,7 +953,7 @@ class ReversiEdgeCaseTest {
         winBoard(tiedGame, swap = false); tiedGame.playAgain()
         winBoard(tiedGame, swap = true)
         tiedGame.leaveSession()
-        assertEquals(listOf(PlayerScore("p1", 1, true), PlayerScore("p2", 1, true)), tied.single().scores)
+        assertEquals(listOf(PlayerScore("p1", 1, false), PlayerScore("p2", 1, false)), tied.single().scores)
 
         val emptyGame = newGame()
         val none = mutableListOf<GameResult>()
