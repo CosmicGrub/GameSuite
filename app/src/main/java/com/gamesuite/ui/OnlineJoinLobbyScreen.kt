@@ -21,6 +21,8 @@ import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.OnlineLobbyMessage
+import com.gamesuite.transport.isFromHost
+import com.gamesuite.transport.localSeatIndex
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -76,11 +78,12 @@ fun OnlineJoinLobbyScreen(
 
     LaunchedEffect(pendingGameStart) {
         val message = pendingGameStart ?: return@LaunchedEffect
-        val myIndex = message.players.indexOfFirst { it.playerId == clientPlayerId }
-        // A spectator is legitimately absent from the roster (server-side playerList() excludes
-        // spectators by design) -- only bail for a non-spectator guest genuinely missing, which
-        // would be a real bug, not this.
-        if (myIndex < 0 && !joinedAsSpectator) return@LaunchedEffect // roster didn't include us — ignore rather than crash
+        // localSeatIndex: -1 for a spectator (legitimately absent from the roster, server-side playerList()
+        // excludes spectators by design, and never seated even if a roster claims to), the seat for a
+        // validly seated player, and null for a non-spectator genuinely missing or not validly seated,
+        // which would be a real bug, not this.
+        val myIndex = message.localSeatIndex(clientPlayerId, joinedAsSpectator)
+            ?: return@LaunchedEffect // roster didn't (validly) include us — ignore rather than crash
         sessionManager.launchGame(
             mode = PlayMode.ONLINE,
             players = message.players,
@@ -95,11 +98,12 @@ fun OnlineJoinLobbyScreen(
 
     DisposableEffect(transport) {
         transport.onJoined { _, _ -> hasJoined = true }
-        transport.onRawMessageReceived { _, payload ->
+        transport.onRawMessageReceived { fromPlayerId, payload ->
             val message = runCatching {
                 Json.decodeFromString<OnlineLobbyMessage>(String(payload, Charsets.UTF_8))
             }.getOrNull()
-            if (message is OnlineLobbyMessage.GameStart) {
+            // Any room member can relay a GameStart-shaped message; only the host's is real.
+            if (message is OnlineLobbyMessage.GameStart && message.isFromHost(fromPlayerId, transport.hostPlayerId)) {
                 pendingGameStart = message
             }
         }

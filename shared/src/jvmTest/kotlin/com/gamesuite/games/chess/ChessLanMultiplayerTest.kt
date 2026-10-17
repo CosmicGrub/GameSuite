@@ -150,16 +150,13 @@ class ChessLanMultiplayerTest {
     fun hostIgnoresAnIntentClaimingTheWrongPlayersTurn() {
         val pair = setUpConnectedPair()
         try {
-            // It's Black's (the guest's) turn at this point. LanMultiplayerTransport trusts a
-            // message frame's own declared fromPlayerId at delivery time (the same design
-            // OnlineTransport's own relay already uses) -- the actual defense against a
-            // wrong-seat move is meant to live in the GAME layer's own handling, exactly what
-            // this test exercises: a real Intent sent over the guest's own live connection,
-            // but dishonestly claiming to be from "host-p" instead of the guest's own
-            // "guest-p". Since sideToMove is BLACK (the guest's own real seat, index 1) and
-            // this frame claims sender index 0 (White/host), ChessGame.handleNetworkMessage's
-            // own senderIndex != playerIndexForColor(sideToMove) check must reject it -- d2
-            // stays untouched on both sides either way.
+            // It's Black's (the guest's) turn at this point, and the guest's own live connection
+            // sends a frame that (falsely) says it is from "host-p" carrying a WHITE move, d2-d4.
+            // LanMultiplayerTransport ignores the claim and stamps the sender as the connection's
+            // own seat ("guest-p", Black), so this is Black trying to move a White pawn, which the
+            // engine rejects as illegal. (Impersonating the host on the HOST's turn is covered by
+            // aGuestForgingTheHostsIdCannotMoveWhiteOnWhitesTurn below.) d2 stays untouched on both
+            // sides either way.
             val badIntentPayload = Json.encodeToString(
                 ChessNetMessage.serializer(),
                 ChessNetMessage.Intent(ChessIntentPayload.PlayMove(sq('d', 2), sq('d', 4)))
@@ -170,6 +167,34 @@ class ChessLanMultiplayerTest {
             assertEquals(PieceType.PAWN, pair.host.state.value?.board?.get(sq('d', 2))?.type)
             assertEquals(PieceType.PAWN, pair.guest.state.value?.board?.get(sq('d', 2))?.type)
             assertEquals(PieceColor.BLACK, pair.host.state.value?.sideToMove)
+        } finally {
+            pair.disconnect()
+        }
+    }
+
+    @Test
+    fun aGuestForgingTheHostsIdCannotMoveWhiteOnWhitesTurn() {
+        val pair = setUpConnectedPair()
+        try {
+            // Black (the guest) makes its real move, leaving it WHITE's turn: the moment impersonating
+            // the host would pay off. Then the guest forges "host-p" on a legal White move.
+            pair.guest.playMove(1, sq('e', 7), sq('e', 5))
+            awaitCondition("the host to apply Black's move") { pair.host.state.value?.sideToMove == PieceColor.WHITE }
+            awaitCondition("the guest to see it confirmed") { pair.guest.state.value?.sideToMove == PieceColor.WHITE }
+
+            // LanMultiplayerTransport used to trust this claim, so the host game would have played
+            // d2-d4 for White. It now stamps the sender from the connection: "guest-p", out of turn.
+            val forged = Json.encodeToString(
+                ChessNetMessage.serializer(),
+                ChessNetMessage.Intent(ChessIntentPayload.PlayMove(sq('d', 2), sq('d', 4)))
+            )
+            pair.guestTransport.send(fromPlayerId = "host-p", toPlayerId = "host-p", payload = forged.encodeToByteArray())
+
+            Thread.sleep(300) // give a wrongful apply a real chance to happen before asserting it didn't
+            assertEquals(PieceType.PAWN, pair.host.state.value?.board?.get(sq('d', 2))?.type)
+            assertEquals(null, pair.host.state.value?.board?.get(sq('d', 4)))
+            assertEquals(null, pair.guest.state.value?.board?.get(sq('d', 4)))
+            assertEquals(PieceColor.WHITE, pair.host.state.value?.sideToMove)
         } finally {
             pair.disconnect()
         }

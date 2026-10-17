@@ -16,18 +16,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
-import com.gamesuite.core.PlayerInfo
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
+import com.gamesuite.transport.NearbyRoster
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Advertises this device, shows connected guests as they join (matched against their
- * self-declared [NearbyLobbyMessage.JoinRequest] — see NearbyLobbyProtocol.kt's KDoc for
- * why the host can't just use raw endpoint ids as player ids), and starts the match once
- * the host taps Start.
+ * Advertises this device, shows connected guests as they join (their
+ * [NearbyLobbyMessage.JoinRequest]s go into a [NearbyRoster], which — not the guest — decides
+ * each guest's player id; see NearbyLobbyProtocol.kt's KDoc), and starts the match once the
+ * host taps Start.
  *
  * [gameRoute]/[gameDisplayName] parameterize this for any LOCAL_AD_HOC-capable game —
  * this pass wires only UNO in, but the lobby itself isn't UNO-specific.
@@ -47,8 +47,8 @@ fun NearbyHostLobbyScreen(
         return
     }
 
-    // endpointId -> the guest's self-declared JoinRequest, keyed as it arrives.
-    var joinedGuests by remember { mutableStateOf<Map<String, NearbyLobbyMessage.JoinRequest>>(emptyMap()) }
+    // Guests in join order, each with the seat id THIS host assigned it (never a raw client value).
+    var roster by remember { mutableStateOf(NearbyRoster()) }
     val connectedPeers by transport.connectedPeers.collectAsState()
 
     DisposableEffect(transport) {
@@ -59,7 +59,7 @@ fun NearbyHostLobbyScreen(
                 null
             }
             if (message is NearbyLobbyMessage.JoinRequest) {
-                joinedGuests = joinedGuests + (endpointId to message)
+                roster = roster.withJoinRequest(endpointId, message)
             }
         }
         transport.startHosting("GameSuite Host (${Build.MODEL})")
@@ -75,7 +75,7 @@ fun NearbyHostLobbyScreen(
 
     // A guest that disconnects before Start Game is tapped should drop out of the roster too.
     LaunchedEffect(connectedPeers) {
-        joinedGuests = joinedGuests.filterKeys { endpointId -> connectedPeers.any { it.endpointId == endpointId } }
+        roster = roster.retainingEndpoints(connectedPeers.map { it.endpointId })
     }
 
     // verticalScroll: see NearbyEntryScreen's KDoc comment on the same fix — this screen's
@@ -95,27 +95,37 @@ fun NearbyHostLobbyScreen(
         Text("Waiting for players to join...", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
 
-        if (joinedGuests.isEmpty()) {
+        if (roster.guests.isEmpty()) {
             Text("No one has joined yet.")
         } else {
             Text("Joined:")
-            joinedGuests.values.forEach { guest -> Text("• ${guest.displayName}") }
+            roster.guests.forEach { guest -> Text("• ${guest.displayName}") }
         }
 
         Spacer(Modifier.height(24.dp))
 
         Button(
-            enabled = joinedGuests.isNotEmpty(),
+            enabled = roster.guests.isNotEmpty(),
             modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
             onClick = {
-                val players = listOf(PlayerInfo(playerId = "host", displayName = PlayerNameStore(context).lobbyName("Host"))) +
-                    joinedGuests.values.map { PlayerInfo(playerId = it.clientPlayerId, displayName = it.displayName) }
+                // launch() freezes the roster (a JoinRequest that lands after this can't add a seat) and
+                // decides the player list, the mapping to install and each guest's GameStart together, so
+                // what is installed is exactly what is announced. This screen only applies the plan.
+                val launch = roster.launch(gameRoute)
+                roster = launch.roster
+                // The host's seat keeps its id; only its display name is the remembered one.
+                val hostName = PlayerNameStore(context).lobbyName("Host")
+                val players = launch.players.map {
+                    if (it.playerId == com.gamesuite.transport.NEARBY_HOST_PLAYER_ID) it.copy(displayName = hostName) else it
+                }
 
-                transport.setPlayerIdMapping(joinedGuests.mapValues { it.value.clientPlayerId })
+                transport.setPlayerIdMapping(launch.endpointToPlayerId)
                 transport.stopAdvertising()
 
-                val startMessage: NearbyLobbyMessage = NearbyLobbyMessage.GameStart(gameRoute, players)
-                transport.sendRawToAll(Json.encodeToString(startMessage).toByteArray(Charsets.UTF_8))
+                launch.startMessages.forEach { (endpointId, start) ->
+                    val startMessage: NearbyLobbyMessage = start
+                    transport.sendRaw(endpointId, Json.encodeToString(startMessage).toByteArray(Charsets.UTF_8))
+                }
 
                 sessionManager.launchGame(
                     mode = PlayMode.LOCAL_AD_HOC,
@@ -126,7 +136,7 @@ fun NearbyHostLobbyScreen(
                 onGameStarted(gameRoute)
             }
         ) {
-            Text("Start Game (${1 + joinedGuests.size} players)")
+            Text("Start Game (${1 + roster.guests.size} players)")
         }
 
         Spacer(Modifier.height(16.dp))

@@ -88,13 +88,20 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
     }
 
     // Set once the lobby finalizes the roster, right before launchGame(). Empty (no-op
-    // translation) during the lobby phase itself.
-    private var endpointToPlayerId: Map<String, String> = emptyMap()
-    private var playerIdToEndpoint: Map<String, String> = emptyMap()
+    // translation) during the lobby phase itself. This is the ONLY source of the `fromPlayerId`
+    // game messages are stamped with: the endpoint the bytes arrived on, looked up here.
+    private val router = NearbyGameRouter()
 
+    /**
+     * Installs the final endpointId -> playerId mapping. On the host it may not contain
+     * [NEARBY_HOST_PLAYER_ID] (the host is not an endpoint, so no guest may be stamped as it),
+     * and on either side two endpoints may not share an id.
+     *
+     * @throws IllegalArgumentException for a mapping that breaks those rules; a lobby built on
+     *   [NearbyRoster] can't produce one, so this is a fail-closed backstop, not a normal path.
+     */
     fun setPlayerIdMapping(endpointToPlayerId: Map<String, String>) {
-        this.endpointToPlayerId = endpointToPlayerId
-        this.playerIdToEndpoint = endpointToPlayerId.entries.associate { (endpointId, playerId) -> playerId to endpointId }
+        router.install(endpointToPlayerId, isHost = role == NearbyRole.HOST)
     }
 
     // ---- MultiplayerTransport (game layer) ----
@@ -111,23 +118,16 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
         stopAdvertising()
         stopDiscovery()
         role = NearbyRole.NONE
-        endpointToPlayerId = emptyMap()
-        playerIdToEndpoint = emptyMap()
+        router.reset()
         _connectedPeers.value = emptyList()
         _discoveredHosts.value = emptyList()
     }
 
     override fun send(fromPlayerId: String, toPlayerId: String?, payload: ByteArray) {
-        val nearbyPayload = Payload.fromBytes(payload)
-        if (toPlayerId == null) {
-            val endpointIds = playerIdToEndpoint.values.toList()
-            if (endpointIds.isNotEmpty()) connectionsClient.sendPayload(endpointIds, nearbyPayload)
-        } else {
-            // Stale/unknown endpoint (post-disconnect) — drop rather than crash, per
-            // DEVICE_SPECIFIC_PLAN.md §2's STATUS_ENDPOINT_UNKNOWN guard.
-            val endpointId = playerIdToEndpoint[toPlayerId] ?: return
-            connectionsClient.sendPayload(endpointId, nearbyPayload)
-        }
+        // An unknown recipient (a stale post-disconnect endpoint) yields no endpoints: dropped rather than
+        // crashed on, per DEVICE_SPECIFIC_PLAN.md §2's STATUS_ENDPOINT_UNKNOWN guard.
+        val endpointIds = router.endpointsFor(toPlayerId)
+        if (endpointIds.isNotEmpty()) connectionsClient.sendPayload(endpointIds, Payload.fromBytes(payload))
     }
 
     override fun onMessageReceived(listener: (String, ByteArray) -> Unit) {
@@ -190,12 +190,12 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
                 else current + ConnectedPeer(endpointId, displayName)
             }
             onConnectedListener?.invoke(endpointId, displayName)
-            endpointToPlayerId[endpointId]?.let { joinedListener?.invoke(it) }
+            router.playerIdFor(endpointId)?.let { joinedListener?.invoke(it) }
         }
 
         override fun onDisconnected(endpointId: String) {
             _connectedPeers.update { it.filterNot { peer -> peer.endpointId == endpointId } }
-            endpointToPlayerId[endpointId]?.let { leftListener?.invoke(it) }
+            router.playerIdFor(endpointId)?.let { leftListener?.invoke(it) }
         }
     }
 
@@ -218,7 +218,9 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
             if (payload.type != Payload.Type.BYTES) return
             val bytes = payload.asBytes() ?: return
             rawMessageListener?.invoke(endpointId, bytes)
-            endpointToPlayerId[endpointId]?.let { playerId -> messageListener?.invoke(playerId, bytes) }
+            // fromPlayerId comes from the endpoint the bytes arrived on, never from the payload;
+            // an endpoint with no seat (a late or rogue connection) is dropped here.
+            router.playerIdFor(endpointId)?.let { playerId -> messageListener?.invoke(playerId, bytes) }
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {

@@ -2093,10 +2093,11 @@ starter.
   `join` with the same room code and playerId within that window is treated
   as a resume (`reconnected`, with the existing roster) rather than
   rejected as a duplicate; past the window, or an explicit `leave`, the seat
-  actually vacates.
+  actually vacates. (Since tightened: a resume now also needs the seat's secret
+  `reconnectToken`, see "Transport identity hardening" below.)
 - `OnlineTransport` implements the client half: an unexpected disconnect
-  triggers five retry attempts with backoff (~23 seconds total, under the
-  relay's grace window) before surfacing `connectionError`. A successful
+  triggers five retry attempts with backoff (23 seconds of back-off plus up to 3 waiting on
+  each attempt) before surfacing `connectionError`. A successful
   resume fires a new `MultiplayerTransport.onReconnected` hook (default
   no-op; only `OnlineTransport` implements it — Nearby has no reconnect
   story yet, a known remaining gap) so the game layer re-requests full
@@ -2183,6 +2184,113 @@ starter.
   history behaves exactly as designed, and switching tabs away and back
   correctly resets both tools to a clean slate (result, tally, and history
   all cleared).
+
+## Transport identity hardening
+
+UNO is host-authoritative, and its engine only believes a message as far as the
+`fromPlayerId` the transport stamps on it: an intent must come from the seat it acts
+for (`applyIntent` checks this), and a guest should only accept game state from
+`players[0]` (that guest-side check is being landed separately, and TicTacToe/Chess
+guests don't make it either; see "Not covered"). Either check is only as strong as each
+transport's promise that `fromPlayerId` is the real, unforgeable sender. An audit found it
+was not, on any of the three transports that carry games between devices.
+
+### Nearby (`NearbyRoster.kt`, `NearbyHostLobbyScreen.kt`, `NearbyJoinLobbyScreen.kt`)
+- The host lobby used to take the `clientPlayerId` a guest put in its `JoinRequest`
+  at face value, and the host is `PlayerInfo("host")`. A guest sending `"host"` (or another
+  seat's id) got a duplicate/impersonating seat whose intents reached the game stamped
+  as that seat.
+- The host now assigns every seat id. A guest's id is only a *proposal*: kept when it is
+  well-formed (`[A-Za-z0-9_-]{1,64}`), not the reserved host id in any casing, and not
+  already taken; otherwise the host mints a fresh one. Each guest gets its own
+  `GameStart`. An honest guest, whose id was kept, gets exactly the message builds
+  without the new field send, so mixed app versions in one room keep working (an older
+  guest's JSON decoder rejects unknown fields, which is why the field is *omitted* rather
+  than always sent). Only a guest whose id was replaced gets `yourPlayerId`, to find its
+  seat; an older guest can't read that, which only ever affects one that tried to
+  impersonate.
+- `fromPlayerId` still comes from the endpoint the bytes arrived on, but through
+  `EndpointIdentityMap`, which rejects a mapping where two endpoints share an id, a
+  blank id, or (host side) the host's id, instead of the later entry silently winning.
+- Guests only act on a `GameStart` from the endpoint they connected to, and never on
+  a roster that seats them at index 0 (`localPlayerIndex == 0` is what makes a device
+  run the engine as the host), repeats an id, or contains a blank one
+  (`guestSeatIndex`, `resolveForGuest`). Display names are capped at 40 characters like
+  the relay's, since they ride in every guest's `GameStart`.
+- The decisions the lobby screens and the Android transport make are pure code the tests
+  drive: `NearbyRoster.launch` (what Start Game announces and installs),
+  `NearbyGameRouter` (what an inbound payload is stamped as and where a send goes) and
+  `resolveForGuest` (what a guest does with a `GameStart`). The Compose screens and
+  `NearbyConnectionsTransport` are compile-verified glue over them; they were not run on
+  two physical devices for this change.
+
+### Online relay (`server/index.js`, `OnlineTransport.kt`, `OnlineJoinLobbyScreen.kt`)
+- The relay stamps `fromPlayerId` from the socket's registered seat, which is sound,
+  but playerIds are public (the host's is in every guest's roster) and a seat whose
+  socket dropped could be re-joined with just that id during the grace window.
+- Every seat now has a secret `reconnectToken` (192 bits, `crypto.randomBytes`), sent
+  only to the socket that took it. Re-taking a seat needs it; a missing or wrong token gets
+  the same error as a live duplicate, so a probe learns nothing.
+- A token alone is not enough: once a seat is vacated (explicit `leave`, or the grace
+  period expiring) anyone who knew the id could simply `join` fresh as it. Vacated seats are
+  now retired for the life of the room, for real seats *and* spectators (the host addresses each
+  seat's un-redacted hand to that seat's id, so a spectator with a retired id would be
+  handed it). A room seats at most 64 distinct ids and ids are capped at 64 characters, so
+  retirement can't be used to grow memory.
+- `joined` now says who the host is (`hostPlayerId`). Guests only act on a `GameStart`
+  the relay stamped as coming from that id: any room member, including a spectator, can relay
+  a message shaped like one.
+- **Upgrade order matters.** Ship the app update first, then the relay. A new app against
+  an old relay works (the old relay ignores the extra fields). An *old* app against the new
+  relay cannot resume a dropped seat: it has no token, so its reconnect attempts are refused.
+  It still hosts, joins and plays normally until a connection actually drops.
+
+### LAN (`LanMultiplayerTransport.kt`, not wired to UNO today)
+- The host trusted `frame.fromPlayerId` on inbound frames and re-broadcast it, and a guest
+  could register under the host's own id or overwrite another guest's connection. The host
+  now stamps the sender from the connection's registered seat, refuses a join that reuses
+  the host's id or one already held (atomically), and re-stamps what it relays.
+
+### Verification
+- `NearbyRosterTest`, `EndpointIdentityMapTest`, `LobbyIdentityTest`,
+  `OnlineTransportIdentityTest` (a scripted relay via MockWebServer, asserting the exact
+  frames the client sends) and `LanTransportIdentityTest` (a hostile raw-socket guest).
+- `NearbyIdentityEndToEndTest` drives the real `UnoGame` through roster -> identity map ->
+  intent, with a control that reproduces the old mapping and shows the attack working, so the
+  scenario is known to be sensitive to the stamp.
+- `server/identity-test.js` attacks the relay (grace-window hijack of guest and host seats,
+  post-vacate takeover, spectator collisions, forged frames, caps) and was run against the
+  original relay to confirm it fails there (83 of its checks do).
+- The fixes were checked by mutation, one deliberate breakage at a time, against the tests
+  that cover them: the relay suite, the Online client's reconnect and identity logic, the
+  extracted Nearby/lobby decisions and the LAN transport each had the breakages tried against
+  them caught by a named test (a few survivors found along the way led to new tests). Not mutation-checked, because no test can reach them: the Compose lobby
+  screens and the Android Nearby client's Nearby-API callbacks (see above).
+- `OnlineRelayEndToEndTest` runs the real client against the real relay, including a
+  reconnect with an attacker probing the dropped seat; it skips itself where Node or the
+  relay's `ws` module is missing, which includes CI's Android job.
+
+### Client reconnect fixes found along the way (`OnlineTransport.kt`)
+- The state resync a game makes from inside `onReconnected` (UNO's guest re-request and
+  host re-broadcast) used to be sent to the dead pre-drop socket and silently dropped; the
+  resumed socket is now published when the relay acknowledges the resume, just before the
+  game is told. A game send made before that acknowledgement is dropped rather than queued
+  ahead of the `join`.
+- A resumed connection that dropped again was never noticed and the seat was silently lost;
+  it is now watched like the first connection. (Pre-existing.)
+- A fresh `joined` in answer to a real seat's resume is refused as a foreign room (a relay
+  restart or reap plus a re-hosted code), and a `connectionError` left by an earlier
+  refused attempt is cleared once a later one succeeds.
+
+### Not covered
+- **Game-layer gaps, handed off.** TicTacToe and Chess guests apply a `StateSync` from any
+  sender, a TicTacToe/Chess host applies a `PlayAgain` from any seated player at any time,
+  and on `main` UNO guests do the same for `StateSync`. Only the transports were in scope.
+- **LAN seats** are re-claimable once vacated (there is no token or retirement): LAN has no
+  reconnect story and isn't wired to UNO.
+- **Nearby** still auto-accepts every connection; who may join is not an identity question.
+- **Spectators** can send messages (stamped with their own id) and can't verify the room they
+  resume into.
 
 ## Design notes worth remembering
 
