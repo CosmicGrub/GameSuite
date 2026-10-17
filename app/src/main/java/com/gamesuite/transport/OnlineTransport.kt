@@ -48,6 +48,12 @@ enum class OnlineRole { NONE, HOST, GUEST }
  *     work) — so unlike Nearby, no [NearbyConnectionsTransport.setPlayerIdMapping]
  *     equivalent is needed. [send]/[onMessageReceived] work directly.
  *
+ * That `fromPlayerId` is only as good as the relay's seat ownership: playerIds are public
+ * (every guest's roster lists the host's), so the relay hands the socket that takes a seat a
+ * secret `reconnectToken` ('hosted'/'joined'), and this class keeps it and presents it when it
+ * re-takes its seat after a dropped connection ([attemptReconnect]). It is never exposed or
+ * relayed. See server/index.js's header comment.
+ *
  * [serverUrl] is a `ws://` or `wss://` WebSocket URL — see Settings' "Online
  * server" field (defaults to nothing configured; same-Wi-Fi testing against a
  * locally-run `server/` works with `ws://<lan-ip>:8080`, real internet-wide
@@ -66,6 +72,16 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         private set
     private var localDisplayName: String = ""
     private var localIsSpectator: Boolean = false
+
+    /** Secret the relay issued for OUR seat (null for a spectator, or against an older relay that
+     *  issues none); presented on a reconnect 'join' so only this client can re-take the seat. */
+    @Volatile private var reconnectToken: String? = null
+
+    /** The playerId of the room's host (`players[0]` of the match): our own when hosting, and what
+     *  the relay reports in 'joined' when joining. A guest lobby only believes a
+     *  [OnlineLobbyMessage.GameStart] that arrived from this id. Null until known. */
+    @Volatile var hostPlayerId: String? = null
+        private set
 
     // Set true right before a deliberate close ([disconnect]) so the reconnect logic below
     // never tries to resurrect a connection the player (or the shell) actually meant to end.
@@ -129,6 +145,8 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         sendFrame(WireMessage(type = "leave"))
         webSocket?.close(1000, "leaving")
         webSocket = null
+        reconnectToken = null
+        hostPlayerId = null
         role = OnlineRole.NONE
         _roomCode.value = null
         _connectedPlayers.value = emptyList()
@@ -149,6 +167,8 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         localPlayerId = playerId
         localDisplayName = displayName
         localIsSpectator = false
+        reconnectToken = null
+        hostPlayerId = playerId
         intentionalDisconnect = false
         openSocket {
             sendFrame(WireMessage(type = "host", playerId = playerId, displayName = displayName))
@@ -164,6 +184,8 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         localPlayerId = playerId
         localDisplayName = displayName
         localIsSpectator = spectator
+        reconnectToken = null
+        hostPlayerId = null
         intentionalDisconnect = false
         openSocket {
             sendFrame(WireMessage(type = "join", roomCode = code, playerId = playerId, displayName = displayName, spectator = spectator))
@@ -228,11 +250,20 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
     @Volatile private var pendingReconnectResult: CompletableDeferred<Boolean>? = null
 
     /** One reconnect attempt: opens a fresh socket and re-joins the same room under the same
-     *  playerId. Routes every incoming frame through the SAME [handleIncoming] the normal
-     *  connection uses (so a 'reconnected' correctly updates state and fires
-     *  [onReconnectedListener], and any game traffic that happens to arrive immediately after
-     *  is not silently dropped) rather than a narrower one-off listener. Returns true on a
-     *  confirmed 'reconnected' (or 'joined', for a spectator's simpler re-entry). */
+     *  playerId (presenting the seat's [reconnectToken]). Routes every incoming frame through the
+     *  SAME [handleIncoming] the normal connection uses (so a 'reconnected' correctly updates
+     *  state and fires [onReconnectedListener], and any game traffic that happens to arrive
+     *  immediately after is not silently dropped) rather than a narrower one-off listener.
+     *  Returns true on a confirmed 'reconnected' (or 'joined', for a spectator's simpler
+     *  re-entry; for a real seat 'joined' means the relay does not know our seat, see
+     *  [handleIncoming]).
+     *
+     *  The new socket becomes [webSocket] only when the relay ACKNOWLEDGES the resume, and
+     *  [handleIncoming] does that just before it fires [onReconnectedListener]. Publishing it
+     *  earlier let a game send made while the attempt was still connecting reach the relay ahead
+     *  of the 'join' ("Not in a room", which fails the attempt); publishing it later left the
+     *  send a game makes FROM onReconnected (UnoGame's state resync) going to the dead pre-drop
+     *  socket and being dropped. */
     private suspend fun attemptReconnect(code: String): Boolean {
         val deferred = CompletableDeferred<Boolean>()
         pendingReconnectResult = deferred
@@ -242,39 +273,90 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                 webSocket.send(
                     json.encodeToString(
                         WireMessage.serializer(),
-                        WireMessage(type = "join", roomCode = code, playerId = localPlayerId, displayName = localDisplayName, spectator = localIsSpectator)
+                        WireMessage(
+                            type = "join", roomCode = code, playerId = localPlayerId, displayName = localDisplayName,
+                            spectator = localIsSpectator, reconnectToken = reconnectToken
+                        )
                     )
                 )
             }
-            override fun onMessage(webSocket: WebSocket, text: String) = handleIncoming(text)
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                // Only the attempt in flight, or the socket it won, may speak. A straggler from an
+                // earlier timed-out attempt must not fire onReconnected or complete a later attempt.
+                if (pendingReconnectResult !== deferred && this@OnlineTransport.webSocket !== webSocket) return
+                handleIncoming(text, viaSocket = webSocket)
+            }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                deferred.complete(false)
+                resumeSocketEnded(deferred, webSocket, t.message ?: "Connection failed")
             }
             override fun onClosed(webSocket: WebSocket, closeCode: Int, reason: String) {
-                if (closeCode != 1000) deferred.complete(false)
+                if (closeCode != 1000) resumeSocketEnded(deferred, webSocket, "Disconnected: $reason")
             }
         })
-        val succeeded = withTimeoutOrNull(3_000) { deferred.await() } ?: false
-        pendingReconnectResult = null
-        return if (succeeded) {
-            webSocket = socket
-            true
-        } else {
-            socket.close(1000, "reconnect attempt failed")
-            false
+        var won = false
+        try {
+            won = withTimeoutOrNull(3_000) { deferred.await() } ?: false
+        } finally { // also runs when disconnect() cancels this attempt mid-wait
+            pendingReconnectResult = null
+            // Failed, timed out, cancelled, or disconnect() raced the win: never leave or resurrect a connection.
+            if (!won || intentionalDisconnect) socket.cancel()
         }
+        return won && !intentionalDisconnect
     }
 
-    private fun handleIncoming(text: String) {
+    /** A reconnect attempt's socket failed or closed abnormally. While the attempt is still
+     *  pending that just fails it. After it WON, this socket is the live connection, and its drop
+     *  is a fresh disconnect to recover from exactly like the first socket's ([openSocket]'s
+     *  listener does the same); without this a resumed connection that dropped again was never
+     *  noticed and the seat was silently lost. */
+    private fun resumeSocketEnded(deferred: CompletableDeferred<Boolean>, socket: WebSocket, reason: String) {
+        if (deferred.complete(false)) return
+        if (webSocket !== socket) return
+        // The retry loop that won this socket is finished, or about to be: onReconnected fires BEFORE that
+        // loop's coroutine gets to return, so a drop in that instant would otherwise meet its own
+        // "already retrying" guard and be swallowed, leaving a dead connection nobody is recovering.
+        synchronized(reconnectLock) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+        }
+        handleUnexpectedDisconnect(reason)
+    }
+
+    /** Makes [socket] the connection game sends go out on, unless [disconnect] has been called. */
+    private fun adoptResumedSocket(socket: WebSocket): Boolean {
+        if (intentionalDisconnect) {
+            socket.cancel()
+            return false
+        }
+        webSocket = socket
+        return true
+    }
+
+    /** [viaSocket] is the socket the frame arrived on when it came from a reconnect attempt. */
+    private fun handleIncoming(text: String, viaSocket: WebSocket? = null) {
         val msg = runCatching { json.decodeFromString(WireMessage.serializer(), text) }.getOrNull() ?: return
         when (msg.type) {
             "hosted" -> msg.roomCode?.let {
+                msg.reconnectToken?.let { token -> reconnectToken = token }
                 _roomCode.value = it
                 onHostedListener?.invoke(it)
             }
             "joined" -> {
                 val code = msg.roomCode ?: return
+                val resuming = pendingReconnectResult
+                if (resuming != null && !localIsSpectator) {
+                    // A real seat is resumed with 'reconnected'. A fresh 'joined' means the relay has no
+                    // such seat in this room: the code now names a DIFFERENT room (the relay restarted,
+                    // or reaped ours and reused the code). It is not our room: keep our state, take no
+                    // token or host id from it, and fail the attempt.
+                    resuming.complete(false)
+                    return
+                }
                 val existing = msg.players?.map { OnlinePlayer(it.playerId, it.displayName) } ?: emptyList()
+                if (resuming != null && viaSocket != null && !adoptResumedSocket(viaSocket)) return
+                msg.reconnectToken?.let { token -> reconnectToken = token }
+                // An older relay doesn't say who the host is, but lists the room's creator first.
+                if (role == OnlineRole.GUEST) hostPlayerId = msg.hostPlayerId ?: existing.firstOrNull()?.playerId
                 _roomCode.value = code
                 _connectedPlayers.value = existing
                 onJoinedListener?.invoke(code, existing)
@@ -289,11 +371,15 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                 // full game state exactly like a fresh join does, since messages may have been
                 // missed while disconnected (see MultiplayerTransport.onReconnected's KDoc).
                 val code = msg.roomCode ?: return
+                val resuming = pendingReconnectResult ?: return // only ever a reply to an attempt in flight
                 val existing = msg.players?.map { OnlinePlayer(it.playerId, it.displayName) } ?: emptyList()
+                // Publish the resumed socket BEFORE telling the game: its handler answers by sending.
+                if (viaSocket != null && !adoptResumedSocket(viaSocket)) return
+                _connectionError.value = null // any refusal from an earlier attempt is history now
                 _roomCode.value = code
                 _connectedPlayers.value = existing
                 onReconnectedListener?.invoke()
-                pendingReconnectResult?.complete(true)
+                resuming.complete(true)
             }
             "playerJoined" -> {
                 val playerId = msg.playerId ?: return
@@ -359,7 +445,9 @@ private data class WireMessage(
     val fromPlayerId: String? = null,
     val payloadBase64: String? = null,
     val message: String? = null,
-    val spectator: Boolean? = null
+    val spectator: Boolean? = null,
+    val reconnectToken: String? = null,
+    val hostPlayerId: String? = null
 )
 
 @Serializable
