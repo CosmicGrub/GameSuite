@@ -48,6 +48,36 @@ data class SavedLaunch(
 )
 
 /**
+ * Rebuilds the launch of a save made before the Game Hub (which recorded none) from its storage key,
+ * `route@MODE@id,id!,...` ("!" marks a bot). Names are the defaults (the originals were not stored),
+ * and the old Teams route gets alternating team ids. Returns null when the key is not in that shape.
+ */
+fun legacyLaunchFromKey(key: String, navRoute: String): SavedLaunch? {
+    val parts = key.split("@")
+    if (parts.size < 3) return null
+    val mode = parts[1]
+    if (mode.isBlank()) return null
+    val ids = parts[2].split(",").filter { it.isNotBlank() }
+    if (ids.isEmpty()) return null
+    val humans = ids.count { !it.endsWith("!") }
+    val teams = navRoute == "uno-teams"
+    var humanNo = 0
+    var cpuNo = 0
+    val cpus = ids.count { it.endsWith("!") }
+    val seats = ids.mapIndexed { i, raw ->
+        val bot = raw.endsWith("!")
+        val id = raw.removeSuffix("!").substringBefore("#")
+        val name = if (bot) {
+            cpuNo++; if (cpus == 1) "CPU" else "CPU $cpuNo"
+        } else {
+            humanNo++; if (humans == 1) "You" else "Player $humanNo"
+        }
+        SavedSeat(id = id, name = name, isBot = bot, teamId = if (teams) i % 2 else -1)
+    }
+    return SavedLaunch(mode = mode, seats = seats, localPlayerIndex = 0)
+}
+
+/**
  * File-backed store for [SavedGame]s: one small JSON file per route under [dir]. A game is saved
  * when the app is backgrounded or the player leaves mid-match, and deleted when its match
  * finishes or the player starts a new game over it, so at most one save per route exists.

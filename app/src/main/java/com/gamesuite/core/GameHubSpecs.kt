@@ -9,6 +9,16 @@ package com.gamesuite.core
  */
 object GameHubSpecs {
     /** Games whose engine and screen support Nearby / Online play. Grows as each game is finished. */
+    /**
+     * Networked games that can also be WATCHED: their state is broadcast to everyone in the room. The
+     * seat-addressed board games send state only to the two seated players, so a spectator would sit
+     * in a game that never loads (the Online lobby hides Watch for them).
+     */
+    val spectatorGames: Set<String> = setOf("uno")
+
+    /** The relay's room size (host included): an Online table can never have more seats than this. */
+    const val ONLINE_MAX_SEATS: Int = 8
+
     val networkedGames: Set<String> = setOf(
         "uno", "chess", "tic-tac-toe", "connect-four", "checkers", "reversi", "mancala", "dots-and-boxes"
     )
@@ -40,7 +50,8 @@ object GameHubSpecs {
             HubMode(
                 id = "online", kind = HubModeKind.ONLINE, title = "Online",
                 blurb = "Play friends over the internet with a room code.",
-                route = route, start = HubStart.LOBBY, minSeats = minSeats, maxSeats = maxSeats
+                route = route, start = HubStart.LOBBY, minSeats = minSeats,
+                maxSeats = minOf(maxSeats, ONLINE_MAX_SEATS)
             )
         )
     }

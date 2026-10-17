@@ -94,7 +94,9 @@ class GameSessionManager : ViewModel() {
      */
     fun saveKey(route: String, ctx: GameContext): String =
         route + "@" + ctx.activeMode.name + "@" +
-            ctx.players.joinToString(",") { it.playerId + if (it.isBot) "!" else "" }
+            ctx.players.joinToString(",") {
+                it.playerId + (if (it.isBot) "!" else "") + (if (it.teamId >= 0) "#${it.teamId}" else "")
+            }
 
     /** The save for [route] under the launch configuration the menu just installed, if any. */
     fun savedGameForLaunch(route: String): SavedGame? {
@@ -156,7 +158,9 @@ class GameSessionManager : ViewModel() {
      * before the Hub): the caller should offer a fresh game instead.
      */
     fun resumeSavedGame(saved: SavedGame): Boolean {
-        val launch = saved.launch ?: return false
+        // A save written before the Hub has no launch config; rebuild it from its storage key.
+        val legacy = saved.launch == null
+        val launch = saved.launch ?: legacyLaunchFromKey(saved.route, saved.navRoute) ?: return false
         val mode = runCatching { PlayMode.valueOf(launch.mode) }.getOrNull() ?: return false
         if (launch.seats.isEmpty()) return false
         launchGame(
@@ -170,6 +174,9 @@ class GameSessionManager : ViewModel() {
             )
         )
         pendingResume = saved
+        // The rebuilt launch may key differently than the old file (team ids are part of the key now):
+        // drop the old file; the snapshot is already in memory and the next save lands under the new key.
+        if (legacy) savedGames?.delete(saved.route)
         return true
     }
 

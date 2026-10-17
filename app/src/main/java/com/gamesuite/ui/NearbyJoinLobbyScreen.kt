@@ -23,6 +23,7 @@ import com.gamesuite.transport.NearbyLobbyMessage
 import com.gamesuite.transport.lobbyGameProblem
 import com.gamesuite.transport.lobbyRejectionText
 import com.gamesuite.transport.resolveForGuest
+import com.gamesuite.transport.LobbyJson
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -72,7 +73,7 @@ fun NearbyJoinLobbyScreen(
         }
         transport.onRawMessageReceived { endpointId, payload ->
             val message = try {
-                Json.decodeFromString<NearbyLobbyMessage>(String(payload, Charsets.UTF_8))
+                LobbyJson.decodeFromString<NearbyLobbyMessage>(String(payload, Charsets.UTF_8))
             } catch (e: Exception) {
                 null
             }
