@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -107,7 +108,7 @@ fun NearbyHostLobbyScreen(
             enabled = joinedGuests.isNotEmpty(),
             modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
             onClick = {
-                val players = listOf(PlayerInfo(playerId = "host", displayName = "Host")) +
+                val players = listOf(PlayerInfo(playerId = "host", displayName = PlayerNameStore(context).lobbyName("Host"))) +
                     joinedGuests.values.map { PlayerInfo(playerId = it.clientPlayerId, displayName = it.displayName) }
 
                 transport.setPlayerIdMapping(joinedGuests.mapValues { it.value.clientPlayerId })

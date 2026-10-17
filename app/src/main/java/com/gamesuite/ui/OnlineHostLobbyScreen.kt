@@ -12,10 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.OnlineLobbyMessage
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -46,6 +48,8 @@ fun OnlineHostLobbyScreen(
         return
     }
 
+    val context = LocalContext.current
+    val nameStore = remember(context) { PlayerNameStore(context) }
     val hostPlayerId = remember { "p-" + UUID.randomUUID().toString() }
     var roomCode by remember { mutableStateOf<String?>(null) }
     val connectedPlayers by transport.connectedPlayers.collectAsState()
@@ -53,7 +57,7 @@ fun OnlineHostLobbyScreen(
 
     DisposableEffect(transport) {
         transport.onHosted { code -> roomCode = code }
-        transport.hostRoom(hostPlayerId, "Host (${Build.MODEL})")
+        transport.hostRoom(hostPlayerId, nameStore.lobbyName("Host (${Build.MODEL})"))
         onDispose {
             // Only tear down if the game never actually launched — once launchGame() has
             // captured this transport inside GameContext, its lifecycle belongs to the
@@ -109,7 +113,7 @@ fun OnlineHostLobbyScreen(
                     enabled = connectedPlayers.isNotEmpty(),
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                     onClick = {
-                        val players = listOf(PlayerInfo(playerId = hostPlayerId, displayName = "Host")) +
+                        val players = listOf(PlayerInfo(playerId = hostPlayerId, displayName = nameStore.lobbyName("Host"))) +
                             connectedPlayers.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) }
 
                         val startMessage: OnlineLobbyMessage = OnlineLobbyMessage.GameStart(gameRoute, players)

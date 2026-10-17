@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -44,11 +45,12 @@ fun NearbyJoinLobbyScreen(
     val discoveredHosts by transport.discoveredHosts.collectAsState()
     var connectedHostEndpointId by remember { mutableStateOf<String?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    val guestName = remember(context) { PlayerNameStore(context).lobbyName("Guest (${Build.MODEL})") }
 
     DisposableEffect(transport) {
         transport.onConnected { endpointId, _ ->
             connectedHostEndpointId = endpointId
-            val joinMessage: NearbyLobbyMessage = NearbyLobbyMessage.JoinRequest(clientPlayerId, "Guest (${Build.MODEL})")
+            val joinMessage: NearbyLobbyMessage = NearbyLobbyMessage.JoinRequest(clientPlayerId, guestName)
             transport.sendRaw(endpointId, Json.encodeToString(joinMessage).toByteArray(Charsets.UTF_8))
         }
         transport.onRawMessageReceived { endpointId, payload ->
@@ -71,7 +73,7 @@ fun NearbyJoinLobbyScreen(
                 onGameStarted(message.gameRoute)
             }
         }
-        transport.startDiscovery("Guest (${Build.MODEL})")
+        transport.startDiscovery(guestName)
         onDispose {
             if (sessionManager.activeContext.value?.transport !== transport) {
                 transport.disconnect()
