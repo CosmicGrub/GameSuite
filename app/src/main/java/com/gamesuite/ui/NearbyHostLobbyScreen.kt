@@ -20,6 +20,7 @@ import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.LobbySeatLimits
 import com.gamesuite.transport.NearbyLobbyMessage
 import com.gamesuite.transport.NearbyRoster
+import com.gamesuite.transport.LobbyJson
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -64,7 +65,7 @@ fun NearbyHostLobbyScreen(
     DisposableEffect(transport) {
         transport.onRawMessageReceived { endpointId, payload ->
             val message = try {
-                Json.decodeFromString<NearbyLobbyMessage>(String(payload, Charsets.UTF_8))
+                LobbyJson.decodeFromString<NearbyLobbyMessage>(String(payload, Charsets.UTF_8))
             } catch (e: Exception) {
                 null
             }

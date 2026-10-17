@@ -5,6 +5,7 @@ import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.HubModeKind
 import com.gamesuite.core.PlayerInfo
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Lobby-phase wire protocol, sent over [NearbyConnectionsTransport]'s raw (endpoint-id
@@ -25,6 +26,14 @@ import kotlinx.serialization.Serializable
  * derived by the transport from the endpoint the bytes arrived on (see [EndpointIdentityMap]),
  * never from anything inside the payload.
  */
+/**
+ * How lobby messages (Nearby and Online) are DECODED: unknown fields are ignored, so a newer build can
+ * add an optional field (like GameStart.gameDisplayName) without breaking a peer that already has the
+ * tolerant decoder. Builds from before this was added decode strictly and cannot read such a field;
+ * both devices of a match should run the same version.
+ */
+val LobbyJson: Json = Json { ignoreUnknownKeys = true }
+
 @Serializable
 sealed class NearbyLobbyMessage {
     /**

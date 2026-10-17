@@ -26,6 +26,7 @@ import com.gamesuite.transport.isFromHost
 import com.gamesuite.transport.lobbyGameProblem
 import com.gamesuite.transport.lobbyRejectionText
 import com.gamesuite.transport.localSeatIndex
+import com.gamesuite.transport.LobbyJson
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -119,7 +120,7 @@ fun OnlineJoinLobbyScreen(
         transport.onJoined { _, _ -> hasJoined = true }
         transport.onRawMessageReceived { fromPlayerId, payload ->
             val message = runCatching {
-                Json.decodeFromString<OnlineLobbyMessage>(String(payload, Charsets.UTF_8))
+                LobbyJson.decodeFromString<OnlineLobbyMessage>(String(payload, Charsets.UTF_8))
             }.getOrNull()
             // Any room member can relay a GameStart-shaped message; only the host's is real.
             if (message is OnlineLobbyMessage.GameStart && message.isFromHost(fromPlayerId, transport.hostPlayerId)) {
@@ -215,7 +216,7 @@ fun OnlineJoinLobbyScreen(
                     // support this; this button and the spectator-aware LaunchedEffect above are
                     // what actually let a player reach it (audited finding: the option existed
                     // everywhere except this screen).
-                    OutlinedButton(
+                    if (gameId == null || gameId in com.gamesuite.core.GameHubSpecs.spectatorGames) OutlinedButton(
                         enabled = roomCodeInput.length == ROOM_CODE_LENGTH,
                         modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                         onClick = {

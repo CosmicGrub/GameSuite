@@ -63,9 +63,9 @@ class LobbyCapacityTest {
     }
 
     @Test
-    fun `UNO keeps 2 to 10 seats and a game with no network mode is treated as two-seat`() {
+    fun `UNO keeps 2 to 10 seats nearby, 2 to 8 online (the relay's room size), and a game with no network mode is two-seat`() {
         assertEquals(LobbySeatLimits(2, 10), LobbySeatLimits.forGame("uno", HubModeKind.NEARBY))
-        assertEquals(LobbySeatLimits(2, 10), LobbySeatLimits.forGame("uno", HubModeKind.ONLINE))
+        assertEquals(LobbySeatLimits(2, 8), LobbySeatLimits.forGame("uno", HubModeKind.ONLINE))
         assertEquals(LobbySeatLimits(2, 2), LobbySeatLimits.forGame("no-such-game", HubModeKind.NEARBY))
     }
 
