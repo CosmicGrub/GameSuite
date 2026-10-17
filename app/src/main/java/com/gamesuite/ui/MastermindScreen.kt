@@ -336,6 +336,7 @@ fun MastermindScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedCodes > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedCodes == 0,
         onHint = onHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,

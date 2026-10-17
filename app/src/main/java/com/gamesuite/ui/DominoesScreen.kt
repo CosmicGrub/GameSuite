@@ -568,6 +568,7 @@ fun DominoesScreen(
         // panel's "Back to Menu" makes) so their points still count; with nothing finished it is
         // a pure abort, never a win or a loss. A finished hand always leaves via leaveSession().
         onAbort = { if (finishedHands > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedHands == 0,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this hand?",

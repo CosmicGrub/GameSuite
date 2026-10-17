@@ -87,36 +87,57 @@ class GameSessionManager : ViewModel() {
         saveActiveProgress()
     }
 
-    /** True when the active game can be resumed later and there is somewhere to keep it. */
+    /**
+     * The key a game's save lives under: the nav route PLUS the launch configuration (mode and
+     * roster). Several menu entries share one route (CPU vs pass-and-play, different CPU rosters),
+     * and a save from one must never be offered, or deleted, for another.
+     */
+    fun saveKey(route: String, ctx: GameContext): String =
+        route + "@" + ctx.activeMode.name + "@" +
+            ctx.players.joinToString(",") { it.playerId + if (it.isBot) "!" else "" }
+
+    /** The save for [route] under the launch configuration the menu just installed, if any. */
+    fun savedGameForLaunch(route: String): SavedGame? {
+        val ctx = _activeContext.value ?: return null
+        return savedGames?.load(saveKey(route, ctx))
+    }
+
+    private fun currentSnapshot(): String? {
+        val resumable = activeModule as? ResumableGame ?: return null
+        return try {
+            resumable.snapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** True when the active game can be resumed right now: resumable, a store to keep it in, and a snapshot to write. */
     fun canSaveActiveProgress(): Boolean =
-        activeModule is ResumableGame && activeRoute != null && savedGames != null
+        activeRoute != null && savedGames != null && _activeContext.value != null && currentSnapshot() != null
 
     /**
-     * Writes the active game's snapshot to the store under its route. Returns whether anything
-     * was saved. A null snapshot ("nothing worth saving": not started, over, or an online mode)
-     * saves nothing and deliberately does NOT delete an existing save: a pause that lands before
-     * the screen has had its [tryResume] must not wipe the save the player is about to resume.
+     * Writes the active game's snapshot to the store. Returns true ONLY when it really reached
+     * disk (no snapshot, no store or a failed write all return false), so callers never claim a
+     * save that did not happen. A null snapshot ("nothing worth saving") deliberately does NOT
+     * delete an existing save: a pause that lands before the screen has had its [tryResume] must
+     * not wipe the save the player is about to resume.
      */
     fun saveActiveProgress(): Boolean {
         val store = savedGames ?: return false
         val route = activeRoute ?: return false
+        val ctx = _activeContext.value ?: return false
         val module = activeModule ?: return false
-        val resumable = module as? ResumableGame ?: return false
-        val snapshot = try {
-            resumable.snapshot()
-        } catch (_: Exception) {
-            null
-        } ?: return false
-        store.save(
+        val snapshot = currentSnapshot() ?: return false
+        return store.save(
             SavedGame(
-                route = route,
+                route = saveKey(route, ctx),
                 label = module.displayName,
                 savedAtMillis = System.currentTimeMillis(),
                 savedAtEpochDay = java.time.LocalDate.now().toEpochDay(),
-                snapshot = snapshot
+                snapshot = snapshot,
+                navRoute = route
             )
         )
-        return true
     }
 
     /**
@@ -191,7 +212,10 @@ class GameSessionManager : ViewModel() {
         }
         // A finished match has nothing left to resume. An ABORT keeps whatever save exists: the
         // game chrome writes the save just before it aborts, so "Leave" parks the game for later.
-        if (!result.wasAborted) activeRoute?.let { savedGames?.delete(it) }
+        if (!result.wasAborted) {
+            val route = activeRoute
+            if (route != null && ctx != null) savedGames?.delete(saveKey(route, ctx))
+        }
         ctx?.transport?.disconnect()
         _lastResult.value = result
         _activeContext.value = null

@@ -277,6 +277,7 @@ fun BreakoutScreen(
         matchInProgress = !hud.gameOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRuns > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedRuns == 0,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this run?",

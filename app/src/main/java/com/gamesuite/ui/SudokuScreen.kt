@@ -449,6 +449,7 @@ fun SudokuScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
         onUndo = onUndo,
         canUndo = game.canUndo,
         onHint = onHint,

@@ -359,6 +359,7 @@ fun WordGuessScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedWords > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedWords == 0,
         onHint = onHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,

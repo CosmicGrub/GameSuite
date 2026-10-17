@@ -161,6 +161,7 @@ fun ReversiScreen(
         matchInProgress = matchInProgress,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedBoards == 0,
         onUndo = { game.undo() },
         canUndo = game.canUndo,
         onHint = { game.hint() },

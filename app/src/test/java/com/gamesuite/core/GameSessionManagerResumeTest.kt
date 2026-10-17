@@ -58,11 +58,16 @@ class GameSessionManagerResumeTest {
         val m = GameSessionManager()
         if (withStore) m.savedGames = store()
         m.setActiveModule(module, route)
+        m.launchGame(PlayMode.SINGLE_PLAYER_VS_BOT, listOf(PlayerInfo("p1", "Player")), 0)
         return m
     }
 
+    /** The storage key a save for [route] gets under the launch configuration [manager] installs. */
+    private fun k(route: String) = "$route@SINGLE_PLAYER_VS_BOT@p1"
+
     private fun saved(route: String = "sudoku", snapshot: String = "saved-state") = SavedGame(
-        route = route,
+        route = k(route),
+        navRoute = route,
         label = "Fake Game",
         savedAtMillis = System.currentTimeMillis(),
         savedAtEpochDay = java.time.LocalDate.now().toEpochDay(),
@@ -76,7 +81,7 @@ class GameSessionManagerResumeTest {
 
         m.pauseActiveGame()
 
-        val saved = store().load("sudoku-daily")
+        val saved = store().load(k("sudoku-daily"))
         assertNotNull(saved)
         assertEquals("mid-game", saved!!.snapshot)
         assertEquals("Fake Game", saved.label)
@@ -90,7 +95,7 @@ class GameSessionManagerResumeTest {
 
         assertFalse(m.saveActiveProgress())
 
-        assertEquals("a pause before the screen resumed must not wipe the save", "older", store().load("sudoku")?.snapshot)
+        assertEquals("a pause before the screen resumed must not wipe the save", "older", store().load(k("sudoku"))?.snapshot)
     }
 
     @Test
@@ -99,7 +104,7 @@ class GameSessionManagerResumeTest {
         assertFalse(m.canSaveActiveProgress())
         assertFalse(m.saveActiveProgress())
         m.pauseActiveGame()
-        assertNull(store().load("sudoku"))
+        assertNull(store().load(k("sudoku")))
     }
 
     @Test
@@ -125,14 +130,14 @@ class GameSessionManagerResumeTest {
         val m = manager(module)
         m.launchGame(PlayMode.SINGLE_PLAYER_VS_BOT, listOf(PlayerInfo("p1", "Player")), 0)
         m.saveActiveProgress()
-        assertNotNull(store().load("sudoku"))
+        assertNotNull(store().load(k("sudoku")))
 
         m.endActiveGame(GameResult(wasAborted = true))
-        assertNotNull("leave-and-resume: an abort must keep the save", store().load("sudoku"))
+        assertNotNull("leave-and-resume: an abort must keep the save", store().load(k("sudoku")))
 
         m.launchGame(PlayMode.SINGLE_PLAYER_VS_BOT, listOf(PlayerInfo("p1", "Player")), 0)
         m.endActiveGame(GameResult(scores = listOf(PlayerScore("p1", 1, true))))
-        assertNull("a finished match has nothing left to resume", store().load("sudoku"))
+        assertNull("a finished match has nothing left to resume", store().load(k("sudoku")))
     }
 
     @Test
@@ -166,7 +171,7 @@ class GameSessionManagerResumeTest {
 
         assertFalse(m.tryResume(module))
 
-        assertNull("the unusable save must not be offered again", store().load("sudoku"))
+        assertNull("the unusable save must not be offered again", store().load(k("sudoku")))
     }
 
     @Test
@@ -177,7 +182,7 @@ class GameSessionManagerResumeTest {
         m.pendingResume = saved()
 
         assertFalse(m.tryResume(module))
-        assertNull(store().load("sudoku"))
+        assertNull(store().load(k("sudoku")))
     }
 
     @Test
@@ -196,6 +201,6 @@ class GameSessionManagerResumeTest {
         val m = manager(module)
         m.setActiveModule(null)
         m.pauseActiveGame()
-        assertNull(store().load("sudoku"))
+        assertNull(store().load(k("sudoku")))
     }
 }

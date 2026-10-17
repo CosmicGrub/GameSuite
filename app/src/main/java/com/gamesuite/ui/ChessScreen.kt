@@ -890,6 +890,7 @@ fun ChessScreen(
         matchInProgress = !s.roundOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedGames > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedGames == 0,
         onUndo = if (localMode) ({ game.undo() }) else null,
         canUndo = game.canUndo,
         onHint = if (localMode) ({ game.hint() }) else null,

@@ -198,6 +198,16 @@ class MainActivity : ComponentActivity() {
                     // sessionManager.savedGames. Picking that game again asks Resume vs New game
                     // here, once, for every route, so no game screen or menu button needs its own.
                     var resumeOffer by remember { mutableStateOf<SavedGame?>(null) }
+
+                    // After Android reclaims the process, Compose restores the nav back stack to the
+                    // game screen that was open, but the new process has no launch context for it.
+                    // Send the player to the menu instead of a blank game; picking the game there
+                    // offers Resume. (A normal recreation keeps its context and is left alone.)
+                    LaunchedEffect(Unit) {
+                        if (savedInstanceState != null && sessionManager.activeContext.value == null) {
+                            navController.popBackStack("menu", inclusive = false)
+                        }
+                    }
                     val progressSaver = remember {
                         ProgressSaver(
                             canSave = { sessionManager.canSaveActiveProgress() },
@@ -223,7 +233,7 @@ class MainActivity : ComponentActivity() {
                                 settingsViewModel = settingsViewModel,
                                 statsViewModel = statsViewModel,
                                 onNavigateToGame = { route ->
-                                    val saved = sessionManager.savedGames?.load(route)
+                                    val saved = sessionManager.savedGameForLaunch(route)
                                     if (saved != null) resumeOffer = saved else navController.navigate(route)
                                 },
                                 onNavigateToSettings = { navController.navigate("settings") },
@@ -792,14 +802,14 @@ class MainActivity : ComponentActivity() {
                                 TextButton(onClick = {
                                     resumeOffer = null
                                     sessionManager.pendingResume = offer
-                                    navController.navigate(offer.route)
+                                    navController.navigate(offer.navRoute)
                                 }) { Text("Resume") }
                             },
                             dismissButton = {
                                 TextButton(onClick = {
                                     resumeOffer = null
                                     sessionManager.savedGames?.delete(offer.route)
-                                    navController.navigate(offer.route)
+                                    navController.navigate(offer.navRoute)
                                 }) { Text("New game") }
                             }
                         )

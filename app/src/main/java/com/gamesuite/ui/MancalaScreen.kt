@@ -413,6 +413,7 @@ fun MancalaScreen(
         matchInProgress = !s.roundOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedRounds == 0,
         onUndo = { game.undo() },
         canUndo = game.canUndo,
         onHint = { game.hint() },

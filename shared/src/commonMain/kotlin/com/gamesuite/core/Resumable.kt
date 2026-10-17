@@ -40,7 +40,8 @@ interface UndoableGame {
 }
 
 /**
- * A bounded stack of [ResumableGame] snapshots: push BEFORE a human move is applied, pop to undo.
+ * A bounded stack of [ResumableGame] snapshots: push BEFORE a human move is applied but only AFTER it
+ * has been validated (a rejected move must push nothing), pop to undo.
  * [depth] is Compose state, so `canUndo = history.depth > 0` recomposes a button on its own.
  *
  * Identical consecutive snapshots collapse into one (a rejected move that changed nothing must

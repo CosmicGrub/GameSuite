@@ -397,6 +397,7 @@ fun TicTacToeScreen(
         // won or drawn, the session-ending path (the same one the finished panel uses) runs so
         // they still count; only a session with nothing finished is a pure abort.
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedRounds == 0,
         onUndo = { game.undo() },
         canUndo = canUndoNow,
         onHint = { if (canHintNow) game.hint() },

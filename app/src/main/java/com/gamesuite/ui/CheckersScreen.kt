@@ -853,6 +853,7 @@ fun CheckersScreen(
         matchInProgress = !s.gameOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedRounds == 0,
         onUndo = doUndo,
         canUndo = game.canUndo,
         onHint = doHint,

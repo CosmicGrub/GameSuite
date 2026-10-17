@@ -315,6 +315,7 @@ fun EdgeMatchScreen(
         matchInProgress = !s.solved,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
         onUndo = { game.undo() },
         canUndo = game.canUndo,
         onHint = { game.hint() },

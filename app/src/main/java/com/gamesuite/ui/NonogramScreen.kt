@@ -385,6 +385,7 @@ fun NonogramScreen(
         matchInProgress = !s.won,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         onUndo = onUndo,

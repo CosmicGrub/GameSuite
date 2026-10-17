@@ -115,6 +115,36 @@ class SavedGameStoreTest {
     }
 
     @Test
+    fun `keys that differ only in an unsafe character never share a file`() {
+        val s = store()
+        s.save(game("odd/route", snapshot = "slash"))
+        s.save(game("odd?route", snapshot = "question"))
+        s.save(game("odd_route", snapshot = "underscore"))
+        assertEquals("slash", s.load("odd/route")?.snapshot)
+        assertEquals("question", s.load("odd?route")?.snapshot)
+        assertEquals("underscore", s.load("odd_route")?.snapshot)
+        assertEquals(3, s.all().size)
+    }
+
+    @Test
+    fun `save reports whether the file really reached disk`() {
+        assertTrue(store().save(game("chess")))
+        // A directory path that cannot be created (its parent is a plain file) makes the write fail.
+        val blocker = File(tmp.root, "blocker").apply { writeText("x") }
+        val broken = SavedGameStore(File(blocker, "saves"), epochDay = { today }, nowMillis = { now })
+        assertFalse(broken.save(game("chess")))
+    }
+
+    @Test
+    fun `a daily route is judged by its nav route even when the key carries a launch configuration`() {
+        val s = store()
+        s.save(SavedGame("sudoku-daily@SINGLE_PLAYER_VS_BOT@p1", "Sudoku", now, today, "{}", navRoute = "sudoku-daily"))
+        assertNotNull(s.load("sudoku-daily@SINGLE_PLAYER_VS_BOT@p1"))
+        today += 1
+        assertNull(s.load("sudoku-daily@SINGLE_PLAYER_VS_BOT@p1"))
+    }
+
+    @Test
     fun `a stray temp file from an interrupted write is never read as a save`() {
         val s = store()
         File(tmp.root, "saves").mkdirs()

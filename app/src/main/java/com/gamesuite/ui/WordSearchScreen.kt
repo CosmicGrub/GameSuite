@@ -286,6 +286,7 @@ fun WordSearchScreen(
         matchInProgress = !s.solved,
         onLeave = game::leaveSession,
         onAbort = { if (puzzlesSolved > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = puzzlesSolved == 0,
         onHint = { announceHint(game.hint()) { announcement = it } },
         buttonFill = WS_PAPER,
         buttonContent = WS_INK,

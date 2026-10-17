@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
  * [save] writes its snapshot. MainActivity provides it; a screen previewed on its own gets null
  * and the chrome simply behaves as before.
  */
-class ProgressSaver(val canSave: () -> Boolean, val save: () -> Unit)
+class ProgressSaver(val canSave: () -> Boolean, val save: () -> Boolean)
 
 val LocalProgressSaver = staticCompositionLocalOf<ProgressSaver?> { null }
 
@@ -100,6 +100,12 @@ fun GameChrome(
     buttonContent: Color = MaterialTheme.colorScheme.onBackground,
     leaveTitle: String = "Leave this game?",
     leaveBody: String = "This game is still in progress. Leaving now won't count it as a win or a loss.",
+    /**
+     * False when [onAbort] will record the session through `leaveSession()` (earlier finished
+     * boards exist): that ends the session, which discards its save, so the dialog must not
+     * promise one and nothing is saved.
+     */
+    leaveKeepsProgress: Boolean = true,
     onUndo: (() -> Unit)? = null,
     canUndo: Boolean = true,
     onHint: (() -> Unit)? = null,
@@ -165,7 +171,7 @@ fun GameChrome(
     }
 
     if (showLeaveConfirm) {
-        val savesProgress = progressSaver?.canSave?.invoke() == true
+        val savesProgress = leaveKeepsProgress && progressSaver?.canSave?.invoke() == true
         AlertDialog(
             onDismissRequest = { showLeaveConfirm = false },
             title = { Text(leaveTitle) },

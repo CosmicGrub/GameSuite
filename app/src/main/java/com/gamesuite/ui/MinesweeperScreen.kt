@@ -376,6 +376,7 @@ fun MinesweeperScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedBoards == 0,
         onHint = requestHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,

@@ -21,7 +21,9 @@ data class SavedGame(
     val savedAtMillis: Long,
     /** Local calendar day of the save, so a daily puzzle from yesterday is not offered today. */
     val savedAtEpochDay: Long,
-    val snapshot: String
+    val snapshot: String,
+    /** The nav route to open to resume it. [route] is the storage key (route + launch configuration); this is the plain destination. */
+    val navRoute: String = route
 )
 
 /**
@@ -42,8 +44,9 @@ class SavedGameStore(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun save(game: SavedGame) {
-        if (!dir.exists() && !dir.mkdirs()) return
+    /** Writes the save; true only when it really reached disk. */
+    fun save(game: SavedGame): Boolean {
+        if (!dir.exists() && !dir.mkdirs()) return false
         val target = fileFor(game.route)
         val temp = File(dir, target.name + ".tmp")
         try {
@@ -56,8 +59,10 @@ class SavedGameStore(
             } catch (_: AtomicMoveNotSupportedException) {
                 Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
+            return true
         } catch (_: Exception) {
             temp.delete()
+            return false
         }
     }
 
@@ -95,13 +100,22 @@ class SavedGameStore(
     }
 
     private fun isExpired(game: SavedGame): Boolean {
-        if (isDailyRoute(game.route) && game.savedAtEpochDay != epochDay()) return true
+        if (isDailyRoute(game.navRoute) && game.savedAtEpochDay != epochDay()) return true
         return nowMillis() - game.savedAtMillis > maxAgeMillis
     }
 
     private fun fileFor(route: String): File = File(dir, sanitize(route) + SUFFIX)
 
-    private fun sanitize(route: String): String = route.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    /**
+     * Injective file-name encoding: letters, digits and '-' stay, everything else (including '_'
+     * itself) becomes '_' plus four hex digits, so two different keys can never share a file.
+     */
+    private fun sanitize(route: String): String = buildString {
+        for (c in route) {
+            if ((c in 'a'..'z') || (c in 'A'..'Z') || (c in '0'..'9') || c == '-') append(c)
+            else append('_').append(c.code.toString(16).padStart(4, '0'))
+        }
+    }
 
     companion object {
         private const val SUFFIX = ".save.json"
