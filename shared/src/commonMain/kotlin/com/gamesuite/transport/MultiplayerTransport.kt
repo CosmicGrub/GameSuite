@@ -18,13 +18,28 @@ interface MultiplayerTransport {
     /**
      * Send a game-defined payload from [fromPlayerId] to one player
      * ([toPlayerId]), or null for broadcast to all. [fromPlayerId] must be
-     * the actual acting player's id — implementations report it back
-     * verbatim via [onMessageReceived], so it must never be derived from
+     * the actual acting player's id, and must never be derived from
      * [toPlayerId].
+     *
+     * What a RECEIVER is told is a separate matter: on one device
+     * ([LocalPassAndPlayTransport]) it is reported back as given, but no
+     * receiver over a network can believe a sender's own claim, so the
+     * networked transports do not use this argument as the sender on the
+     * wire (see [onMessageReceived]).
      */
     fun send(fromPlayerId: String, toPlayerId: String?, payload: ByteArray)
 
-    /** Register a listener for incoming messages: (fromPlayerId, payload). */
+    /**
+     * Register a listener for incoming messages: (fromPlayerId, payload).
+     *
+     * Over a network, [fromPlayerId] is established by the transport, never
+     * written by the sender: the Nearby endpoint the bytes arrived on, the
+     * seat the relay registered for the sending socket (Online), or, on LAN,
+     * the seat the host registered the sending connection under (guests trust
+     * the host's stamp on what it relays). Games may rely on that and should:
+     * check an intent against the seat it acts for, and accept game state
+     * only from the host (`players[0]`).
+     */
     fun onMessageReceived(listener: (fromPlayerId: String, payload: ByteArray) -> Unit)
 
     fun onPlayerJoined(listener: (playerId: String) -> Unit)

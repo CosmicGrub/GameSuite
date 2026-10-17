@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node smoke-test.js"
+    "test": "node smoke-test.js && node identity-test.js"
   },
   "engines": {
     "node": ">=18"

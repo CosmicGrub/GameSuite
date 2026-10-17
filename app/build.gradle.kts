@@ -76,6 +76,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     testImplementation("junit:junit:4.13.2")
+    // Scripts the relay side of OnlineTransport's seat-ownership contract (reconnect token, host id)
+    // in OnlineTransportIdentityTest; same version as the okhttp client it exercises.
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     // Plain desktop JNA jar (not the `@aar` variant above, which only bundles Android-target
     // natives) -- RustPadSynthCorrectnessTest.kt (docs/RUST_AUDIO_CORE_PLAN.md Step 4) needs
     // JNA's own native jnidispatch bootstrap for THIS machine's host platform to load the

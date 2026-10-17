@@ -281,7 +281,10 @@ ${childOutput}`)
     const rgBAgain = connect()
     await opened(rgBAgain.ws)
     rgA.messages.length = 0
-    rgBAgain.ws.send(JSON.stringify({ type: 'join', roomCode: graceRoom, playerId: 'rgB' }))
+    // An honest client resumes with the reconnectToken the relay handed it when it took the seat
+    // (a bare playerId no longer works; identity-test.js covers the attacks that closes).
+    const rgBToken = rgB.messages.find((m) => m.type === 'joined').reconnectToken
+    rgBAgain.ws.send(JSON.stringify({ type: 'join', roomCode: graceRoom, playerId: 'rgB', reconnectToken: rgBToken }))
     await wait(150)
     check(
       'reconnecting within the grace period gets "reconnected" with the existing roster',
