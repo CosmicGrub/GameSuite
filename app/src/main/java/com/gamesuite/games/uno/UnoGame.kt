@@ -109,7 +109,7 @@ class UnoGame : GameModule {
                 context.transport.onPlayerLeft { playerId ->
                     val s = state.value ?: return@onPlayerLeft
                     val name = s.players.firstOrNull { it.playerId == playerId }?.displayName ?: playerId
-                    commitState(s.copy(lastAction = "$name disconnected"))
+                    commitState(s.copy(lastAction = "$name disconnected"), awaitingDrawDecision = s.awaitingDrawDecision)
                 }
             }
         }
@@ -249,16 +249,18 @@ class UnoGame : GameModule {
             else -> {}
         }
 
-        if (rules.sevenZero && card.rank == UnoRank.SEVEN) {
+        // A last card wins on the hands as they stand: swapping or rotating first would hand the winner
+        // someone else's cards and score the round against the wrong hands.
+        if (rules.sevenZero && newHand.isNotEmpty() && card.rank == UnoRank.SEVEN) {
             // Bot auto-picks a target; human UI should call swapHands() itself before this returns
             // in a full implementation. For now, auto-target lowest-hand opponent for both bots and humans.
             val targetIdx = UnoBot.chooseSwapTarget(s.copy(players = updatedPlayers), playerIndex)
             val tmp = updatedPlayers[playerIndex].hand
-            updatedPlayers[playerIndex] = updatedPlayers[playerIndex].copy(hand = updatedPlayers[targetIdx].hand)
-            updatedPlayers[targetIdx] = updatedPlayers[targetIdx].copy(hand = tmp)
+            updatedPlayers[playerIndex] = withNewHand(updatedPlayers[playerIndex], updatedPlayers[targetIdx].hand)
+            updatedPlayers[targetIdx] = withNewHand(updatedPlayers[targetIdx], tmp)
             actionLog += " and swapped hands with ${updatedPlayers[targetIdx].displayName}"
         }
-        if (rules.sevenZero && card.rank == UnoRank.ZERO) {
+        if (rules.sevenZero && newHand.isNotEmpty() && card.rank == UnoRank.ZERO) {
             updatedPlayers = rotateHands(updatedPlayers, direction)
             actionLog += " and rotated all hands"
         }
@@ -307,6 +309,7 @@ class UnoGame : GameModule {
             return
         }
         val s = state.value ?: return
+        if (s.roundOver || s.matchOver) return // a last-card Wild leaves awaitingColorChoice set on a finished round
         if (!s.awaitingColorChoice) return
 
         val playedCard = s.discardPile.last()
@@ -352,6 +355,7 @@ class UnoGame : GameModule {
             return
         }
         val s = state.value ?: return
+        if (s.roundOver || s.matchOver) return
         if (!s.awaitingChallenge) return
         val victimIndex = s.challengeVictimIndex ?: return
         val playedByIndex = s.challengePlayedByIndex ?: return
@@ -547,7 +551,11 @@ class UnoGame : GameModule {
         val s = state.value ?: return
         val updated = s.players.toMutableList()
         updated[playerIndex] = updated[playerIndex].copy(calledUno = true)
-        commitState(s.copy(players = updated, lastAction = "${updated[playerIndex].displayName} called UNO!"))
+        // Not a turn action: must not wipe another seat's pending draw decision (else a second draw opens).
+        commitState(
+            s.copy(players = updated, lastAction = "${updated[playerIndex].displayName} called UNO!"),
+            awaitingDrawDecision = s.awaitingDrawDecision
+        )
     }
 
     /** Any player may catch another who has 1 card and never called UNO — penalty: draw 2.
@@ -560,6 +568,10 @@ class UnoGame : GameModule {
             return
         }
         val s = state.value ?: return
+        if (s.roundOver || s.matchOver) return
+        // A forged CatchUnoFailure intent from a guest carries an arbitrary target index; bound it so it
+        // is dropped instead of throwing on the host.
+        if (accuserIndex !in s.players.indices || targetIndex !in s.players.indices) return
         if (accuserIndex == targetIndex) return
         val target = s.players[targetIndex]
         if (target.hand.size != 1 || target.calledUno) return
@@ -575,7 +587,8 @@ class UnoGame : GameModule {
                 discardPile = currentDiscardPile(),
                 drawPileSize = drawPile.size,
                 lastAction = "${s.players[accuserIndex].displayName} caught ${target.displayName} — draw 2 penalty"
-            )
+            ),
+            awaitingDrawDecision = s.awaitingDrawDecision // a catch never advances the turn, so it keeps the drawer's pending decision
         )
     }
 
@@ -639,9 +652,12 @@ class UnoGame : GameModule {
 
     /** Every mutation funnels through here instead of a bare `state.value =` — the one
      *  place that also broadcasts the result when this device is the networked host.
-     *  [awaitingDrawDecision] defaults to false so every caller except drawCard()'s own
-     *  single-draw branch gets it reset for free without needing to remember to do so
-     *  on every individual `s.copy(...)` call site. */
+     *  [awaitingDrawDecision] defaults to false so every turn-advancing caller gets it reset for free
+     *  without needing to remember to do so on every individual `s.copy(...)` call site. The two
+     *  exceptions: drawCard()'s own single-draw branch sets it, and the NON-turn commits that can land
+     *  while another seat's draw decision is pending (callUno, catchUnoFailure, the host's
+     *  onPlayerLeft) pass the current value through. A new commit that does not advance the turn must
+     *  do the same, or it silently re-opens a second draw for the pending drawer. */
     private fun commitState(newState: UnoState, awaitingDrawDecision: Boolean = false) {
         val finalState = applyCatchWindowBookkeeping(newState.copy(awaitingDrawDecision = awaitingDrawDecision))
         state.value = finalState
@@ -759,7 +775,8 @@ class UnoGame : GameModule {
             return // malformed or foreign payload — ignore rather than crash the match
         }
         when (message) {
-            is UnoNetMessage.StateSync -> applyRemoteState(message.version, message.state)
+            // Only the host is authoritative: a StateSync from any other seat is a forgery (or version-pinning freeze).
+            is UnoNetMessage.StateSync -> if (fromPlayerId == context.players[0].playerId) applyRemoteState(message.version, message.state)
             is UnoNetMessage.RequestState -> {
                 if (isHost) state.value?.let { broadcastState(it, toPlayerId = fromPlayerId) }
             }
@@ -902,10 +919,19 @@ class UnoGame : GameModule {
         val result = players.toMutableList()
         for (i in 0 until n) {
             val sourceIndex = ((i - direction) % n + n) % n
-            result[i] = players[i].copy(hand = hands[sourceIndex])
+            result[i] = if (hands[sourceIndex] == players[i].hand) players[i]
+                else withNewHand(players[i], hands[sourceIndex])
         }
         return result
     }
+
+    /** A seat that receives a different hand in a 7-0 swap/rotate starts fresh for UNO purposes:
+     *  a stale [UnoPlayerState.calledUno] must not shield the new hand from a catch, and a stale
+     *  [UnoPlayerState.catchWindowClosesAfterPlayerIndex] (possibly already expired for the OLD hand)
+     *  must not stop a new one-card hand from being catchable. The next commit's
+     *  [applyCatchWindowBookkeeping] re-stamps a window if the new hand is a single card. */
+    private fun withNewHand(p: UnoPlayerState, hand: List<UnoCard>): UnoPlayerState =
+        p.copy(hand = hand, calledUno = false, catchWindowClosesAfterPlayerIndex = null)
 
     private fun drawFromPile(count: Int): List<UnoCard> {
         ensureDrawPile(count)

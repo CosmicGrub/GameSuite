@@ -41,6 +41,10 @@ class UnoGameScoringAndReshuffleTest {
             )
         )
         game.startMatch()
+        // An opening Wild (4 of the 108 cards, so ~4% of unseeded deals) leaves the first player's colour
+        // choice pending, and drawCard() is refused until it is made. Resolve it so the draw-driven tests
+        // below always start from a playable table instead of failing at random.
+        if (game.state.value!!.awaitingColorChoice) game.chooseColor(UnoColor.RED)
         return game
     }
 
@@ -100,6 +104,22 @@ class UnoGameScoringAndReshuffleTest {
      *  this sum would drift upward. */
     @Test
     fun `a reshuffle mid-draw preserves the total card count -- no duplication`() {
+        // One unseeded game reaches a reshuffle with overwhelming probability but not with certainty (a
+        // game can hit true exhaustion with almost nothing discarded, or skip past an exactly-empty pile
+        // via a two-card draw), so fresh deals are tried until one does. Every deal still asserts the
+        // conservation invariant after every draw, so a duplicated card fails immediately.
+        var sawReshuffle = false
+        var deals = 0
+        while (!sawReshuffle && deals < 25) {
+            deals++
+            sawReshuffle = playUntilReshuffle()
+        }
+        assertTrue("none of $deals deals ever reached a reshuffle -- loop bound needs adjusting", sawReshuffle)
+    }
+
+    /** One unseeded game: draws (and plays when legal) until a reshuffle has happened (true) or the game
+     *  ends / truly exhausts first (false). Asserts 108-card conservation after every draw. */
+    private fun playUntilReshuffle(): Boolean {
         val game = newGame(teamPlay = false)
 
         fun totalCards(): Int {
@@ -151,7 +171,7 @@ class UnoGameScoringAndReshuffleTest {
             )
         }
 
-        assertTrue("test never actually reached a reshuffle -- loop bound needs adjusting", sawReshuffle)
+        return sawReshuffle
     }
 
     /** Regression test for the crash the reshuffle test above deliberately stops short of:
