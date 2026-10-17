@@ -149,6 +149,7 @@ fun ConnectFourScreen(
     val colorblind = LocalColorblindMode.current
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
+    val hintColumn by game.hintColumn
 
     // JUICE: the shared com.gamesuite.ui.effects.CameraShake/ParticleBurst utilities, reserved for
     // this game's single biggest moment, a genuine human four-in-a-row win. The burst is built
@@ -173,7 +174,9 @@ fun ConnectFourScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // Picking this game from the menu after leaving it mid-board offers Resume; when the
+        // player took it, the engine is put back exactly as it was instead of dealing a new board.
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     // Same idiom as DotsAndBoxesScreen/DominoesScreen's own bot-turn trigger -- a short
@@ -285,6 +288,9 @@ fun ConnectFourScreen(
         matchInProgress = !s.boardOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -316,9 +322,19 @@ fun ConnectFourScreen(
                     colorblind = colorblind
                 )
             }
+            val controlsRow: @Composable () -> Unit = {
+                ControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = isMyTurn && !s.boardOver,
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
+                )
+            }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
                 BoardSlot(
                     s = s,
+                    hintColumn = hintColumn,
                     isMyTurn = isMyTurn,
                     humanWon = humanWon,
                     lastDropIndex = lastDropIndex,
@@ -368,6 +384,7 @@ fun ConnectFourScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         statusRow()
+                        if (!s.boardOver) controlsRow()
                         if (s.boardOver) resultPanel(Modifier.fillMaxWidth())
                     }
                 }
@@ -379,6 +396,10 @@ fun ConnectFourScreen(
                     statusRow()
                     Spacer(Modifier.height(14.dp))
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
+                    if (!s.boardOver) {
+                        Spacer(Modifier.height(8.dp))
+                        controlsRow()
+                    }
                     if (s.boardOver) {
                         Spacer(Modifier.height(12.dp))
                         // Capped so even a large font scale cannot push the board out of the
@@ -610,9 +631,35 @@ private fun PlayerChip(
 // Board
 // ---------------------------------------------------------------------------
 
+/**
+ * Visible Undo and Hint under the board, so neither is hidden in the corner menu. Both are the
+ * same actions the menu offers. Undo is enabled once there is a drop to take back; Hint only on a
+ * human's turn, since there is nothing to suggest while the CPU is thinking or the board is over.
+ */
+@Composable
+private fun ControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: ConnectFourPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onUndo, enabled = canUndo, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Undo")
+        }
+        OutlinedButton(onClick = onHint, enabled = canHint, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Hint")
+        }
+    }
+}
+
 @Composable
 private fun BoardSlot(
     s: ConnectFourState,
+    hintColumn: Int?,
     isMyTurn: Boolean,
     humanWon: Boolean,
     lastDropIndex: Int?,
@@ -671,9 +718,19 @@ private fun BoardSlot(
                     for (col in 0 until s.cols) {
                         val columnFull = s.cells[col] != null // row 0 = the top row -- filled means no room left
                         val enabled = isMyTurn && !s.boardOver && !columnFull
-                        val description = columnDescription(s, col)
+                        val isHint = col == hintColumn
+                        val description = columnDescription(s, col) + if (isHint) ", suggested move" else ""
                         Column(
                             modifier = Modifier
+                                // A suggested column gets a soft light wash behind its discs; the
+                                // description above says so too, so it is not colour alone.
+                                .then(
+                                    if (isHint) {
+                                        Modifier.background(Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp))
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .clickable(
                                     enabled = enabled,
                                     onClickLabel = "Drop disc in column ${col + 1}",
