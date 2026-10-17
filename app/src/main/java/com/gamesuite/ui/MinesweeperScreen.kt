@@ -63,6 +63,7 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.minesweeper.CellState
 import com.gamesuite.games.minesweeper.MinesweeperCell
 import com.gamesuite.games.minesweeper.MinesweeperGame
+import com.gamesuite.games.minesweeper.MinesweeperHint
 import com.gamesuite.games.minesweeper.MinesweeperState
 import com.gamesuite.games.minesweeper.MinesweeperStatsStore
 import com.gamesuite.haptics.HapticSignal
@@ -115,7 +116,10 @@ private const val MINES_HELP_TEXT =
         "square and its neighbors. To mark a suspected mine, choose Flag in the Reveal / Flag switch or press " +
         "and hold a square; a flagged square can't be revealed until its flag is removed.\n\n" +
         "Easy is 9x9 with 10 mines, Medium is 16x16 with 40 and Hard is 16x30 with 99. The clock " +
-        "starts on your first reveal, and a board too big for the screen pans when you drag it."
+        "starts on your first reveal, and a board too big for the screen pans when you drag it.\n\n" +
+        "Hint reveals a square the numbers prove safe, or, when nothing can be proven, rings the " +
+        "safest-looking guess without revealing it. Using a hint means the board can't set a best " +
+        "time. Leaving mid-board saves it, and you can resume it from the menu."
 
 private const val MINES_DAILY_HELP_TEXT =
     "\n\nThe Daily board is seeded by today's date, so on the same difficulty players who " +
@@ -213,6 +217,9 @@ fun MinesweeperScreen(
     // A tier chip or "New board" tapped while a board is in progress waits here for confirmation.
     var pendingTier by remember { mutableStateOf<CpuDifficulty?>(null) }
     var pendingNewBoard by remember { mutableStateOf(false) }
+    // The board whose end-of-board effects (sound, haptic, stats) have already fired. Declared up
+    // here so a resumed, already-finished board can be marked handled and not replay them.
+    var endHandledBoard by remember { mutableStateOf(-1) }
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -223,7 +230,16 @@ fun MinesweeperScreen(
             onMatchEnded()
         }
         dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The tag lives in this screen's own state: re-derive it from the engine, which knows
+            // whether the resumed board was the seeded daily one. The tier chips read game.difficulty,
+            // which the restore has already set.
+            dailyBoardActive = game.isDailyBoard
+            flagMode = false
+            if (game.state.value?.isOver == true) endHandledBoard = game.boardNumber.value
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -235,7 +251,6 @@ fun MinesweeperScreen(
     // stable across the moves of the SAME board): the board whose end-of-board effects have already
     // fired, and the board a new best time was set on.
     val board = game.boardNumber.value
-    var endHandledBoard by remember { mutableStateOf(-1) }
     var newBestBoard by remember { mutableStateOf(-1) }
 
     // The result panel waits for the board to be seen before it replaces the mode toggle. It is a
@@ -258,7 +273,9 @@ fun MinesweeperScreen(
             haptics(HapticSignal.CELEBRATION)
             playSfx(SfxKind.SUCCESS_CHIME)
             val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            if (statsStore.recordWin(game.difficulty, finalTime)) newBestBoard = board
+            // An assisted board (a hint was used) is still a solved board, but it can't set a best time.
+            val assisted = game.hintsUsed.value > 0
+            if (!assisted && statsStore.recordWin(game.difficulty, finalTime)) newBestBoard = board
         } else {
             // A lost board never gets the celebration: a failure haptic and a buzz only.
             haptics(HapticSignal.FAILURE)
@@ -309,6 +326,14 @@ fun MinesweeperScreen(
         }
     }
 
+    // A hint reveals a square the numbers prove safe, or (when nothing is provable) only rings the
+    // lowest-risk square; either way it is counted, and the board can no longer set a best time.
+    val hintShown = game.hintCell.value
+    val hintAvailable = !s.isOver && game.timerStartElapsedRealtime.value != null
+    val requestHint: () -> Unit = {
+        if (game.hint() != null) haptics(HapticSignal.LIGHT_TICK)
+    }
+
     val applyTier: (CpuDifficulty) -> Unit = { tier ->
         if (!game.matchOver.value) {
             dailyBoardActive = false
@@ -351,6 +376,7 @@ fun MinesweeperScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onHint = requestHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -397,6 +423,7 @@ fun MinesweeperScreen(
                 MinesweeperBoardSlot(
                     s = s,
                     flagMode = flagMode,
+                    hint = hintShown,
                     palette = palette,
                     reducedMotion = reducedMotion,
                     onCellTap = onCellTap,
@@ -413,6 +440,7 @@ fun MinesweeperScreen(
                         totalSafe = s.rows * s.cols - s.mineCount,
                         bestTimeMillis = bestTimeMillis,
                         isNewBest = newBestBoard == board,
+                        hintsUsed = game.hintsUsed.value,
                         daily = dailyBoardActive,
                         onNewBoard = startNewBoard,
                         onBackToMenu = { game.leaveSession() },
@@ -421,13 +449,24 @@ fun MinesweeperScreen(
                     )
                 } else {
                     // Dimmed (and inert) while a finished board is being looked at before the panel lands.
-                    MinesweeperModeToggle(
-                        flagMode = flagMode,
-                        enabled = !s.isOver,
-                        palette = palette,
-                        onSelect = { flagMode = it },
-                        modifier = panelModifier
-                    )
+                    Column(modifier = panelModifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        MinesweeperModeToggle(
+                            flagMode = flagMode,
+                            enabled = !s.isOver,
+                            palette = palette,
+                            onSelect = { flagMode = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        MinesweeperHintRow(
+                            available = hintAvailable,
+                            started = game.timerStartElapsedRealtime.value != null,
+                            hint = hintShown,
+                            hintsUsed = game.hintsUsed.value,
+                            cols = s.cols,
+                            palette = palette,
+                            onHint = requestHint
+                        )
+                    }
                 }
             }
 
@@ -753,6 +792,7 @@ private fun MinesweeperClock(game: MinesweeperGame, palette: MinesweeperPalette)
 private fun MinesweeperBoardSlot(
     s: MinesweeperState,
     flagMode: Boolean,
+    hint: MinesweeperHint?,
     palette: MinesweeperPalette,
     reducedMotion: Boolean,
     onCellTap: (Int) -> Unit,
@@ -816,6 +856,8 @@ private fun MinesweeperBoardSlot(
                                 won = s.won,
                                 explodedIndex = s.explodedIndex,
                                 flagMode = flagMode,
+                                // 0 = no hint here, 1 = a proven-safe square (already revealed), 2 = a guess.
+                                hintKind = if (hint != null && hint.index == index) (if (hint.isGuess) 2 else 1) else 0,
                                 reducedMotion = reducedMotion,
                                 onTap = onCellTap,
                                 onLongPress = onCellLongPress
@@ -892,13 +934,18 @@ private fun MinesweeperCellView(
     won: Boolean,
     explodedIndex: Int?,
     flagMode: Boolean,
+    hintKind: Int,
     reducedMotion: Boolean,
     onTap: (Int) -> Unit,
     onLongPress: (Int) -> Unit
 ) {
     val look = minesweeperCellLook(cell, index, boardOver, won, explodedIndex)
-    val description = remember(look, cell.state, cell.adjacentMines, row, col) {
-        minesweeperCellDescription(look, cell, row, col)
+    val description = remember(look, cell.state, cell.adjacentMines, row, col, hintKind) {
+        minesweeperCellDescription(look, cell, row, col) + when (hintKind) {
+            1 -> ", hint: safe square, revealed for you"
+            2 -> ", hint: best guess, not revealed"
+            else -> ""
+        }
     }
     val interactive = !boardOver && cell.state != CellState.REVEALED
     val flagged = cell.state == CellState.FLAGGED
@@ -942,9 +989,23 @@ private fun MinesweeperCellView(
             .then(
                 if (raised) Modifier.drawBehind { drawBevel(palette.hiddenHighlight, palette.hiddenShadow) }
                 else Modifier
-            ),
+            )
+            // A hinted square is ringed (a shape, not a colour), and a guess also carries a "?".
+            .then(if (hintKind != 0) Modifier.border(3.dp, palette.textPrimary, shape) else Modifier),
         contentAlignment = Alignment.Center
     ) {
+        if (hintKind == 2) {
+            Text(
+                "?",
+                color = palette.textPrimary,
+                fontSize = digitSp,
+                lineHeight = digitLineSp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.clearAndSetSemantics {}
+            )
+        }
         when (look) {
             MinesweeperCellLook.NUMBER -> Text(
                 cell.adjacentMines.toString(),
@@ -1218,6 +1279,62 @@ private fun MinesweeperModeButton(
 }
 
 // ---------------------------------------------------------------------------
+// Hint
+// ---------------------------------------------------------------------------
+
+/**
+ * A visible 48dp Hint button with the hint's outcome in words beside it (so it is not carried by the
+ * ring on the board alone). Disabled, with the reason in its description, before the first reveal
+ * (no mines exist yet) and once the board is over. The message is a polite live region.
+ */
+@Composable
+private fun MinesweeperHintRow(
+    available: Boolean,
+    started: Boolean,
+    hint: MinesweeperHint?,
+    hintsUsed: Int,
+    cols: Int,
+    palette: MinesweeperPalette,
+    onHint: () -> Unit
+) {
+    val message = when {
+        hint != null && hint.isGuess ->
+            "No safe square can be proven. Best guess: row ${hint.index / cols + 1}, column ${hint.index % cols + 1}, marked with ?"
+        hint != null -> "Hint: row ${hint.index / cols + 1}, column ${hint.index % cols + 1} was safe, so it is revealed and ringed"
+        !started -> "Hints unlock after your first reveal"
+        hintsUsed > 0 -> if (hintsUsed == 1) "1 hint used on this board" else "$hintsUsed hints used on this board"
+        else -> ""
+    }
+    val buttonDescription = when {
+        available -> "Hint"
+        !started -> "Hint, unavailable until your first reveal"
+        else -> "Hint, unavailable, the board is finished"
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedButton(
+            onClick = onHint,
+            enabled = available,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = buttonDescription }
+        ) { Text("Hint") }
+        Text(
+            message,
+            color = palette.textPrimary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { liveRegion = LiveRegionMode.Polite }
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Result panel and confirm dialog
 // ---------------------------------------------------------------------------
 
@@ -1229,6 +1346,7 @@ private fun MinesweeperResultPanel(
     totalSafe: Int,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
+    hintsUsed: Int,
     daily: Boolean,
     onNewBoard: () -> Unit,
     onBackToMenu: () -> Unit,
@@ -1265,6 +1383,14 @@ private fun MinesweeperResultPanel(
             if (!won) {
                 Spacer(Modifier.height(2.dp))
                 Text("Cleared $clearedSafe of $totalSafe safe squares", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (won && hintsUsed > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text("A board solved with hints can't set a best time.", style = MaterialTheme.typography.bodySmall)
             }
             if (won && isNewBest) {
                 Spacer(Modifier.height(4.dp))

@@ -4,9 +4,164 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
 enum class CellState { HIDDEN, REVEALED, FLAGGED }
+
+/**
+ * Everything needed to put a Minesweeper session back exactly as it was. Each cell is one Int
+ * (state ordinal + 4 if mine + 8 * adjacent count) so a 16x30 board stays small. Carries the mine
+ * layout and whether mines are placed yet (the hidden information), the daily seed (so a board that
+ * has not had its first reveal still deals the same mines), the ACTIVE elapsed time rather than
+ * clock readings, the session tally and this board's hint count.
+ */
+@Serializable
+private data class MinesweeperSnapshot(
+    val rows: Int,
+    val cols: Int,
+    val mineCount: Int,
+    val cells: List<Int>,
+    val flagCount: Int,
+    val exploded: Boolean,
+    val won: Boolean,
+    val explodedIndex: Int?,
+    val minesPlaced: Boolean,
+    val dailySeed: Long?,
+    val difficulty: String,
+    val puzzlesSolved: Int,
+    val puzzlesFailed: Int,
+    val boardNumber: Int,
+    val hintsUsed: Int,
+    val timerStarted: Boolean,
+    val activeElapsedMillis: Long,
+    val finishedElapsedMillis: Long?,
+    val players: List<MinesweeperSnapshotPlayer>
+)
+
+@Serializable
+private data class MinesweeperSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val minesweeperSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * A suggestion from [MinesweeperGame.hint]. [isGuess] false: [index] is PROVEN safe and the hint has
+ * already revealed it. [isGuess] true: nothing is provable, [index] is only the lowest-risk hidden
+ * square and has NOT been revealed.
+ */
+data class MinesweeperHint(val index: Int, val isGuess: Boolean)
+
+/** One revealed number's constraint: exactly [mines] of the still-unknown [cells] are mines. */
+private class MinesweeperConstraint(val cells: Set<Int>, val mines: Int)
+
+private fun minesweeperNeighbors(index: Int, rows: Int, cols: Int): List<Int> {
+    val row = index / cols
+    val col = index % cols
+    val result = mutableListOf<Int>()
+    for (dr in -1..1) {
+        for (dc in -1..1) {
+            if (dr == 0 && dc == 0) continue
+            val r = row + dr
+            val c = col + dc
+            if (r in 0 until rows && c in 0 until cols) result += r * cols + c
+        }
+    }
+    return result
+}
+
+/**
+ * Works out a hint from what the player can SEE only (which squares are revealed and their numbers;
+ * hidden squares' mine flags and the player's own flags are never read, since flags may be wrong).
+ * Deduction: every revealed number says "exactly N of these unknown squares are mines"; a constraint
+ * with 0 left to find clears its squares, one with all squares mined marks them, and when one
+ * constraint's squares are a subset of another's the difference is itself a constraint. Repeats to a
+ * fixpoint. Returns the lowest-index proven-safe square; otherwise (a guess) the hidden square with
+ * the lowest estimated mine risk; null when there is nothing hidden to point at.
+ */
+private fun minesweeperHintPlan(s: MinesweeperState): MinesweeperHint? {
+    val knownMines = mutableSetOf<Int>()
+    val knownSafe = mutableSetOf<Int>()
+    var current: List<MinesweeperConstraint> = run {
+        val list = ArrayList<MinesweeperConstraint>()
+        for (i in s.cells.indices) {
+            val cell = s.cells[i]
+            if (cell.state != CellState.REVEALED) continue
+            val unknown = minesweeperNeighbors(i, s.rows, s.cols).filter { s.cells[it].state != CellState.REVEALED }
+            if (unknown.isEmpty()) continue
+            list += MinesweeperConstraint(unknown.toSet(), cell.adjacentMines)
+        }
+        list
+    }
+
+    while (true) {
+        var changed = false
+        val reduced = ArrayList<MinesweeperConstraint>()
+        for (c in current) {
+            val rest = c.cells.filter { it !in knownMines && it !in knownSafe }
+            val need = c.mines - c.cells.count { it in knownMines }
+            if (rest.isEmpty()) continue
+            if (need < 0 || need > rest.size) continue // contradicts what is known: ignore it
+            if (need == 0) {
+                knownSafe.addAll(rest)
+                changed = true
+            } else if (need == rest.size) {
+                knownMines.addAll(rest)
+                changed = true
+            } else {
+                reduced += MinesweeperConstraint(rest.toSet(), need)
+            }
+        }
+        current = reduced
+        if (changed) continue
+        for (a in current) {
+            for (b in current) {
+                if (a === b || a.cells.size >= b.cells.size) continue
+                if (!b.cells.containsAll(a.cells)) continue
+                val diff = b.cells - a.cells
+                val diffMines = b.mines - a.mines
+                if (diffMines == 0) {
+                    knownSafe.addAll(diff)
+                    changed = true
+                } else if (diffMines == diff.size) {
+                    knownMines.addAll(diff)
+                    changed = true
+                }
+            }
+        }
+        if (!changed) break
+    }
+
+    val safe = knownSafe.filter { s.cells[it].state != CellState.REVEALED }.minOrNull()
+    if (safe != null) return MinesweeperHint(safe, isGuess = false)
+
+    // No proof: point at the lowest-risk hidden square. A frontier square's risk is the worst
+    // mine fraction among the constraints touching it; any other square is as risky as the
+    // density of the mines still unaccounted for.
+    val frontierRisk = HashMap<Int, Double>()
+    for (c in current) {
+        val p = c.mines.toDouble() / c.cells.size
+        for (cell in c.cells) frontierRisk[cell] = maxOf(frontierRisk[cell] ?: 0.0, p)
+    }
+    val bestFrontier = frontierRisk.entries
+        .filter { s.cells[it.key].state == CellState.HIDDEN }
+        .minWithOrNull(compareBy<Map.Entry<Int, Double>>({ it.value }, { it.key }))
+    val unknownCells = s.cells.indices.count { s.cells[it].state != CellState.REVEALED && it !in knownMines }
+    val density = if (unknownCells > 0) {
+        ((s.mineCount - knownMines.size).coerceAtLeast(0)).toDouble() / unknownCells
+    } else {
+        1.0
+    }
+    val bestOther = s.cells.indices.firstOrNull {
+        s.cells[it].state == CellState.HIDDEN && it !in knownMines && it !in frontierRisk
+    }
+    return when {
+        bestFrontier != null && (bestOther == null || bestFrontier.value <= density) ->
+            MinesweeperHint(bestFrontier.key, isGuess = true)
+        bestOther != null -> MinesweeperHint(bestOther, isGuess = true)
+        else -> null
+    }
+}
 
 data class MinesweeperCell(
     val isMine: Boolean = false,
@@ -81,10 +236,10 @@ data class MinesweeperState(
  *     on behalf of the player, which needs its own careful confirmation UX
  *     to do safely. A clean follow-up, not required for a correct, playable
  *     first version.
- *   - No hint/solver — a genuine hint needs real constraint-satisfaction
- *     reasoning over the revealed numbers (which cell is *logically*
- *     guaranteed safe or mined), a meaningfully separate feature from the
- *     board engine itself. Left for a later pass.
+ *   - Hint is a deduction solver ([hint], [minesweeperHintPlan]): it reveals a
+ *     square the visible numbers PROVE safe, or when nothing is provable only
+ *     highlights the lowest-risk square. No undo: taking back a reveal would
+ *     leak where the mines are.
  *   - Daily-seed support mirrors SlidingPuzzleGame.startMatch(dailySeed)'s
  *     exact shape/reasoning (see that class's KDoc) — this file never reads
  *     today's date itself.
@@ -99,7 +254,7 @@ data class MinesweeperState(
  * all — this seam avoids that same coverage gap here rather than
  * repeating it, without adding a new test dependency project-wide.
  */
-class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame {
     override val gameId = "minesweeper"
     override val displayName = "Minesweeper"
     override val category = GameCategory.PUZZLE
@@ -140,6 +295,12 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
     /** Total time for the current board, frozen the instant [revealCell] detects a win OR a loss; null until then. */
     val finishedElapsedMillis = mutableStateOf<Long?>(null)
 
+    /** Hints taken on the CURRENT board (reset per board, snapshotted); any hint makes the board "assisted" and ineligible for a best-time record. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The square the last [hint] pointed at, shown until the next reveal, flag, new board or restore. */
+    val hintCell = mutableStateOf<MinesweeperHint?>(null)
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -165,6 +326,153 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         puzzlesSolved.value = 0
         puzzlesFailed.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCell.value = null
+    }
+
+    /** True while the board on screen is the seeded daily board (a later fresh board is random again). Lets the screen re-derive its "Daily board" tag after a resume. */
+    val isDailyBoard: Boolean get() = currentDailySeed != null
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return minesweeperSnapshotJson.encodeToString(
+            MinesweeperSnapshot.serializer(),
+            MinesweeperSnapshot(
+                rows = s.rows,
+                cols = s.cols,
+                mineCount = s.mineCount,
+                cells = s.cells.map { it.state.ordinal + (if (it.isMine) 4 else 0) + it.adjacentMines * 8 },
+                flagCount = s.flagCount,
+                exploded = s.exploded,
+                won = s.won,
+                explodedIndex = s.explodedIndex,
+                minesPlaced = minesPlaced,
+                dailySeed = currentDailySeed,
+                difficulty = difficulty.name,
+                puzzlesSolved = puzzlesSolved.value,
+                puzzlesFailed = puzzlesFailed.value,
+                boardNumber = boardNumber.value,
+                hintsUsed = hintsUsed.value,
+                timerStarted = timerStartElapsedRealtime.value != null,
+                // Pause-adjusted, so a paused clock is saved as it reads, not as the wall clock moves on.
+                activeElapsedMillis = activeElapsedMillis() ?: 0L,
+                finishedElapsedMillis = finishedElapsedMillis.value,
+                players = context.players.map { MinesweeperSnapshotPlayer(it.playerId, it.isBot) }
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against this game's board shapes and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): Pair<MinesweeperSnapshot, List<MinesweeperCell>>? {
+        val snap = try {
+            minesweeperSnapshotJson.decodeFromString(MinesweeperSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return null
+        val (rows, cols, mines) = difficultyConfig[tier] ?: return null
+        val roster = context.players
+        if (snap.rows != rows || snap.cols != cols || snap.mineCount != mines) return null
+        if (snap.cells.size != rows * cols) return null
+        if (snap.players.size != roster.size) return null
+        if (!snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }) return null
+        if (snap.cells.any { it < 0 || (it and 3) > 2 || (it shr 3) > 8 }) return null
+        val cells = snap.cells.map {
+            MinesweeperCell(isMine = (it and 4) != 0, adjacentMines = it shr 3, state = CellState.values()[it and 3])
+        }
+        if (cells.count { it.state == CellState.FLAGGED } != snap.flagCount) return null
+        if (snap.exploded && snap.won) return null
+        if (snap.exploded != (snap.explodedIndex != null)) return null
+        if (snap.explodedIndex != null && snap.explodedIndex !in cells.indices) return null
+        val over = snap.exploded || snap.won
+        if (over && !snap.minesPlaced) return null
+        // Mines are placed on the first reveal, which is also when the stopwatch starts.
+        if (snap.minesPlaced != snap.timerStarted) return null
+        if (snap.minesPlaced && cells.count { it.isMine } != mines) return null
+        if (!snap.minesPlaced && cells.any { it.isMine || it.adjacentMines != 0 || it.state == CellState.REVEALED }) return null
+        if (snap.activeElapsedMillis < 0L) return null
+        val finished = snap.finishedElapsedMillis
+        if (over != (finished != null) || (finished != null && finished < 0L)) return null
+        if (snap.puzzlesSolved < 0 || snap.puzzlesFailed < 0 || snap.boardNumber < 0 || snap.hintsUsed < 0) return null
+        return snap to cells
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val (snap, cells) = decodeSnapshot(snapshot) ?: return false
+            // Everything validated: assign. The clock continues from the saved ACTIVE time and does
+            // not count the time the app was gone.
+            val tier = CpuDifficulty.values().first { it.name == snap.difficulty }
+            difficulty = tier
+            minesPlaced = snap.minesPlaced
+            currentDailySeed = snap.dailySeed
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            val finished = snap.finishedElapsedMillis
+            timerStartElapsedRealtime.value = when {
+                !snap.timerStarted -> null
+                finished != null -> nowMillis() - finished
+                else -> nowMillis() - snap.activeElapsedMillis
+            }
+            finishedElapsedMillis.value = finished
+            puzzlesSolved.value = snap.puzzlesSolved
+            puzzlesFailed.value = snap.puzzlesFailed
+            boardNumber.value = snap.boardNumber
+            hintsUsed.value = snap.hintsUsed
+            hintCell.value = null
+            matchOver.value = false
+            state.value = MinesweeperState(
+                rows = snap.rows,
+                cols = snap.cols,
+                cells = cells,
+                mineCount = snap.mineCount,
+                flagCount = snap.flagCount,
+                exploded = snap.exploded,
+                won = snap.won,
+                explodedIndex = snap.explodedIndex
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Asks for help on the current board. If the visible numbers PROVE a square safe, that square is
+     * revealed (a wrongly flagged one is unflagged first) and returned with isGuess false. If nothing
+     * is provable, the lowest-risk hidden square is only highlighted and returned with isGuess true.
+     * Either way [hintsUsed] goes up, which marks the board assisted (no best-time record; a win
+     * still counts as solved). Null, and no cost, before the first reveal (no mines exist yet), once
+     * the board is over, after the session ended, or with nothing hidden left.
+     */
+    fun hint(): MinesweeperHint? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver || !minesPlaced) return null
+        val plan = minesweeperHintPlan(s) ?: return null
+        // Asking again with nothing changed (the guess is still ringed) is not a second hint.
+        if (plan.isGuess && hintCell.value == plan) return plan
+        hintsUsed.value += 1
+        if (!plan.isGuess) {
+            if (s.cells[plan.index].state == CellState.FLAGGED) toggleFlag(plan.index)
+            revealCell(plan.index)
+        }
+        hintCell.value = plan
+        return plan
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -186,6 +494,8 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         // board's endMatch() left matchOver stuck true (see the class KDoc's
         // note on this fix) -- found by adversarial review, see that note.
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCell.value = null
         boardNumber.value += 1
         state.value = MinesweeperState(
             rows = rows,
@@ -265,6 +575,7 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         val s = state.value ?: return
         if (matchOver.value || s.isOver) return
         if (s.cells[index].state != CellState.HIDDEN) return
+        hintCell.value = null
 
         // Stopwatch starts on the first *actual* reveal, not on board generation --
         // a no-op tap above never reaches this line, so idle time before the
@@ -319,6 +630,7 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.state == CellState.REVEALED) return
+        hintCell.value = null
 
         val flagging = cell.state != CellState.FLAGGED
         val cells = s.cells.toMutableList()

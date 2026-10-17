@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -73,6 +74,7 @@ import com.gamesuite.games.wordgames.wordsearch.GridPos
 import com.gamesuite.games.wordgames.wordsearch.PlacedWord
 import com.gamesuite.games.wordgames.wordsearch.SelectionResult
 import com.gamesuite.games.wordgames.wordsearch.WordSearchGame
+import com.gamesuite.games.wordgames.wordsearch.WordSearchHint
 import com.gamesuite.games.wordgames.wordsearch.WordSearchState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
@@ -209,7 +211,9 @@ fun WordSearchScreen(
 
     // Only the FIRST board of the Daily route is today's puzzle: New Puzzle always deals a fresh,
     // unseeded board (see WordSearchGame.playAgain), so the label goes away after it.
-    var onDailyBoard by remember { mutableStateOf(dailySeed != null) }
+    // Held by the engine (set by a seeded startMatch, cleared by playAgain, restored by Resume), so
+    // a resumed Daily board is still labelled as the Daily puzzle.
+    val onDailyBoard by game.isDailyBoard
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -223,7 +227,12 @@ fun WordSearchScreen(
         // off the main thread (the old version froze the first frame for the duration).
         withContext(Dispatchers.Default) {
             game.loadDictionary(androidContext)
-            game.startMatch(dailySeed)
+        }
+        // Picking this game from the menu after leaving it mid-puzzle offers Resume; when the player
+        // took it, the saved puzzle (grid, words, found words, tally) comes back instead of a new one.
+        // The dictionary is loaded first either way so New Puzzle works after a resume.
+        if (!sessionManager.tryResume(game)) {
+            withContext(Dispatchers.Default) { game.startMatch(dailySeed) }
         }
     }
 
@@ -262,7 +271,9 @@ fun WordSearchScreen(
     }
 
     val difficultyName = game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }
-    val infoLine = hudInfoLine(onDailyBoard, difficultyName, puzzlesSolved)
+    val hintsUsed = game.hintsUsed.value
+    val hint = game.hintState.value
+    val infoLine = hudInfoLine(onDailyBoard, difficultyName, puzzlesSolved, hintsUsed)
 
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-puzzle
     // discards ONLY the unfinished puzzle: if earlier puzzles in this session were already
@@ -275,6 +286,7 @@ fun WordSearchScreen(
         matchInProgress = !s.solved,
         onLeave = game::leaveSession,
         onAbort = { if (puzzlesSolved > 0) game.leaveSession() else game.abortMatch() },
+        onHint = { announceHint(game.hint()) { announcement = it } },
         buttonFill = WS_PAPER,
         buttonContent = WS_INK,
         leaveTitle = "Leave this puzzle?",
@@ -300,13 +312,20 @@ fun WordSearchScreen(
                         val sideWidth = (maxWidth * 0.34f).coerceIn(220.dp, 320.dp)
 
                         val hud: @Composable () -> Unit = {
-                            WordSearchHud(
-                                found = s.foundWords.size,
-                                total = s.placedWords.size,
-                                solved = s.solved,
-                                announcement = announcement,
-                                infoLine = infoLine
-                            )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                WordSearchHud(
+                                    found = s.foundWords.size,
+                                    total = s.placedWords.size,
+                                    solved = s.solved,
+                                    announcement = announcement,
+                                    infoLine = infoLine
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                WordSearchControlsRow(
+                                    canHint = !s.solved,
+                                    onHint = { announceHint(game.hint()) { announcement = it } }
+                                )
+                            }
                         }
                         val wordList: @Composable (Modifier) -> Unit = { listModifier ->
                             WordSearchWordList(
@@ -322,6 +341,7 @@ fun WordSearchScreen(
                                 s = s,
                                 foundWords = foundWordList,
                                 cellFoundSet = cellFoundSet,
+                                hint = hint,
                                 finaleSweep = finaleSweep,
                                 sheenEnabled = sheenEnabled,
                                 colorblind = colorblind,
@@ -342,10 +362,8 @@ fun WordSearchScreen(
                                     WordSearchResultPanel(
                                         total = s.placedWords.size,
                                         puzzlesSolved = puzzlesSolved,
-                                        onNewPuzzle = {
-                                            onDailyBoard = false
-                                            game.playAgain()
-                                        },
+                                        hintsUsed = hintsUsed,
+                                        onNewPuzzle = { game.playAgain() },
                                         onBackToMenu = { game.leaveSession() },
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -402,12 +420,49 @@ fun WordSearchScreen(
 }
 
 /** "Daily puzzle · Medium · 2 puzzles solved": what the second HUD line says about this board. */
-private fun hudInfoLine(onDailyBoard: Boolean, difficultyName: String, puzzlesSolved: Int): String = buildString {
+private fun hudInfoLine(onDailyBoard: Boolean, difficultyName: String, puzzlesSolved: Int, hintsUsed: Int): String = buildString {
     if (onDailyBoard) append("Daily puzzle · ")
     append(difficultyName)
     if (puzzlesSolved > 0) {
         append(" · ")
         append(if (puzzlesSolved == 1) "1 puzzle solved" else "$puzzlesSolved puzzles solved")
+    }
+    if (hintsUsed > 0) {
+        append(" · ")
+        append(if (hintsUsed == 1) "1 hint" else "$hintsUsed hints")
+    }
+}
+
+/** Screen-reader sentence for a hint; nothing to say when there was no hint to give. */
+private fun announceHint(hint: WordSearchHint?, announce: (String) -> Unit) {
+    if (hint == null) return
+    announce("Hint: look for ${hint.word.word}, starting at ${wordSearchSpoken(hint.cell)}.")
+}
+
+/**
+ * Hint control under the HUD. Always visible, 48dp tall; disabled (with the reason in its
+ * description) once the puzzle is solved. Word Search has no undo: a drag that misses costs nothing.
+ */
+@Composable
+private fun WordSearchControlsRow(canHint: Boolean, onHint: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.padding(end = GameChromeEndInset),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = WS_INK),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (canHint) {
+                        "Hint: rings the first letter of a word you have not found. Marks this puzzle as assisted."
+                    } else {
+                        "Hint unavailable: the puzzle is solved"
+                    }
+                }
+        ) { Text("Hint") }
     }
 }
 
@@ -490,6 +545,7 @@ private fun WordSearchBoardSlot(
     s: WordSearchState,
     foundWords: List<PlacedWord>,
     cellFoundSet: Set<GridPos>,
+    hint: WordSearchHint?,
     finaleSweep: Animatable<Float, AnimationVector1D>,
     sheenEnabled: Boolean,
     colorblind: Boolean,
@@ -529,6 +585,7 @@ private fun WordSearchBoardSlot(
                 grid = s.grid,
                 foundWords = foundWords,
                 cellFoundSet = cellFoundSet,
+                hint = hint,
                 selectionStart = s.selectionStart,
                 cellPx = cellPx,
                 selectOnLongPress = scrolls,
@@ -602,6 +659,7 @@ private fun WordSearchGrid(
     grid: List<List<Char>>,
     foundWords: List<PlacedWord>,
     cellFoundSet: Set<GridPos>,
+    hint: WordSearchHint?,
     selectionStart: GridPos?,
     cellPx: Int,
     selectOnLongPress: Boolean,
@@ -638,11 +696,14 @@ private fun WordSearchGrid(
     val shakeOffset = remember { Animatable(0f) }
 
     val letterStrings = remember(grid) { grid.map { row -> row.map { it.toString() } } }
-    val cellDescriptions = remember(grid, cellFoundSet, selectionStart) {
+    val hintCell = hint?.cell
+    val hintWordText = hint?.word?.word
+    val cellDescriptions = remember(grid, cellFoundSet, selectionStart, hintCell, hintWordText) {
         grid.mapIndexed { r, rowChars ->
             rowChars.mapIndexed { c, ch ->
                 val pos = GridPos(r, c)
                 val base = when {
+                    pos == hintCell -> "Letter $ch, hint: first letter of $hintWordText"
                     pos == selectionStart -> "Letter $ch, selection start"
                     pos in cellFoundSet -> "Letter $ch, part of a found word"
                     else -> "Letter $ch"
@@ -911,6 +972,17 @@ private fun WordSearchGrid(
                     }
                 }
 
+                // Hint: a dark ring (a shape, not a colour) around the first letter of one unfound word.
+                if (hintCell != null) {
+                    val center = wordSearchCellCenter(hintCell, cell)
+                    drawCircle(
+                        color = WS_INK,
+                        radius = cell * 0.46f,
+                        center = center,
+                        style = Stroke(width = (cell * 0.09f).coerceAtLeast(2.dp.toPx()))
+                    )
+                }
+
                 // Pass 2: traces, under the letters. Live drag: a raw line to the finger.
                 val dragFrom = dragStart
                 val dragTo = dragCurrentPx
@@ -1024,6 +1096,7 @@ private fun WordChip(word: PlacedWord, isFound: Boolean, reducedMotion: Boolean)
 private fun WordSearchResultPanel(
     total: Int,
     puzzlesSolved: Int,
+    hintsUsed: Int,
     onNewPuzzle: () -> Unit,
     onBackToMenu: () -> Unit,
     modifier: Modifier = Modifier
@@ -1050,6 +1123,14 @@ private fun WordSearchResultPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
+            if (hintsUsed > 0) {
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    color = WS_INK_SOFT,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
             Text(
                 if (puzzlesSolved == 1) "1 puzzle solved this session" else "$puzzlesSolved puzzles solved this session",
                 color = WS_INK_SOFT,

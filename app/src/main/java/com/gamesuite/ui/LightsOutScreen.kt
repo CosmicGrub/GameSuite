@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -168,6 +169,10 @@ fun LightsOutScreen(
     // switch, "New board") is random again, and the screen says so.
     var dailyBoardActive by remember { mutableStateOf(dailySeed != null) }
 
+    // True when the board on screen came back from a save already solved: its result was recorded
+    // (and celebrated) before the app was left, so it must not be recorded or celebrated again.
+    var resumedAsSolved by remember { mutableStateOf(false) }
+
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
@@ -177,7 +182,21 @@ fun LightsOutScreen(
             onMatchEnded()
         }
         dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            val savedSeed = game.activeDailySeed
+            if (dailySeed != null && savedSeed != null && savedSeed != dailySeed) {
+                // The save holds an earlier day's daily board: today's daily is a different board.
+                resumedAsSolved = false
+                game.startMatch(dailySeed)
+            } else {
+                // The screen's own flags follow the engine after a resume: the saved board may be a
+                // random one dealt after the daily board, and it may already be solved.
+                dailyBoardActive = game.isDailyBoard.value
+                resumedAsSolved = game.state.value?.won == true
+            }
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -193,11 +212,12 @@ fun LightsOutScreen(
     val litCount = remember(s.cells) { s.cells.count { it } }
 
     LaunchedEffect(s.won) {
-        if (!s.won) return@LaunchedEffect
+        if (!s.won || resumedAsSolved) return@LaunchedEffect
         // A solve is always the human's (this game has no opponent), so the celebration is unconditional.
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
-        if (reportedResult == null) {
+        // An assisted solve (any hint taken on this board) counts as solved but sets no record.
+        if (reportedResult == null && game.hintsUsed.value == 0) {
             val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
             val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
             reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
@@ -229,6 +249,7 @@ fun LightsOutScreen(
     val startNewBoard: () -> Unit = {
         if (!game.matchOver.value) {
             dailyBoardActive = false
+            resumedAsSolved = false
             game.playAgain()
         }
     }
@@ -237,6 +258,7 @@ fun LightsOutScreen(
         // reason to block this mid-puzzle or once one is already solved.
         if (!game.matchOver.value && tier != game.difficulty) {
             dailyBoardActive = false
+            resumedAsSolved = false
             game.difficulty = tier
             game.startMatch()
         }
@@ -257,6 +279,9 @@ fun LightsOutScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -290,9 +315,19 @@ fun LightsOutScreen(
             val tiersRow: @Composable () -> Unit = {
                 DifficultyTabs(current = game.difficulty, palette = palette, onSelect = onSelectTier)
             }
+            val controlsRow: @Composable () -> Unit = {
+                LightsOutControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = !s.isOver && !game.matchOver.value,
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
+                )
+            }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
                 LightsOutBoardSlot(
                     s = s,
+                    hintCell = game.hintCell.value,
                     palette = palette,
                     reducedMotion = reducedMotion,
                     showResult = showResult,
@@ -301,6 +336,7 @@ fun LightsOutScreen(
                     resultPanel = { panelModifier ->
                         LightsOutResultPanel(
                             moves = s.moves,
+                            hintsUsed = game.hintsUsed.value,
                             timeMillis = game.finishedElapsedMillis.value,
                             record = record,
                             isNewBestMoves = reportedResult?.first ?: false,
@@ -329,6 +365,7 @@ fun LightsOutScreen(
                     ) {
                         statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
                         tiersRow()
+                        controlsRow()
                     }
                 }
             } else {
@@ -341,6 +378,7 @@ fun LightsOutScreen(
                     statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
                     Spacer(Modifier.height(4.dp))
                     tiersRow()
+                    controlsRow()
                     Spacer(Modifier.height(8.dp))
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
                 }
@@ -553,6 +591,46 @@ private fun LightsOutStatus(
 }
 
 /**
+ * Visible Undo and Hint (also offered in the corner menu). Undo is enabled once there is a press to
+ * take back; Hint while the board is unsolved. Both at least 48dp tall; a disabled Hint says why.
+ */
+@Composable
+private fun LightsOutControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: LightsOutPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { stateDescription = if (canUndo) "Takes back your last tap" else "Nothing to undo" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics {
+                    stateDescription = if (canHint) {
+                        "Rings a light to tap next. Using a hint means this board will not set a record."
+                    } else {
+                        "Nothing to suggest, the board is solved"
+                    }
+                }
+        ) { Text("Hint") }
+    }
+}
+
+/**
  * The live "M:SS" clock. Owns its own tick state so the 5Hz update recomposes only this Text, not
  * the whole screen and every cell (the old version read the clock at the screen root). Reads
  * [LightsOutGame.activeElapsedMillis], so it freezes while the engine is paused (app backgrounded)
@@ -598,6 +676,7 @@ private fun LightsOutClock(game: LightsOutGame, palette: LightsOutPalette) {
 @Composable
 private fun LightsOutBoardSlot(
     s: LightsOutState,
+    hintCell: Int?,
     palette: LightsOutPalette,
     reducedMotion: Boolean,
     showResult: Boolean,
@@ -645,6 +724,7 @@ private fun LightsOutBoardSlot(
                                 val index = row * n + col
                                 LightsOutCellView(
                                     lit = s.cells[index],
+                                    hinted = index == hintCell,
                                     enabled = !s.isOver,
                                     row = row,
                                     col = col,
@@ -690,6 +770,7 @@ private fun LightsOutBoardSlot(
 @Composable
 private fun LightsOutCellView(
     lit: Boolean,
+    hinted: Boolean,
     enabled: Boolean,
     row: Int,
     col: Int,
@@ -700,8 +781,9 @@ private fun LightsOutCellView(
 ) {
     // Mirrors CheckersScreen's own squareDescription convention (same state/row/column phrasing,
     // 1-indexed for a human reader) rather than inventing a new one.
-    val description = remember(lit, row, col) {
-        "${if (lit) "Light on" else "Light off"}, row ${row + 1}, column ${col + 1}"
+    val description = remember(lit, hinted, row, col) {
+        "${if (lit) "Light on" else "Light off"}, row ${row + 1}, column ${col + 1}" +
+            if (hinted) ", suggested move" else ""
     }
     val glow by animateFloatAsState(
         targetValue = if (lit) 1f else 0f,
@@ -762,6 +844,14 @@ private fun LightsOutCellView(
                         alpha = 0.18f
                     )
                 }
+                if (hinted) {
+                    // Non-colour cue: a round ring (a shape no other tile has), drawn as a dark band under
+                    // a light band so it reads on both a lit and an unlit tile.
+                    val ringCenter = Offset(size.width / 2f, size.height / 2f)
+                    val ringRadius = tileSize.minDimension * 0.3f
+                    drawCircle(color = Color.Black, radius = ringRadius, center = ringCenter, style = Stroke(width = 6.dp.toPx()))
+                    drawCircle(color = Color.White, radius = ringRadius, center = ringCenter, style = Stroke(width = 3.dp.toPx()))
+                }
             }
     )
 }
@@ -773,6 +863,7 @@ private fun LightsOutCellView(
 @Composable
 private fun LightsOutResultPanel(
     moves: Int,
+    hintsUsed: Int,
     timeMillis: Long?,
     record: LightsOutRecord?,
     isNewBestMoves: Boolean,
@@ -801,6 +892,15 @@ private fun LightsOutResultPanel(
             )
             Spacer(Modifier.height(4.dp))
             Text("Moves: $moves", style = MaterialTheme.typography.bodyMedium)
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text("Assisted boards do not set records.", style = MaterialTheme.typography.labelMedium)
+            }
             if (timeMillis != null) {
                 Spacer(Modifier.height(2.dp))
                 Text("Time: ${formatClock(timeMillis)}", style = MaterialTheme.typography.bodyMedium)

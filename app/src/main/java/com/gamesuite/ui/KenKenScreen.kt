@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -260,7 +261,16 @@ fun KenKenScreen(
             onMatchEnded()
         }
         dailyActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The engine owns the tier and the daily seed of the puzzle it just got back; the
+            // screen's own tag and per-puzzle state follow it.
+            dailyActive = game.dailySeedInUse != null
+            puzzleId += 1
+            notesMode = false
+            hint = ""
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     LaunchedEffect(hintTick) {
@@ -271,6 +281,8 @@ fun KenKenScreen(
     }
 
     val s = state ?: return
+    val hintCell by game.hintCell
+    val hintsUsed by game.hintsUsed
 
     val allBestTimes by statsStore.bestTimesMillis.collectAsState(initial = emptyMap())
     val bestTimeMillis = allBestTimes[game.difficulty.name]
@@ -285,11 +297,17 @@ fun KenKenScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedNewBest == null) {
-            val tier = game.difficulty
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            // NonCancellable: dealing the next puzzle straight away flips s.won back, which would
-            // otherwise cancel this effect mid-write and silently drop the solve's record.
-            reportedNewBest = withContext(NonCancellable) { statsStore.recordWin(tier, finalTime) }
+            if (game.isAssisted) {
+                // A solve that used a hint still counts as solved (the engine tallied it) but
+                // never sets or touches the best-time record.
+                reportedNewBest = false
+            } else {
+                val tier = game.difficulty
+                val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                // NonCancellable: dealing the next puzzle straight away flips s.won back, which would
+                // otherwise cancel this effect mid-write and silently drop the solve's record.
+                reportedNewBest = withContext(NonCancellable) { statsStore.recordWin(tier, finalTime) }
+            }
         }
     }
 
@@ -408,6 +426,17 @@ fun KenKenScreen(
         }
     }
 
+    val onUndo: () -> Unit = {
+        game.undo()
+        hint = ""
+        haptics(HapticSignal.LIGHT_TICK)
+    }
+    val onHintRequest: () -> Unit = {
+        val filled = game.hint()
+        hint = ""
+        if (filled != null) haptics(HapticSignal.NORMAL_ACTION)
+    }
+
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-puzzle discards
     // ONLY the unfinished puzzle: if puzzles were already solved this session, leaving goes through
     // leaveSession() (the same call the solved panel's "Back to Menu" makes) so they still count;
@@ -419,6 +448,9 @@ fun KenKenScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = onUndo,
+        canUndo = game.canUndo,
+        onHint = onHintRequest,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this puzzle?",
@@ -460,6 +492,7 @@ fun KenKenScreen(
                     s = s,
                     palette = palette,
                     colorblind = colorblind,
+                    hintIndex = hintCell,
                     onTapCell = onTapCell,
                     modifier = boardModifier
                 )
@@ -473,6 +506,10 @@ fun KenKenScreen(
                     timeMillis = game.finishedElapsedMillis.value,
                     bestTimeMillis = bestTimeMillis,
                     isNewBest = reportedNewBest == true,
+                    hintsUsed = hintsUsed,
+                    canUndo = game.canUndo,
+                    onUndo = onUndo,
+                    onHintRequest = onHintRequest,
                     palette = palette,
                     onDigit = onDigit,
                     onErase = onErase,
@@ -919,6 +956,7 @@ private fun KenKenBoardSlot(
     s: KenKenState,
     palette: KenKenPalette,
     colorblind: Boolean,
+    hintIndex: Int?,
     onTapCell: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1019,6 +1057,7 @@ private fun KenKenBoardSlot(
                                     background = cellBackgrounds[index],
                                     isSelected = index == selected,
                                     isWrong = index in wrongSet,
+                                    isHinted = index == hintIndex && !s.isOver,
                                     digitDp = digitDp,
                                     clueLabel = clueLabelByCell[index],
                                     clueDp = clueDp,
@@ -1138,6 +1177,25 @@ private fun KenKenBoardSlot(
                         drawPath(corner, color = palette.danger)
                     }
 
+                    // The hinted cell: a DASHED outline (a shape, not a colour) just outside the
+                    // selected cell's ring position, so it reads even when that cell is selected.
+                    if (hintIndex != null && !s.isOver && hintIndex in 0 until n * n) {
+                        val dashInset = ringInsetPx + ringStrokePx * 2f
+                        val dashSide = cell - 2f * dashInset
+                        drawRect(
+                            color = palette.textPrimary,
+                            topLeft = Offset(
+                                frame + (hintIndex % n) * cell + dashInset,
+                                frame + (hintIndex / n) * cell + dashInset
+                            ),
+                            size = Size(dashSide, dashSide),
+                            style = Stroke(
+                                width = ringStrokePx,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(ringStrokePx * 3f, ringStrokePx * 2f))
+                            )
+                        )
+                    }
+
                     // The selected cell's ring, inset so it never merges with a cage line.
                     if (selected != null) {
                         val half = ringStrokePx / 2f
@@ -1177,6 +1235,7 @@ private fun KenKenCellView(
     background: Color,
     isSelected: Boolean,
     isWrong: Boolean,
+    isHinted: Boolean,
     digitDp: Float,
     clueLabel: String?,
     clueDp: Float,
@@ -1195,8 +1254,9 @@ private fun KenKenCellView(
         isSelected -> palette.textOnAccent
         else -> palette.textPrimary
     }
-    val description = remember(row, col, cell, isSelected, isWrong, cageSpeech) {
-        kenKenCellDescription(row, col, cell, isSelected, isWrong, cageSpeech)
+    val description = remember(row, col, cell, isSelected, isWrong, isHinted, cageSpeech) {
+        kenKenCellDescription(row, col, cell, isSelected, isWrong, cageSpeech) +
+            if (isHinted) ", filled by hint" else ""
     }
 
     Box(
@@ -1305,7 +1365,8 @@ private fun kenKenPadMetrics(size: Int, available: Dp): KenKenPadMetrics {
     val rows = ceil(size / maxPerRow.toFloat()).toInt().coerceAtLeast(1)
     val perRow = ceil(size / rows.toFloat()).toInt().coerceAtLeast(1)
     val keyWidth = ((available.value - PAD_GAP_DP * (perRow - 1)) / perRow).coerceIn(PAD_KEY_MIN_WIDTH_DP, PAD_KEY_MAX_WIDTH_DP)
-    val padHeight = PAD_KEY_HEIGHT * (rows + 1) + PAD_GAP_DP.dp * rows
+    // The digit rows, the Erase/Notes row and the Undo/Hint row.
+    val padHeight = PAD_KEY_HEIGHT * (rows + 2) + PAD_GAP_DP.dp * (rows + 1)
     return KenKenPadMetrics(perRow = perRow, rows = rows, keyWidth = keyWidth.dp, padHeight = padHeight)
 }
 
@@ -1323,6 +1384,10 @@ private fun KenKenBottomZone(
     timeMillis: Long?,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
+    hintsUsed: Int,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onHintRequest: () -> Unit,
     palette: KenKenPalette,
     onDigit: (Int) -> Unit,
     onErase: () -> Unit,
@@ -1376,10 +1441,20 @@ private fun KenKenBottomZone(
                         onToggleNotes = onToggleNotes,
                         palette = palette
                     )
+                    Spacer(Modifier.height(PAD_GAP_DP.dp))
+                    KenKenControlsRow(
+                        canUndo = canUndo,
+                        canHint = true,
+                        onUndo = onUndo,
+                        onHint = onHintRequest,
+                        palette = palette,
+                        modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
+                    )
                 }
             } else {
                 KenKenResultPanel(
                     mistakes = s.mistakes,
+                    hintsUsed = hintsUsed,
                     timeMillis = timeMillis,
                     bestTimeMillis = bestTimeMillis,
                     isNewBest = isNewBest,
@@ -1389,6 +1464,48 @@ private fun KenKenBottomZone(
                     palette = palette
                 )
             }
+        }
+    }
+}
+
+/**
+ * Undo and Hint as two 48dp-tall outlined buttons (the same two actions the corner menu offers).
+ * Undo is disabled (never hidden) while there is nothing to take back; Hint says why when it is off.
+ */
+@Composable
+private fun KenKenControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: KenKenPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (canUndo) "Undo last entry" else "Undo, nothing to undo" }
+        ) {
+            Text("Undo", maxLines = 1)
+        }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (canHint) "Hint, fills one cell and marks the puzzle as assisted" else "Hint, nothing to suggest"
+                }
+        ) {
+            Text("Hint", maxLines = 1)
         }
     }
 }
@@ -1533,6 +1650,7 @@ private fun KenKenNotesSwitch(notesOn: Boolean, onChange: (Boolean) -> Unit, pal
 @Composable
 private fun KenKenResultPanel(
     mistakes: Int,
+    hintsUsed: Int,
     timeMillis: Long?,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
@@ -1569,6 +1687,14 @@ private fun KenKenResultPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             if (isNewBest) {
                 Spacer(Modifier.height(4.dp))
                 Text("New best time!", fontWeight = FontWeight.Bold)

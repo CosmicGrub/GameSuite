@@ -119,7 +119,9 @@ private const val NONOGRAM_HELP =
         "than the window it scrolls, so touch and hold a square before dragging to paint.\n\n" +
         "A cross is only your own note and never counts for or against you. A filled square that is " +
         "not part of the solution turns red with a slash and counts as a mistake; Undo takes back " +
-        "your last stroke but not the mistake count.\n\n" +
+        "your last stroke but not the mistake count. Hint fills in one correct square (marked with an " +
+        "inner outline and locked); a puzzle solved with hints still counts as solved but sets no " +
+        "best time.\n\n" +
         "The puzzle is solved when your filled squares match the picture exactly (crosses don't " +
         "matter); a clue is struck through once its line already matches, your clock starts on " +
         "your first mark, and Easy, Medium and Hard are 5x5, 10x10 and 15x15."
@@ -237,7 +239,12 @@ fun NonogramScreen(
             onMatchEnded()
         }
         dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The tier and the daily tag live in the engine after a resume; re-derive the screen's copy.
+            dailyBoardActive = game.dailyBoard.value
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -272,8 +279,13 @@ fun NonogramScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedNewBest == null) {
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+            if (s.isAssisted) {
+                // A solve that took a hint still counts as solved, but never sets a best time.
+                reportedNewBest = false
+            } else {
+                val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+            }
         }
     }
 
@@ -283,6 +295,8 @@ fun NonogramScreen(
     val lineStatus = remember(s.cells) { nonogramLineStatus(s) }
     val hasProgress = remember(s.cells) { s.cells.any { it != NonogramCellState.UNDETERMINED } }
     val canUndo = game.undoDepth.value > 0 && !s.won
+    val hintCell by game.hintCell
+    val canHint = remember(s.cells, s.won, game.matchOver.value) { game.canHint() }
 
     fun performAction(action: NonogramPendingAction) {
         if (game.matchOver.value) return
@@ -350,6 +364,12 @@ fun NonogramScreen(
             haptics(HapticSignal.LIGHT_TICK)
         }
     }
+    val onHint: () -> Unit = {
+        if (game.hint() != null) {
+            sounds.playTap()
+            haptics(HapticSignal.LIGHT_TICK)
+        }
+    }
     val onSelectTier: (CpuDifficulty) -> Unit = { tier ->
         if (tier != game.difficulty) requestAction(NonogramPendingAction.SwitchTier(tier))
     }
@@ -367,6 +387,9 @@ fun NonogramScreen(
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
+        onUndo = onUndo,
+        canUndo = canUndo,
+        onHint = onHint,
         leaveTitle = "Leave this puzzle?",
         leaveBody = if (finishedPuzzles > 0) {
             "This puzzle is still unsolved and won't count, but the puzzles you've already solved stay on your record."
@@ -421,6 +444,8 @@ fun NonogramScreen(
                     onToolChange = { tool = it },
                     canUndo = canUndo,
                     onUndo = onUndo,
+                    canHint = canHint,
+                    onHint = onHint,
                     palette = palette
                 )
             }
@@ -429,6 +454,7 @@ fun NonogramScreen(
                     s = s,
                     lineStatus = lineStatus,
                     tool = tool,
+                    latestHint = hintCell,
                     palette = palette,
                     colorblind = colorblind,
                     reducedMotion = reducedMotion,
@@ -443,6 +469,7 @@ fun NonogramScreen(
                 NonogramResultPanel(
                     timeMillis = game.finishedElapsedMillis.value,
                     mistakes = s.mistakes,
+                    hintsUsed = s.hintsUsed,
                     bestTimeMillis = bestTimeMillis,
                     isNewBest = reportedNewBest == true,
                     daily = dailyBoardActive,
@@ -613,13 +640,11 @@ private fun NonogramControls(
     onToolChange: (NonogramTool) -> Unit,
     canUndo: Boolean,
     onUndo: () -> Unit,
+    canHint: Boolean,
+    onHint: () -> Unit,
     palette: NonogramPalette
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    val toolChips: @Composable () -> Unit = {
         NonogramChip(
             label = "Fill",
             glyph = "■",
@@ -634,6 +659,8 @@ private fun NonogramControls(
             palette = palette,
             onClick = { onToolChange(NonogramTool.CROSS) }
         )
+    }
+    val actionButtons: @Composable () -> Unit = {
         OutlinedButton(
             onClick = onUndo,
             enabled = canUndo,
@@ -641,6 +668,48 @@ private fun NonogramControls(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (canHint) {
+                        "Hint: reveal one correct square. Counts as a hint used."
+                    } else {
+                        "Hint unavailable: no square left to reveal"
+                    }
+                },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) { Text("Hint") }
+    }
+    // Four controls do not fit one line at 312dp: Undo and Hint drop to their own line there, so
+    // neither is scrolled out of sight.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < 400.dp) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) { toolChips() }
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) { actionButtons() }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                toolChips()
+                actionButtons()
+            }
+        }
     }
 }
 
@@ -791,13 +860,21 @@ private fun ngCellEdgePx(widthPx: Float, heightPx: Float, n: Int): Float = minOf
 private fun ngCellAt(coord: Float, edgePx: Float, n: Int): Int = (coord / edgePx).toInt().coerceIn(0, n - 1)
 
 /** "Filled, row 4, column 7": the same state-then-1-indexed-position phrasing as ReversiScreen. */
-private fun nonogramCellDescription(cell: NonogramCellState, inSolution: Boolean, row: Int, col: Int): String {
+private fun nonogramCellDescription(
+    cell: NonogramCellState,
+    inSolution: Boolean,
+    row: Int,
+    col: Int,
+    hinted: Boolean = false,
+    latest: Boolean = false
+): String {
     val base = when (cell) {
         NonogramCellState.FILLED -> if (inSolution) "Filled" else "Filled, wrong"
         NonogramCellState.MARKED_EMPTY -> "Crossed out"
         NonogramCellState.UNDETERMINED -> "Empty"
     }
-    return "$base, row ${row + 1}, column ${col + 1}"
+    val hintNote = if (latest) ", hint, suggested square" else if (hinted) ", hinted" else ""
+    return "$base$hintNote, row ${row + 1}, column ${col + 1}"
 }
 
 private fun nonogramClickLabel(tool: NonogramTool, cell: NonogramCellState): String = when (tool) {
@@ -816,6 +893,7 @@ private fun NonogramBoardSlot(
     s: NonogramState,
     lineStatus: NonogramLineStatus,
     tool: NonogramTool,
+    latestHint: Int?,
     palette: NonogramPalette,
     colorblind: Boolean,
     reducedMotion: Boolean,
@@ -952,6 +1030,7 @@ private fun NonogramBoardSlot(
                         s = s,
                         cellPx = cellPx,
                         tool = tool,
+                        latestHint = latestHint,
                         selectOnLongPress = scrolls,
                         palette = palette,
                         colorblind = colorblind,
@@ -1073,6 +1152,7 @@ private fun NonogramBoardGrid(
     s: NonogramState,
     cellPx: Int,
     tool: NonogramTool,
+    latestHint: Int?,
     selectOnLongPress: Boolean,
     palette: NonogramPalette,
     colorblind: Boolean,
@@ -1095,8 +1175,10 @@ private fun NonogramBoardGrid(
     val currentToggle by rememberUpdatedState(onToggleCell)
     val activate: (Int) -> Unit = remember { { index: Int -> currentToggle(index) } }
 
-    val descriptions = remember(s.cells, s.solution) {
-        List(n * n) { i -> nonogramCellDescription(s.cells[i], s.solution[i], i / n, i % n) }
+    val descriptions = remember(s.cells, s.solution, s.hinted, latestHint) {
+        List(n * n) { i ->
+            nonogramCellDescription(s.cells[i], s.solution[i], i / n, i % n, hinted = i in s.hinted, latest = i == latestHint)
+        }
     }
 
     val gestures = if (selectOnLongPress) {
@@ -1203,6 +1285,8 @@ private fun NonogramBoardGrid(
                 n = n,
                 cells = s.cells,
                 solution = s.solution,
+                hinted = s.hinted,
+                latestHint = latestHint,
                 palette = palette,
                 colorblind = colorblind,
                 reveal = revealState.value
@@ -1240,6 +1324,8 @@ private fun DrawScope.drawNonogramBoard(
     n: Int,
     cells: List<NonogramCellState>,
     solution: List<Boolean>,
+    hinted: Set<Int>,
+    latestHint: Int?,
     palette: NonogramPalette,
     colorblind: Boolean,
     reveal: Float
@@ -1327,6 +1413,29 @@ private fun DrawScope.drawNonogramBoard(
             NonogramCellState.UNDETERMINED -> Unit
         }
     }
+
+    // Hinted squares: an outlined inner square in the paper colour (a shape, not just a colour), and
+    // the newest hint also gets an accent ring around the whole cell.
+    val hintInset = cell * 0.28f
+    val hintWidth = maxOf(1.5.dp.toPx(), cell * 0.06f)
+    for (i in hinted) {
+        if (i !in cells.indices) continue
+        drawRect(
+            color = palette.undeterminedCell,
+            topLeft = Offset((i % n) * cell + hintInset, (i / n) * cell + hintInset),
+            size = Size(cell - 2f * hintInset, cell - 2f * hintInset),
+            style = Stroke(width = hintWidth)
+        )
+    }
+    if (latestHint != null && latestHint in cells.indices) {
+        val ringWidth = 3.dp.toPx()
+        drawRect(
+            color = palette.accent,
+            topLeft = Offset((latestHint % n) * cell + ringWidth / 2f, (latestHint / n) * cell + ringWidth / 2f),
+            size = Size(cell - ringWidth, cell - ringWidth),
+            style = Stroke(width = ringWidth)
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1337,6 +1446,7 @@ private fun DrawScope.drawNonogramBoard(
 private fun NonogramResultPanel(
     timeMillis: Long?,
     mistakes: Int,
+    hintsUsed: Int,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
     daily: Boolean,
@@ -1373,6 +1483,15 @@ private fun NonogramResultPanel(
                 if (mistakes == 0) "No mistakes" else if (mistakes == 1) "1 mistake" else "$mistakes mistakes",
                 style = MaterialTheme.typography.bodyMedium
             )
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(2.dp))
+                Text("Assisted solves don't set a best time", style = MaterialTheme.typography.bodySmall)
+            }
             if (isNewBest) {
                 Spacer(Modifier.height(4.dp))
                 Text("New best time!", fontWeight = FontWeight.Bold)

@@ -4,8 +4,39 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.math.abs
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Nonogram session back exactly as it was: the puzzle's SOLUTION (the
+ * hidden information; clues are derived from it), the player's marks, the mistake / hint tallies,
+ * the tier, the daily flag and seed, the session's solved count and the ACTIVE (pause-adjusted)
+ * elapsed time. The stroke history behind Undo and the stroke in progress are deliberately not
+ * saved: a resumed puzzle starts with an empty Undo stack.
+ */
+@Serializable
+private data class NonogramSnapshot(
+    val size: Int,
+    val solution: List<Boolean>,
+    /** [NonogramCellState] ordinals, row-major. */
+    val cells: List<Int>,
+    val mistakes: Int,
+    val hintsUsed: Int,
+    val hinted: List<Int>,
+    val difficulty: String,
+    val daily: Boolean,
+    val dailySeed: Long? = null,
+    val puzzlesSolved: Int,
+    val timerStarted: Boolean,
+    val activeElapsedMillis: Long = 0L,
+    val finishedElapsedMillis: Long? = null,
+    val playerIds: List<String>,
+    val playerBots: List<Boolean>
+)
+
+private val nonogramSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /** UNDETERMINED -> FILLED -> MARKED_EMPTY -> UNDETERMINED on tap — the standard three-state Nonogram cell cycle. [MARKED_EMPTY] is purely a player memory aid (an "X" mark); it's never scored differently from [UNDETERMINED] — only whether a cell is [FILLED] matters for mistakes/winning. */
 enum class NonogramCellState { UNDETERMINED, FILLED, MARKED_EMPTY }
@@ -33,9 +64,16 @@ data class NonogramState(
     val colClues: List<List<Int>>,
     /** Every FILLED mark placed on a cell the solution says should be empty, counted at the moment it's placed — never decrements, same "running total, not a live count" idiom as SudokuState.mistakes. */
     val mistakes: Int = 0,
-    val won: Boolean = false
+    val won: Boolean = false,
+    /** Hints taken on THIS puzzle; never decreases (not by undo, not by restart). Any hint makes the solve assisted. */
+    val hintsUsed: Int = 0,
+    /** Cell indices a hint revealed: always FILLED and correct, locked against strokes and undo. */
+    val hinted: Set<Int> = emptySet()
 ) {
     val isOver: Boolean get() = won
+
+    /** True once any hint was taken: an assisted solve counts as solved but must not set a best-time record. */
+    val isAssisted: Boolean get() = hintsUsed > 0
 }
 
 /**
@@ -82,11 +120,9 @@ data class NonogramState(
  *
  * DELIBERATE SCOPE CUTS (honest MVP, same spirit as every other game's own
  * documented cuts):
- *   - No hint/solver — a real Nonogram hint needs the same line-deduction
- *     logic [lineCanMatch] already implements internally, surfaced as a
- *     "which cells are FORCED given what's known" feature — a genuinely
- *     separate, presentation-facing feature from the generator/checker
- *     this file builds, left for a later pass.
+ *   - [hint] does not deduce anything: it reveals one cell the stored solution says is filled, in the
+ *     line with the fewest undecided squares. It is a reveal, not a solver, and it marks the puzzle
+ *     assisted ([NonogramState.isAssisted]).
  *   - No auto-detect-and-cross-out-completed-lines (many real Nonogram apps
  *     auto-place "X"s across a fully-satisfied row/column) — a real
  *     convenience, not required for a correct, playable first version.
@@ -94,7 +130,7 @@ data class NonogramState(
  *     `startMatch(dailySeed)` exact shape/reasoning — this file never reads
  *     today's date itself.
  */
-class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame {
     override val gameId = "nonogram"
     override val displayName = "Nonogram"
     override val category = GameCategory.PUZZLE
@@ -136,6 +172,15 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
     /** How many strokes [undo] can take back right now; 0 means there is nothing to undo. */
     val undoDepth = mutableStateOf(0)
 
+    /** True while the puzzle on the board is the seeded daily one (a later fresh puzzle is random again). */
+    val dailyBoard = mutableStateOf(false)
+
+    /** The seed [dailyBoard] was dealt from; null for a random puzzle. */
+    private var boardSeed: Long? = null
+
+    /** The cell the most recent [hint] revealed, until the next mark, undo, new puzzle or restore. */
+    val hintCell = mutableStateOf<Int?>(null)
+
     // The stroke currently under the player's finger (see [beginStroke]); strokeTool == null means none.
     private var strokeTool: NonogramTool? = null
     private var strokeErases = false
@@ -159,6 +204,10 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintCell.value = null
+        dailyBoard.value = false
+        boardSeed = null
+        clearStrokeAndHistory()
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -177,6 +226,9 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
         clearStrokeAndHistory()
+        hintCell.value = null
+        dailyBoard.value = dailySeed != null
+        boardSeed = dailySeed
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true -- see the
         // MinesweeperGame/SudokuGame/LightsOutGame/DotsAndBoxesGame/
@@ -253,6 +305,7 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         val s = state.value ?: return
         if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
+        if (index in s.hinted) return
 
         val next = when (s.cells[index]) {
             NonogramCellState.UNDETERMINED -> NonogramCellState.FILLED
@@ -348,7 +401,13 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         val previous = undoStack.removeAt(undoStack.lastIndex)
         undoDepth.value = undoStack.size
         strokeTool = null
-        state.value = s.copy(cells = previous)
+        hintCell.value = null
+        // Squares a hint revealed stay filled: undo must not be a way to take a hint back.
+        val restored = previous.toMutableList()
+        for (h in s.hinted) if (h in restored.indices) restored[h] = NonogramCellState.FILLED
+        val won = restored.indices.all { (restored[it] == NonogramCellState.FILLED) == s.solution[it] }
+        state.value = s.copy(cells = restored, won = won)
+        if (won) onSolved()
         return true
     }
 
@@ -366,7 +425,15 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
         clearStrokeAndHistory()
-        state.value = s.copy(cells = List(s.size * s.size) { NonogramCellState.UNDETERMINED }, mistakes = 0, won = false)
+        hintCell.value = null
+        // Marks and mistakes reset, but hintsUsed stays (the puzzle was already assisted) and the
+        // revealed squares go back to unknown with the rest of the board.
+        state.value = s.copy(
+            cells = List(s.size * s.size) { NonogramCellState.UNDETERMINED },
+            mistakes = 0,
+            won = false,
+            hinted = emptySet()
+        )
     }
 
     private fun markFor(tool: NonogramTool): NonogramCellState =
@@ -387,6 +454,8 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         val s = state.value ?: return false
         if (matchOver.value || s.isOver) return false
         if (index !in s.cells.indices) return false
+        // A square a hint revealed is locked: no stroke can cross it out or erase it.
+        if (index in s.hinted) return false
 
         val mark = markFor(tool)
         val current = s.cells[index]
@@ -423,11 +492,187 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         val mistakes = if (newlyFilledWrong) s.mistakes + 1 else s.mistakes
         val won = cells.indices.all { (cells[it] == NonogramCellState.FILLED) == s.solution[it] }
 
+        hintCell.value = null
         state.value = s.copy(cells = cells, mistakes = mistakes, won = won)
-        if (won) {
-            puzzlesSolved.value += 1
-            freezeTimer()
+        if (won) onSolved()
+    }
+
+    private fun onSolved() {
+        puzzlesSolved.value += 1
+        freezeTimer()
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * The cell [hint] would reveal, or null when there is nothing to reveal (no puzzle, solved,
+     * session over, or every filled square of the solution is already filled). Picks, among the
+     * rows and columns that still hold a correct square not yet filled, the line with the FEWEST
+     * undecided (UNDETERMINED) squares (rows before columns, lower index first on a tie), and in it
+     * the first such square. Read-only.
+     */
+    private fun hintTarget(s: NonogramState): Int? {
+        if (matchOver.value || s.isOver) return null
+        val n = s.size
+        fun missing(i: Int) = s.solution[i] && s.cells[i] != NonogramCellState.FILLED
+        fun unknown(i: Int) = s.cells[i] == NonogramCellState.UNDETERMINED
+        var bestUnknown = Int.MAX_VALUE
+        var bestCell: Int? = null
+        for (r in 0 until n) {
+            val line = (0 until n).map { c -> r * n + c }
+            val cell = line.firstOrNull { missing(it) } ?: continue
+            val u = line.count { unknown(it) }
+            if (u < bestUnknown) { bestUnknown = u; bestCell = cell }
         }
+        for (c in 0 until n) {
+            val line = (0 until n).map { r -> r * n + c }
+            val cell = line.firstOrNull { missing(it) } ?: continue
+            val u = line.count { unknown(it) }
+            if (u < bestUnknown) { bestUnknown = u; bestCell = cell }
+        }
+        return bestCell
+    }
+
+    /** True when [hint] would reveal something right now. Reads Compose state, so a button can observe it. */
+    fun canHint(): Boolean {
+        val s = state.value ?: return false
+        return hintTarget(s) != null
+    }
+
+    /**
+     * Reveals one correct square: fills it, locks it (shown as hinted), counts one in
+     * [NonogramState.hintsUsed] so the solve is assisted, and starts the clock if it had not
+     * started. Returns the revealed cell index, or null (changing nothing) when [canHint] is false.
+     * It can finish the puzzle, which then counts as solved like any other. Not an [undo] step.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        val index = hintTarget(s) ?: return null
+        if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
+        strokeTool = null
+        val cells = s.cells.toMutableList()
+        cells[index] = NonogramCellState.FILLED
+        val won = cells.indices.all { (cells[it] == NonogramCellState.FILLED) == s.solution[it] }
+        state.value = s.copy(cells = cells, won = won, hintsUsed = s.hintsUsed + 1, hinted = s.hinted + index)
+        hintCell.value = index
+        if (won) onSolved()
+        return index
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        val finished = finishedElapsedMillis.value
+        val active = activeElapsedMillis()
+        return nonogramSnapshotJson.encodeToString(
+            NonogramSnapshot.serializer(),
+            NonogramSnapshot(
+                size = s.size,
+                solution = s.solution,
+                cells = s.cells.map { it.ordinal },
+                mistakes = s.mistakes,
+                hintsUsed = s.hintsUsed,
+                hinted = s.hinted.sorted(),
+                difficulty = difficulty.name,
+                daily = dailyBoard.value,
+                dailySeed = boardSeed,
+                puzzlesSolved = puzzlesSolved.value,
+                timerStarted = timerStartElapsedRealtime.value != null,
+                activeElapsedMillis = active ?: 0L,
+                finishedElapsedMillis = finished,
+                playerIds = context.players.map { it.playerId },
+                playerBots = context.players.map { it.isBot }
+            )
+        )
+    }
+
+    /** Null when there is nothing to save: no puzzle yet, the session already ended, or a mode whose state lives with other players. Never throws. */
+    override fun snapshot(): String? {
+        return try {
+            if (!::context.isInitialized) return null
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT &&
+                context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+            ) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Puts the engine back in the saved state, or returns false and leaves it untouched. The new
+     * state is computed and validated in full first (size, roster, indices, hinted squares) and
+     * only then assigned. The clock continues from the saved ACTIVE elapsed time. The Undo history
+     * and any stroke or hint highlight are cleared.
+     */
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            restoreSnapshot(snapshot)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun restoreSnapshot(text: String): Boolean {
+        if (!::context.isInitialized) return false
+        val snap = try {
+            nonogramSnapshotJson.decodeFromString(NonogramSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return false
+        }
+        val n = snap.size
+        val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return false
+        if (difficultySize[tier] != n) return false
+        val total = n * n
+        if (snap.solution.size != total || snap.cells.size != total) return false
+        val states = NonogramCellState.values()
+        if (!snap.cells.all { it in states.indices }) return false
+        val cells = snap.cells.map { states[it] }
+        val roster = context.players
+        if (snap.playerIds.size != roster.size || snap.playerBots.size != roster.size) return false
+        if (!roster.indices.all { snap.playerIds[it] == roster[it].playerId && snap.playerBots[it] == roster[it].isBot }) return false
+        if (snap.mistakes < 0 || snap.hintsUsed < 0 || snap.puzzlesSolved < 0 || snap.activeElapsedMillis < 0L) return false
+        if (snap.finishedElapsedMillis != null && snap.finishedElapsedMillis < 0L) return false
+        if (snap.hinted.toSet().size != snap.hinted.size || snap.hintsUsed < snap.hinted.size) return false
+        if (!snap.hinted.all { it in 0 until total && snap.solution[it] && cells[it] == NonogramCellState.FILLED }) return false
+
+        val rowClues = (0 until n).map { r -> cluesOf((0 until n).map { c -> snap.solution[r * n + c] }) }
+        val colClues = (0 until n).map { c -> cluesOf((0 until n).map { r -> snap.solution[r * n + c] }) }
+        val won = (0 until total).all { (cells[it] == NonogramCellState.FILLED) == snap.solution[it] }
+        val now = nowMillis()
+        val finished: Long? = if (won) (snap.finishedElapsedMillis ?: snap.activeElapsedMillis) else null
+        val timerStart: Long? = when {
+            finished != null -> now - finished
+            snap.timerStarted -> now - snap.activeElapsedMillis
+            else -> null
+        }
+
+        // Everything checked: assign.
+        difficulty = tier
+        puzzlesSolved.value = snap.puzzlesSolved
+        dailyBoard.value = snap.daily
+        boardSeed = snap.dailySeed
+        pausedAtElapsedRealtime = null
+        totalPausedMillis = 0L
+        timerStartElapsedRealtime.value = timerStart
+        finishedElapsedMillis.value = finished
+        clearStrokeAndHistory()
+        hintCell.value = null
+        matchOver.value = false
+        state.value = NonogramState(
+            size = n,
+            solution = snap.solution,
+            cells = cells,
+            rowClues = rowClues,
+            colClues = colClues,
+            mistakes = snap.mistakes,
+            won = won,
+            hintsUsed = snap.hintsUsed,
+            hinted = snap.hinted.toSet()
+        )
+        return true
     }
 
     private fun freezeTimer() {
