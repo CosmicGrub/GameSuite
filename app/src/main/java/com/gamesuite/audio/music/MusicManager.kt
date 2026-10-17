@@ -318,14 +318,14 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
         return Crossfade.effectiveMs(settings.musicCrossfadeSeconds, dur)
     }
 
-    private fun playById(id: String, fadeMs: Long) {
+    private fun playById(id: String, fadeMs: Long, nearEnd: Boolean = false) {
         val track = _state.value.library.trackById(id)
         if (track == null) {
             onTrackFailed(id)
             return
         }
         queue.markCurrent(id)
-        player.play(track, fadeMs)
+        player.play(track, fadeMs, nearEnd)
     }
 
     // ---- LibraryPlayer.Callbacks (main thread) --------------------------------------------
@@ -363,7 +363,8 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
             _state.update { it.copy(nowPlaying = null, emptyPlaylist = true) }
             return
         }
-        playById(id, if (fadeMs < 0L) overlapMsFor(outgoingId, id) else fadeMs)
+        // Only the natural near-end path (fadeMs < 0) may hold the hand-over for its fade window.
+        playById(id, if (fadeMs < 0L) overlapMsFor(outgoingId, id) else fadeMs, nearEnd = fadeMs < 0L)
     }
 
     /** Near-end hand-over: capped by both the outgoing and the incoming track. */
