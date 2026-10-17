@@ -3,6 +3,43 @@ package com.gamesuite.games.dotsandboxes
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Dots and Boxes session back exactly as it was: the lattice, the box
+ * owners, whose turn it is (a pending go-again turn is simply `currentPlayerIndex` staying on the
+ * same player), the per-board scores, the session tally, who opens the next board and the
+ * difficulty. One shape serves Resume (disk) and Undo (memory). Not carried, on purpose:
+ * `lastBoxCompleted`/`eventSeq` are one-shot animation events (a restored or undone board has no
+ * "latest claim" to burst on).
+ */
+@Serializable
+private data class DotsAndBoxesSnapshot(
+    val boxRows: Int,
+    val boxCols: Int,
+    val horizontalEdges: List<Boolean>,
+    val verticalEdges: List<Boolean>,
+    val boxOwner: List<Int?>,
+    val players: List<DotsAndBoxesSnapshotPlayer>,
+    val currentPlayerIndex: Int,
+    val scores: List<Int>,
+    val lastAction: String,
+    val boardOver: Boolean,
+    val winnerPlayerId: String?,
+    val sessionWins: Map<String, Int>,
+    val sessionDraws: Int,
+    val nextStartingPlayerIndex: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class DotsAndBoxesSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
+
+private val dotsAndBoxesSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/** One edge of the lattice, as the hint reports it: same (isHorizontal, row, col) addressing as [DotsAndBoxesGame.drawHorizontalEdge]/[DotsAndBoxesGame.drawVerticalEdge]. */
+data class DotsAndBoxesHintEdge(val horizontal: Boolean, val row: Int, val col: Int)
 
 /** A player's identity + bot flag — mirrors DominoGame's own per-player state, kept as a list even though this game is always exactly 2 players, for consistency with that established shape. */
 data class DotsAndBoxesPlayerState(
@@ -83,7 +120,7 @@ data class DotsAndBoxesState(
  * project's other documented AI-scope cuts (e.g. MinesweeperGame's skipped
  * hint/solver).
  */
-class DotsAndBoxesGame : GameModule {
+class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "dots-and-boxes"
     override val displayName = "Dots and Boxes"
     override val category = GameCategory.BOARD
@@ -117,12 +154,163 @@ class DotsAndBoxesGame : GameModule {
      *  effect never fires for a stale event carried over from a PRIOR board's own [state]. */
     private var eventSeq = 0L
 
+    /** Snapshots taken just BEFORE each human edge, newest last; popping one is Undo. Per board. */
+    private val history = SnapshotHistory()
+
+    /** The edge the last [hint] suggested, shown until the next edge, undo or new board. */
+    val hintEdge = mutableStateOf<DotsAndBoxesHintEdge?>(null)
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
         nextStartingPlayerIndex = 0
+        history.clear()
+        hintEdge.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return dotsAndBoxesSnapshotJson.encodeToString(
+            DotsAndBoxesSnapshot.serializer(),
+            DotsAndBoxesSnapshot(
+                boxRows = s.boxRows,
+                boxCols = s.boxCols,
+                horizontalEdges = s.horizontalEdges,
+                verticalEdges = s.verticalEdges,
+                boxOwner = s.boxOwner,
+                players = s.players.map { DotsAndBoxesSnapshotPlayer(it.playerId, it.displayName, it.isBot) },
+                currentPlayerIndex = s.currentPlayerIndex,
+                scores = s.scores,
+                lastAction = s.lastAction,
+                boardOver = s.boardOver,
+                winnerPlayerId = s.winnerPlayerId,
+                sessionWins = sessionWins.value,
+                sessionDraws = sessionDraws.value,
+                nextStartingPlayerIndex = nextStartingPlayerIndex,
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's board shape and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): DotsAndBoxesSnapshot? {
+        val snap = try {
+            dotsAndBoxesSnapshotJson.decodeFromString(DotsAndBoxesSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        val valid = snap.boxRows == BOX_ROWS && snap.boxCols == BOX_COLS &&
+            snap.horizontalEdges.size == (BOX_ROWS + 1) * BOX_COLS &&
+            snap.verticalEdges.size == BOX_ROWS * (BOX_COLS + 1) &&
+            snap.boxOwner.size == BOX_ROWS * BOX_COLS &&
+            snap.players.size == roster.size &&
+            snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
+            snap.boxOwner.all { it == null || it in snap.players.indices } &&
+            snap.scores.size == snap.players.size &&
+            snap.scores.all { it >= 0 } &&
+            snap.currentPlayerIndex in snap.players.indices &&
+            snap.nextStartingPlayerIndex in snap.players.indices &&
+            snap.sessionDraws >= 0 &&
+            snap.sessionWins.keys == roster.map { it.playerId }.toSet() &&
+            snap.sessionWins.values.all { it >= 0 } &&
+            (snap.winnerPlayerId == null || snap.players.any { it.playerId == snap.winnerPlayerId })
+        return if (valid) snap else null
+    }
+
+    /** Puts the engine into [snap] (shared by restore and undo). */
+    private fun applySnapshot(snap: DotsAndBoxesSnapshot) {
+        state.value = DotsAndBoxesState(
+            boxRows = snap.boxRows,
+            boxCols = snap.boxCols,
+            horizontalEdges = snap.horizontalEdges,
+            verticalEdges = snap.verticalEdges,
+            boxOwner = snap.boxOwner,
+            players = snap.players.map { DotsAndBoxesPlayerState(it.playerId, it.displayName, it.isBot) },
+            currentPlayerIndex = snap.currentPlayerIndex,
+            scores = snap.scores,
+            lastAction = snap.lastAction,
+            boardOver = snap.boardOver,
+            winnerPlayerId = snap.winnerPlayerId,
+            // No "latest claim" after a restore/undo, so the UI bursts and cues nothing. eventSeq is
+            // NOT rewound: the next real claim must carry a seq the screen has never seen.
+            lastBoxCompleted = null
+        )
+        sessionWins.value = snap.sessionWins
+        sessionDraws.value = snap.sessionDraws
+        nextStartingPlayerIndex = snap.nextStartingPlayerIndex
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        hintEdge.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            matchOver.value = false
+            applySnapshot(snap)
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human edge. Because completing a box keeps the turn, one step is exactly
+     * one human edge; when that edge handed the turn to the CPU, the CPU's whole reply chain goes
+     * with it (the snapshot was taken before the human's edge). Undoing the board-finishing edge
+     * re-opens the board and takes its win off the session tally. Nothing here only counts upward.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests an edge for the player to move: one that completes a box (the most boxes) if any;
+     * else one that does not leave a box with 3 sides for the opponent; else the sacrifice that
+     * gives away the fewest boxes ([chainSizeIfOpened]). Deterministic (first best in scan order),
+     * independent of the CPU difficulty. Highlights it via [hintEdge]; null when it is not a
+     * human's turn or the board is over. Dots and Boxes keeps no records, so a hint costs nothing.
+     */
+    fun hint(): DotsAndBoxesHintEdge? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.boardOver) return null
+        if (s.players[s.currentPlayerIndex].isBot) return null
+        val candidates = allUndrawnEdges(s)
+        if (candidates.isEmpty()) return null
+        val completing = candidates.filter { boxesCompletedIfDrawn(s, it) > 0 }
+        val pick = if (completing.isNotEmpty()) {
+            completing.maxByOrNull { boxesCompletedIfDrawn(s, it) }!!
+        } else {
+            candidates.firstOrNull { isSafeMove(s, it) } ?: candidates.minByOrNull { chainSizeIfOpened(s, it) }!!
+        }
+        val edge = DotsAndBoxesHintEdge(pick.first, pick.second, pick.third)
+        hintEdge.value = edge
+        return edge
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -141,6 +329,9 @@ class DotsAndBoxesGame : GameModule {
         // KDocs on this exact fix).
         matchOver.value = false
         eventSeq = 0L
+        // A new board starts a new undo history: undo never reaches back into the previous board.
+        history.clear()
+        hintEdge.value = null
         state.value = DotsAndBoxesState(
             boxRows = BOX_ROWS,
             boxCols = BOX_COLS,
@@ -194,8 +385,22 @@ class DotsAndBoxesGame : GameModule {
         startMatch()
     }
 
-    fun drawHorizontalEdge(row: Int, col: Int) = drawEdge(isHorizontal = true, row = row, col = col)
-    fun drawVerticalEdge(row: Int, col: Int) = drawEdge(isHorizontal = false, row = row, col = col)
+    fun drawHorizontalEdge(row: Int, col: Int) = humanDrawEdge(isHorizontal = true, row = row, col = col)
+    fun drawVerticalEdge(row: Int, col: Int) = humanDrawEdge(isHorizontal = false, row = row, col = col)
+
+    /**
+     * The entry point for a player's own edge (the bot goes through [drawEdge] directly): after
+     * the same validity checks [drawEdge] makes, records an undo step, so a rejected tap leaves
+     * none. Nothing is recorded if the bot is the one to move.
+     */
+    private fun humanDrawEdge(isHorizontal: Boolean, row: Int, col: Int) {
+        val s = state.value ?: return
+        if (matchOver.value || s.boardOver) return
+        if (!isValidEdge(isHorizontal, row, col, s.boxRows, s.boxCols)) return
+        if (isEdgeDrawn(s, isHorizontal, row, col)) return
+        if (!s.players[s.currentPlayerIndex].isBot) captureSnapshot()?.let { history.push(it) }
+        drawEdge(isHorizontal, row, col)
+    }
 
     /**
      * See [drawHorizontalEdge]/[drawVerticalEdge]. No-op if the board is
@@ -214,6 +419,7 @@ class DotsAndBoxesGame : GameModule {
         if (matchOver.value || s.boardOver) return
         if (!isValidEdge(isHorizontal, row, col, s.boxRows, s.boxCols)) return
         if (isEdgeDrawn(s, isHorizontal, row, col)) return
+        hintEdge.value = null
 
         val newH = if (isHorizontal) setEdge(s.horizontalEdges, row * s.boxCols + col) else s.horizontalEdges
         val newV = if (!isHorizontal) setEdge(s.verticalEdges, row * (s.boxCols + 1) + col) else s.verticalEdges

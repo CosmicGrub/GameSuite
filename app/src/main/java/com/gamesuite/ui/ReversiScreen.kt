@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -98,6 +99,7 @@ fun ReversiScreen(
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.REVERSI, enabled = musicEnabled)
     val state by game.state
+    val hintMove by game.hintMove
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = reversiPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
 
@@ -109,7 +111,10 @@ fun ReversiScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // Picking this game from the menu after leaving it mid-board offers Resume; when the
+        // player took it, the engine is put back exactly as it was instead of dealing a new board.
+        // (Difficulty is restored by the engine; this screen keeps no other state of its own.)
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     // Same idiom as ConnectFourScreen's own bot-turn trigger -- a short delay so a bot's move
@@ -156,6 +161,9 @@ fun ReversiScreen(
         matchInProgress = matchInProgress,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -213,6 +221,7 @@ fun ReversiScreen(
                                     row = row,
                                     col = col,
                                     isLegal = isLegal,
+                                    isHint = isMyTurn && !s.boardOver && index == hintMove,
                                     size = squareSize,
                                     palette = palette,
                                     onTap = {
@@ -226,6 +235,16 @@ fun ReversiScreen(
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+            ReversiControlsRow(
+                canUndo = game.canUndo,
+                canHint = isMyTurn && !s.boardOver,
+                hintUnavailableReason = if (s.boardOver) "the board is over" else "it is not your turn",
+                onUndo = { game.undo() },
+                onHint = { game.hint() },
+                palette = palette
+            )
 
             if (s.boardOver) {
                 Spacer(Modifier.height(16.dp))
@@ -367,26 +386,60 @@ private fun PassBanner(text: String, palette: ReversiPalette) {
     }
 }
 
+/**
+ * Visible Undo and Hint under the board, so neither is hidden in the corner menu. Undo is enabled
+ * once there is a move to take back; Hint only on a human's turn, since there is nothing to
+ * suggest while the CPU is thinking or the board is over.
+ */
+@Composable
+private fun ReversiControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    hintUnavailableReason: String,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: ReversiPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onUndo, enabled = canUndo, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Undo")
+        }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (canHint) "Hint" else "Hint unavailable, $hintUnavailableReason" }
+        ) {
+            Text("Hint")
+        }
+    }
+}
+
 @Composable
 private fun CellView(
     owner: Int?,
     row: Int,
     col: Int,
     isLegal: Boolean,
+    isHint: Boolean,
     size: androidx.compose.ui.unit.Dp,
     palette: ReversiPalette,
     onTap: () -> Unit
 ) {
     // Mirrors CheckersScreen's own squareDescription convention exactly (same owner/row/column
     // phrasing, 1-indexed for a human reader) rather than inventing a new one.
-    val description = remember(owner, isLegal, row, col) {
+    val description = remember(owner, isLegal, isHint, row, col) {
         val base = when {
             owner == 0 -> "Dark disc"
             owner == 1 -> "Light disc"
             isLegal -> "Legal move"
             else -> "Empty"
         }
-        "$base, row ${row + 1}, column ${col + 1}"
+        "$base, row ${row + 1}, column ${col + 1}" + if (isHint) ", suggested move" else ""
     }
 
     Box(
@@ -419,6 +472,17 @@ private fun CellView(
                         .clip(CircleShape)
                         .background(discColor)
                         .border(1.dp, palette.discBorder, CircleShape)
+                )
+            }
+            isHint -> {
+                // Suggested move: a thick ring (a shape cue, not just a hue) around the legal dot.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(4.dp)
+                        .border(3.dp, palette.textPrimary, CircleShape)
+                        .padding(3.dp)
+                        .border(2.dp, palette.legalDot, CircleShape)
                 )
             }
             isLegal -> {

@@ -195,6 +195,8 @@ fun ColorFloodScreen(
     rememberAmbientMusic(profile = MusicProfiles.COLOR_FLOOD, enabled = musicEnabled)
     val statsStore = remember { ColorFloodStatsStore(androidContext) }
     val state by game.state
+    val hintColor by game.hintColor
+    val hintsUsed by game.hintsUsed
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = colorFloodPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
     val reducedMotion = LocalReducedMotion.current
@@ -203,6 +205,10 @@ fun ColorFloodScreen(
     // True while the board on screen is the seeded daily board. Any later fresh board (a tier
     // switch, "New board") is random again, and the screen says so.
     var dailyBoardActive by remember { mutableStateOf(dailySeed != null) }
+
+    // The cell list of a flooded board that came back from a saved game. Its result was recorded
+    // before the app was left, so the win effect below must not celebrate or record it again.
+    var resumedWonColors by remember { mutableStateOf<List<Int>?>(null) }
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
@@ -213,7 +219,14 @@ fun ColorFloodScreen(
             onMatchEnded()
         }
         dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The engine knows whether the restored board was the daily one and whether it was already flooded.
+            dailyBoardActive = game.dailySeedInUse.value != null
+            val restored = game.state.value
+            resumedWonColors = if (restored != null && restored.won) restored.cellColors else null
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -240,14 +253,25 @@ fun ColorFloodScreen(
 
     LaunchedEffect(s.won) {
         if (s.won && reportedResult == null) {
-            // A flood is always the human's win (this puzzle has no opponent), so the chime and
-            // haptic are unconditional. The shake and particles live with the board and are the
-            // only part that reduced motion switches off. Celebrate first, then write the stats.
-            haptics(HapticSignal.CELEBRATION)
-            playSfx(SfxKind.SUCCESS_CHIME)
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
-            reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
+            if (resumedWonColors === s.cellColors) {
+                // Already celebrated and recorded before the app was left.
+                reportedResult = false to false
+            } else {
+                // A flood is always the human's win (this puzzle has no opponent), so the chime and
+                // haptic are unconditional. The shake and particles live with the board and are the
+                // only part that reduced motion switches off. Celebrate first, then write the stats.
+                haptics(HapticSignal.CELEBRATION)
+                playSfx(SfxKind.SUCCESS_CHIME)
+                if (game.hintsUsed.value > 0) {
+                    // Assisted: it still counts as a solved board for the session (the engine did that),
+                    // but a solve that used a hint never sets a best time or best moves.
+                    reportedResult = false to false
+                } else {
+                    val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                    val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
+                    reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
+                }
+            }
         }
     }
 
@@ -297,6 +321,9 @@ fun ColorFloodScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -347,13 +374,24 @@ fun ColorFloodScreen(
                     palette = palette,
                     colorblind = colorblind,
                     reducedMotion = reducedMotion,
+                    skipWinEffects = resumedWonColors === s.cellColors,
                     modifier = slotModifier
+                )
+            }
+            val controlsRow: @Composable () -> Unit = {
+                ColorFloodControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = !s.isOver && !game.matchOver.value,
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
                 )
             }
             val swatchesRow: @Composable () -> Unit = {
                 ColorSwatches(
                     colorCount = s.colorCount,
                     currentColor = s.currentColor,
+                    hintColor = hintColor,
                     absorbs = absorbs,
                     palette = palette,
                     colorblind = colorblind,
@@ -368,6 +406,7 @@ fun ColorFloodScreen(
                     record = record,
                     isNewBestMoves = reportedResult?.first ?: false,
                     isNewBestTime = reportedResult?.second ?: false,
+                    hintsUsed = hintsUsed,
                     daily = dailyBoardActive,
                     onNewBoard = startNewBoard,
                     onBackToMenu = { game.leaveSession() },
@@ -391,6 +430,7 @@ fun ColorFloodScreen(
                     ) {
                         statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
                         tiersRow()
+                        controlsRow()
                         // Above the (by then disabled) swatches, not below them: on a short landscape
                         // window this column scrolls, and the panel must not land off-screen.
                         if (s.isOver && showResult) resultPanel(Modifier.fillMaxWidth())
@@ -409,7 +449,9 @@ fun ColorFloodScreen(
                     tiersRow()
                     Spacer(Modifier.height(10.dp))
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
+                    controlsRow()
+                    Spacer(Modifier.height(4.dp))
                     swatchesRow()
                 }
                 if (s.isOver && showResult) {
@@ -681,6 +723,7 @@ private fun ColorFloodBoardSlot(
     palette: ColorFloodPalette,
     colorblind: Boolean,
     reducedMotion: Boolean,
+    skipWinEffects: Boolean,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -718,7 +761,8 @@ private fun ColorFloodBoardSlot(
     LaunchedEffect(s.won) {
         // Reduced motion: no shake and no particles. The chime and haptic live in the screen's own
         // win effect and are unaffected.
-        if (!s.won || reducedMotion) return@LaunchedEffect
+        // A flooded board that came back from a saved game was celebrated before the app was left.
+        if (!s.won || reducedMotion || skipWinEffects) return@LaunchedEffect
 
         // Launched rather than awaited so the shake's ~300ms decay never delays the burst below.
         launch { shake.trigger(durationMs = WIN_SHAKE_DECAY_MS, easing = FastOutSlowInEasing) }
@@ -985,6 +1029,41 @@ private fun DrawScope.drawFloodMark(colorIndex: Int, at: Offset, unit: Float, in
 // ---------------------------------------------------------------------------
 
 /**
+ * Visible Undo and Hint between the board and the swatches, so neither hides in the corner menu.
+ * Undo takes back the last colour pick; Hint rings the colour that would absorb the most cells and
+ * marks the board assisted (an assisted solve never sets a record). Both are disabled, never hidden.
+ */
+@Composable
+private fun ColorFloodControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: ColorFloodPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (canUndo) "Undo last colour pick" else "Undo unavailable, no pick to take back" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (canHint) "Hint: suggest a colour" else "Hint unavailable, the board is flooded" }
+        ) { Text("Hint") }
+    }
+}
+
+/**
  * The color swatches: the only controls that act on the board. Each is one button at least 48dp
  * wide and 56dp tall (a 36dp disc plus its `+N` label), described by its color name and what it
  * would add. The row shares its width evenly, so six swatches still get 48dp each on a 288dp-wide
@@ -996,6 +1075,7 @@ private fun DrawScope.drawFloodMark(colorIndex: Int, at: Offset, unit: Float, in
 private fun ColorSwatches(
     colorCount: Int,
     currentColor: Int,
+    hintColor: Int?,
     absorbs: List<Int>,
     palette: ColorFloodPalette,
     colorblind: Boolean,
@@ -1008,11 +1088,13 @@ private fun ColorSwatches(
             val isCurrent = c == currentColor
             val name = FLOOD_COLOR_NAMES.getOrElse(c) { "Color ${c + 1}" }
             val absorbed = absorbs.getOrElse(c) { 0 }
-            val description = when {
+            val isHint = c == hintColor && !isCurrent
+            val baseDescription = when {
                 isCurrent -> "$name, current color"
                 absorbed == 1 -> "$name, adds 1 cell"
                 else -> "$name, adds $absorbed cells"
             }
+            val description = if (isHint) "$baseDescription, suggested colour" else baseDescription
             val fill = palette.colors[c]
             Column(
                 modifier = Modifier
@@ -1029,35 +1111,47 @@ private fun ColorSwatches(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // The suggested swatch gets a square outline round its disc (a shape cue, not a
+                // colour one) and a star on its label. The wrapper is always 44dp so nothing shifts.
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(fill)
-                        .border(
-                            width = if (isCurrent) 3.dp else 1.dp,
-                            color = if (isCurrent) palette.textPrimary else palette.textPrimary.copy(alpha = 0.25f),
-                            shape = CircleShape
+                        .size(44.dp)
+                        .then(
+                            if (isHint) Modifier.border(3.dp, palette.textPrimary, RoundedCornerShape(10.dp))
+                            else Modifier
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (colorblind) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val markUnit = size.minDimension * 0.17f
-                            drawFloodMark(
-                                colorIndex = c,
-                                at = Offset(size.width / 2f, size.height / 2f),
-                                unit = markUnit,
-                                ink = markInk(fill),
-                                scratch = MarkScratch(markUnit)
-                            )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(fill)
+                            .border(
+                                width = if (isCurrent) 3.dp else 1.dp,
+                                color = if (isCurrent) palette.textPrimary else palette.textPrimary.copy(alpha = 0.25f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (colorblind) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val markUnit = size.minDimension * 0.17f
+                                drawFloodMark(
+                                    colorIndex = c,
+                                    at = Offset(size.width / 2f, size.height / 2f),
+                                    unit = markUnit,
+                                    ink = markInk(fill),
+                                    scratch = MarkScratch(markUnit)
+                                )
+                            }
                         }
                     }
                 }
                 Spacer(Modifier.height(2.dp))
                 // Decorative: the button's own description already says all of this.
                 Text(
-                    if (isCurrent) "✓" else "+$absorbed",
+                    if (isCurrent) "✓" else if (isHint) "★ +$absorbed" else "+$absorbed",
                     color = palette.textPrimary.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
@@ -1079,6 +1173,7 @@ private fun ColorFloodResultPanel(
     record: ColorFloodRecord?,
     isNewBestMoves: Boolean,
     isNewBestTime: Boolean,
+    hintsUsed: Int,
     daily: Boolean,
     onNewBoard: () -> Unit,
     onBackToMenu: () -> Unit,
@@ -1106,6 +1201,14 @@ private fun ColorFloodResultPanel(
             )
             Spacer(Modifier.height(4.dp))
             Text("Moves: $moves", style = MaterialTheme.typography.bodyMedium)
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint (no record set)" else "Solved with $hintsUsed hints (no record set)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             if (timeMillis != null) {
                 Spacer(Modifier.height(2.dp))
                 Text("Time: ${formatClock(timeMillis)}", style = MaterialTheme.typography.bodyMedium)

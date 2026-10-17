@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
@@ -220,6 +222,7 @@ fun CheckersScreen(
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
     val state by game.state
+    val hintMove by game.hintMove
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val reducedMotion = LocalReducedMotion.current
     val colorblind = LocalColorblindMode.current
@@ -257,6 +260,10 @@ fun CheckersScreen(
     val liveContext = context
     if (liveContext != null) contextMemory.last = liveContext
 
+    // The CPU level the board is actually being played at: after a Resume it is the saved game's
+    // level, which can differ from today's default-difficulty setting.
+    var shownDifficulty by remember { mutableStateOf(settings.defaultCpuDifficulty) }
+
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
@@ -265,7 +272,8 @@ fun CheckersScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        if (!sessionManager.tryResume(game)) game.startMatch()
+        shownDifficulty = game.difficulty
     }
 
     // Keyed on the whole state object so a forced-continuation hop (which keeps
@@ -488,6 +496,31 @@ fun CheckersScreen(
         "Tap a piece, then a highlighted square."
     }
 
+    // Undo / Hint. Undo also drops any half-made selection; the engine clears the hint itself on the
+    // next move, undo, new round or restore, and it is only SHOWN on a human's turn.
+    val doUndo: () -> Unit = {
+        userSelected = null
+        notice = null
+        game.undo()
+    }
+    val doHint: () -> Unit = { game.hint() }
+    val hintShown = hintMove?.takeIf { isHumanTurn }
+    val hintSentence = hintShown?.let { m ->
+        val fromRowShown = if (rotated) 7 - m.fromRow else m.fromRow
+        val fromColShown = if (rotated) 7 - m.fromCol else m.fromCol
+        val toRowShown = if (rotated) 7 - m.toRow else m.toRow
+        val toColShown = if (rotated) 7 - m.toCol else m.toCol
+        "Hint: move the piece at row ${fromRowShown + 1}, column ${fromColShown + 1} to row ${toRowShown + 1}, " +
+            "column ${toColShown + 1}" + if (m.isCapture) " (a jump)" else ""
+    }
+    // Spoken suffix for the two hinted squares (engine coordinates), so the cue is not visual only.
+    fun hintSuffixFor(row: Int, col: Int): String = when {
+        hintShown == null -> ""
+        hintShown.fromRow == row && hintShown.fromCol == col -> ", suggested move starts here"
+        hintShown.toRow == row && hintShown.toCol == col -> ", suggested move ends here"
+        else -> ""
+    }
+
     // Turn status / difficulty / captured-piece tray -- reused as-is by both the portrait
     // (stacked above the board) and landscape (beside the board) arrangements below, so this
     // chrome is never the thing silently eating the vertical budget a short window (e.g. the
@@ -523,9 +556,17 @@ fun CheckersScreen(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 }
+                if (hintSentence != null) {
+                    Text(
+                        hintSentence,
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
                 if (hasBot) {
                     Text(
-                        "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        "CPU difficulty: ${shownDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -540,6 +581,13 @@ fun CheckersScreen(
                 lightCaptured = STARTING_PIECES_PER_SIDE - s.board.count { it?.owner == 1 },
                 stacked = !reserveCorner,
                 modifier = Modifier.widthIn(max = 480.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            CheckersControlsRow(
+                canUndo = game.canUndo,
+                canHint = isHumanTurn,
+                onUndo = doUndo,
+                onHint = doHint
             )
         }
     }
@@ -659,10 +707,10 @@ fun CheckersScreen(
                                                 // Mouse/trackpad hover cursor (§4c) -- no effect on touch input.
                                                 .pointerHoverIcon(PointerIcon.Hand)
                                                 .clickable(onClickLabel = "Move piece here", role = Role.Button) { onSquareTapped(row, col) }
-                                                .semantics { contentDescription = squareDescription(null, true, displayRow, displayCol) }
+                                                .semantics { contentDescription = squareDescription(null, true, displayRow, displayCol) + hintSuffixFor(row, col) }
                                             else -> Modifier
                                                 .silentTap { onSquareTapped(row, col) }
-                                                .semantics { contentDescription = squareDescription(null, false, displayRow, displayCol) }
+                                                .semantics { contentDescription = squareDescription(null, false, displayRow, displayCol) + hintSuffixFor(row, col) }
                                         }
                                     ),
                                 contentAlignment = Alignment.Center
@@ -729,7 +777,7 @@ fun CheckersScreen(
                                     selected = isSelectedPiece,
                                     actionable = pieceActionable,
                                     colorblind = colorblind,
-                                    description = squareDescription(piece, false, displayRow, displayCol),
+                                    description = squareDescription(piece, false, displayRow, displayCol) + hintSuffixFor(row, col),
                                     stateText = pieceState,
                                     card3D = card3D,
                                     enhanced = enhanced,
@@ -756,6 +804,24 @@ fun CheckersScreen(
                                     moveProgress = moveProgress
                                 )
                             }
+                        }
+
+                        // Hint markers: a double outline (white + dark, readable on both square
+                        // colours) with a "From" / "To" text badge, drawn above the pieces. They take no
+                        // touches, so taps still reach the piece or square underneath.
+                        if (hintShown != null) {
+                            CheckersHintMarker(
+                                label = "From",
+                                displayRow = if (rotated) 7 - hintShown.fromRow else hintShown.fromRow,
+                                displayCol = if (rotated) 7 - hintShown.fromCol else hintShown.fromCol,
+                                cellSize = cellSize
+                            )
+                            CheckersHintMarker(
+                                label = "To",
+                                displayRow = if (rotated) 7 - hintShown.toRow else hintShown.toRow,
+                                displayCol = if (rotated) 7 - hintShown.toCol else hintShown.toCol,
+                                cellSize = cellSize
+                            )
                         }
                     }
                 }
@@ -787,6 +853,9 @@ fun CheckersScreen(
         matchInProgress = !s.gameOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = doUndo,
+        canUndo = game.canUndo,
+        onHint = doHint,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -872,6 +941,66 @@ fun CheckersScreen(
     }
 }
 
+/**
+ * Visible Undo and Hint under the status block, so neither is hidden in the corner menu. Undo is
+ * enabled once there is a turn to take back; Hint only on a human's turn. Disabled, never hidden,
+ * with the reason spoken.
+ */
+@Composable
+private fun CheckersControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .semantics { if (!canUndo) stateDescription = "Nothing to undo yet" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .semantics { if (!canHint) stateDescription = "Not available until it is your turn" }
+        ) { Text("Hint") }
+    }
+}
+
+/** One hint marker: a white + dark double outline over a whole square, with a corner text badge
+ *  ("From" / "To") so the cue is shape and text, never colour alone. Purely visual: the spoken
+ *  hint is on the piece / square beneath and in the status line. */
+@Composable
+private fun CheckersHintMarker(label: String, displayRow: Int, displayCol: Int, cellSize: Dp) {
+    Box(
+        modifier = Modifier
+            .offset(x = cellSize * displayCol, y = cellSize * displayRow)
+            .size(cellSize)
+            .border(3.dp, Color.White, RoundedCornerShape(6.dp))
+            .padding(3.dp)
+            .border(2.dp, Color(0xFF1B1B1B), RoundedCornerShape(4.dp))
+            .clearAndSetSemantics { }
+    ) {
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .background(Color(0xFF1B1B1B), RoundedCornerShape(bottomEnd = 4.dp))
+                .padding(horizontal = 3.dp)
+        )
+    }
+}
+
 /** The round-over panel: title, running session score, Play Again / Back to Menu. Rendered
  *  inside [GameChrome], so the corner menu and back handling stay available. */
 @Composable
@@ -924,7 +1053,11 @@ private fun deriveIds(previous: Map<Int, Int>, s: CheckersState): Map<Int, Int> 
     val coveredSquares = result.values.toHashSet()
     for (square in s.board.indices) {
         if (s.board[square] != null && square !in coveredSquares) {
-            result[square] = square // fallback id = own square index; only needed on the very first round
+            // fallback id = own square index (first deal, and the first board after an Undo or a
+            // Resume); stepped past any id already in use so it can never replace a live piece's entry
+            var fallbackId = square
+            while (fallbackId in result) fallbackId += 64
+            result[fallbackId] = square
         }
     }
     return result

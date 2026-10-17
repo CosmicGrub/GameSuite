@@ -3,6 +3,51 @@ package com.gamesuite.games.checkers
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Checkers session back exactly as it was: the board (including a
+ * half-finished multi-jump, via [forcedRow]/[forcedCol]), whose turn it is, whether the round is
+ * over, the session score and the difficulty. One shape serves both Resume (written to disk) and
+ * Undo (kept in memory).
+ *
+ * [cells] has 64 entries (row * 8 + col): 0 empty, 1 side-0 man, 2 side-0 king, 3 side-1 man,
+ * 4 side-1 king. Not snapshotted, on purpose: [CheckersState.lastMove] / [CheckersState.lastTurnHops]
+ * (animation detail only; a restored board is shown at rest) and the match-over flag (a session that
+ * has ended is never snapshotted).
+ */
+@Serializable
+private data class CheckersSnapshot(
+    val cells: List<Int>,
+    val players: List<CheckersSnapshotPlayer>,
+    val currentPlayerIndex: Int,
+    val forcedRow: Int,
+    val forcedCol: Int,
+    val gameOver: Boolean,
+    val winnerPlayerId: String?,
+    val scoreP1: Int,
+    val scoreP2: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class CheckersSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val checkersSnapshotJson = Json { ignoreUnknownKeys = true }
+
+private fun checkersSnapshotCode(piece: CheckersPiece?): Int = when {
+    piece == null -> 0
+    else -> piece.owner * 2 + (if (piece.kind == PieceKind.KING) 2 else 1)
+}
+
+private fun checkersSnapshotPiece(code: Int): CheckersPiece? = when (code) {
+    0 -> null
+    1 -> CheckersPiece(0, PieceKind.MAN)
+    2 -> CheckersPiece(0, PieceKind.KING)
+    3 -> CheckersPiece(1, PieceKind.MAN)
+    else -> CheckersPiece(1, PieceKind.KING)
+}
 
 /**
  * Port of esp32-tictactoe/TicTacToeESP32/CheckersLogic.h/.cpp (American/English
@@ -116,7 +161,7 @@ private data class Position(
     val forcedCol: Int = -1
 )
 
-class CheckersGame : GameModule {
+class CheckersGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "checkers"
     override val displayName = "Checkers"
     override val category = GameCategory.BOARD
@@ -146,11 +191,163 @@ class CheckersGame : GameModule {
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
+    /** Snapshots taken just BEFORE each human turn's first hop, newest last; popping one is Undo.
+     *  A whole multi-jump is one step. Per round: a new round starts empty. */
+    private val history = SnapshotHistory()
+
+    /** The hop the last [hint] suggested, shown on the board until the next move, undo or new round. */
+    val hintMove = mutableStateOf<CheckersMove?>(null)
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         scoreP1.value = 0
         scoreP2.value = 0
+        history.clear()
+        hintMove.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return try {
+            checkersSnapshotJson.encodeToString(
+                CheckersSnapshot.serializer(),
+                CheckersSnapshot(
+                    cells = s.board.map { checkersSnapshotCode(it) },
+                    players = context.players.map { CheckersSnapshotPlayer(it.playerId, it.isBot) },
+                    currentPlayerIndex = s.currentPlayerIndex,
+                    forcedRow = s.forcedRow,
+                    forcedCol = s.forcedCol,
+                    gameOver = s.gameOver,
+                    winnerPlayerId = s.winnerPlayerId,
+                    scoreP1 = scoreP1.value,
+                    scoreP2 = scoreP2.value,
+                    difficulty = difficulty.name
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's board shape and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): CheckersSnapshot? {
+        return try {
+            val snap = checkersSnapshotJson.decodeFromString(CheckersSnapshot.serializer(), text)
+            val roster = context.players
+            val rosterOk = roster.size == 2 && snap.players.size == 2 &&
+                snap.players.indices.all {
+                    snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
+                }
+            val cellsOk = snap.cells.size == 64 && snap.cells.withIndex().all { (i, code) ->
+                code in 0..4 && (code == 0 || (i / 8 + i % 8) % 2 == 1)
+            }
+            val turnOk = snap.currentPlayerIndex in 0..1
+            val forcedOk = if (snap.forcedRow == -1 && snap.forcedCol == -1) {
+                true
+            } else {
+                !snap.gameOver && snap.forcedRow in 0..7 && snap.forcedCol in 0..7 &&
+                    snap.cells[snap.forcedRow * 8 + snap.forcedCol].let { code ->
+                        code != 0 && (code - 1) / 2 == snap.currentPlayerIndex
+                    } &&
+                    // A pinned piece with no jump left would leave the round unplayable.
+                    squareHasJump(snap.cells.map { checkersSnapshotPiece(it) }, snap.forcedRow, snap.forcedCol)
+            }
+            val winnerOk = snap.winnerPlayerId == null || roster.any { it.playerId == snap.winnerPlayerId }
+            val scoresOk = snap.scoreP1 >= 0 && snap.scoreP2 >= 0
+            // The round-over flag and winner must agree with the position, otherwise a hand-edited
+            // snapshot could leave a live board with nobody able to move (or a finished one playable).
+            val terminalOk = cellsOk && turnOk && forcedOk && run {
+                val winnerIdx = terminalWinner(
+                    Position(snap.cells.map { checkersSnapshotPiece(it) }, snap.currentPlayerIndex, snap.forcedRow, snap.forcedCol)
+                )
+                if (snap.gameOver) {
+                    winnerIdx != null && snap.winnerPlayerId == roster.getOrNull(winnerIdx)?.playerId
+                } else {
+                    winnerIdx == null && snap.winnerPlayerId == null
+                }
+            }
+            if (rosterOk && cellsOk && turnOk && forcedOk && winnerOk && scoresOk && terminalOk) snap else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun applySnapshot(snap: CheckersSnapshot) {
+        state.value = CheckersState(
+            board = snap.cells.map { checkersSnapshotPiece(it) },
+            currentPlayerIndex = snap.currentPlayerIndex,
+            forcedRow = snap.forcedRow,
+            forcedCol = snap.forcedCol,
+            lastMove = null,
+            lastTurnHops = emptyList(),
+            gameOver = snap.gameOver,
+            winnerPlayerId = snap.winnerPlayerId
+        )
+        scoreP1.value = snap.scoreP1
+        scoreP2.value = snap.scoreP2
+        hintMove.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            matchOver.value = false
+            applySnapshot(snap)
+            difficulty = CpuDifficulty.entries.firstOrNull { it.name == snap.difficulty } ?: difficulty
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human turn: ONE step is a whole turn, so a multi-jump chain comes back as
+     * a unit, and against the CPU the CPU's reply comes back too (the snapshot was taken before the
+     * human's first hop), leaving you on your own turn. Undoing a round-winning move re-opens the
+     * round and takes its win back off the session score. Checkers has no hint or mistake counters
+     * and no clock, so there is nothing that must not be wound back.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests the hop the MEDIUM bot would choose for the player to move (the one-ply greedy pick,
+     * cheap enough for the main thread whatever the CPU difficulty is). During a forced
+     * continuation it is the next jump of the pinned piece. Highlights it ([hintMove]) and returns
+     * it; null when it is not a human's turn or the round is over. Checkers keeps no records.
+     */
+    fun hint(): CheckersMove? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.gameOver) return null
+        if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
+        val move = pickGreedyMove(positionOf(s), s.currentPlayerIndex) ?: return null
+        hintMove.value = move
+        return move
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -166,6 +363,9 @@ class CheckersGame : GameModule {
      * whichever seat a caller might expect to go first.
      */
     override fun startMatch() {
+        // A new round starts a new undo history: undo never reaches back into the previous round.
+        history.clear()
+        hintMove.value = null
         val cells = MutableList<CheckersPiece?>(64) { null }
         for (row in 0..2) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(0, PieceKind.MAN)
         for (row in 5..7) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(1, PieceKind.MAN)
@@ -331,6 +531,7 @@ class CheckersGame : GameModule {
      *  list explicitly since [move] there is already the collapsed overall
      *  first->last summary, not one hop. See [CheckersState.lastTurnHops]. */
     private fun commit(pos: Position, move: CheckersMove, hops: List<CheckersMove> = listOf(move)) {
+        hintMove.value = null
         val winner = terminalWinner(pos)
         state.value = CheckersState(
             board = pos.board,
@@ -381,6 +582,11 @@ class CheckersGame : GameModule {
         val move = generateMoves(pos).firstOrNull {
             it.fromRow == fromRow && it.fromCol == fromCol && it.toRow == toRow && it.toCol == toCol
         } ?: return
+        // Undo: remember the position before a human turn's FIRST hop only, so a whole multi-jump
+        // chain (the hops after a forced continuation) is one undo step. Never for a bot seat.
+        if (!s.inForcedContinuation && context.players.getOrNull(playerIndex)?.isBot != true) {
+            captureSnapshot()?.let { history.push(it) }
+        }
         commit(applyMove(pos, move), move)
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +54,7 @@ import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
+import com.gamesuite.games.dotsandboxes.DotsAndBoxesHintEdge
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
@@ -174,6 +176,7 @@ fun DotsAndBoxesScreen(
     val colorblind = LocalColorblindMode.current
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
+    val hintEdge by game.hintEdge
 
     // JUICE: two CameraShake instances (a per-claim nudge and the whole-board win shake are
     // different weights of the same gesture, and a shake's magnitude is fixed per
@@ -208,7 +211,7 @@ fun DotsAndBoxesScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     // Same idiom as DominoesScreen's own bot-turn trigger -- a short delay so a bot's move doesn't
@@ -311,6 +314,9 @@ fun DotsAndBoxesScreen(
         matchInProgress = !s.boardOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -341,9 +347,19 @@ fun DotsAndBoxesScreen(
                     colorblind = colorblind
                 )
             }
+            val controlsRow: @Composable () -> Unit = {
+                DotsAndBoxesControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = isMyTurn && !s.boardOver,
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
+                )
+            }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
                 BoardSlot(
                     s = s,
+                    hintEdge = hintEdge,
                     interactive = isMyTurn && !s.boardOver,
                     humanWon = humanWon,
                     winnerIndex = winnerIndex,
@@ -400,6 +416,7 @@ fun DotsAndBoxesScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         statusRow()
+                        controlsRow()
                         if (s.boardOver) resultPanel(Modifier.fillMaxWidth())
                     }
                 }
@@ -411,6 +428,8 @@ fun DotsAndBoxesScreen(
                     statusRow()
                     Spacer(Modifier.height(14.dp))
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    controlsRow()
                     if (s.boardOver) {
                         Spacer(Modifier.height(12.dp))
                         // Capped so even a large font scale cannot push the board out of the
@@ -485,14 +504,48 @@ private fun resultTitle(s: DotsAndBoxesState): String {
 
 /** Screen-reader description of one edge. Horizontal lines are numbered along the dot grid
  *  (row 1 is the top row of dots), vertical lines by box row (row 1 is the top row of boxes). */
-private fun edgeDescription(horizontal: Boolean, row: Int, col: Int, drawn: Boolean, latest: Boolean): String {
+private fun edgeDescription(horizontal: Boolean, row: Int, col: Int, drawn: Boolean, latest: Boolean, hinted: Boolean = false): String {
     val kind = if (horizontal) "Horizontal line" else "Vertical line"
     val state = when {
+        !drawn && hinted -> "undrawn, suggested line"
         !drawn -> "undrawn"
         latest -> "drawn, just now"
         else -> "drawn"
     }
     return "$kind, row ${row + 1}, column ${col + 1}, $state"
+}
+
+/** Visible Undo and Hint under the board (also in the corner menu). Undo is enabled once there is
+ *  an edge to take back; Hint only on a human's turn, since there is nothing to suggest while the
+ *  CPU is thinking or the board is over. */
+@Composable
+private fun DotsAndBoxesControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: DotsAndBoxesPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onUndo, enabled = canUndo, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(
+                "Undo",
+                modifier = Modifier.semantics {
+                    contentDescription = if (canUndo) "Undo last line" else "Undo, unavailable: no line to take back"
+                }
+            )
+        }
+        OutlinedButton(onClick = onHint, enabled = canHint, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(
+                "Hint",
+                modifier = Modifier.semantics {
+                    contentDescription = if (canHint) "Hint: show a suggested line" else "Hint, unavailable: not your turn or the board is over"
+                }
+            )
+        }
+    }
 }
 
 /** How many of box (row, col)'s four sides are drawn; mirrors the engine's own edge indexing. */
@@ -683,6 +736,7 @@ private fun PlayerScoreChip(
 @Composable
 private fun BoardSlot(
     s: DotsAndBoxesState,
+    hintEdge: DotsAndBoxesHintEdge?,
     interactive: Boolean,
     humanWon: Boolean,
     winnerIndex: Int,
@@ -803,6 +857,7 @@ private fun BoardSlot(
                                         col = boxCol,
                                         drawn = s.horizontalEdges[edgeIndex],
                                         latest = edgeIndex in changes.horizontal,
+                                        hinted = hintEdge != null && hintEdge.horizontal && hintEdge.row == boxRow && hintEdge.col == boxCol,
                                         cell = cellDp,
                                         slot = slotDp,
                                         palette = palette,
@@ -822,6 +877,7 @@ private fun BoardSlot(
                                         col = boxCol,
                                         drawn = s.verticalEdges[edgeIndex],
                                         latest = edgeIndex in changes.vertical,
+                                        hinted = hintEdge != null && !hintEdge.horizontal && hintEdge.row == boxRow && hintEdge.col == boxCol,
                                         cell = cellDp,
                                         slot = slotDp,
                                         palette = palette,
@@ -884,6 +940,7 @@ private fun EdgeView(
     col: Int,
     drawn: Boolean,
     latest: Boolean,
+    hinted: Boolean,
     cell: Dp,
     slot: Dp,
     palette: DotsAndBoxesPalette,
@@ -892,15 +949,19 @@ private fun EdgeView(
 ) {
     // Same phrasing convention as ReversiScreen.CellView / CheckersScreen.squareDescription:
     // what it is, row, column (1-indexed), then its state.
-    val description = remember(horizontal, row, col, drawn, latest) {
-        edgeDescription(horizontal, row, col, drawn, latest)
+    val description = remember(horizontal, row, col, drawn, latest, hinted) {
+        edgeDescription(horizontal, row, col, drawn, latest, hinted)
     }
     val strip = if (horizontal) Modifier.size(width = cell, height = slot) else Modifier.size(width = slot, height = cell)
     val lineColor = if (drawn) palette.edgeDrawn else palette.edgeHint
     val haloColor = palette.latest
+    val hintColor = palette.textPrimary
     Box(
         modifier = strip
-            .drawBehind { drawEdgeLine(horizontal, drawn, latest, lineColor, haloColor) }
+            .drawBehind {
+                drawEdgeLine(horizontal, drawn, latest, lineColor, haloColor)
+                if (hinted && !drawn) drawEdgeHintOutline(horizontal, hintColor)
+            }
             .then(
                 if (enabled && !drawn) {
                     Modifier.clickable(onClickLabel = "Draw line", role = Role.Button, onClick = onTap)
@@ -924,6 +985,33 @@ private fun DrawScope.drawEdgeLine(horizontal: Boolean, drawn: Boolean, latest: 
         reach = if (drawn) slotPx / 2f else 0f,
         color = lineColor
     )
+}
+
+/** The hint cue: a bold outlined capsule around the suggested edge. A shape, not a colour, so it
+ *  reads in any colour vision; it uses the ink colour so it contrasts with the board. */
+private fun DrawScope.drawEdgeHintOutline(horizontal: Boolean, color: Color) {
+    val slotPx = if (horizontal) size.height else size.width
+    val thickness = slotPx * 0.9f
+    val reach = slotPx * 0.45f
+    val radius = CornerRadius(thickness / 2f, thickness / 2f)
+    val stroke = Stroke(width = slotPx * 0.14f)
+    if (horizontal) {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(-reach, (size.height - thickness) / 2f),
+            size = Size(size.width + 2f * reach, thickness),
+            cornerRadius = radius,
+            style = stroke
+        )
+    } else {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset((size.width - thickness) / 2f, -reach),
+            size = Size(thickness, size.height + 2f * reach),
+            cornerRadius = radius,
+            style = stroke
+        )
+    }
 }
 
 /** A rounded bar centred across the strip, [reach] px longer than the strip at each end. */

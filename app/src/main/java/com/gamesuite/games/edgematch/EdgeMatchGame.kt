@@ -4,7 +4,51 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put an Edge Match session back exactly as it was: the geometry and size, every
+ * tile's edges and rotation, the scramble [initialTiles] (so "Restart this puzzle" still works), the
+ * Custom builder settings, the difficulty, the daily seed, the session tally, hints used and the
+ * ACTIVE (pause-adjusted) clock. One shape serves Resume (disk) and Undo (memory); Undo only reads
+ * the board part of it.
+ */
+@Serializable
+private data class EdgeMatchSnapshot(
+    val players: List<EdgeMatchSnapshotPlayer>,
+    val geometry: String,
+    val size: Int,
+    val colorCount: Int,
+    val tiles: List<EdgeMatchSnapshotTile>,
+    val initialTiles: List<EdgeMatchSnapshotTile>,
+    val moves: Int,
+    val solved: Boolean,
+    val custom: EdgeMatchSnapshotCustom?,
+    val difficulty: String,
+    val dailySeed: Long?,
+    val puzzlesSolved: Int,
+    val solveCounted: Boolean,
+    val hintsUsed: Int,
+    val timerStarted: Boolean,
+    val activeElapsedMillis: Long,
+    val solvedElapsedMillis: Long?
+)
+
+@Serializable
+private data class EdgeMatchSnapshotTile(val edges: List<Int>, val rotation: Int)
+
+@Serializable
+private data class EdgeMatchSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+@Serializable
+private data class EdgeMatchSnapshotCustom(val size: Int, val colorCount: Int, val geometry: String)
+
+private val edgeMatchSnapshotJson = Json { ignoreUnknownKeys = true }
+
+private fun edgeMatchGeometryOrNull(name: String): EdgeMatchGeometry? =
+    EdgeMatchGeometry.entries.firstOrNull { it.name == name }
 
 /**
  * One tile's edge COLOR indices as originally generated ([canonicalEdges],
@@ -147,7 +191,7 @@ data class EdgeMatchCustomConfig(val size: Int, val colorCount: Int, val geometr
  * True Penrose/aperiodic tiling remains a separate, unstarted future phase
  * per that doc.
  */
-class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "edge-match"
     override val displayName = "Edge Match"
     override val category = GameCategory.PUZZLE
@@ -212,10 +256,221 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         CpuDifficulty.HARD to (8 to 6)
     )
 
+    /**
+     * The daily seed the CURRENT board was generated from, or null for a random board. Kept so a
+     * resumed game (and the screen's "Daily puzzle" tag) knows which kind of board it is.
+     */
+    var activeDailySeed: Long? = null
+        private set
+
+    /** Hints taken on the CURRENT puzzle (survives "Restart this puzzle"; reset by a new board). Any hint makes the solve assisted. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The tile index the last [hint] suggested; cleared by the next tap, undo, restart, new board and restore. */
+    val hintTile = mutableStateOf<Int?>(null)
+
+    /** Snapshots taken just BEFORE each human rotation, newest last; popping one is Undo. Per board. */
+    private val history = SnapshotHistory()
+
+    /** False once a hint was used on this puzzle: an assisted solve must not set a best-time / best-moves record. */
+    val countsForRecord: Boolean get() = hintsUsed.value == 0
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        activeDailySeed = null
+        hintsUsed.value = 0
+        hintTile.value = null
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return edgeMatchSnapshotJson.encodeToString(
+            EdgeMatchSnapshot.serializer(),
+            EdgeMatchSnapshot(
+                players = context.players.map { EdgeMatchSnapshotPlayer(it.playerId, it.isBot) },
+                geometry = s.geometry.name,
+                size = s.size,
+                colorCount = s.colorCount,
+                tiles = s.tiles.map { EdgeMatchSnapshotTile(it.canonicalEdges, it.rotation) },
+                initialTiles = (initialArrangement ?: s.tiles).map { EdgeMatchSnapshotTile(it.canonicalEdges, it.rotation) },
+                moves = s.moves,
+                solved = s.solved,
+                custom = customConfig?.let { EdgeMatchSnapshotCustom(it.size, it.colorCount, it.geometry.name) },
+                difficulty = difficulty.name,
+                dailySeed = activeDailySeed,
+                puzzlesSolved = puzzlesSolved.value,
+                solveCounted = solveCounted,
+                hintsUsed = hintsUsed.value,
+                timerStarted = timerStartElapsedRealtime.value != null,
+                activeElapsedMillis = activeElapsedMillis() ?: 0L,
+                solvedElapsedMillis = solvedElapsedMillis.value
+            )
+        )
+    }
+
+    /** Decodes a snapshot and checks its shape and roster against THIS game; null if it is unusable. */
+    private fun decodeSnapshot(text: String): EdgeMatchSnapshot? {
+        val snap = try {
+            edgeMatchSnapshotJson.decodeFromString(EdgeMatchSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val geometry = edgeMatchGeometryOrNull(snap.geometry) ?: return null
+        val sides = if (geometry == EdgeMatchGeometry.HEX) 6 else 4
+        if (snap.size !in MIN_SIZE..MAX_SIZE || snap.colorCount !in MIN_COLORS..MAX_COLORS) return null
+        val cellCount = snap.size * snap.size
+        fun tilesValid(list: List<EdgeMatchSnapshotTile>): Boolean = list.size == cellCount && list.all { tile ->
+            tile.edges.size == sides && tile.edges.all { it in 0 until snap.colorCount } && tile.rotation in 0 until sides
+        }
+        if (!tilesValid(snap.tiles) || !tilesValid(snap.initialTiles)) return null
+
+        val roster = context.players
+        if (snap.players.size != roster.size) return null
+        if (!snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }) return null
+
+        if (CpuDifficulty.entries.none { it.name == snap.difficulty }) return null
+        val custom = snap.custom
+        if (custom != null) {
+            if (edgeMatchGeometryOrNull(custom.geometry) != geometry || custom.size != snap.size || custom.colorCount != snap.colorCount) return null
+        } else {
+            // A fixed tier: the board must be exactly that tier's size and color count, otherwise the
+            // stats key (the tier name) would file this board's record under the wrong tier.
+            val tier = CpuDifficulty.entries.firstOrNull { it.name == snap.difficulty } ?: return null
+            if (geometry != EdgeMatchGeometry.SQUARE || difficultyConfig[tier] != (snap.size to snap.colorCount)) return null
+        }
+
+        if (snap.moves < 0 || snap.puzzlesSolved < 0 || snap.hintsUsed < 0 || snap.activeElapsedMillis < 0L) return null
+        if (snap.solvedElapsedMillis != null && snap.solvedElapsedMillis < 0L) return null
+        val tiles = snap.tiles.map { EdgeMatchTile(it.edges, it.rotation) }
+        if (isBoardSolved(tiles, snap.size, geometry) != snap.solved) return null
+        if (snap.solved != (snap.solvedElapsedMillis != null)) return null
+        if (snap.solved && !snap.timerStarted) return null
+        return snap
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            val geometry = edgeMatchGeometryOrNull(snap.geometry) ?: return false
+            val tiles = snap.tiles.map { EdgeMatchTile(it.edges, it.rotation) }
+            val initial = snap.initialTiles.map { EdgeMatchTile(it.edges, it.rotation) }
+            val newCustom = snap.custom?.let {
+                EdgeMatchCustomConfig(it.size, it.colorCount, edgeMatchGeometryOrNull(it.geometry) ?: return false)
+            }
+            val newDifficulty = CpuDifficulty.entries.firstOrNull { it.name == snap.difficulty } ?: return false
+            val now = nowMillis()
+            // All validated: from here on nothing can fail, so the engine is assigned in one go.
+            matchOver.value = false
+            customConfig = newCustom
+            difficulty = newDifficulty
+            activeDailySeed = snap.dailySeed
+            initialArrangement = initial
+            state.value = EdgeMatchState(
+                size = snap.size,
+                colorCount = snap.colorCount,
+                tiles = tiles,
+                geometry = geometry,
+                moves = snap.moves,
+                solved = snap.solved
+            )
+            puzzlesSolved.value = snap.puzzlesSolved
+            solveCounted = snap.solveCounted
+            hintsUsed.value = snap.hintsUsed
+            // The clock continues from the ACTIVE elapsed time; the time the app was gone is not counted.
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            if (snap.timerStarted) {
+                val active = snap.solvedElapsedMillis ?: snap.activeElapsedMillis
+                timerStartElapsedRealtime.value = now - active
+                solvedElapsedMillis.value = snap.solvedElapsedMillis
+            } else {
+                timerStartElapsedRealtime.value = null
+                solvedElapsedMillis.value = null
+            }
+            hintTile.value = null
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human rotation (one tap = one step), including a rotation that solved the
+     * board. Counters that only go up (hints used, puzzles solved / the solve-counted flag) keep the
+     * larger of the current and saved value, and the clock keeps running: undo is not a way to
+     * launder a hint, a solve or elapsed time. Undo never reaches into a previous board.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        if (snap.size != s.size || snap.colorCount != s.colorCount || snap.geometry != s.geometry.name) return
+        state.value = s.copy(
+            tiles = snap.tiles.map { EdgeMatchTile(it.edges, it.rotation) },
+            moves = snap.moves,
+            solved = snap.solved
+        )
+        if (!snap.solved) solvedElapsedMillis.value = null
+        puzzlesSolved.value = maxOf(puzzlesSolved.value, snap.puzzlesSolved)
+        solveCounted = solveCounted || snap.solveCounted
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintTile.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a tile that is not in its solved orientation (the orientation the puzzle was built
+     * from), choosing the one whose touching edges mismatch its neighbors most (lowest index on a
+     * tie). Highlights it ([hintTile]), counts it in [hintsUsed] (which makes the solve assisted, see
+     * [countsForRecord]) and returns its index. Null when the board is solved, the session is over or
+     * there is nothing to suggest. It only suggests: it never turns a tile.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.solved) return null
+        var best = -1
+        var bestMismatches = -1
+        for (i in s.tiles.indices) {
+            val tile = s.tiles[i]
+            val sides = tile.canonicalEdges.size
+            if ((0 until sides).all { tile.currentEdge(it) == tile.canonicalEdges[it] }) continue
+            var mismatches = 0
+            for (dir in allDirectionsFor(s.geometry)) {
+                val neighbor = neighborIndex(i, s.size, s.geometry, dir) ?: continue
+                if (tile.currentEdge(dir) != s.tiles[neighbor].currentEdge(oppositeDirection(s.geometry, dir))) mismatches++
+            }
+            if (mismatches > bestMismatches) {
+                best = i
+                bestMismatches = mismatches
+            }
+        }
+        if (best < 0) return null
+        hintTile.value = best
+        hintsUsed.value += 1
+        return best
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -236,6 +491,12 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
         solveCounted = false
+        // A new board starts a new undo history and a clean hint count: undo never reaches back
+        // into the previous board, and a hint taken on the old board does not taint the new one.
+        history.clear()
+        hintTile.value = null
+        hintsUsed.value = 0
+        activeDailySeed = dailySeed
         // A fresh puzzle is always playable, regardless of whether a PRIOR puzzle's
         // endMatch() left matchOver stuck true -- built in from the start here (not
         // found after the fact), the same fix already needed across every other
@@ -357,6 +618,11 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         if (matchOver.value || s.solved) return
         if (index !in s.tiles.indices) return
 
+        // Undo step: the position BEFORE this human rotation (taken only after the checks above, so a
+        // rejected tap leaves no step), and any shown hint is spent.
+        captureSnapshot()?.let { history.push(it) }
+        hintTile.value = null
+
         val newTiles = s.tiles.toMutableList()
         newTiles[index] = newTiles[index].rotatedClockwise()
 
@@ -420,6 +686,10 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         solvedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        // Moves and clock start over, so older undo steps no longer line up with them: drop them.
+        // hintsUsed is deliberately kept (a hint taken before the restart still makes the solve assisted).
+        history.clear()
+        hintTile.value = null
         state.value = s.copy(tiles = initial, moves = 0, solved = false)
     }
 

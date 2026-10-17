@@ -161,7 +161,9 @@ fun MancalaScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // A saved game (Resume chosen in the menu) comes back instead of a fresh deal; the engine
+        // then also owns the difficulty, which the status line below reads from it.
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     // Keyed on the whole state object (not just currentPlayerIndex/roundOver) so this
@@ -193,6 +195,7 @@ fun MancalaScreen(
     val p0Name = players.getOrNull(0)?.displayName ?: "Player 1"
     val p1Name = players.getOrNull(1)?.displayName ?: "Player 2"
 
+    val hintPit by game.hintPit
     val scoreP1 by game.scoreP1
     val scoreP2 by game.scoreP2
     val draws by game.draws
@@ -261,13 +264,15 @@ fun MancalaScreen(
     // Root position of the overlay that draws the hops; its children are placed relative to it.
     var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
 
-    val sowPathForAnim = if (enhanced) s.lastSowPath else emptyList()
+    // A position put back by Resume or Undo (s.restored) shows its final board at once: the hop
+    // cascade and capture sweep are for a sow that is happening now, not one replayed from a save.
+    val sowPathForAnim = if (enhanced && !s.restored) s.lastSowPath else emptyList()
     // One Animatable per hop (path[i] -> path[i+1]) -- a fresh list every time `s` (or the
     // setting) changes, so each new sow always starts every hop back at 0f.
     val hopAnimations = remember(s, enhanced) {
         List((sowPathForAnim.size - 1).coerceAtLeast(0)) { Animatable(0f) }
     }
-    val captureForAnim = if (enhanced) s.lastCapture else null
+    val captureForAnim = if (enhanced && !s.restored) s.lastCapture else null
     val captureLandingAnim = remember(s, enhanced) { Animatable(0f) }
     val captureOppositeAnim = remember(s, enhanced) { Animatable(0f) }
 
@@ -328,7 +333,8 @@ fun MancalaScreen(
         val prev = prevMancalaState
         prevMancalaState = s
         // The initial deal and a Play Again deal (both have an empty sow path) are not moves.
-        if (prev == null || s.lastSowPath.isEmpty()) return@LaunchedEffect
+        // A resumed or undone position is not a move either: no haptic, no sow sound.
+        if (prev == null || s.lastSowPath.isEmpty() || s.restored) return@LaunchedEffect
 
         val capture = s.lastCapture
         val roundJustEnded = s.roundOver && !prev.roundOver
@@ -360,7 +366,7 @@ fun MancalaScreen(
 
     // The result panel waits for the final sow/capture cascade to play out over the live board.
     val resultHoldMs = if (enhanced) {
-        val cascadeMs = s.lastSowPath.size * HOP_STAGGER_MS + HOP_DURATION_MS +
+        val cascadeMs = if (s.restored) 0L else s.lastSowPath.size * HOP_STAGGER_MS + HOP_DURATION_MS +
             (if (s.lastCapture != null) HIT_STOP_MS + CAPTURE_HOP_DURATION_MS else 0L)
         (cascadeMs + 300L).coerceIn(MIN_RESULT_HOLD_MS, MAX_RESULT_HOLD_MS)
     } else {
@@ -382,7 +388,7 @@ fun MancalaScreen(
     val summary = moveSummary(s, players)
     val detailLines = buildList<String> {
         if (hasBot) {
-            add("CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
+            add("CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
         }
         if (finishedRounds > 0 && !s.roundOver) add(sessionLine(p0Name, p1Name, scoreP1, scoreP2, draws))
     }
@@ -407,6 +413,9 @@ fun MancalaScreen(
         matchInProgress = !s.roundOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -489,6 +498,7 @@ fun MancalaScreen(
                                                 count = s.pits[pit],
                                                 enabled = humanCanMove && s.currentPlayerIndex == 1 && s.pits[pit] > 0,
                                                 highlightCapture = pit in captureCandidates,
+                                                hinted = pit == hintPit,
                                                 ownerLabel = ownerLabel1,
                                                 pitNumber = pit - 6,
                                                 unit = u,
@@ -509,6 +519,7 @@ fun MancalaScreen(
                                                 count = s.pits[pit],
                                                 enabled = humanCanMove && s.currentPlayerIndex == 0 && s.pits[pit] > 0,
                                                 highlightCapture = pit in captureCandidates,
+                                                hinted = pit == hintPit,
                                                 ownerLabel = ownerLabel0,
                                                 pitNumber = pit + 1,
                                                 unit = u,
@@ -579,6 +590,13 @@ fun MancalaScreen(
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
+                                    Spacer(Modifier.height(12.dp))
+                                    MancalaControlsRow(
+                                        canUndo = game.canUndo,
+                                        canHint = humanCanMove,
+                                        onUndo = { game.undo() },
+                                        onHint = { game.hint() }
+                                    )
                                 }
                                 Spacer(Modifier.width(16.dp))
                                 // The corner menu button sits over the top 56dp of the screen's
@@ -602,7 +620,14 @@ fun MancalaScreen(
                                     detailLines = detailLines,
                                     modifier = Modifier.fillMaxWidth().padding(end = GameChromeEndInset)
                                 )
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(8.dp))
+                                MancalaControlsRow(
+                                    canUndo = game.canUndo,
+                                    canHint = humanCanMove,
+                                    onUndo = { game.undo() },
+                                    onHint = { game.hint() }
+                                )
+                                Spacer(Modifier.height(8.dp))
                                 boardBlock(Modifier.weight(1f).fillMaxWidth())
                             }
                             if (showResult) {
@@ -748,6 +773,48 @@ private fun MancalaStatus(
         Text(summary, style = MaterialTheme.typography.bodySmall)
         detailLines.forEach { line ->
             Text(line, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+/**
+ * Visible Undo and Hint next to the status, so neither is hidden in the corner menu (both are the
+ * same actions the menu offers). Undo is enabled once there is a sowing to take back; Hint only
+ * on a human's turn on a live board. Disabled buttons stay visible and say why in their
+ * screen-reader text.
+ */
+@Composable
+private fun MancalaControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+        ) {
+            Text(
+                "Undo",
+                modifier = Modifier.semantics {
+                    contentDescription = if (canUndo) "Undo last move" else "Undo unavailable: no move to take back"
+                }
+            )
+        }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+        ) {
+            Text(
+                "Hint",
+                modifier = Modifier.semantics {
+                    contentDescription = if (canHint) "Hint: ring a suggested pit" else "Hint unavailable: it is not your turn"
+                }
+            )
         }
     }
 }
@@ -1119,6 +1186,7 @@ private fun PitView(
     ownerLabel: String,
     pitNumber: Int,
     highlightCapture: Boolean,
+    hinted: Boolean,
     unit: Dp,
     card3D: Boolean,
     jostleActive: Boolean,
@@ -1139,7 +1207,7 @@ private fun PitView(
     val density = LocalDensity.current
     // Fixed physical size (not scaled by the user's font size): a 2-digit count has to fit the pit.
     val digitSize = with(density) { (unit * 1.5f).toSp() }
-    val description = "$ownerLabel pit $pitNumber, ${stoneCountLabel(count)}"
+    val description = "$ownerLabel pit $pitNumber, ${stoneCountLabel(count)}" + if (hinted) ", suggested pit" else ""
     val stateText = when {
         enabled && highlightCapture -> "Playable, would capture"
         enabled -> "Playable"
@@ -1161,6 +1229,17 @@ private fun PitView(
             },
         contentAlignment = Alignment.Center
     ) {
+        if (hinted) {
+            // Hint ring: a thick light ring just outside the pit (shape, not only colour), the
+            // whole slot wide; the screen-reader text is in the pit's description above.
+            Box(
+                modifier = Modifier
+                    .size(unit * 3.95f)
+                    .border(if (colorblind) 4.dp else 3.dp, Color.White, CircleShape)
+                    .border(1.dp, WOOD_DEEP, CircleShape)
+                    .clearAndSetSemantics {}
+            )
+        }
         Box(
             modifier = Modifier
                 .size(unit * 3.5f)

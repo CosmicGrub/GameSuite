@@ -20,6 +20,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -169,7 +170,9 @@ fun TicTacToeScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // A resumed game restores the board, tally and difficulty from the saved snapshot; a bot
+        // turn that was pending is picked up by the bot-turn effect below once gameReady flips.
+        if (!sessionManager.tryResume(game)) game.startMatch()
         gameReady = true
     }
 
@@ -182,6 +185,7 @@ fun TicTacToeScreen(
     val draws = game.draws.value
     val selectedSymbol = game.selectedSymbol.value
     val roundNumber = game.roundNumber.value
+    val hintMove = game.hintMove.value
 
     // Who is who. A null context only happens before launch / after the match has ended; the
     // fallbacks keep the screen drawable for those frames.
@@ -284,6 +288,20 @@ fun TicTacToeScreen(
 
     var isClearingRound by remember { mutableStateOf(false) }
 
+    // Undo/Hint availability. Undo waits out the Play Again clear animation (the engine resets
+    // right after it); Hint needs a local human's turn, so never in network play or on the CPU's.
+    val canUndoNow = game.canUndo && !isClearingRound
+    val canHintNow = canAct && !networked && !isClearingRound
+    val hintUnavailableReason = when {
+        roundOver -> "the round is over"
+        networked -> "not available in network play"
+        isBotTurn -> "waiting for the CPU"
+        else -> "not ready yet"
+    }
+    val hintText = hintMove?.let { (cell, symbol) ->
+        "Hint: Row ${cell / 3 + 1}, Column ${cell % 3 + 1}" + if (wild) ", place ${if (symbol == 1) "X" else "O"}" else ""
+    }
+
     /** Play Again's real handler: stagger the OLD marks out (ordered from the
      *  winning line's center outward, or the board's true center on a draw —
      *  see [clearOrder]) before the engine actually resets, instead of
@@ -357,7 +375,8 @@ fun TicTacToeScreen(
     val infoText = buildList<String> {
         if (!wild && localSeat != null) add("You are ${if (localSeat == 1) "X" else "O"}")
         if (vsCpu) {
-            add("CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
+            // From the engine, not Settings: a resumed game keeps the difficulty it was saved with.
+            add("CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
         }
         if (misere) add("Misere mode: completing a line loses!")
         if (wild) add("Wild mode: choose X or O each turn")
@@ -378,6 +397,9 @@ fun TicTacToeScreen(
         // won or drawn, the session-ending path (the same one the finished panel uses) runs so
         // they still count; only a session with nothing finished is a pure abort.
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
+        onUndo = { game.undo() },
+        canUndo = canUndoNow,
+        onHint = { if (canHintNow) game.hint() },
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this round?",
@@ -444,6 +466,22 @@ fun TicTacToeScreen(
                                 }
                             }
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TicTacToeControlsRow(
+                            canUndo = canUndoNow,
+                            canHint = canHintNow,
+                            hintUnavailableReason = hintUnavailableReason,
+                            onUndo = { game.undo() },
+                            onHint = { game.hint() }
+                        )
+                        if (hintText != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                hintText,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                            )
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
@@ -498,6 +536,8 @@ fun TicTacToeScreen(
                                                         index = index,
                                                         cellValue = board[index],
                                                         isWinning = winningLine?.contains(index) == true,
+                                                        hintSymbol = if (hintMove != null && hintMove.first == index) hintMove.second else null,
+                                                        wild = wild,
                                                         enabled = canAct && board[index] == 0,
                                                         pitch = pitch,
                                                         colorblind = colorblind,
@@ -660,6 +700,7 @@ private val MarkXColor = Color(0xFF1565C0)
 private val MarkOColor = Color(0xFFC62828)
 private val WinLineColor = Color(0xFFD84315)
 private val InkRingColor = Color(0xFF37474F)
+private val HintRingColor = Color(0xFF00695C)
 
 /** Space on each side of a cell inside its slot (so cells sit 8dp apart). */
 private val CellGap = 4.dp
@@ -796,6 +837,8 @@ private fun TttCell(
     index: Int,
     cellValue: Int,
     isWinning: Boolean,
+    hintSymbol: Int?,
+    wild: Boolean,
     enabled: Boolean,
     pitch: Dp,
     colorblind: Boolean,
@@ -810,7 +853,8 @@ private fun TttCell(
         else -> "empty"
     }
     val description = "Row ${index / 3 + 1}, Column ${index % 3 + 1}, $markName" +
-        if (isWinning) ", winning line" else ""
+        (if (isWinning) ", winning line" else "") +
+        (if (hintSymbol != null) ", suggested move" + (if (wild) ", place ${if (hintSymbol == 1) "X" else "O"}" else "") else "")
 
     // "Stamp" placement (premium-2026-vision pass): a real 3-keyframe hit-stop instead of a
     // plain scaleIn spring — snap down to 0.85 over ~40ms, overshoot to 1.12, settle to 1.0.
@@ -854,7 +898,9 @@ private fun TttCell(
                 // Non-color cue for the winning cells (amber vs gray is color alone): a heavy
                 // border when Settings' colorblind-safe mode is on. The drawn line is the
                 // other cue, for everyone.
-                .then(if (isWinning && colorblind) Modifier.border(3.dp, WinningBorderColor) else Modifier),
+                .then(if (isWinning && colorblind) Modifier.border(3.dp, WinningBorderColor) else Modifier)
+                // Hint: a thick ring around the suggested cell (a shape cue, not colour alone).
+                .then(if (hintSymbol != null) Modifier.border(4.dp, HintRingColor, RoundedCornerShape(50)) else Modifier),
             contentAlignment = Alignment.Center
         ) {
             if (cellValue != 0) {
@@ -911,6 +957,38 @@ private fun MarkGlyph(symbol: Int, color: Color, scale: () -> Float) {
                 style = Stroke(width = strokeWidth)
             )
         }
+    }
+}
+
+/**
+ * Undo and Hint, side by side under the turn text. Both stay visible and 48dp tall; a disabled
+ * Hint says why in its description. The same actions are in the corner menu.
+ */
+@Composable
+private fun TicTacToeControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    hintUnavailableReason: String,
+    onUndo: () -> Unit,
+    onHint: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .semantics { contentDescription = if (canUndo) "Undo" else "Undo, nothing to take back" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .semantics { contentDescription = if (canHint) "Hint" else "Hint, unavailable: $hintUnavailableReason" }
+        ) { Text("Hint") }
     }
 }
 
