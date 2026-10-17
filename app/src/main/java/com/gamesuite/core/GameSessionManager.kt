@@ -40,6 +40,22 @@ class GameSessionManager : ViewModel() {
      */
     private var activeModule: GameModule? = null
 
+    /** The nav route [activeModule] was launched on; the key its saved game lives under. */
+    private var activeRoute: String? = null
+
+    /**
+     * Where resumable games are written down. Attached by MainActivity (the only place with a
+     * Context); null in unit tests and before attach, which simply turns saving off.
+     */
+    var savedGames: SavedGameStore? = null
+
+    /**
+     * Set by the shell when the player picks "Resume" for a route, consumed exactly once by the
+     * launched game screen through [tryResume]. A [ViewModel] field, so it survives the
+     * navigation between the menu and the game.
+     */
+    var pendingResume: SavedGame? = null
+
     /**
      * Held here (a ViewModel, so it survives navigation) between "user picked Host/Join"
      * and either [launchGame] (which captures it inside GameContext) or the user backing
@@ -51,14 +67,76 @@ class GameSessionManager : ViewModel() {
     /** Same role as [pendingNearbyTransport], for the Online lobby screens (roadmap item 12). */
     var pendingOnlineTransport: OnlineTransport? = null
 
-    /** Called by the shell (MainActivity) when a game screen's GameModule becomes active; pass null when leaving it. */
-    fun setActiveModule(module: GameModule?) {
+    /**
+     * Called by the shell (MainActivity) when a game screen's GameModule becomes active; pass null
+     * when leaving it. [route] is the nav route it was launched on and keys its saved game.
+     */
+    fun setActiveModule(module: GameModule?, route: String? = null) {
         activeModule = module
+        activeRoute = if (module != null) route else null
     }
 
-    /** Forward from the host Activity's onPause so a running game can stop per-frame work, timers, or bot-turn delays while backgrounded. */
+    /**
+     * Forward from the host Activity's onPause so a running game can stop per-frame work, timers,
+     * or bot-turn delays while backgrounded. Also writes the game down: backgrounding is the last
+     * moment the app is guaranteed to run before Android may kill it, and a resumable game must
+     * survive that.
+     */
     fun pauseActiveGame() {
         activeModule?.pause()
+        saveActiveProgress()
+    }
+
+    /** True when the active game can be resumed later and there is somewhere to keep it. */
+    fun canSaveActiveProgress(): Boolean =
+        activeModule is ResumableGame && activeRoute != null && savedGames != null
+
+    /**
+     * Writes the active game's snapshot to the store under its route. Returns whether anything
+     * was saved. A null snapshot ("nothing worth saving": not started, over, or an online mode)
+     * saves nothing and deliberately does NOT delete an existing save: a pause that lands before
+     * the screen has had its [tryResume] must not wipe the save the player is about to resume.
+     */
+    fun saveActiveProgress(): Boolean {
+        val store = savedGames ?: return false
+        val route = activeRoute ?: return false
+        val module = activeModule ?: return false
+        val resumable = module as? ResumableGame ?: return false
+        val snapshot = try {
+            resumable.snapshot()
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        store.save(
+            SavedGame(
+                route = route,
+                label = module.displayName,
+                savedAtMillis = System.currentTimeMillis(),
+                savedAtEpochDay = java.time.LocalDate.now().toEpochDay(),
+                snapshot = snapshot
+            )
+        )
+        return true
+    }
+
+    /**
+     * Called by a game screen at start-up in place of an unconditional `startMatch()`:
+     * `if (!sessionManager.tryResume(game)) game.startMatch()`. Uses [pendingResume] (set when the
+     * player chose Resume) exactly once, after the engine's `init`. When the engine rejects the
+     * snapshot the stale save is deleted so it cannot be offered again, and the caller falls back
+     * to a fresh match.
+     */
+    fun tryResume(module: GameModule): Boolean {
+        val saved = pendingResume ?: return false
+        pendingResume = null
+        val resumable = module as? ResumableGame ?: return false
+        val restored = try {
+            resumable.restore(saved.snapshot)
+        } catch (_: Exception) {
+            false
+        }
+        if (!restored) savedGames?.delete(saved.route)
+        return restored
     }
 
     /** Forward from the host Activity's onResume. */
@@ -111,6 +189,9 @@ class GameSessionManager : ViewModel() {
                 localOutcome = localOutcomeFor(ctx, result)
             )
         }
+        // A finished match has nothing left to resume. An ABORT keeps whatever save exists: the
+        // game chrome writes the save just before it aborts, so "Leave" parks the game for later.
+        if (!result.wasAborted) activeRoute?.let { savedGames?.delete(it) }
         ctx?.transport?.disconnect()
         _lastResult.value = result
         _activeContext.value = null
