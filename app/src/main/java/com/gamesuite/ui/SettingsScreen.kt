@@ -214,7 +214,7 @@ fun SettingsScreen(
                         Spacer(Modifier.height(16.dp))
                     }
                     if (showSpeed) {
-                        SettingTitle(lblSpeed, descSpeed + " " + settings.gameSpeed.description)
+                        SettingTitle(lblSpeed, descSpeed + " " + speedDescription(settings.gameSpeed))
                         GameSpeedSelector(settings.gameSpeed, onSelect = viewModel::setGameSpeed)
                         Spacer(Modifier.height(8.dp))
                     }
@@ -613,7 +613,7 @@ private fun GameSpeedSelector(selected: GameSpeed, onSelect: (GameSpeed) -> Unit
             FilterChip(
                 selected = selected == speed,
                 onClick = { onSelect(speed) },
-                label = { Text(speed.label) },
+                label = { Text(speedLabel(speed)) },
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
         }
@@ -628,9 +628,38 @@ private fun DifficultySelector(selected: CpuDifficulty, onSelect: (CpuDifficulty
             FilterChip(
                 selected = selected == difficulty,
                 onClick = { onSelect(difficulty) },
-                label = { Text(difficulty.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                label = { Text(difficultyLabel(difficulty)) },
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             )
         }
     }
 }
+
+@Composable
+private fun speedLabel(speed: GameSpeed): String = stringResource(
+    when (speed) {
+        GameSpeed.SLOW -> R.string.settings_speed_slow
+        GameSpeed.RELAXED -> R.string.settings_speed_relaxed
+        GameSpeed.NORMAL -> R.string.settings_speed_normal
+        GameSpeed.QUICK -> R.string.settings_speed_quick
+    }
+)
+
+@Composable
+private fun speedDescription(speed: GameSpeed): String = stringResource(
+    when (speed) {
+        GameSpeed.SLOW -> R.string.settings_speed_slow_desc
+        GameSpeed.RELAXED -> R.string.settings_speed_relaxed_desc
+        GameSpeed.NORMAL -> R.string.settings_speed_normal_desc
+        GameSpeed.QUICK -> R.string.settings_speed_quick_desc
+    }
+)
+
+@Composable
+private fun difficultyLabel(difficulty: CpuDifficulty): String = stringResource(
+    when (difficulty) {
+        CpuDifficulty.EASY -> R.string.settings_difficulty_easy
+        CpuDifficulty.MEDIUM -> R.string.settings_difficulty_medium
+        CpuDifficulty.HARD -> R.string.settings_difficulty_hard
+    }
+)

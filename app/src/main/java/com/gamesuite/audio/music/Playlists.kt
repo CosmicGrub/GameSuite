@@ -59,6 +59,24 @@ class PlaybackQueue(private val rng: Random = Random.Default) {
 
     fun contains(id: String?): Boolean = id != null && id in ids
 
+    /** Position bookkeeping only (not the list), so a not-yet-started advance can be undone. */
+    class State internal constructor(
+        internal val current: String?,
+        internal val played: Set<String>,
+        internal val history: List<String>
+    )
+
+    fun snapshot(): State = State(current, LinkedHashSet(played), ArrayList(history))
+
+    /** Roll the position back to [s]; ids no longer in the list are dropped from played/history. */
+    fun restore(s: State) {
+        current = s.current
+        played.clear()
+        played.addAll(s.played.filter { it in ids })
+        history.clear()
+        history.addAll(s.history.filter { it in ids })
+    }
+
     /** Make [id] the current track (counts as played). */
     fun markCurrent(id: String) {
         val prev = current
@@ -113,6 +131,17 @@ object Crossfade {
         if (trackDurationMs <= 0L) return wanted
         return wanted.coerceAtMost(trackDurationMs / 2)
     }
+
+    /**
+     * Fade length for a hand-over from a track of [outgoingDurationMs] to one of [incomingDurationMs]:
+     * the smaller of the two per-track caps, so the outgoing track never ends before the incoming
+     * one is at full gain (and vice versa).
+     */
+    fun overlapMs(crossfadeSeconds: Int, outgoingDurationMs: Long, incomingDurationMs: Long): Long =
+        minOf(
+            effectiveMs(crossfadeSeconds, outgoingDurationMs),
+            effectiveMs(crossfadeSeconds, incomingDurationMs)
+        )
 
     /** 0..1 progress of a fade; instant (1.0) when [durationMs] is not positive. */
     fun progress(elapsedMs: Long, durationMs: Long): Float =

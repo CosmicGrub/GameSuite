@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_speed_slow">Lenta</string>
+    <string name="settings_speed_slow_desc">Pausas largas y pausadas: tiempo para estudiar cada turno.</string>
+    <string name="settings_speed_relaxed">Relajada</string>
+    <string name="settings_speed_relaxed_desc">Un poco más lenta que el ritmo original.</string>
+    <string name="settings_speed_normal">Normal</string>
+    <string name="settings_speed_normal_desc">El ritmo original.</string>
+    <string name="settings_speed_quick">Rápida</string>
+    <string name="settings_speed_quick_desc">Los rivales se mueven rápido.</string>
+    <string name="settings_difficulty_easy">Fácil</string>
+    <string name="settings_difficulty_medium">Medio</string>
+    <string name="settings_difficulty_hard">Difícil</string>
+</resources>

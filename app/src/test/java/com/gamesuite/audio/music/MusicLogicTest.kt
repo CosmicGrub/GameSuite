@@ -4,8 +4,12 @@ import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class MusicLogicTest {
 
@@ -261,5 +265,70 @@ class MusicLogicTest {
         assertEquals("noext", AudioFiles.titleFromFileName("noext"))
         assertEquals("", AudioFiles.titleFromFileName(null))
         assertEquals(".hidden", AudioFiles.titleFromFileName(".hidden"))
+    }
+
+    // ---- review fixes ----
+
+    @get:Rule val tmpDir = TemporaryFolder()
+
+    @Test fun nullListingIsAScanFailureNotAnEmptyFolder() {
+        try {
+            ScanGuard.requireListing<Any>(null, "doc1")
+            fail("expected ScanFailedException")
+        } catch (e: ScanFailedException) {
+            assertTrue(e.message!!.contains("doc1"))
+        }
+        val listing = Any()
+        assertSame(listing, ScanGuard.requireListing(listing, "doc1"))
+    }
+
+    @Test fun crossfadeOverlapCappedByBothTracks() {
+        // short outgoing (2 s -> 1 s cap), next track would allow 3 s: overlap is 1 s
+        assertEquals(1_000L, Crossfade.overlapMs(3, 2_000, 180_000))
+        // normal outgoing, short incoming
+        assertEquals(1_000L, Crossfade.overlapMs(3, 180_000, 2_000))
+        // both long
+        assertEquals(3_000L, Crossfade.overlapMs(3, 180_000, 200_000))
+        // unknown durations fall back to the setting; disabled stays 0
+        assertEquals(3_000L, Crossfade.overlapMs(3, 0, 0))
+        assertEquals(0L, Crossfade.overlapMs(0, 180_000, 180_000))
+    }
+
+    @Test fun cancelledAdvanceDoesNotMoveQueuePosition() {
+        val q = PlaybackQueue(Random(5))
+        q.setList(ids("a", "b", "c"))
+        q.next(false) // a is audible
+        val committed = q.snapshot()
+        assertEquals("b", q.next(false)) // b queued but never becomes active
+        q.restore(committed)
+        assertEquals("a", q.current)
+        assertNull(q.previous()) // b never entered history
+        assertEquals("b", q.next(false)) // the cancelled track is not skipped
+    }
+
+    @Test fun restoreAfterListChangeDropsRemovedIds() {
+        val q = PlaybackQueue(Random(6))
+        q.setList(ids("a", "b", "c"))
+        q.next(false); q.next(false) // a, b
+        val snap = q.snapshot()
+        q.next(false) // c
+        q.setList(ids("b", "c"))
+        q.restore(snap)
+        assertEquals("b", q.current)
+        assertEquals("c", q.next(false))
+    }
+
+    @Test fun atomicWriteReplacesAndKeepsOldFileOnFailure() {
+        val target = java.io.File(tmpDir.root, "lib.json")
+        val f = AtomicTextFile(target)
+        assertTrue(f.write("one"))
+        assertTrue(f.write("two"))
+        assertEquals("two", f.read())
+        assertFalse(java.io.File(tmpDir.root, "lib.json.tmp").exists())
+
+        // Make the temp path unwritable (a directory): the write fails and the old file survives.
+        assertTrue(java.io.File(tmpDir.root, "lib.json.tmp").mkdir())
+        assertFalse(f.write("three"))
+        assertEquals("two", f.read())
     }
 }

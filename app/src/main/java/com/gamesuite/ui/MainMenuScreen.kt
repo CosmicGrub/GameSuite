@@ -137,7 +137,7 @@ fun MainMenuScreen(
                     continueItems.forEach { (spec, saved) ->
                         GameTile(
                             glyph = gameGlyph(spec.gameId),
-                            title = saved.label.ifBlank { localize(spec.title) },
+                            title = localize(spec.title),
                             subtitle = saved.summary.ifBlank { HubText.savedAgo(context, saved.savedAtMillis, System.currentTimeMillis()) },
                             accent = familyAccent(spec.family),
                             onClick = { onNavigate("hub/${spec.gameId}") }

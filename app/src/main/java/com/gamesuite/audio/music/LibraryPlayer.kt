@@ -32,6 +32,8 @@ class LibraryPlayer(
         fun onPlayingChanged()
         fun onFocusDenied()
         fun onFocusLostPermanently()
+        /** A prepared-but-not-yet-started track was dropped (pause/stop/focus loss), not replaced. */
+        fun onPendingCancelled() {}
     }
 
     private class Slot(val player: MediaPlayer, val trackId: String) {
@@ -255,15 +257,18 @@ class LibraryPlayer(
         }
     }
 
-    private fun cancelPending() {
-        pending?.release()
+    /** @param notify true when the pending track is abandoned rather than replaced by [play]. */
+    private fun cancelPending(notify: Boolean = false) {
+        val p = pending ?: return
+        p.release()
         pending = null
+        if (notify) callbacks.onPendingCancelled()
     }
 
     fun pause() = pauseInternal(abandon = true)
 
     private fun pauseInternal(abandon: Boolean) {
-        cancelPending()
+        cancelPending(notify = true)
         outgoing?.release()
         outgoing = null
         val a = active
@@ -312,7 +317,7 @@ class LibraryPlayer(
             stop()
             return
         }
-        cancelPending()
+        cancelPending(notify = true)
         outgoing?.release()
         a.startFade(false, fadeMs)
         outgoing = a
@@ -324,7 +329,7 @@ class LibraryPlayer(
     }
 
     fun stop() {
-        cancelPending()
+        cancelPending(notify = true)
         outgoing?.release()
         outgoing = null
         active?.release()
