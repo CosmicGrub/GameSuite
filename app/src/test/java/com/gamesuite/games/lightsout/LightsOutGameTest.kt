@@ -7,6 +7,7 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.LocalPassAndPlayTransport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -425,5 +426,58 @@ class LightsOutGameTest {
         val gameB = newGame(CpuDifficulty.MEDIUM)
         gameB.startMatch(dailySeed = 42L)
         assertEquals(gameA.state.value!!.cells, gameB.state.value!!.cells)
+    }
+
+    /** An EASY game on a caller-controlled clock, so a test can move time by hand. */
+    private fun newEasyGameOnClock(clock: () -> Long): LightsOutGame {
+        val game = LightsOutGame(nowMillis = clock)
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        return game
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first press, freezes while paused, and ends on the recorded solve time`() {
+        // The screen's live clock used to compute `now - timerStartElapsedRealtime` itself, which
+        // keeps ticking through a pause and then jumps DOWN at the solve (the recorded time
+        // subtracts the paused interval). activeElapsedMillis() is that same arithmetic in the engine.
+        var clock = 1_000L
+        val game = newEasyGameOnClock { clock }
+        game.startMatch(dailySeed = 1L)
+        assertNull("no press yet, so the stopwatch has not started", game.activeElapsedMillis())
+
+        clock = 2_000L
+        game.press(game.state.value!!.cells.indexOf(true)) // starts the stopwatch at t=2000
+        assertFalse(game.state.value!!.won) // sanity: a 3x3 scramble needs more than one press
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 2_060L
+        assertEquals(60L, game.activeElapsedMillis())
+
+        clock = 2_100L
+        game.pause()
+        clock = 9_000L // the app sits in the background
+        assertEquals("the display must freeze while paused", 100L, game.activeElapsedMillis())
+
+        game.resume() // 6_900ms were paused
+        assertEquals(100L, game.activeElapsedMillis())
+        clock = 9_050L
+        assertEquals(150L, game.activeElapsedMillis())
+
+        winByRealPresses(game)
+        val finished = game.finishedElapsedMillis.value!!
+        assertEquals(150L, finished)
+        clock = 20_000L
+        assertEquals("once won, the live reading is exactly the recorded solve time", finished, game.activeElapsedMillis())
+
+        game.playAgain()
+        assertNull("a fresh board has not started its stopwatch", game.activeElapsedMillis())
     }
 }

@@ -5,9 +5,36 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
 data class GridPos(val row: Int, val col: Int)
+
+/** A Word Search hint: the unfound [word] to look for and the cell its first letter sits in. */
+data class WordSearchHint(val word: PlacedWord, val cell: GridPos)
+
+/** Resume payload: the whole puzzle (grid + word placements = the solution), progress and session tally. */
+@Serializable
+private data class WordSearchSnapshot(
+    val gridRows: List<String>,
+    val words: List<WordSearchSnapshotWord>,
+    val foundIds: List<Int>,
+    val solved: Boolean,
+    val puzzlesSolved: Int,
+    val hintsUsed: Int,
+    val difficulty: String,
+    val gridSizeOverride: Int? = null,
+    val dailyBoard: Boolean = false,
+    val seed: Long? = null,
+    val playerIds: List<String>,
+    val playerBots: List<Boolean>
+)
+
+@Serializable
+private data class WordSearchSnapshotWord(val id: Int, val word: String, val rows: List<Int>, val cols: List<Int>)
+
+private val wordSearchSnapshotJson = Json { ignoreUnknownKeys = true }
 
 data class PlacedWord(
     val id: Int,
@@ -35,8 +62,9 @@ data class WordSearchState(
 /**
  * Word search: pick N random dictionary words that fit an NxN grid, place
  * each along a random direction (8-way, including diagonals and reversed),
- * fill remaining cells with noise letters. Tap a start cell then an end
- * cell in a straight line to claim a word.
+ * fill remaining cells with noise letters. Select a start cell and an end
+ * cell in a straight line (the UI drags between them, or takes two taps from
+ * a screen reader) to claim a word.
  *
  * Research pass (README item 9k) added: a real difficulty ladder — like
  * Hangman/Crossword/Sliding Puzzle, this is a solo puzzle with no opponent,
@@ -54,8 +82,15 @@ data class WordSearchState(
  * flow, matching the Hangman pattern: solving a puzzle no longer calls
  * [endMatch] directly (it used to, ending the whole visit to this screen
  * the instant the last word was found) — only [leaveSession] does that now.
+ *
+ * [wordsOfLength] is the word source [generatePuzzle] draws from (lowercase words of exactly
+ * the requested length, in a STABLE order). It defaults to the shared offline
+ * [WordDictionary]; it is a constructor seam only so a plain JUnit test can supply a small
+ * fake list instead of the 359k-line asset, which needs a real Android Context to load.
  */
-class WordSearchGame : GameModule {
+class WordSearchGame(
+    private val wordsOfLength: (Int) -> List<String> = { length -> WordDictionary.wordsOfLength(length) }
+) : GameModule, ResumableGame {
     override val gameId = "word-search"
     override val displayName = "Word Search"
     override val category = GameCategory.WORD
@@ -114,10 +149,137 @@ class WordSearchGame : GameModule {
         return gridSizeOverride?.let { base.copy(gridSize = it) } ?: base
     }
 
+    /** True only for the first board of a Daily route (a seeded [startMatch]); New Puzzle clears it. */
+    val isDailyBoard = mutableStateOf(false)
+
+    /** Hints taken on the CURRENT puzzle. Any hint marks the puzzle assisted. Never goes down. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The last hint: ring the first letter of one unfound word. Cleared by finding a word, a new puzzle, restore. */
+    val hintState = mutableStateOf<WordSearchHint?>(null)
+
+    /** Seed of the current board (daily), kept only so a resumed board stays labelled as the same puzzle. */
+    private var puzzleSeed: Long? = null
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintState.value = null
+        isDailyBoard.value = false
+        puzzleSeed = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return wordSearchSnapshotJson.encodeToString(
+            WordSearchSnapshot.serializer(),
+            WordSearchSnapshot(
+                gridRows = s.grid.map { row -> row.joinToString("") },
+                words = s.placedWords.map { w ->
+                    WordSearchSnapshotWord(w.id, w.word, w.cells.map { it.row }, w.cells.map { it.col })
+                },
+                foundIds = s.foundWords.toList().sorted(),
+                solved = s.solved,
+                puzzlesSolved = puzzlesSolved.value,
+                hintsUsed = hintsUsed.value,
+                difficulty = difficulty.name,
+                gridSizeOverride = gridSizeOverride,
+                dailyBoard = isDailyBoard.value,
+                seed = puzzleSeed,
+                playerIds = context.players.map { it.playerId },
+                playerBots = context.players.map { it.isBot }
+            )
+        )
+    }
+
+    /** Null when there is nothing to save: no puzzle yet, the session ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (!this::context.isInitialized) return null
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            if (!this::context.isInitialized) return false
+            val snap = wordSearchSnapshotJson.decodeFromString(WordSearchSnapshot.serializer(), snapshot)
+            val roster = context.players
+            val size = snap.gridRows.size
+            if (size < 4 || size > 40) return false
+            // A later New Puzzle feeds this straight into generatePuzzle: an absurd value would throw or exhaust memory.
+            if (snap.gridSizeOverride != null && snap.gridSizeOverride !in 4..40) return false
+            if (snap.gridRows.any { it.length != size }) return false
+            if (snap.playerIds.size != roster.size || snap.playerBots.size != roster.size) return false
+            if (roster.indices.any { snap.playerIds[it] != roster[it].playerId || snap.playerBots[it] != roster[it].isBot }) return false
+            if (snap.puzzlesSolved < 0 || snap.hintsUsed < 0) return false
+            val diff = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return false
+            if (snap.words.isEmpty()) return false
+            val ids = snap.words.map { it.id }
+            if (ids.toSet().size != ids.size) return false
+            val placed = snap.words.map { w ->
+                if (w.rows.size != w.word.length || w.cols.size != w.word.length || w.word.isEmpty()) return false
+                val cells = w.rows.indices.map { GridPos(w.rows[it], w.cols[it]) }
+                for (i in cells.indices) {
+                    val c = cells[i]
+                    if (c.row !in 0 until size || c.col !in 0 until size) return false
+                    if (snap.gridRows[c.row][c.col] != w.word[i]) return false
+                }
+                PlacedWord(w.id, w.word, cells)
+            }
+            if (snap.foundIds.any { it !in ids }) return false
+            val found = snap.foundIds.toSet()
+            if (snap.solved != (found.size == placed.size)) return false
+
+            // Everything validated: assign (all-or-nothing).
+            matchOver.value = false
+            difficulty = diff
+            gridSizeOverride = snap.gridSizeOverride
+            puzzleSeed = snap.seed
+            isDailyBoard.value = snap.dailyBoard
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            hintState.value = null
+            state.value = WordSearchState(
+                grid = snap.gridRows.map { it.toList() },
+                placedWords = placed,
+                foundWords = found,
+                selectionStart = null,
+                solved = snap.solved
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Rings the first letter of the first unfound word and returns that suggestion; null when the
+     * session or puzzle is over. Taking a hint marks this puzzle assisted ([hintsUsed] > 0). Asking
+     * again for the same word costs nothing more. Word Search keeps no best-time record, so the
+     * assisted flag only changes the result text.
+     */
+    fun hint(): WordSearchHint? {
+        if (matchOver.value) return null
+        val s = state.value ?: return null
+        if (s.solved) return null
+        val target = s.placedWords.firstOrNull { it.id !in s.foundWords } ?: return null
+        val existing = hintState.value
+        if (existing != null && existing.word.id == target.id) return existing
+        val h = WordSearchHint(target, target.cells.first())
+        hintsUsed.value += 1
+        hintState.value = h
+        return h
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -143,14 +305,19 @@ class WordSearchGame : GameModule {
      * [startMatch], so "New Puzzle" during a daily challenge still hands back a fresh, unseeded
      * board rather than looping the same one.
      *
-     * Note for whoever wires up daily puzzles: word *choice* isn't seeded yet.
-     * [WordDictionary.randomWordsOfLength] shuffles its candidate pool with the global unseeded
-     * Random internally, so two runs of the same seed currently produce identical placement
-     * geometry and filler letters but can still surface different actual words. Making that
-     * deterministic too means threading a Random through WordDictionary, which is out of this
-     * change's scope.
+     * Word *choice* is seeded too: [generatePuzzle] picks each word by indexing into
+     * `wordsOfLength(length)` (a stable, file-ordered list) with the same seeded Random, rather
+     * than going through [WordDictionary.randomWordsOfLength], which shuffles with the global
+     * unseeded Random. So the same [seed], the same [difficulty] and the same dictionary asset
+     * reproduce the identical puzzle, words included, for every player. (It also avoids that
+     * function's full-list shuffle on every one of up to 500 attempts.)
      */
     fun startMatch(seed: Long?) {
+        matchOver.value = false
+        hintsUsed.value = 0
+        hintState.value = null
+        puzzleSeed = seed
+        isDailyBoard.value = seed != null
         state.value = generatePuzzle(tierParams(), seed)
     }
 
@@ -165,13 +332,12 @@ class WordSearchGame : GameModule {
         while (placed.size < params.wordCount && attempts < 500) {
             attempts++
             val length = candidateLengths[attempts % candidateLengths.size]
-            // WordDictionary's pool is lowercase (see WordDictionary.kt); placed words are
-            // stored uppercase below, so the exclusion set must be lowercased too, or this
-            // filter is a silent no-op and the same word can be placed twice.
-            val word = WordDictionary.randomWordsOfLength(
-                length, 1,
-                excluding = placed.map { it.word.lowercase() }.toSet()
-            ).firstOrNull() ?: continue
+            val pool = wordsOfLength(length)
+            if (pool.isEmpty()) continue
+            val word = pool[rng.nextInt(pool.size)]
+            // The pool is lowercase (see WordDictionary.kt); placed words are stored uppercase
+            // below, so compare case-insensitively or the same word can be placed twice.
+            if (placed.any { it.word.equals(word, ignoreCase = true) }) continue
 
             val (dr, dc) = params.directions.random(rng)
             val startRow = rng.nextInt(gridSize)
@@ -215,6 +381,7 @@ class WordSearchGame : GameModule {
      * [attemptSelection]'s KDoc) as part of the drag-to-select pass.
      */
     fun setSelectionStart(pos: GridPos?) {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.solved) return
         state.value = s.copy(selectionStart = pos)
@@ -232,6 +399,7 @@ class WordSearchGame : GameModule {
      * of a silent reset.
      */
     fun attemptSelection(start: GridPos, end: GridPos): SelectionResult? {
+        if (matchOver.value) return null
         val s = state.value ?: return null
         if (s.solved) {
             return null
@@ -259,6 +427,8 @@ class WordSearchGame : GameModule {
 
         val newFound = s.foundWords + match.id
         val allDone = newFound.size == s.placedWords.size
+        // Finding the hinted word (or any word) retires the ring; the next hint picks a fresh word.
+        hintState.value = null
         state.value = s.copy(foundWords = newFound, selectionStart = null, solved = allDone)
         if (allDone) puzzlesSolved.value += 1
         return SelectionResult(match, lineCells)

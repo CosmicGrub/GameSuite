@@ -136,6 +136,8 @@ fun NearbyEntryScreen(
                 }
             }
             else -> {
+                LobbyNameField()
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
                         sessionManager.pendingNearbyTransport = NearbyConnectionsTransport(context)

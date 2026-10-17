@@ -3,6 +3,38 @@ package com.gamesuite.games.mancala
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Mancala session back exactly as it was: the board, whose turn it is
+ * (an owed extra turn is simply "same player still on move"), the last sow's path/capture (so the
+ * status line and extra-turn prompt read the same), the session tally and the difficulty. One
+ * shape serves both Resume (disk) and Undo (memory). Mancala has no hidden information.
+ */
+@Serializable
+private data class MancalaSnapshot(
+    val pits: List<Int>,
+    val currentPlayerIndex: Int,
+    val lastAction: String,
+    val roundOver: Boolean,
+    val winnerPlayerId: String?,
+    val lastSowPath: List<Int>,
+    val lastCapture: MancalaSnapshotCapture?,
+    val players: List<MancalaSnapshotPlayer>,
+    val scoreP1: Int,
+    val scoreP2: Int,
+    val draws: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class MancalaSnapshotCapture(val landingPit: Int, val oppositePit: Int, val totalSwept: Int)
+
+@Serializable
+private data class MancalaSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val mancalaSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * Board layout (14 pits, index 0-13):
@@ -50,7 +82,13 @@ data class MancalaState(
      * on every sow that doesn't capture, so a later non-capturing move never replays
      * a stale flourish.
      */
-    val lastCapture: MancalaCapture? = null
+    val lastCapture: MancalaCapture? = null,
+    /**
+     * True when this state was put back by Resume or Undo rather than produced by a sow. The
+     * screen uses it to show the final position straight away instead of replaying the seed-hop
+     * cascade (and its haptics/sounds) for a sow that is not happening now.
+     */
+    val restored: Boolean = false
 )
 
 /**
@@ -70,7 +108,7 @@ data class MancalaCapture(val landingPit: Int, val oppositePit: Int, val totalSw
  */
 private data class SowResult(val pits: List<Int>, val extraTurn: Boolean, val landingCursor: Int)
 
-class MancalaGame : GameModule {
+class MancalaGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "mancala"
     override val displayName = "Mancala"
     override val category = GameCategory.BOARD
@@ -107,12 +145,144 @@ class MancalaGame : GameModule {
     private val player1Pits = 7..12
     private val player1Store = 13
 
+    /** Snapshots taken just BEFORE each human sowing, newest last; popping one is Undo. Per game: a new board starts empty. */
+    private val history = SnapshotHistory()
+
+    /** The pit (absolute board index 0-12) the last [hint] suggested, shown ringed until the next sow, undo or new board. */
+    val hintPit = mutableStateOf<Int?>(null)
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         scoreP1.value = 0
         scoreP2.value = 0
         draws.value = 0
+        history.clear()
+        hintPit.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return mancalaSnapshotJson.encodeToString(
+            MancalaSnapshot.serializer(),
+            MancalaSnapshot(
+                pits = s.pits,
+                currentPlayerIndex = s.currentPlayerIndex,
+                lastAction = s.lastAction,
+                roundOver = s.roundOver,
+                winnerPlayerId = s.winnerPlayerId,
+                lastSowPath = s.lastSowPath,
+                lastCapture = s.lastCapture?.let { MancalaSnapshotCapture(it.landingPit, it.oppositePit, it.totalSwept) },
+                players = context.players.map { MancalaSnapshotPlayer(it.playerId, it.isBot) },
+                scoreP1 = scoreP1.value,
+                scoreP2 = scoreP2.value,
+                draws = draws.value,
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's board shape and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): MancalaSnapshot? {
+        return try {
+            val snap = mancalaSnapshotJson.decodeFromString(MancalaSnapshot.serializer(), text)
+            val roster = context.players
+            val capture = snap.lastCapture
+            val valid = snap.pits.size == 14 &&
+                snap.pits.all { it >= 0 } &&
+                snap.pits.sum() == 48 &&
+                snap.players.size == roster.size &&
+                snap.players.indices.all {
+                    snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
+                } &&
+                snap.currentPlayerIndex in 0..1 &&
+                (snap.winnerPlayerId == null || roster.any { it.playerId == snap.winnerPlayerId }) &&
+                snap.lastSowPath.size <= 60 && snap.lastSowPath.all { it in 0..13 } &&
+                (capture == null || (capture.landingPit in 0..13 && capture.oppositePit in 0..13 && capture.totalSwept >= 0)) &&
+                snap.scoreP1 >= 0 && snap.scoreP2 >= 0 && snap.draws >= 0 &&
+                (snap.roundOver || (player0Pits.any { snap.pits[it] > 0 } && player1Pits.any { snap.pits[it] > 0 }))
+            if (valid) snap else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun applySnapshot(snap: MancalaSnapshot, keepCounters: Boolean = false) {
+        state.value = MancalaState(
+            pits = snap.pits,
+            currentPlayerIndex = snap.currentPlayerIndex,
+            lastAction = snap.lastAction,
+            roundOver = snap.roundOver,
+            winnerPlayerId = snap.winnerPlayerId,
+            lastSowPath = snap.lastSowPath,
+            lastCapture = snap.lastCapture?.let { MancalaCapture(it.landingPit, it.oppositePit, it.totalSwept) },
+            restored = true
+        )
+        scoreP1.value = snap.scoreP1
+        scoreP2.value = snap.scoreP2
+        draws.value = snap.draws
+        if (!keepCounters) {
+            difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        }
+        hintPit.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT &&
+                context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+            ) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        val snap = decodeSnapshot(snapshot) ?: return false
+        matchOver.value = false
+        applySnapshot(snap)
+        history.clear()
+        return true
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human sowing. Against the CPU that also takes back the CPU's reply (the
+     * snapshot was taken before the human's sow), so you are back on your own turn. After an extra
+     * turn each human sowing is its own step. Undoing a game-ending sow re-opens the board and
+     * takes its win off the session tally. Mancala has no mistake/hint counters to protect, and
+     * the difficulty is left as it is.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap, keepCounters = true)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a pit for the player to move: the best pit by the HARD bot's search, regardless of
+     * the CPU difficulty setting. Highlights it ([hintPit]) and returns it (absolute board index);
+     * null when it is a bot's turn, the game is over or there is no legal pit. Mancala keeps no
+     * records, so a hint costs nothing.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.roundOver) return null
+        if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
+        val pit = minimaxBestMove(s.pits, s.currentPlayerIndex, depth = HARD_SEARCH_DEPTH)
+        hintPit.value = pit
+        return pit
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -123,6 +293,9 @@ class MancalaGame : GameModule {
         val pits = MutableList(14) { 0 }
         for (i in player0Pits) pits[i] = 4
         for (i in player1Pits) pits[i] = 4
+        // A new board starts a new undo history: undo never reaches back into the previous board.
+        history.clear()
+        hintPit.value = null
         state.value = MancalaState(pits = pits, currentPlayerIndex = 0, lastAction = "Game started")
     }
 
@@ -164,6 +337,9 @@ class MancalaGame : GameModule {
     }
 
     fun sow(playerIndex: Int, pitIndex: Int) {
+        // Once the session has ended (leaveSession / abortMatch) a stray tap or an in-flight bot
+        // turn must not mutate the board or tally another win into the already-reported scores.
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.roundOver || playerIndex != s.currentPlayerIndex) return
 
@@ -172,6 +348,13 @@ class MancalaGame : GameModule {
         val opponentStore = if (playerIndex == 0) player1Store else player0Store
 
         if (pitIndex !in ownPits || s.pits[pitIndex] == 0) return
+
+        // Undo step: the position just BEFORE a human's sowing (never a bot's), taken only once the
+        // move is known to be legal. Against the CPU, popping it also removes the CPU's reply.
+        if (context.players.getOrNull(playerIndex)?.isBot == false) {
+            captureSnapshot()?.let { history.push(it) }
+        }
+        hintPit.value = null
 
         val pits = s.pits.toMutableList()
         var stones = pits[pitIndex]
@@ -236,7 +419,8 @@ class MancalaGame : GameModule {
             roundOver = roundOver,
             winnerPlayerId = winnerId,
             lastSowPath = sowPath,
-            lastCapture = capture
+            lastCapture = capture,
+            restored = false
         )
 
         // Tally into the running session score (see scoreP1/scoreP2/draws' KDoc) rather
@@ -263,6 +447,7 @@ class MancalaGame : GameModule {
      * non-empty pit.
      */
     fun playBotTurn() {
+        if (matchOver.value) return
         val s = state.value ?: return
         if (s.roundOver) return
         val botIndex = s.currentPlayerIndex

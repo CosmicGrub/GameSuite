@@ -4,7 +4,45 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Mastermind session back exactly as it was: the hidden secret, the
+ * guesses so far, the session tally, the tier, the daily seed, the hint count and the ACTIVE
+ * (pause-adjusted) elapsed time. Absolute clock readings are never stored.
+ */
+@Serializable
+private data class MastermindSnapshot(
+    val players: List<MastermindSnapshotPlayer>,
+    val positions: Int,
+    val colorCount: Int,
+    val maxGuesses: Int,
+    val secret: List<Int>,
+    val guesses: List<MastermindSnapshotGuess>,
+    val solved: Boolean,
+    val outOfGuesses: Boolean,
+    val puzzlesSolved: Int,
+    val puzzlesFailed: Int,
+    val roundNumber: Int,
+    val difficulty: String,
+    val dailySeed: Long?,
+    val hintsUsed: Int,
+    val resultHandled: Boolean,
+    /** Active elapsed time of the current code; null while the stopwatch has not started. */
+    val elapsedMillis: Long?,
+    /** The frozen round time once the code is decided; null while it is live. */
+    val finishedMillis: Long?
+)
+
+@Serializable
+private data class MastermindSnapshotGuess(val colors: List<Int>, val blackPegs: Int, val whitePegs: Int)
+
+@Serializable
+private data class MastermindSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val mastermindSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * One submitted guess and its feedback: [blackPegs] = correct color AND position;
@@ -59,10 +97,13 @@ data class MastermindState(
  * MOVES/SESSION: same solo-puzzle session pattern as every other engine in this app —
  * module-level [matchOver] distinct from the per-round [MastermindState.isOver]; finishing a
  * round (solved OR out of guesses) does not end the match, just bumps [puzzlesSolved] on a
- * genuine solve; [playAgain] deals a fresh secret keeping the tally; [leaveSession] builds the
- * [GameResult] from the tally and ends the match.
+ * genuine solve or [puzzlesFailed] on a loss; [playAgain] deals a fresh secret keeping the
+ * tally; [leaveSession] builds the [GameResult] from the tally and ends the match. Solved plus
+ * failed is the number of FINISHED codes, which the screen reads to decide whether leaving
+ * mid-code may be a pure abort (nothing finished yet) or must go through [leaveSession] so the
+ * finished codes still count.
  */
-class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame {
     override val gameId = "mastermind"
     override val displayName = "Mastermind"
     override val category = GameCategory.PUZZLE
@@ -73,6 +114,18 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
     val state = mutableStateOf<MastermindState?>(null)
     val puzzlesSolved = mutableStateOf(0)
 
+    /** Codes lost to running out of guesses this session; with [puzzlesSolved] this is the finished-code count. See the class KDoc. */
+    val puzzlesFailed = mutableStateOf(0)
+
+    /**
+     * Counts every fresh code dealt (bumped by each [startMatch], never reset, never lowered). The
+     * screen keys its per-code state (stats-recorded flag, the half-built guess) on this instead of
+     * on [MastermindState.secret]: a random secret can repeat back to back (1 in 256 at EASY), and
+     * re-dealing the same daily seed gives the identical secret, which with the secret as the key
+     * would skip recording the second solve.
+     */
+    val roundNumber = mutableStateOf(0)
+
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-round. */
     val matchOver = mutableStateOf(false)
 
@@ -81,6 +134,21 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
 
     /** Total time for the current round, frozen the instant [submitGuess] detects a solve OR a loss; null until then. */
     val finishedElapsedMillis = mutableStateOf<Long?>(null)
+
+    /** Hints taken on the CURRENT code. Any hint marks the code assisted: it still counts as solved, but must not set a record. Reset by every fresh code. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The code the last [hint] pre-filled, until the next guess, a new code or a restore clears it. */
+    val hintCode = mutableStateOf<List<Int>?>(null)
+
+    /** The seed of today's daily code while that code is the one on screen; null for a random code. The screen derives its "Daily code" tag from this. */
+    val activeDailySeed = mutableStateOf<Long?>(null)
+
+    /** True once the screen has recorded (or deliberately skipped recording) the current code's result, so a resumed finished code is never recorded twice. */
+    val resultHandled = mutableStateOf(false)
+
+    /** True when a hint was used on the current code, so a solve must not set a best-time/best-guesses record. */
+    val isAssisted: Boolean get() = hintsUsed.value > 0
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
@@ -104,7 +172,160 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
+        puzzlesFailed.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCode.value = null
+        activeDailySeed.value = null
+        resultHandled.value = false
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    /** Null when there is nothing to save: no code yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            val s = state.value ?: return null
+            if (matchOver.value) return null
+            if (!this::context.isInitialized) return null
+            val mode = context.activeMode
+            if (mode != PlayMode.SINGLE_PLAYER_VS_BOT && mode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            val tier = difficultyConfig.entries.firstOrNull { it.value == (s.positions to s.colorCount) }?.key ?: difficulty
+            mastermindSnapshotJson.encodeToString(
+                MastermindSnapshot.serializer(),
+                MastermindSnapshot(
+                    players = context.players.map { MastermindSnapshotPlayer(it.playerId, it.isBot) },
+                    positions = s.positions,
+                    colorCount = s.colorCount,
+                    maxGuesses = s.maxGuesses,
+                    secret = s.secret,
+                    guesses = s.guesses.map { MastermindSnapshotGuess(it.colors, it.blackPegs, it.whitePegs) },
+                    solved = s.solved,
+                    outOfGuesses = s.outOfGuesses,
+                    puzzlesSolved = puzzlesSolved.value,
+                    puzzlesFailed = puzzlesFailed.value,
+                    roundNumber = roundNumber.value,
+                    difficulty = tier.name,
+                    dailySeed = activeDailySeed.value,
+                    hintsUsed = hintsUsed.value,
+                    resultHandled = resultHandled.value,
+                    elapsedMillis = activeElapsedMillis(),
+                    finishedMillis = finishedElapsedMillis.value
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * All-or-nothing: the snapshot is fully decoded and validated (roster, tier shape, secret,
+     * every guess's feedback re-scored against the secret, solved/failed flags, timer fields)
+     * before a single field of the engine is touched. The clock continues from the saved ACTIVE
+     * elapsed time; the time the app was gone is not counted.
+     */
+    override fun restore(snapshot: String): Boolean {
+        try {
+            if (!this::context.isInitialized) return false
+            val snap = mastermindSnapshotJson.decodeFromString(MastermindSnapshot.serializer(), snapshot)
+
+            val roster = context.players
+            if (snap.players.size != roster.size) return false
+            if (!snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }) return false
+
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return false
+            if (difficultyConfig[tier] != (snap.positions to snap.colorCount)) return false
+            if (snap.maxGuesses != MAX_GUESSES) return false
+            if (snap.secret.size != snap.positions || snap.secret.any { it !in 0 until snap.colorCount }) return false
+            if (snap.guesses.size > snap.maxGuesses) return false
+            for (g in snap.guesses) {
+                if (g.colors.size != snap.positions || g.colors.any { it !in 0 until snap.colorCount }) return false
+                if (scoreGuess(g.colors, snap.secret) != (g.blackPegs to g.whitePegs)) return false
+            }
+            if (snap.guesses.dropLast(1).any { it.blackPegs == snap.positions }) return false
+            val solved = snap.guesses.lastOrNull()?.let { it.blackPegs == snap.positions } == true
+            val outOfGuesses = !solved && snap.guesses.size >= snap.maxGuesses
+            if (snap.solved != solved || snap.outOfGuesses != outOfGuesses) return false
+            val over = solved || outOfGuesses
+
+            if (snap.puzzlesSolved < 0 || snap.puzzlesFailed < 0 || snap.hintsUsed < 0 || snap.roundNumber < 0) return false
+            if (solved && snap.puzzlesSolved < 1) return false
+            if (outOfGuesses && snap.puzzlesFailed < 1) return false
+            if ((snap.elapsedMillis != null) != snap.guesses.isNotEmpty()) return false
+            if (snap.elapsedMillis != null && snap.elapsedMillis < 0L) return false
+            if ((snap.finishedMillis != null) != over) return false
+            if (snap.finishedMillis != null && snap.finishedMillis < 0L) return false
+
+            // Everything checked: now assign.
+            val restored = MastermindState(
+                positions = snap.positions,
+                colorCount = snap.colorCount,
+                maxGuesses = snap.maxGuesses,
+                secret = snap.secret,
+                guesses = snap.guesses.map { MastermindGuess(it.colors, it.blackPegs, it.whitePegs) },
+                solved = solved,
+                outOfGuesses = outOfGuesses
+            )
+            difficulty = tier
+            puzzlesSolved.value = snap.puzzlesSolved
+            puzzlesFailed.value = snap.puzzlesFailed
+            // Monotonic: the screen keys its per-code state on this, so a restore must never hand back a number it already used.
+            roundNumber.value = if (roundNumber.value >= snap.roundNumber) roundNumber.value + 1 else snap.roundNumber
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            timerStartElapsedRealtime.value = snap.elapsedMillis?.let { nowMillis() - it }
+            finishedElapsedMillis.value = snap.finishedMillis
+            hintsUsed.value = snap.hintsUsed
+            hintCode.value = null
+            activeDailySeed.value = snap.dailySeed
+            resultHandled.value = snap.resultHandled
+            matchOver.value = false
+            state.value = restored
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a code that is consistent with ALL the feedback so far (so it could be the secret),
+     * pre-filled by the screen into the current guess row; it is NOT submitted. Every distinct
+     * hint taken counts toward [hintsUsed] (asking again for the same unchanged position is free),
+     * which marks the code assisted. Null when the code is already decided or the session ended.
+     * It never reveals the secret itself: the suggestion is merely one of the codes still possible.
+     */
+    fun hint(): List<Int>? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val code = firstConsistentCode(s) ?: return null
+        if (hintCode.value != code) {
+            hintsUsed.value += 1
+            hintCode.value = code
+        }
+        return code
+    }
+
+    /** The first code (in base-[MastermindState.colorCount] counting order) that would have produced exactly the feedback seen on every guess so far. */
+    private fun firstConsistentCode(s: MastermindState): List<Int>? {
+        var total = 1
+        repeat(s.positions) { total *= s.colorCount }
+        for (n in 0 until total) {
+            var rest = n
+            val candidate = MutableList(s.positions) { 0 }
+            for (i in s.positions - 1 downTo 0) {
+                candidate[i] = rest % s.colorCount
+                rest /= s.colorCount
+            }
+            if (s.guesses.all { scoreGuess(it.colors, candidate) == (it.blackPegs to it.whitePegs) }) return candidate
+        }
+        return null
+    }
+
+    /** Called by the screen once a code's result has been recorded (or deliberately skipped for an assisted solve). */
+    fun markResultHandled() {
+        resultHandled.value = true
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -125,7 +346,12 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         // found after the fact), the same fix already needed across every other
         // engine in this batch (see e.g. ColorFloodGame's own KDoc on this exact fix).
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCode.value = null
+        resultHandled.value = false
+        activeDailySeed.value = dailySeed
         val random = if (dailySeed != null) Random(dailySeed) else Random
+        roundNumber.value += 1
         state.value = MastermindState(
             positions = positions,
             colorCount = colorCount,
@@ -158,6 +384,21 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first guess minus every paused
+     * interval, including a pause that is still running (so the display freezes while paused
+     * instead of ticking on and then snapping back when the round ends). Null before the first
+     * guess. Once the round is decided it is just [finishedElapsedMillis]. Read-only; never
+     * mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -177,6 +418,9 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         if (colors.size != s.positions) return
         if (colors.any { it !in 0 until s.colorCount }) return
 
+        // A pre-filled hint is consumed by the guess it was for.
+        hintCode.value = null
+
         // Stopwatch starts on the first *actual* guess, not on secret generation --
         // same idiom every other solo puzzle's own timer start uses.
         if (timerStartElapsedRealtime.value == null) {
@@ -193,6 +437,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
             puzzlesSolved.value += 1
             freezeTimer()
         } else if (outOfGuesses) {
+            puzzlesFailed.value += 1
             freezeTimer()
         }
     }

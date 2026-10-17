@@ -145,6 +145,30 @@ data class ChessState(
     val winnerPlayerId: String? = null
 )
 
+/** A suggested move for the human to play: the [from] and [to] squares (0..63, a1 = 0). */
+data class ChessHint(val from: Int, val to: Int)
+
+/**
+ * Everything needed to put a chess session back exactly as it was. One shape serves both Resume
+ * (written to disk) and Undo (kept in memory). The visible position (board, side to move, castling
+ * rights, en-passant square, last move, round result, session tally) reuses the networked game's
+ * [ChessNetState] encoder; the rest is what that wire state deliberately omits: the threefold-
+ * repetition history, the roster the save belongs to, and the difficulty.
+ */
+@Serializable
+private data class ChessSnapshot(
+    val position: ChessNetState,
+    /** [ChessGame]'s positionHistory: occurrences of each position signature this round. */
+    val positionHistory: Map<String, Int>,
+    val players: List<ChessSnapshotPlayer>,
+    val difficulty: String
+)
+
+@Serializable
+private data class ChessSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val chessSnapshotJson = Json { ignoreUnknownKeys = true }
+
 /** Player index 0 is always White (and always moves first, matching every other
  *  GameSuite board game's player-0-goes-first convention); player index 1 is always
  *  Black. Either index may be the bot -- see this file's top comment. */
@@ -686,7 +710,7 @@ fun materialAdvantageForWhite(board: List<Piece?>): Int {
  * state), mutated only by replacing [state] wholesale via a freshly built
  * [ChessState] -- matching MancalaGame/TicTacToeGame exactly.
  */
-class ChessGame : GameModule {
+class ChessGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "chess"
     override val displayName = "Chess"
     override val category = GameCategory.BOARD
@@ -730,6 +754,13 @@ class ChessGame : GameModule {
      *  [recordPositionAndCheckRepetition]. */
     private val positionHistory = mutableMapOf<String, Int>()
 
+    /** Snapshots taken just BEFORE each human move (newest last); popping one is Undo. Per round:
+     *  [startMatch] clears it, so undo never reaches back into the previous game. */
+    private val history = SnapshotHistory()
+
+    /** The move the last [hint] suggested, shown on the board until the next move, undo or new game. */
+    val hintMove = mutableStateOf<ChessHint?>(null)
+
     /** True for real networked play (LAN or online) -- see ChessNetMessage.kt's own KDoc for
      *  the host-authoritative design this gates, mirroring TicTacToeGame.kt's own
      *  isNetworked exactly. False (the default) for SINGLE_DEVICE_PASS_AND_PLAY/
@@ -759,6 +790,8 @@ class ChessGame : GameModule {
         scoreP2.value = 0
         draws.value = 0
         positionHistory.clear()
+        history.clear()
+        hintMove.value = null
         stateVersion = 0
         lastAppliedStateVersion = -1
 
@@ -775,7 +808,157 @@ class ChessGame : GameModule {
         onMatchEnd = listener
     }
 
+    // --- Resume -----------------------------------------------------------------------------
+    // Fields accounted for: state (board, side, castling, en passant, last move, result, check,
+    // winner), scoreP1/scoreP2/draws, difficulty and positionHistory are all in the snapshot.
+    // Derived/transient and NOT saved: matchOver (a saved game is by definition not over), history
+    // and hintMove (cleared on restore), stateVersion/lastAppliedStateVersion (networked only),
+    // onMatchEnd (re-registered by the screen). Chess deals no hidden or random information.
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return chessSnapshotJson.encodeToString(
+            ChessSnapshot.serializer(),
+            ChessSnapshot(
+                position = ChessNetState(
+                    board = s.board,
+                    sideToMove = s.sideToMove,
+                    castleWK = s.castleWK, castleWQ = s.castleWQ, castleBK = s.castleBK, castleBQ = s.castleBQ,
+                    epSquare = s.epSquare,
+                    lastFrom = s.lastFrom, lastTo = s.lastTo,
+                    lastAction = s.lastAction,
+                    roundOver = s.roundOver,
+                    result = s.result,
+                    inCheck = s.inCheck,
+                    winnerPlayerId = s.winnerPlayerId,
+                    scoreP1 = scoreP1.value,
+                    scoreP2 = scoreP2.value,
+                    draws = draws.value,
+                    matchOver = false
+                ),
+                positionHistory = positionHistory.toMap(),
+                players = context.players.map { ChessSnapshotPlayer(it.playerId, it.isBot) },
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's roster and board shape; null if unusable. */
+    private fun decodeSnapshot(text: String): ChessSnapshot? {
+        val snap = try {
+            chessSnapshotJson.decodeFromString(ChessSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        val net = snap.position
+        fun squareOk(sq: Int?): Boolean = sq == null || sq in 0..63
+        val kingsOk = PieceColor.entries.all { c -> net.board.count { it != null && it.type == PieceType.KING && it.color == c } == 1 }
+        val valid = net.board.size == 64 &&
+            kingsOk &&
+            roster.size == 2 &&
+            snap.players.size == roster.size &&
+            snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
+            squareOk(net.epSquare) && squareOk(net.lastFrom) && squareOk(net.lastTo) &&
+            net.roundOver == (net.result != ChessResult.IN_PROGRESS) &&
+            net.scoreP1 >= 0 && net.scoreP2 >= 0 && net.draws >= 0 &&
+            snap.positionHistory.size <= 20_000 &&
+            snap.positionHistory.values.all { it in 1..3 }
+        return if (valid) snap else null
+    }
+
+    private fun applySnapshot(snap: ChessSnapshot, restoreDifficulty: Boolean) {
+        val n = snap.position
+        positionHistory.clear()
+        positionHistory.putAll(snap.positionHistory)
+        scoreP1.value = n.scoreP1
+        scoreP2.value = n.scoreP2
+        draws.value = n.draws
+        if (restoreDifficulty) {
+            difficulty = CpuDifficulty.entries.firstOrNull { it.name == snap.difficulty } ?: difficulty
+        }
+        hintMove.value = null
+        state.value = ChessState(
+            board = n.board,
+            sideToMove = n.sideToMove,
+            castleWK = n.castleWK, castleWQ = n.castleWQ, castleBK = n.castleBK, castleBQ = n.castleBQ,
+            epSquare = n.epSquare,
+            lastFrom = n.lastFrom, lastTo = n.lastTo,
+            lastAction = n.lastAction,
+            roundOver = n.roundOver,
+            result = n.result,
+            inCheck = n.inCheck,
+            winnerPlayerId = n.winnerPlayerId
+        )
+    }
+
+    private val isLocalMode: Boolean
+        get() = context.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT ||
+            context.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (!this::context.isInitialized || matchOver.value || state.value == null) return null
+            if (!isLocalMode) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            if (!this::context.isInitialized || !isLocalMode) return false
+            val snap = decodeSnapshot(snapshot) ?: return false
+            matchOver.value = false
+            applySnapshot(snap, restoreDifficulty = true)
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human move. Against the CPU that also takes back the CPU's reply (the
+     * snapshot was taken before the human's move), so it is the human's turn again. Board, castling
+     * rights, en-passant square, last move, session tally and the repetition history all go back
+     * with it. Chess has no mistake/hint counters; the difficulty is left as it is.
+     */
+    override fun undo() {
+        if (matchOver.value || !this::context.isInitialized || !isLocalMode) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap, restoreDifficulty = false)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a move for the side to move: the best move of a short [HINT_SEARCH_DEPTH]-ply
+     * search (never deeper than that, so it cannot block the main thread), regardless of the CPU
+     * difficulty. Highlights it ([hintMove]) and returns it; null when it is a bot's turn, the
+     * round or session is over, or in networked play. Chess keeps no records, so a hint is free.
+     */
+    fun hint(): ChessHint? {
+        if (!this::context.isInitialized || !isLocalMode) return null
+        val s = state.value ?: return null
+        if (matchOver.value || s.roundOver) return null
+        if (context.players.getOrNull(playerIndexForColor(s.sideToMove))?.isBot == true) return null
+        val move = minimaxBestMove(positionOf(s), s.sideToMove, HINT_SEARCH_DEPTH) ?: return null
+        val suggestion = ChessHint(move.from, move.to)
+        hintMove.value = suggestion
+        return suggestion
+    }
+
     override fun startMatch() {
+        history.clear()
+        hintMove.value = null
         positionHistory.clear()
         val board = MutableList<Piece?>(64) { null }
         val backRank = listOf(
@@ -877,6 +1060,12 @@ class ChessGame : GameModule {
         if (playerIndex != playerIndexForColor(s.sideToMove)) return
         val pos = positionOf(s)
         val move = generateLegalMoves(pos, s.sideToMove).firstOrNull { it.from == from && it.to == to } ?: return
+        // Undo step: written down only now that the move is known to be legal (a rejected tap
+        // leaves nothing behind), and only for a HUMAN's move in a local game -- never the bot's,
+        // so one undo takes back the human move together with the CPU reply that followed it.
+        if (!isNetworked && context.players.getOrNull(playerIndex)?.isBot != true) {
+            captureSnapshot()?.let { history.push(it) }
+        }
         applyPlayedMove(s, pos, move)
     }
 
@@ -1020,6 +1209,7 @@ class ChessGame : GameModule {
     }
 
     private fun applyPlayedMove(s: ChessState, pos: Position, move: ChessMove) {
+        hintMove.value = null
         val mover = s.sideToMove
         val moverName = context.players.getOrNull(playerIndexForColor(mover))?.displayName ?: "Player"
         val capturedType = if (move.enPassant) {
@@ -1265,5 +1455,12 @@ class ChessGame : GameModule {
          * depth 5 is safe to ship too.
          */
         const val HARD_SEARCH_DEPTH = 4
+
+        /**
+         * Hint look-ahead: 2 plies (the suggested move and the opponent's best reply), so a hint
+         * does not walk a piece into an immediate recapture the way MEDIUM's one-ply greedy pick
+         * can, yet only a few hundred nodes, nowhere near HARD's depth-4 cost on the main thread.
+         */
+        const val HINT_SEARCH_DEPTH = 2
     }
 }

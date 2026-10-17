@@ -213,6 +213,38 @@ class WordGuessGameTest {
     }
 
     @Test
+    fun `a lost word is counted once in puzzlesFailed, a solve is not, and init resets it`() {
+        val game = newGame(CpuDifficulty.HARD, acceptAnyGuess = true) // 5 guesses
+        game.startMatch()
+        assertEquals(0, game.puzzlesFailed.value)
+
+        withSecret(game, "apple")
+        repeat(5) { game.submitGuess("brown") }
+        assertEquals("running out of guesses is one finished (lost) word", 1, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+
+        game.submitGuess("brown") // rejected: the round is already decided
+        assertEquals("a guess after the loss must not count it again", 1, game.puzzlesFailed.value)
+
+        game.playAgain()
+        withSecret(game, "apple")
+        game.submitGuess("apple")
+        assertEquals(1, game.puzzlesSolved.value)
+        assertEquals("a solved word is not a failed one", 1, game.puzzlesFailed.value)
+
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        assertEquals(0, game.puzzlesFailed.value)
+        assertEquals(0, game.puzzlesSolved.value)
+    }
+
+    @Test
     fun `submitGuess rejects the wrong length or a word outside the valid-guess set, without crashing or mutating state`() {
         val game = newGame()
         game.startMatch()
@@ -302,6 +334,50 @@ class WordGuessGameTest {
             "recorded solve time was ${recordedMillis}ms -- the [10,100_000] interval between the two pause() calls must count as paused, not active",
             recordedMillis < 100L
         )
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first guess, freezes while paused, and ends equal to the recorded round time`() {
+        var clock = 0L
+        val game = WordGuessGame(
+            nowMillis = { clock },
+            pickSecret = { "apple" },
+            isValidGuess = { true }
+        )
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.startMatch()
+        assertNull("no stopwatch before the first guess", game.activeElapsedMillis())
+
+        clock = 1_000L
+        game.submitGuess("brown") // wrong: starts the timer at t=1000 and the round goes on
+        assertFalse(game.state.value!!.isOver)
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 3_000L
+        assertEquals(2_000L, game.activeElapsedMillis())
+
+        game.pause() // pausedAt = 3000
+        clock = 10_000L
+        assertEquals("the live clock must not tick while paused", 2_000L, game.activeElapsedMillis())
+
+        game.resume() // 7000ms spent paused
+        clock = 11_000L
+        assertEquals(3_000L, game.activeElapsedMillis()) // 11000 - 1000 - 7000
+
+        game.submitGuess("apple") // solves the round
+        assertTrue(game.state.value!!.solved)
+        assertEquals(3_000L, game.finishedElapsedMillis.value)
+        assertEquals("once decided, the live clock reads exactly the recorded round time", 3_000L, game.activeElapsedMillis())
+
+        clock = 50_000L
+        assertEquals("a decided round's clock must not keep running", 3_000L, game.activeElapsedMillis())
     }
 
     @Test

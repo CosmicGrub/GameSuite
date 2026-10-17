@@ -71,7 +71,7 @@ class BreakoutGameTest {
         val expectedValue = (s0.rows - 0) * 10
 
         game.state.value = s0.copy(
-            ballPos = Offset(rect.centerX, rect.bottom + BreakoutGame.BALL_RADIUS - 0.001f),
+            ballPos = Offset(rect.centerX, rect.bottom + BreakoutGame.BALL_RADIUS_Y - 0.001f),
             ballVel = Offset(0f, -0.4f),
             ballLaunched = true
         )
@@ -95,7 +95,7 @@ class BreakoutGameTest {
         val rect = brickRectForTest(lastIndex, s0.rows, s0.cols)
         game.state.value = s0.copy(
             bricks = bricks,
-            ballPos = Offset(rect.centerX, rect.bottom + BreakoutGame.BALL_RADIUS - 0.001f),
+            ballPos = Offset(rect.centerX, rect.bottom + BreakoutGame.BALL_RADIUS_Y - 0.001f),
             ballVel = Offset(0f, -0.4f),
             ballLaunched = true
         )
@@ -116,7 +116,7 @@ class BreakoutGameTest {
         // Catch it on the RIGHT half of the paddle -- expect the ball to steer rightward (positive vel.x).
         val hitX = s0.paddleX + s0.paddleHalfWidth * 0.6f
         game.state.value = s0.copy(
-            ballPos = Offset(hitX, BreakoutGame.PADDLE_Y - BreakoutGame.PADDLE_HALF_HEIGHT - BreakoutGame.BALL_RADIUS + 0.001f),
+            ballPos = Offset(hitX, BreakoutGame.PADDLE_Y - BreakoutGame.PADDLE_HALF_HEIGHT - BreakoutGame.BALL_RADIUS_Y + 0.001f),
             ballVel = Offset(0f, 0.5f),
             ballLaunched = true
         )
@@ -259,6 +259,282 @@ class BreakoutGameTest {
         game.resume()
 
         assertNull("none of startMatch/pause/resume should end the session", reported)
+    }
+
+    // ---- pause: freezes a ball in flight, idempotent, resumed only by the player ----
+
+    private fun launchedGame(): BreakoutGame {
+        val game = newGame()
+        game.state.value = game.state.value.copy(
+            ballPos = Offset(0.5f, 0.6f),
+            ballVel = Offset(0.1f, 0.4f),
+            ballLaunched = true
+        )
+        return game
+    }
+
+    @Test
+    fun pauseFreezesTheBallAndIsIdempotent() {
+        val game = launchedGame()
+        game.pause()
+        game.pause() // a second onPause with no resume in between must change nothing
+        assertTrue(game.paused.value)
+
+        val before = game.state.value
+        game.tick(0.05f)
+        assertEquals("a paused ball must not move", before, game.state.value)
+    }
+
+    @Test
+    fun pauseBeforeLaunchIsANoOp() {
+        val game = newGame() // ball resting on the paddle
+        game.pause()
+        assertFalse("nothing is simulated while the ball rests, so there is nothing to pause", game.paused.value)
+    }
+
+    @Test
+    fun pauseAfterTheRunIsOverIsANoOp() {
+        val game = launchedGame()
+        game.state.value = game.state.value.copy(gameOver = true)
+        game.pause()
+        assertFalse(game.paused.value)
+    }
+
+    @Test
+    fun hostResumeLeavesThePausedRunPausedAndOnlyResumePlayUnfreezesIt() {
+        val game = launchedGame()
+        game.pause()
+
+        game.resume() // the Activity coming back to the foreground
+        assertTrue("coming back must not drop the player into a live ball", game.paused.value)
+        val frozen = game.state.value
+        game.tick(0.05f)
+        assertEquals(frozen, game.state.value)
+
+        game.resumePlay()
+        game.resumePlay() // idempotent
+        assertFalse(game.paused.value)
+        game.tick(0.05f)
+        assertTrue("the ball should move again once the player resumes", game.state.value.ballPos != frozen.ballPos)
+    }
+
+    @Test
+    fun aPausedRunIgnoresPaddleInput() {
+        val game = launchedGame()
+        val x = game.state.value.paddleX
+        game.pause()
+        game.movePaddle(0.9f)
+        assertEquals(x, game.state.value.paddleX, 0.0001f)
+        game.resumePlay()
+        game.movePaddle(0.9f)
+        assertEquals(0.9f, game.state.value.paddleX, 0.0001f)
+    }
+
+    @Test
+    fun startingANewRunClearsPause() {
+        val game = launchedGame()
+        game.pause()
+        assertTrue(game.paused.value)
+        game.startMatch()
+        assertFalse(game.paused.value)
+    }
+
+    @Test
+    fun pauseNeverEndsTheSession() {
+        val game = launchedGame()
+        var reported: GameResult? = null
+        game.setOnMatchEnd { reported = it }
+        game.pause()
+        game.resume()
+        game.resumePlay()
+        assertNull(reported)
+        assertFalse(game.matchOver.value)
+    }
+
+    // ---- finished-run bookkeeping for the screen's leave-confirm ----
+
+    @Test
+    fun runsFinishedCountsOnlyRunsThatActuallyEnded() {
+        val game = newGame()
+        assertEquals(0, game.runsFinished.value)
+
+        // Losing a life with lives to spare does not finish the run.
+        game.state.value = game.state.value.copy(ballPos = Offset(0.5f, 0.995f), ballVel = Offset(0f, 0.5f), ballLaunched = true)
+        game.tick(0.05f)
+        assertEquals(0, game.runsFinished.value)
+
+        // Losing the last life does.
+        game.state.value = game.state.value.copy(lives = 1, ballPos = Offset(0.5f, 0.995f), ballVel = Offset(0f, 0.5f), ballLaunched = true)
+        game.tick(0.05f)
+        assertTrue(game.state.value.gameOver)
+        assertEquals(1, game.runsFinished.value)
+
+        // Further ticks on a finished run must not count it twice.
+        game.tick(0.05f)
+        assertEquals(1, game.runsFinished.value)
+    }
+
+    @Test
+    fun leaveSessionDoesNotBankARunStillInProgress() {
+        val game = newGame()
+        var reported: GameResult? = null
+        game.setOnMatchEnd { reported = it }
+
+        // A big score, but the run never ended.
+        game.state.value = game.state.value.copy(score = 500)
+        game.leaveSession()
+
+        val score = reported!!.scores.single()
+        assertEquals("an unfinished run's partial score must not be reported", 0, score.score)
+        assertFalse(score.isWinner)
+    }
+
+    @Test
+    fun leavingMidRunAfterAFinishedRunStillReportsTheFinishedOne() {
+        val game = newGame()
+        var reported: GameResult? = null
+        game.setOnMatchEnd { reported = it }
+
+        game.state.value = game.state.value.copy(lives = 1, score = 70, ballPos = Offset(0.5f, 0.995f), ballVel = Offset(0f, 0.5f), ballLaunched = true)
+        game.tick(0.05f)
+        assertEquals(1, game.runsFinished.value)
+
+        game.playAgain()
+        game.state.value = game.state.value.copy(score = 900) // second run, still going
+        game.leaveSession()
+
+        assertEquals(70, reported!!.scores.single().score)
+    }
+
+    // ---- ball geometry: a circle on screen, resting exactly on the paddle ----
+
+    @Test
+    fun theBallIsACircleOnScreenAndRestsExactlyOnThePaddle() {
+        // The field is BOARD_ASPECT times taller than wide, so the y radius in normalized units is
+        // the x radius divided by that ratio (equal physical size on both axes).
+        assertEquals(BreakoutGame.BALL_RADIUS, BreakoutGame.BALL_RADIUS_Y * BreakoutGame.BOARD_ASPECT, 0.00001f)
+        // Resting ball's bottom edge touches the paddle's top edge: no floating gap, no overlap.
+        assertEquals(
+            BreakoutGame.PADDLE_Y - BreakoutGame.PADDLE_HALF_HEIGHT,
+            BreakoutGame.RESTING_BALL_Y + BreakoutGame.BALL_RADIUS_Y,
+            0.00001f
+        )
+    }
+
+    @Test
+    fun brickCollisionUsesTheScreenSpaceBallNotAStretchedEllipse() {
+        val game = newGame()
+        val s0 = game.state.value
+        // Bottom row, middle brick: nothing below it, so the only thing in range is that brick.
+        val index = (s0.rows - 1) * s0.cols + 3
+        val rect = brickRectForTest(index, s0.rows, s0.cols)
+
+        fun bricksAfterBallAt(offsetBelowBottom: Float): List<Boolean> {
+            val g = newGame()
+            g.state.value = g.state.value.copy(
+                ballPos = Offset(rect.centerX, rect.bottom + offsetBelowBottom),
+                ballVel = Offset(0f, -0.001f), // barely moving: the ball effectively stays put
+                ballLaunched = true
+            )
+            g.tick(0.001f)
+            return g.state.value.bricks
+        }
+
+        // Well inside one ball radius (measured on screen): the brick breaks.
+        assertFalse(bricksAfterBallAt(BreakoutGame.BALL_RADIUS_Y * 0.9f)[index])
+        // Beyond one on-screen radius but still inside the old stretched-ellipse radius: untouched.
+        assertTrue(
+            "the ball must not break a brick it is visibly not touching",
+            bricksAfterBallAt(BreakoutGame.BALL_RADIUS_Y * 1.15f)[index]
+        )
+    }
+
+    // ---- bounce positions and long frames, in numbers ----
+
+    @Test
+    fun theTopWallClampsTheBallToItsOnScreenRadius() {
+        val game = newGame()
+        game.state.value = game.state.value.copy(
+            ballPos = Offset(0.5f, 0.005f),
+            ballVel = Offset(0f, -0.3f),
+            ballLaunched = true
+        )
+        game.tick(0.001f)
+
+        val s = game.state.value
+        // The ball's top edge rests on the wall, so its centre is one y-radius down (not one x-radius).
+        assertEquals(BreakoutGame.BALL_RADIUS_Y, s.ballPos.y, 0.000001f)
+        assertEquals("a fully elastic wall only flips vel.y", 0.3f, s.ballVel.y, 0.000001f)
+    }
+
+    @Test
+    fun theSideWallClampsTheBallToItsOnScreenRadius() {
+        val game = newGame()
+        game.state.value = game.state.value.copy(
+            ballPos = Offset(0.005f, 0.7f), // below the brick rows, above the paddle
+            ballVel = Offset(-0.3f, 0.3f),
+            ballLaunched = true
+        )
+        game.tick(0.001f)
+
+        val s = game.state.value
+        assertEquals(BreakoutGame.BALL_RADIUS, s.ballPos.x, 0.000001f)
+        assertEquals("a fully elastic wall only flips vel.x", 0.3f, s.ballVel.x, 0.000001f)
+    }
+
+    @Test
+    fun aCenterPaddleHitReturnsTheBallStraightUpFromTheTopOfThePaddle() {
+        val game = newGame()
+        val s0 = game.state.value
+        val paddleTop = BreakoutGame.PADDLE_Y - BreakoutGame.PADDLE_HALF_HEIGHT
+        game.state.value = s0.copy(
+            ballPos = Offset(s0.paddleX, paddleTop - BreakoutGame.BALL_RADIUS_Y + 0.002f),
+            ballVel = Offset(0f, 0.5f),
+            ballLaunched = true
+        )
+        game.tick(0.001f)
+
+        val s = game.state.value
+        assertEquals("the ball's bottom edge sits on the paddle's top edge", paddleTop - BreakoutGame.BALL_RADIUS_Y, s.ballPos.y, 0.000001f)
+        assertEquals("a dead-centre catch has no sideways kick", 0f, s.ballVel.x, 0.000001f)
+        assertEquals("the bounce keeps the ball's speed", -0.5f, s.ballVel.y, 0.00001f)
+    }
+
+    @Test
+    fun aSlowFrameCannotCarryTheFastestBallPastThePaddle() {
+        val game = newGame()
+        val s0 = game.state.value
+        val topSpeed = 0.68f * BreakoutGame.MAX_SPEED_MULTIPLIER // Hard tier at the speed cap
+        val paddleTop = BreakoutGame.PADDLE_Y - BreakoutGame.PADDLE_HALF_HEIGHT
+        // Just above the paddle's collision window. One unsplit 0.05s step would carry the ball
+        // 0.054 of the field height, from here to below the paddle (window depth 0.045): a skip.
+        game.state.value = s0.copy(
+            ballPos = Offset(s0.paddleX, paddleTop - BreakoutGame.BALL_RADIUS_Y - 0.001f),
+            ballVel = Offset(0f, topSpeed),
+            ballLaunched = true
+        )
+        game.tick(0.05f)
+
+        val s = game.state.value
+        assertNotNull("the paddle should have caught the ball", s.lastPaddleBounce)
+        assertTrue("the ball should be heading back up, got ${s.ballVel}", s.ballVel.y < 0f)
+        assertEquals("no life should be lost", BreakoutGame.STARTING_LIVES, s.lives)
+    }
+
+    // ---- personal-best rule ----
+
+    @Test
+    fun aRunThatScoredNothingNeverSetsARecord() {
+        assertFalse("first ever run ending on 0 is not a 'New best!'", BreakoutGame.isNewBestScore(existing = null, score = 0))
+        assertFalse(BreakoutGame.isNewBestScore(existing = 0, score = 0))
+    }
+
+    @Test
+    fun aPositiveScoreSetsARecordOnlyIfItBeatsTheExistingBest() {
+        assertTrue(BreakoutGame.isNewBestScore(existing = null, score = 10))
+        assertTrue(BreakoutGame.isNewBestScore(existing = 50, score = 60))
+        assertFalse(BreakoutGame.isNewBestScore(existing = 50, score = 50))
+        assertFalse(BreakoutGame.isNewBestScore(existing = 50, score = 40))
     }
 
     // ---- geometry helper mirroring BreakoutGame's own private brickRect, for test setup only ----

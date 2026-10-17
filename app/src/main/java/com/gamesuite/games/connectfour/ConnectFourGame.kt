@@ -3,6 +3,36 @@ package com.gamesuite.games.connectfour
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Connect Four session back exactly as it was: the board, whose turn it
+ * is, the session tally, who opens the next board and the difficulty. This one shape serves both
+ * Resume (written to disk) and Undo (kept in memory), so a board and its tally can never be
+ * restored out of step with each other.
+ */
+@Serializable
+private data class ConnectFourSnapshot(
+    val rows: Int,
+    val cols: Int,
+    val cells: List<Int?>,
+    val players: List<ConnectFourSnapshotPlayer>,
+    val currentPlayerIndex: Int,
+    val lastAction: String,
+    val boardOver: Boolean,
+    val winnerPlayerId: String?,
+    val winningLine: List<Int>?,
+    val sessionWins: Map<String, Int>,
+    val sessionDraws: Int,
+    val nextStartingPlayerIndex: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class ConnectFourSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
+
+private val connectFourSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /** A player's identity + bot flag — mirrors DotsAndBoxesPlayerState's own shape, kept as a list even though this game is always exactly 2 players, for consistency with that established idiom. */
 data class ConnectFourPlayerState(
@@ -79,7 +109,7 @@ data class ConnectFourState(
  * A stronger, iterative-deepening/transposition-table engine is a real
  * future upgrade, not required for a correct, playable first version.
  */
-class ConnectFourGame : GameModule {
+class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "connect-four"
     override val displayName = "Connect Four"
     override val category = GameCategory.BOARD
@@ -108,12 +138,128 @@ class ConnectFourGame : GameModule {
     /** Alternates who opens each new board (including across Play Again rounds), for fairness — same idiom TicTacToeGame/DotsAndBoxesGame's own Play Again uses. */
     private var nextStartingPlayerIndex = 0
 
+    /** Snapshots taken just BEFORE each human drop, newest last; popping one is Undo. Per board: a new board starts empty. */
+    private val history = SnapshotHistory()
+
+    /** The column the last [hint] suggested, shown highlighted until the next drop or undo. */
+    val hintColumn = mutableStateOf<Int?>(null)
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
         nextStartingPlayerIndex = 0
+        history.clear()
+        hintColumn.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return connectFourSnapshotJson.encodeToString(
+            ConnectFourSnapshot.serializer(),
+            ConnectFourSnapshot(
+                rows = s.rows,
+                cols = s.cols,
+                cells = s.cells,
+                players = s.players.map { ConnectFourSnapshotPlayer(it.playerId, it.displayName, it.isBot) },
+                currentPlayerIndex = s.currentPlayerIndex,
+                lastAction = s.lastAction,
+                boardOver = s.boardOver,
+                winnerPlayerId = s.winnerPlayerId,
+                winningLine = s.winningLine,
+                sessionWins = sessionWins.value,
+                sessionDraws = sessionDraws.value,
+                nextStartingPlayerIndex = nextStartingPlayerIndex,
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's board shape and roster; null if it is unusable. */
+    private fun decodeSnapshot(text: String): ConnectFourSnapshot? {
+        val snap = try {
+            connectFourSnapshotJson.decodeFromString(ConnectFourSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        val valid = snap.rows == ROWS && snap.cols == COLS &&
+            snap.cells.size == ROWS * COLS &&
+            snap.cells.all { it == null || it in snap.players.indices } &&
+            snap.players.size == roster.size &&
+            snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
+            snap.currentPlayerIndex in snap.players.indices &&
+            snap.nextStartingPlayerIndex in snap.players.indices
+        return if (valid) snap else null
+    }
+
+    private fun applySnapshot(snap: ConnectFourSnapshot) {
+        state.value = ConnectFourState(
+            rows = snap.rows,
+            cols = snap.cols,
+            cells = snap.cells,
+            players = snap.players.map { ConnectFourPlayerState(it.playerId, it.displayName, it.isBot) },
+            currentPlayerIndex = snap.currentPlayerIndex,
+            lastAction = snap.lastAction,
+            boardOver = snap.boardOver,
+            winnerPlayerId = snap.winnerPlayerId,
+            winningLine = snap.winningLine
+        )
+        sessionWins.value = snap.sessionWins
+        sessionDraws.value = snap.sessionDraws
+        nextStartingPlayerIndex = snap.nextStartingPlayerIndex
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        hintColumn.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        if (matchOver.value || state.value == null) return null
+        if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+        return captureSnapshot()
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        val snap = decodeSnapshot(snapshot) ?: return false
+        matchOver.value = false
+        applySnapshot(snap)
+        history.clear()
+        return true
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human drop. Against the CPU that also takes back the CPU's reply (the
+     * snapshot was taken before the human's drop), so you are back on your own turn. Undoing a
+     * winning drop re-opens the board and takes its win back off the session tally.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a column for the player to move: the best move of a deep search, regardless of the
+     * CPU difficulty setting. Highlights it ([hintColumn]) and returns it; null when it is not a
+     * human's turn or the board is over. Connect Four keeps no records, so a hint costs nothing.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.boardOver) return null
+        if (s.players[s.currentPlayerIndex].isBot) return null
+        val col = chooseBotMove(s, depthOverride = HINT_SEARCH_DEPTH)
+        hintColumn.value = col
+        return col
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -128,6 +274,9 @@ class ConnectFourGame : GameModule {
         // already known to be needed from Minesweeper/Sudoku/Lights Out/
         // Dots and Boxes/Color Flood, all of which needed it.
         matchOver.value = false
+        // A new board starts a new undo history: undo never reaches back into the previous board.
+        history.clear()
+        hintColumn.value = null
         state.value = ConnectFourState(
             rows = ROWS,
             cols = COLS,
@@ -151,15 +300,20 @@ class ConnectFourGame : GameModule {
     /**
      * Called from the board-over panel's "Back to Menu" button — ends the
      * whole session (not just the current board), reporting the session's
-     * cumulative boards-won tally. Mirrors DotsAndBoxesGame.leaveSession().
+     * cumulative boards-won tally. Mirrors DotsAndBoxesGame.leaveSession(), except that only a
+     * STRICT leader is flagged the winner: an evenly split tally (1-1, 2-2) or one with no board
+     * won at all has no winner, so [com.gamesuite.core.GameSessionManager] records it as a draw.
+     * (It used to flag both players on an equal non-zero tally, which recorded a 1-1 session as a
+     * win for the local player.)
      */
     fun leaveSession() {
         if (matchOver.value) return
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
         val scores = context.players.map {
             val w = wins[it.playerId] ?: 0
-            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins)
+            PlayerScore(playerId = it.playerId, score = w, isWinner = bestWins > 0 && w == bestWins && leaders == 1)
         }
         endMatch(GameResult(scores = scores))
     }
@@ -189,6 +343,11 @@ class ConnectFourGame : GameModule {
         if (matchOver.value || s.boardOver) return
         if (col !in 0 until s.cols) return
         val row = lowestEmptyRow(s.cells, col, s.rows, s.cols) ?: return // column full
+
+        // Undo only ever lands on a HUMAN's turn: remember the position before each human drop
+        // (not the bot's), so undoing against the CPU also takes the CPU's reply back.
+        if (!s.players[s.currentPlayerIndex].isBot) captureSnapshot()?.let { history.push(it) }
+        hintColumn.value = null
 
         val newCells = s.cells.toMutableList()
         val index = row * s.cols + col
@@ -267,8 +426,8 @@ class ConnectFourGame : GameModule {
      * no better — which correctly still loses the `score > bestScore`
      * comparison either way).
      */
-    private fun chooseBotMove(s: ConnectFourState): Int? {
-        val depth = difficultySearchDepth[difficulty] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
+    private fun chooseBotMove(s: ConnectFourState, depthOverride: Int? = null): Int? {
+        val depth = depthOverride ?: difficultySearchDepth[difficulty] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
         val bot = s.currentPlayerIndex
         val opponent = (bot + 1) % s.players.size
         val cells = s.cells.toTypedArray()
@@ -449,6 +608,8 @@ class ConnectFourGame : GameModule {
         const val ROWS = 6
         const val COLS = 7
         const val WIN_LENGTH = 4
+        /** Search depth (plies) a hint uses: the HARD tier's, whatever difficulty the CPU opponent is set to. */
+        const val HINT_SEARCH_DEPTH = 6
         const val CENTER_COLUMN_WEIGHT = 3
         /** Magnitude of a confirmed win/loss score — comfortably larger than any possible sum of [scoreWindow] heuristic scores (bounded by a small constant times the board's ~69 total windows), so a real win is always preferred over any merely-good heuristic position. */
         const val WIN_SCORE = 1_000_000

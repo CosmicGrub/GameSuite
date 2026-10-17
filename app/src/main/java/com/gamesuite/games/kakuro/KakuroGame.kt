@@ -4,7 +4,50 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * One cell of a saved Kakuro board. [black] cells carry only the clues; white cells carry the
+ * player's [value] / [notes].
+ */
+@Serializable
+private data class KakuroSnapshotCell(
+    val black: Boolean,
+    val value: Int?,
+    val notes: List<Int>,
+    val across: Int?,
+    val down: Int?
+)
+
+/**
+ * Everything needed to put a Kakuro session back exactly as it was: the board with the player's
+ * entries and notes, the hidden SOLUTION, the selection, mistakes and hints used, the tier, the
+ * daily flag and seed, the session tally and the ACTIVE (pause-adjusted) elapsed time. One shape
+ * serves Resume (disk) and Undo (memory).
+ */
+@Serializable
+private data class KakuroSnapshot(
+    val rows: Int,
+    val cols: Int,
+    val cells: List<KakuroSnapshotCell>,
+    val solution: List<Int?>,
+    val selectedIndex: Int?,
+    val mistakes: Int,
+    val won: Boolean,
+    val hintsUsed: Int,
+    val difficulty: String,
+    val daily: Boolean,
+    val seed: Long?,
+    val puzzlesSolved: Int,
+    val activeElapsedMillis: Long?,
+    val finishedElapsedMillis: Long?,
+    val playerIds: List<String>,
+    val botFlags: List<Boolean>
+)
+
+private val kakuroSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /** BLACK cells never hold a player value -- they optionally carry [KakuroCell.acrossClue]/[KakuroCell.downClue]. WHITE cells hold the player's own entry. */
 enum class KakuroCellType { BLACK, WHITE }
@@ -238,7 +281,19 @@ object KakuroTemplates {
 /** One horizontal or vertical maximal white run of length >= 2 (see [KakuroGame.computeRuns]'s KDoc for why shorter "runs" are never tracked). [clueCellIndex] is the BLACK cell immediately before [cells]' first entry, guaranteed to exist by every template's border convention. */
 private data class KakuroRun(val cells: List<Int>, val clueCellIndex: Int, val horizontal: Boolean)
 
-private data class KakuroGenerated(val template: KakuroTemplate, val solution: IntArray, val cells: List<KakuroCell>)
+/**
+ * One fully generated, uniqueness-verified puzzle that is not on the board yet: what
+ * [KakuroGame.generate] returns and [KakuroGame.beginPuzzle] puts on the board. Splitting the two
+ * lets a screen run the (potentially slow) generation on a background thread and apply the result
+ * on the main thread. Treat it as immutable; [solution] is row-major with a digit for every WHITE
+ * cell (the BLACK entries are 0 and never read).
+ */
+class KakuroPuzzle(
+    val tier: CpuDifficulty,
+    val template: KakuroTemplate,
+    val solution: IntArray,
+    val cells: List<KakuroCell>
+)
 
 /**
  * Kakuro: BLACK cells carry a down-sum and/or across-sum clue; WHITE cells
@@ -280,7 +335,10 @@ private data class KakuroGenerated(val template: KakuroTemplate, val solution: I
  * `startMatch(dailySeed)` seeds BOTH template choice and digit-fill
  * randomness from the same `Random` instance (matching every other solo
  * puzzle's exact `startMatch(dailySeed)` shape) -- see docs/KAKURO_DESIGN.md's
- * "Stats, daily seed, session shape" section.
+ * "Stats, daily seed, session shape" section. [startMatch] is generate-then-apply in one
+ * synchronous call; a screen that must not block its UI thread (HARD can take a while) calls
+ * [generate] on a background thread and [beginPuzzle] on the main one instead. The clock is
+ * pause-aware: [activeElapsedMillis] is what a live display shows.
  *
  * MISTAKES & FEEDBACK: Sudoku's model, not Nonogram's -- a wrong digit is
  * accepted (not blocked), compared directly against the cell's own known-
@@ -290,10 +348,11 @@ private data class KakuroGenerated(val template: KakuroTemplate, val solution: I
  * KDoc gives for its equivalent choice).
  *
  * DELIBERATE SCOPE CUTS (see docs/KAKURO_DESIGN.md's own section): no
- * procedural topology generation, no hint/solver exposed to the player, no
+ * procedural topology generation, no solver exposed to the player (the one-cell [hint] only
+ * reveals a digit from the stored solution and marks the solve assisted), no
  * live per-run conflict highlighting. KenKen is explicitly NOT covered here.
  */
-class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "kakuro"
     override val displayName = "Kakuro"
     override val category = GameCategory.PUZZLE
@@ -325,10 +384,238 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     /** Total time spent paused during the CURRENT board, subtracted out in [freezeTimer] -- see [pause]/[resume]'s KDoc. */
     private var totalPausedMillis: Long = 0L
 
+    /** Hints taken on the CURRENT puzzle (reset per puzzle, never lowered by undo). Any hint makes the solve "assisted": it sets no best-time record. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The cell the last [hint] filled, outlined until the next entry, undo, new puzzle or restore. */
+    val hintCell = mutableStateOf<Int?>(null)
+
+    /** True while the puzzle on the board is the seeded daily one. Set by [beginPuzzle]; restored from a snapshot. */
+    val dailyBoard = mutableStateOf(false)
+
+    /** The daily seed of the puzzle on the board, or null for a random one. */
+    var boardSeed: Long? = null
+        private set
+
+    /** Snapshots taken just BEFORE each human entry / note / hint, newest last; popping one is Undo. Per puzzle. */
+    private val history = SnapshotHistory()
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCell.value = null
+        dailyBoard.value = false
+        boardSeed = null
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(s: KakuroState): String = kakuroSnapshotJson.encodeToString(
+        KakuroSnapshot.serializer(),
+        KakuroSnapshot(
+            rows = s.rows,
+            cols = s.cols,
+            cells = s.cells.map {
+                KakuroSnapshotCell(
+                    black = it.type == KakuroCellType.BLACK,
+                    value = it.value,
+                    notes = it.notes.sorted(),
+                    across = it.acrossClue,
+                    down = it.downClue
+                )
+            },
+            solution = s.solution,
+            selectedIndex = s.selectedIndex,
+            mistakes = s.mistakes,
+            won = s.won,
+            hintsUsed = hintsUsed.value,
+            difficulty = difficulty.name,
+            daily = dailyBoard.value,
+            seed = boardSeed,
+            puzzlesSolved = puzzlesSolved.value,
+            activeElapsedMillis = activeElapsedMillis(),
+            finishedElapsedMillis = finishedElapsedMillis.value,
+            playerIds = context.players.map { it.playerId },
+            botFlags = context.players.map { it.isBot }
+        )
+    )
+
+    /**
+     * Decodes and fully validates a snapshot against THIS game's roster and Kakuro's own rules
+     * (shape, digit ranges, clues consistent with the solution, win flag consistent with the cells).
+     * Returns the snapshot plus the board it describes, or null if it is unusable. Never throws on bad input.
+     */
+    private fun decodeSnapshot(text: String): Pair<KakuroSnapshot, KakuroState>? {
+        val snap = try {
+            kakuroSnapshotJson.decodeFromString(KakuroSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        if (snap.playerIds != roster.map { it.playerId } || snap.botFlags != roster.map { it.isBot }) return null
+        val rows = snap.rows
+        val cols = snap.cols
+        if (rows < 2 || cols < 2 || rows > 30 || cols > 30) return null
+        val size = rows * cols
+        if (snap.cells.size != size || snap.solution.size != size) return null
+        if (snap.mistakes < 0 || snap.hintsUsed < 0 || snap.puzzlesSolved < 0) return null
+        if ((snap.activeElapsedMillis ?: 0L) < 0L || (snap.finishedElapsedMillis ?: 0L) < 0L) return null
+        if (CpuDifficulty.values().none { it.name == snap.difficulty }) return null
+
+        val cells = ArrayList<KakuroCell>(size)
+        for (i in 0 until size) {
+            val c = snap.cells[i]
+            val sol = snap.solution[i]
+            if (c.black) {
+                if (c.value != null || c.notes.isNotEmpty() || sol != null) return null
+                if ((c.across != null && c.across !in 1..45) || (c.down != null && c.down !in 1..45)) return null
+                cells.add(KakuroCell(type = KakuroCellType.BLACK, acrossClue = c.across, downClue = c.down))
+            } else {
+                if (sol == null || sol !in 1..9) return null
+                if (c.across != null || c.down != null) return null
+                if (c.value != null && c.value !in 1..9) return null
+                if (c.notes.any { it !in 1..9 }) return null
+                if (c.value != null && c.notes.isNotEmpty()) return null
+                cells.add(KakuroCell(type = KakuroCellType.WHITE, value = c.value, notes = c.notes.toSet()))
+            }
+        }
+        val selected = snap.selectedIndex
+        if (selected != null && (selected !in 0 until size || cells[selected].type != KakuroCellType.WHITE)) return null
+        val allCorrect = (0 until size).all { cells[it].value == snap.solution[it] }
+        if (snap.won != allCorrect) return null
+
+        val state = KakuroState(
+            rows = rows,
+            cols = cols,
+            cells = cells,
+            solution = snap.solution,
+            selectedIndex = selected,
+            mistakes = snap.mistakes,
+            won = snap.won
+        )
+        // The clues must describe the hidden solution (so a damaged save can never be unsolvable),
+        // and every white cell must sit in a clued run.
+        val covered = HashSet<Int>()
+        for (run in KakuroRuns.allRuns(state)) {
+            val digits = run.cells.map { snap.solution[it] ?: return null }
+            if (digits.sum() != run.target || digits.toSet().size != digits.size) return null
+            covered.addAll(run.cells)
+        }
+        if ((0 until size).any { cells[it].type == KakuroCellType.WHITE && it !in covered }) return null
+        return snap to state
+    }
+
+    /** Null when there is nothing to save: no puzzle yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            val s = state.value ?: return null
+            if (matchOver.value) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot(s)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Runs after [init] and instead of [startMatch]. All-or-nothing: on any problem returns false and changes nothing. */
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val (snap, newState) = decodeSnapshot(snapshot) ?: return false
+            val now = nowMillis()
+            val finished = if (snap.won) (snap.finishedElapsedMillis ?: snap.activeElapsedMillis ?: 0L) else null
+            val active = finished ?: snap.activeElapsedMillis
+            difficulty = CpuDifficulty.values().first { it.name == snap.difficulty }
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            dailyBoard.value = snap.daily
+            boardSeed = snap.seed
+            // The clock continues from the saved ACTIVE time; the time the app was gone is not counted.
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            timerStartElapsedRealtime.value = if (active != null) now - active else null
+            finishedElapsedMillis.value = finished
+            matchOver.value = false
+            history.clear()
+            hintCell.value = null
+            state.value = newState
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.won != true
+
+    /**
+     * Takes back the last entry, erase, note toggle or hint. Mistakes and hints used never go
+     * down, and the clock is not rewound. A solved puzzle cannot be undone (its result is final).
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        if (s.won) return
+        val previous = history.pop() ?: return
+        val (snap, restored) = decodeSnapshot(previous) ?: return
+        if (restored.rows != s.rows || restored.cols != s.cols || restored.solution != s.solution) return
+        state.value = s.copy(
+            cells = restored.cells,
+            selectedIndex = restored.selectedIndex,
+            mistakes = maxOf(s.mistakes, restored.mistakes),
+            won = false
+        )
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintCell.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Fills one cell with its correct digit and returns its index; null when there is nothing to
+     * do (no puzzle, solved, session over). The target is the selected cell when it is not yet
+     * right, otherwise a not-yet-right white cell of the run with the fewest of them (an empty
+     * one before a wrong one). Counts in [hintsUsed]: an assisted solve sets no record. Undoable,
+     * but undo does not give the hint back.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val target = hintTarget(s) ?: return null
+        val digit = s.solution[target] ?: return null
+        history.push(captureSnapshot(s))
+        if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
+        val cells = s.cells.toMutableList()
+        cells[target] = cells[target].copy(value = digit, notes = emptySet())
+        val won = cells.indices.all { cells[it].value == s.solution[it] }
+        state.value = s.copy(cells = cells, selectedIndex = target, won = won)
+        hintsUsed.value += 1
+        hintCell.value = target
+        if (won) {
+            puzzlesSolved.value += 1
+            freezeTimer()
+        }
+        return target
+    }
+
+    private fun hintTarget(s: KakuroState): Int? {
+        val selected = s.selectedIndex
+        if (selected != null && s.cells[selected].type == KakuroCellType.WHITE && s.cells[selected].value != s.solution[selected]) {
+            return selected
+        }
+        var best: Int? = null
+        var bestUnknown = Int.MAX_VALUE
+        for (run in KakuroRuns.allRuns(s)) {
+            val unknown = run.cells.filter { s.cells[it].value != s.solution[it] }
+            if (unknown.isNotEmpty() && unknown.size < bestUnknown) {
+                bestUnknown = unknown.size
+                best = unknown.firstOrNull { s.cells[it].value == null } ?: unknown.first()
+            }
+        }
+        return best
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -337,11 +624,41 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     override fun startMatch() = startMatch(dailySeed = null)
 
-    /** See this class's KDoc / SudokuGame.startMatch(dailySeed)'s KDoc for what this is for. */
+    /**
+     * See this class's KDoc / SudokuGame.startMatch(dailySeed)'s KDoc for what this is for.
+     * Synchronous: generation can take a noticeable time on HARD, so a screen should prefer
+     * [generate] on a background thread followed by [beginPuzzle] on the main one.
+     */
     fun startMatch(dailySeed: Long?) {
-        val random = dailySeed?.let { Random(it) } ?: Random.Default
-        val generated = generatePuzzle(difficulty, random)
+        beginPuzzle(generate(difficulty, dailySeed), dailySeed)
+    }
 
+    /**
+     * Generates a puzzle for [tier] without touching any engine state, so it is safe to call from
+     * a background thread (it only reads immutable templates and uses its own [Random]). A
+     * non-null [dailySeed] pins the result exactly as [startMatch] does: the same seed and tier
+     * always give the same puzzle. May take a while on HARD (a reject-and-retry search), which is
+     * why it is separate from [beginPuzzle].
+     */
+    fun generate(tier: CpuDifficulty, dailySeed: Long?): KakuroPuzzle {
+        val random = dailySeed?.let { Random(it) } ?: Random.Default
+        return generatePuzzle(tier, random)
+    }
+
+    /**
+     * Puts [puzzle] on the board and resets the per-board timer. [difficulty] becomes the
+     * puzzle's own tier, so the engine, the stats key and the board on screen can never disagree.
+     * Main thread only (it writes the Compose state the screen reads). A non-null [dailySeed]
+     * marks the board as the seeded daily puzzle ([dailyBoard], [boardSeed]); a new board also
+     * clears the undo history, the hint count and any hint outline.
+     */
+    fun beginPuzzle(puzzle: KakuroPuzzle, dailySeed: Long? = null) {
+        difficulty = puzzle.tier
+        dailyBoard.value = dailySeed != null
+        boardSeed = dailySeed
+        hintsUsed.value = 0
+        hintCell.value = null
+        history.clear()
         timerStartElapsedRealtime.value = null
         finishedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
@@ -352,13 +669,13 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         // review, built in here from the start rather than rediscovered.
         matchOver.value = false
 
-        val size = generated.template.rows * generated.template.cols
+        val size = puzzle.template.rows * puzzle.template.cols
         state.value = KakuroState(
-            rows = generated.template.rows,
-            cols = generated.template.cols,
-            cells = generated.cells,
+            rows = puzzle.template.rows,
+            cols = puzzle.template.cols,
+            cells = puzzle.cells,
             solution = (0 until size).map { i ->
-                if (generated.template.layout[i] == KakuroCellType.WHITE) generated.solution[i] else null
+                if (puzzle.template.layout[i] == KakuroCellType.WHITE) puzzle.solution[i] else null
             }
         )
     }
@@ -378,15 +695,29 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first digit minus every paused
+     * interval, including a pause that is still running (so a display freezes while paused
+     * instead of ticking on and then jumping back at the solve). Null before the first digit.
+     * Once the board is won it is just [finishedElapsedMillis]. Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
     }
 
-    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Only a WHITE cell is selectable -- a BLACK cell never accepts player input, per docs/KAKURO_DESIGN.md's "Input model" section ("tap a white cell to select it"). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every invalid state gets in this batch. */
+    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Only a WHITE cell is selectable -- a BLACK cell never accepts player input, per docs/KAKURO_DESIGN.md's "Input model" section ("tap a white cell to select it"). Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every invalid state gets in this batch. Also a no-op once the whole session has ended (see [setValue]'s KDoc for why). */
     fun selectCell(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
         if (s.cells[index].type != KakuroCellType.WHITE) return
         state.value = s.copy(selectedIndex = index)
@@ -411,6 +742,8 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         val cell = s.cells[index]
         if (cell.type != KakuroCellType.WHITE) return
 
+        history.push(captureSnapshot(s))
+        hintCell.value = null
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
 
         val cells = s.cells.toMutableList()
@@ -437,6 +770,8 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.type != KakuroCellType.WHITE || cell.value == null) return
+        history.push(captureSnapshot(s))
+        hintCell.value = null
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(value = null)
         state.value = s.copy(cells = cells)
@@ -449,6 +784,8 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.type != KakuroCellType.WHITE || cell.value != null) return
+        history.push(captureSnapshot(s))
+        hintCell.value = null
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(notes = if (value in cell.notes) cell.notes - value else cell.notes + value)
         state.value = s.copy(cells = cells)
@@ -496,7 +833,7 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * should be unreachable in practice (see the class KDoc's pipeline and
      * the timing/success-rate test), but never trusted blindly.
      */
-    private fun generatePuzzle(tier: CpuDifficulty, random: Random): KakuroGenerated {
+    private fun generatePuzzle(tier: CpuDifficulty, random: Random): KakuroPuzzle {
         val templates = KakuroTemplates.forTier(tier)
         var template = templates[random.nextInt(templates.size)]
         repeat(MAX_GENERATION_ATTEMPTS) { attempt ->
@@ -520,7 +857,7 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
                 callBudget = SOLVE_CALL_BUDGET
             )
             if (uniqueCount == 1) {
-                return KakuroGenerated(template = template, solution = filled, cells = buildCells(template, runs, runSums))
+                return KakuroPuzzle(tier = tier, template = template, solution = filled, cells = buildCells(template, runs, runSums))
             }
         }
         error("Kakuro generation failed to find a uniquely-solvable puzzle for tier=$tier after $MAX_GENERATION_ATTEMPTS attempts")

@@ -274,6 +274,87 @@ class ConnectFourGameTest {
         assertEquals("a playBotTurn() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
     }
 
+    /** Wins the CURRENT board for [playerIndex]: three of its discs on the bottom row, then the fourth via a real dropDisc(). */
+    private fun winCurrentBoardFor(game: ConnectFourGame, playerIndex: Int) {
+        val s0 = game.state.value!!
+        val cells = s0.cells.toMutableList()
+        cells[index(5, 0)] = playerIndex
+        cells[index(5, 1)] = playerIndex
+        cells[index(5, 2)] = playerIndex
+        game.state.value = s0.copy(cells = cells, currentPlayerIndex = playerIndex)
+        game.dropDisc(3)
+        assertTrue("fixture: the board must be won for player $playerIndex", game.state.value!!.boardOver)
+        assertEquals(s0.players[playerIndex].playerId, game.state.value!!.winnerPlayerId)
+    }
+
+    @Test
+    fun `leaveSession on an evenly split session flags no winner, so it records as a draw rather than a win`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        winCurrentBoardFor(game, 0)
+        game.playAgain()
+        winCurrentBoardFor(game, 1)
+        assertEquals(1, game.sessionWins.value["p1"])
+        assertEquals(1, game.sessionWins.value["p2"])
+
+        game.leaveSession()
+        val scores = result!!.scores
+        assertEquals(2, scores.size)
+        assertTrue("a 1-1 session must not flag either player as the winner", scores.none { it.isWinner })
+        assertTrue(scores.all { it.score == 1 })
+    }
+
+    @Test
+    fun `leaveSession flags only the strict leader as the session winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        winCurrentBoardFor(game, 0)
+        game.playAgain()
+        winCurrentBoardFor(game, 1)
+        game.playAgain()
+        winCurrentBoardFor(game, 0)
+
+        game.leaveSession()
+        val scores = result!!.scores
+        val p1 = scores.first { it.playerId == "p1" }
+        val p2 = scores.first { it.playerId == "p2" }
+        assertEquals(2, p1.score)
+        assertEquals(1, p2.score)
+        assertTrue("the player ahead 2-1 is the session winner", p1.isWinner)
+        assertFalse("the player behind 1-2 is not", p2.isWinner)
+    }
+
+    @Test
+    fun `leaveSession with no board won flags no winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        game.leaveSession()
+        val scores = result!!.scores
+        assertEquals(2, scores.size)
+        assertTrue(scores.none { it.isWinner })
+    }
+
+    @Test
+    fun `pause and resume are safe to repeat and never change the board`() {
+        val game = newTwoHumanGame()
+        game.startMatch()
+        game.dropDisc(2)
+        val before = game.state.value
+        game.pause()
+        game.pause()
+        game.resume()
+        game.resume()
+        assertEquals(before, game.state.value)
+        game.dropDisc(3)
+        assertEquals("play continues normally after a repeated pause/resume", 2, game.state.value!!.cells.count { it != null })
+    }
+
     @Test
     fun `every difficulty bot always plays some legal move without crashing, across many full games`() {
         for (difficulty in CpuDifficulty.entries) {

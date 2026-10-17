@@ -239,4 +239,62 @@ class SlidingPuzzleGameTest {
         game.leaveSession()
         assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
     }
+
+    @Test
+    fun `pause is idempotent -- a second pause before resume does not move the paused-at anchor`() {
+        // Found alongside the matchOver-guard fix below: pause() used to unconditionally
+        // overwrite pausedAtElapsedRealtime on every call, so two pause() calls in a row with
+        // no resume() in between (Android can deliver onPause() more than once without an
+        // intervening onResume() -- overlapping focus-loss/multi-window transitions on a
+        // foldable or in DeX) discarded the earlier, correct anchor in favor of the later one,
+        // silently under-counting the actual paused duration.
+        var clock = 0L
+        val game = SlidingPuzzleGame(nowMillis = { clock })
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch()
+        check(game.state.value!!.size == 3) // EASY is a 3x3 grid -- guards the hand-picked indices below
+        game.state.value = game.state.value!!.copy(tiles = listOf(1, 2, 3, 4, 5, 6, 0, 7, 8), moveCount = 0, solved = false)
+
+        clock = 5L
+        game.tapTile(7) // first real slide -- starts the stopwatch at t=5
+        clock = 10L
+        game.pause() // pausedAtElapsedRealtime = 10
+        clock = 50L
+        game.pause() // must stay 10 -- a buggy pause() would overwrite it to 50 here
+        clock = 100L
+        game.resume() // totalPausedMillis += 100 - 10 = 90 if idempotent; += 100 - 50 = 50 if not
+        clock = 110L
+        game.tapTile(8) // completes the solve
+
+        // (110 - 5) - totalPausedMillis: 105 - 90 = 15 if correct, 105 - 50 = 55 if the second
+        // pause() had moved the anchor.
+        assertEquals(15L, game.solvedElapsedMillis.value)
+    }
+
+    @Test
+    fun `tapTile is a no-op once matchOver, even on an otherwise-legal move`() {
+        // A residual tap processed after the session already ended (leaveSession/endMatch) used
+        // to still mutate state -- moving tiles, bumping puzzlesSolved -- on a game object the
+        // shell had already torn down and reported a final GameResult for.
+        val game = newGame()
+        game.difficulty = CpuDifficulty.EASY
+        game.startMatch()
+        check(game.state.value!!.size == 3)
+        game.state.value = game.state.value!!.copy(tiles = listOf(1, 2, 3, 4, 5, 6, 0, 7, 8), moveCount = 0, solved = false)
+        val before = game.state.value
+
+        game.matchOver.value = true
+        game.tapTile(7) // adjacent to the blank at index 6 -- a legal move if matchOver didn't guard it
+
+        assertEquals("tapTile must not touch state once the session has ended", before, game.state.value)
+        assertEquals(0, game.puzzlesSolved.value)
+    }
 }

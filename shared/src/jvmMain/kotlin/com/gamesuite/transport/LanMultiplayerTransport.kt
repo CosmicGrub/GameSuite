@@ -193,7 +193,20 @@ class LanMultiplayerTransport : MultiplayerTransport {
         val newPlayerId = join.playerId
         val newDisplayName = join.displayName ?: newPlayerId
 
-        hostConnections[newPlayerId] = connection
+        // The host is a player too, and connections are keyed by playerId: a guest announcing the
+        // HOST's id, or one another guest already holds, must not get in. Everything it sent would
+        // be stamped as that other seat (see handleIncomingFrameAtHost), and a plain map put would
+        // silently replace the real guest's connection. Check-and-register is one atomic step so two
+        // simultaneous joins with one id can't both pass.
+        val admitted = synchronized(hostConnections) {
+            if (newPlayerId == localPlayerId || hostConnections.containsKey(newPlayerId)) {
+                false
+            } else {
+                hostConnections[newPlayerId] = connection
+                true
+            }
+        }
+        if (!admitted) { connection.close(); return }
         val roster = currentRoster()
         connection.writeFrame(LanFrame(type = "joined", players = roster))
         relayFromHost(
@@ -228,10 +241,14 @@ class LanMultiplayerTransport : MultiplayerTransport {
     private fun handleIncomingFrameAtHost(frame: LanFrame, fromConnectionPlayerId: String) {
         if (frame.type != "message") return // join/joined/playerJoined/playerLeft are host-originated only
         val toPlayerId = frame.toPlayerId
-        val fromPlayerId = frame.fromPlayerId ?: fromConnectionPlayerId
-        relayFromHost(frame, excludePlayerId = fromConnectionPlayerId)
+        // The sender is the seat this CONNECTION registered as, never the frame's own
+        // `fromPlayerId`: that is a field the guest writes, and games trust `fromPlayerId` as the
+        // real sender (MultiplayerTransport.send's contract). The relayed copy is re-stamped for the
+        // same reason, since every other guest believes what the host forwards.
+        val stamped = frame.copy(fromPlayerId = fromConnectionPlayerId)
+        relayFromHost(stamped, excludePlayerId = fromConnectionPlayerId)
         if (toPlayerId == null || toPlayerId == localPlayerId) {
-            deliverMessage(fromPlayerId, frame.payloadBase64)
+            deliverMessage(fromConnectionPlayerId, frame.payloadBase64)
         }
     }
 

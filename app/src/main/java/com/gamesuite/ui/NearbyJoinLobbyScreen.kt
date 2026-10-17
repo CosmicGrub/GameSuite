@@ -17,7 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
+import com.gamesuite.transport.resolveForGuest
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -25,8 +27,9 @@ import java.util.UUID
 
 /**
  * Discovers nearby hosts, connects on tap, announces itself (a [NearbyLobbyMessage.JoinRequest]
- * carrying a self-minted, stable id — see NearbyLobbyProtocol.kt's KDoc for why), then
- * waits for the host's [NearbyLobbyMessage.GameStart] before launching into the game.
+ * proposing a self-minted id — the host assigns the real one, see NearbyLobbyProtocol.kt's
+ * KDoc), then waits for the host's [NearbyLobbyMessage.GameStart] before launching into the game.
+ * A GameStart is only believed from the endpoint this guest connected to.
  */
 @Composable
 fun NearbyJoinLobbyScreen(
@@ -44,11 +47,12 @@ fun NearbyJoinLobbyScreen(
     val discoveredHosts by transport.discoveredHosts.collectAsState()
     var connectedHostEndpointId by remember { mutableStateOf<String?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    val guestName = remember(context) { PlayerNameStore(context).lobbyName("Guest (${Build.MODEL})") }
 
     DisposableEffect(transport) {
         transport.onConnected { endpointId, _ ->
             connectedHostEndpointId = endpointId
-            val joinMessage: NearbyLobbyMessage = NearbyLobbyMessage.JoinRequest(clientPlayerId, "Guest (${Build.MODEL})")
+            val joinMessage: NearbyLobbyMessage = NearbyLobbyMessage.JoinRequest(clientPlayerId, guestName)
             transport.sendRaw(endpointId, Json.encodeToString(joinMessage).toByteArray(Charsets.UTF_8))
         }
         transport.onRawMessageReceived { endpointId, payload ->
@@ -58,20 +62,22 @@ fun NearbyJoinLobbyScreen(
                 null
             }
             if (message is NearbyLobbyMessage.GameStart) {
-                val myIndex = message.players.indexOfFirst { it.playerId == clientPlayerId }
-                if (myIndex < 0) return@onRawMessageReceived // roster didn't include us — ignore rather than crash
-                transport.setPlayerIdMapping(mapOf(endpointId to "host"))
+                // Only the host we connected to may start us, and only with a roster that validly seats us;
+                // anything else is ignored rather than crashed on (resolveForGuest holds every rule).
+                val start = message.resolveForGuest(endpointId, connectedHostEndpointId, clientPlayerId)
+                    ?: return@onRawMessageReceived
+                transport.setPlayerIdMapping(start.hostEndpointToPlayerId)
                 transport.stopDiscovery()
                 sessionManager.launchGame(
                     mode = PlayMode.LOCAL_AD_HOC,
                     players = message.players,
-                    localPlayerIndex = myIndex,
+                    localPlayerIndex = start.localPlayerIndex,
                     transport = transport
                 )
                 onGameStarted(message.gameRoute)
             }
         }
-        transport.startDiscovery("Guest (${Build.MODEL})")
+        transport.startDiscovery(guestName)
         onDispose {
             if (sessionManager.activeContext.value?.transport !== transport) {
                 transport.disconnect()

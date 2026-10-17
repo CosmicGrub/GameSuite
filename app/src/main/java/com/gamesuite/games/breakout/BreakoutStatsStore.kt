@@ -42,7 +42,8 @@ class BreakoutStatsStore(private val context: Context) {
 
     /**
      * Records one finished run's [score] for [difficulty]. Returns true if it's a new best for
-     * that tier. The before/after comparison happens inside the same `DataStore.edit`
+     * that tier (a run that scored 0 never is, see [BreakoutGame.isNewBestScore]). The
+     * before/after comparison happens inside the same `DataStore.edit`
      * transaction that persists the update, so a run ending mid-race with another read/write
      * can't compare against a stale value — same reasoning ColorFloodStatsStore.recordSolve
      * documents for its own transaction.
@@ -52,7 +53,7 @@ class BreakoutStatsStore(private val context: Context) {
         context.breakoutStatsDataStore.edit { prefs ->
             val current = decode(prefs[Keys.BEST_SCORES_JSON])
             val existing = current[difficulty.name]
-            isNewBest = existing == null || score > existing
+            isNewBest = BreakoutGame.isNewBestScore(existing, score)
             if (isNewBest) {
                 prefs[Keys.BEST_SCORES_JSON] = Json.encodeToString(current + (difficulty.name to score))
             }

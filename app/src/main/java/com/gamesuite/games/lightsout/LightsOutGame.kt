@@ -4,7 +4,34 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Lights Out session back exactly as it was: the board, the move count,
+ * the session tally, the tier and daily seed, hints used on this board and the ACTIVE
+ * (pause-adjusted) clock. One shape serves both Resume (on disk) and Undo (in memory).
+ * There is no hidden information to carry: the solution is derived from the lit cells on demand.
+ */
+@Serializable
+private data class LightsOutSnapshot(
+    val size: Int,
+    val cells: List<Boolean>,
+    val moves: Int,
+    val won: Boolean,
+    val puzzlesSolved: Int,
+    val hintsUsed: Int,
+    val difficulty: String,
+    val dailySeed: Long?,
+    /** Active elapsed ms (pause-adjusted); null while the stopwatch has not started. */
+    val elapsedMillis: Long?,
+    /** The frozen solve time once [won]; otherwise null. */
+    val finishedMillis: Long?,
+    val playerIds: List<String>
+)
+
+private val lightsOutSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * [cells] is row-major (size*size), true = lit. Pressing a cell (see
@@ -61,7 +88,7 @@ data class LightsOutState(
  *     SlidingPuzzleGame's `startMatch(dailySeed)` exact shape/reasoning —
  *     this file never reads today's date itself.
  */
-class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "lights-out"
     override val displayName = "Lights Out"
     override val category = GameCategory.PUZZLE
@@ -101,10 +128,212 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         CpuDifficulty.HARD to 7
     )
 
+    /** True while the board on screen is the seeded daily board (a fresh random board clears it). */
+    val isDailyBoard = mutableStateOf(false)
+
+    /** The seed of the daily board on screen (null for a random board); lets the screen spot a stale daily after a resume. */
+    val activeDailySeed: Long? get() = currentDailySeed
+
+    /** Hints taken on the CURRENT board. Any hint makes the solve assisted: it counts as solved but sets no record. Never lowered by undo. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The cell the last [hint] suggested, shown ringed until the next press, undo or new board. */
+    val hintCell = mutableStateOf<Int?>(null)
+
+    /** Snapshots taken just BEFORE each press, newest last; popping one is Undo. Per board. */
+    private val history = SnapshotHistory()
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        isDailyBoard.value = false
+        hintsUsed.value = 0
+        hintCell.value = null
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    /** [withClock] false for undo steps: undo never rewinds the clock, so they skip reading it (and the injected clock stays untouched). */
+    private fun captureSnapshot(s: LightsOutState, withClock: Boolean = true): String {
+        val finished = finishedElapsedMillis.value
+        return lightsOutSnapshotJson.encodeToString(
+            LightsOutSnapshot.serializer(),
+            LightsOutSnapshot(
+                size = s.size,
+                cells = s.cells,
+                moves = s.moves,
+                won = s.won,
+                puzzlesSolved = puzzlesSolved.value,
+                hintsUsed = hintsUsed.value,
+                difficulty = difficulty.name,
+                dailySeed = currentDailySeed,
+                elapsedMillis = if (withClock) activeElapsedMillis() else null,
+                finishedMillis = finished,
+                playerIds = context.players.map { it.playerId }
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's tier sizes and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): LightsOutSnapshot? {
+        return try {
+            val snap = lightsOutSnapshotJson.decodeFromString(LightsOutSnapshot.serializer(), text)
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return null
+            val expectedSize = difficultyBoardSize[tier] ?: return null
+            val valid = snap.size == expectedSize &&
+                snap.cells.size == snap.size * snap.size &&
+                snap.moves >= 0 && snap.puzzlesSolved >= 0 && snap.hintsUsed >= 0 &&
+                (snap.elapsedMillis ?: 0L) >= 0L && (snap.finishedMillis ?: 0L) >= 0L &&
+                snap.won == snap.cells.none { it } &&
+                snap.playerIds == context.players.map { it.playerId } &&
+                // A hand-edited pattern with no solution would be an unwinnable board.
+                solveBoard(snap.size, snap.cells) != null
+            if (valid) snap else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives elsewhere. */
+    override fun snapshot(): String? {
+        return try {
+            if (!::context.isInitialized) return null
+            val s = state.value ?: return null
+            if (matchOver.value) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot(s)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        try {
+            if (!::context.isInitialized) return false
+            val snap = decodeSnapshot(snapshot) ?: return false
+            val tier = CpuDifficulty.values().first { it.name == snap.difficulty }
+            // Compute the whole new state first; assign only once everything is known good.
+            val newState = LightsOutState(size = snap.size, cells = snap.cells, moves = snap.moves, won = snap.won)
+            val finished: Long? = if (snap.won) (snap.finishedMillis ?: snap.elapsedMillis ?: 0L) else null
+            val active: Long? = finished ?: snap.elapsedMillis
+            matchOver.value = false
+            difficulty = tier
+            currentDailySeed = snap.dailySeed
+            isDailyBoard.value = snap.dailySeed != null
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            hintCell.value = null
+            history.clear()
+            // The clock continues from the saved ACTIVE time; the time the app was gone is not counted.
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            finishedElapsedMillis.value = finished
+            timerStartElapsedRealtime.value = active?.let { nowMillis() - it }
+            state.value = newState
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.isOver != true
+
+    /**
+     * Takes back the last press: the cells and the move count go back. The clock is not rewound and
+     * hints used stay counted (the history only restores the board). A solved board cannot be
+     * un-solved, so its recorded result stands.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val s = state.value ?: return
+        if (s.isOver) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        if (snap.size != s.size) return
+        state.value = s.copy(cells = snap.cells, moves = snap.moves, won = false)
+        hintCell.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests one cell to press: a member of a minimum-press solution of the CURRENT board (see
+     * [solveBoard]). Shown via [hintCell]; null when the board is solved, the session is over or no
+     * solution exists. Taking a (new) hint marks the board assisted ([hintsUsed]).
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val presses = solveBoard(s.size, s.cells) ?: return null
+        val cell = presses.firstOrNull() ?: return null
+        if (hintCell.value != cell) hintsUsed.value += 1
+        hintCell.value = cell
+        return cell
+    }
+
+    /** The cells of a minimum-press solution for the current board (ascending), or null when none exists / no board. */
+    fun solutionPresses(): List<Int>? {
+        val s = state.value ?: return null
+        return solveBoard(s.size, s.cells)
+    }
+
+    /**
+     * Gaussian elimination over GF(2). Row i of the system is "the presses that toggle cell i" with
+     * the right-hand side "cell i is lit". Free columns (a nullspace exists on e.g. 5x5) are
+     * enumerated exhaustively and the solution with the fewest presses wins. Returns null when
+     * the system is inconsistent.
+     */
+    private fun solveBoard(size: Int, cells: List<Boolean>): List<Int>? {
+        val n = size * size
+        if (n <= 0 || n > 62 || cells.size != n) return null
+        val rows = LongArray(n)
+        for (i in 0 until n) {
+            var mask = 0L
+            // A press at j toggles i exactly when i is in affectedIndices(j) (a symmetric relation).
+            for (j in affectedIndices(i, size)) mask = mask or (1L shl j)
+            if (cells[i]) mask = mask or (1L shl n)
+            rows[i] = mask
+        }
+        val pivotColOfRow = IntArray(n) { -1 }
+        val freeCols = mutableListOf<Int>()
+        var r = 0
+        for (col in 0 until n) {
+            var p = -1
+            for (k in r until n) {
+                if ((rows[k] shr col) and 1L == 1L) { p = k; break }
+            }
+            if (p == -1) { freeCols += col; continue }
+            val tmp = rows[p]; rows[p] = rows[r]; rows[r] = tmp
+            for (k in 0 until n) {
+                if (k != r && (rows[k] shr col) and 1L == 1L) rows[k] = rows[k] xor rows[r]
+            }
+            pivotColOfRow[r] = col
+            r++
+        }
+        for (k in r until n) {
+            if ((rows[k] shr n) and 1L == 1L) return null // 0 = 1: inconsistent
+        }
+        val k = freeCols.size
+        val assignments = if (k <= 12) 1 shl k else 1
+        var best: List<Int>? = null
+        for (mask in 0 until assignments) {
+            val x = BooleanArray(n)
+            for (f in 0 until k) if ((mask shr f) and 1 == 1) x[freeCols[f]] = true
+            for (row in 0 until r) {
+                var v = (rows[row] shr n) and 1L == 1L
+                for (fc in freeCols) {
+                    if (x[fc] && (rows[row] shr fc) and 1L == 1L) v = !v
+                }
+                x[pivotColOfRow[row]] = v
+            }
+            val presses = (0 until n).filter { x[it] }
+            if (best == null || presses.size < best.size) best = presses
+        }
+        return best
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -117,6 +346,11 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
     fun startMatch(dailySeed: Long?) {
         val random = dailySeed?.let { Random(it) } ?: Random.Default
         currentDailySeed = dailySeed
+        isDailyBoard.value = dailySeed != null
+        // A new board starts a new undo history and a clean assist count: undo never reaches back into the previous board.
+        history.clear()
+        hintsUsed.value = 0
+        hintCell.value = null
         val size = difficultyBoardSize[difficulty] ?: difficultyBoardSize.getValue(CpuDifficulty.MEDIUM)
 
         timerStartElapsedRealtime.value = null
@@ -163,6 +397,21 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first press minus every paused
+     * interval, including a pause that is still running (so the display freezes while paused
+     * instead of ticking on and then jumping back at the solve, which is what a screen computing
+     * `now - timerStartElapsedRealtime` itself did). Null before the first press. Once the board
+     * is won it is just [finishedElapsedMillis]. Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -184,6 +433,9 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
         if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
 
+        // Undo step: the board as it is BEFORE this (human) press. Taken before the stopwatch starts.
+        history.push(captureSnapshot(s, withClock = false))
+        hintCell.value = null
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
 
         val cells = s.cells.toMutableList()

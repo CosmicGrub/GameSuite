@@ -78,7 +78,17 @@
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.GameSuite"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|keyboard|keyboardHidden|navigation|layoutDirection|locale">
+            <!-- uiMode/density/fontScale/locale added on top of the existing fold/rotation set:
+                 each of those recreates the Activity by default (dark mode switching at sunset,
+                 a font-size or display-size change, a locale change), which used to silently
+                 double-record whatever match was in progress (see
+                 GameSessionManager.acknowledgeMatchOutcome's KDoc) and reset every game's
+                 in-memory state. Compose handles all four reactively through
+                 LocalConfiguration/isSystemInDarkTheme() without a recreation, so this is a
+                 pure win, not a trade for manual resource-reload code. keyboard/keyboardHidden/
+                 navigation cover a Book Cover Keyboard attach/detach; nothing here reads
+                 Configuration.keyboard itself, so this only avoids a needless recreation. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

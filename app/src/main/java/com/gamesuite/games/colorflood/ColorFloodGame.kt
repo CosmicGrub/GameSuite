@@ -4,7 +4,37 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Color Flood session back as it was. One shape serves Resume (disk)
+ * and Undo (memory). The territory is NOT stored: it is always the flood from the origin over
+ * [cellColors], so it is re-derived (and the saved [won] flag cross-checked against it). Times are
+ * ACTIVE (pause-adjusted) milliseconds, never clock readings. The board is fully visible, so there
+ * is no hidden information beyond [dailySeed] (kept so the "Daily board" tag survives).
+ */
+@Serializable
+private data class ColorFloodSnapshot(
+    val size: Int,
+    val colorCount: Int,
+    val cellColors: List<Int>,
+    val moves: Int,
+    val won: Boolean,
+    val difficulty: String,
+    val dailySeed: Long?,
+    val puzzlesSolved: Int,
+    val hintsUsed: Int,
+    val activeElapsedMillis: Long?,
+    val finishedElapsedMillis: Long?,
+    val players: List<ColorFloodSnapshotPlayer>
+)
+
+@Serializable
+private data class ColorFloodSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val colorFloodSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * [cellColors] is row-major (size*size); each value is a color INDEX (0
@@ -59,7 +89,7 @@ data class ColorFloodState(
  * colors — more cells AND more colors to coordinate both make optimal play
  * genuinely harder, not just longer.
  */
-class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "color-flood"
     override val displayName = "Color Flood"
     override val category = GameCategory.PUZZLE
@@ -98,10 +128,183 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         CpuDifficulty.HARD to (16 to 6)
     )
 
+    /** The seed of the daily board on screen, or null for a random board. Compose state so the screen can show the "Daily board" tag after a resume. */
+    val dailySeedInUse = mutableStateOf<Long?>(null)
+
+    /** Hints taken on the CURRENT board (reset per board). Any hint makes the solve "assisted": it never sets a record. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The colour the last [hint] suggested, shown until the next pick, undo or new board. */
+    val hintColor = mutableStateOf<Int?>(null)
+
+    /** Snapshots taken just BEFORE each pick; popping one is Undo. Per board. */
+    private val history = SnapshotHistory()
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintColor.value = null
+        dailySeedInUse.value = null
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return colorFloodSnapshotJson.encodeToString(
+            ColorFloodSnapshot.serializer(),
+            ColorFloodSnapshot(
+                size = s.size,
+                colorCount = s.colorCount,
+                cellColors = s.cellColors,
+                moves = s.moves,
+                won = s.won,
+                difficulty = difficulty.name,
+                dailySeed = dailySeedInUse.value,
+                puzzlesSolved = puzzlesSolved.value,
+                hintsUsed = hintsUsed.value,
+                activeElapsedMillis = activeElapsedMillis(),
+                finishedElapsedMillis = finishedElapsedMillis.value,
+                players = context.players.map { ColorFloodSnapshotPlayer(it.playerId, it.isBot) }
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's tiers and roster; null if unusable. Never throws. */
+    private fun decodeSnapshot(text: String): ColorFloodSnapshot? {
+        return try {
+            val snap = colorFloodSnapshotJson.decodeFromString(ColorFloodSnapshot.serializer(), text)
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return null
+            val config = difficultyConfig[tier] ?: return null
+            val roster = context.players
+            val cells = snap.size * snap.size
+            val shapeOk = snap.size == config.first && snap.colorCount == config.second &&
+                snap.cellColors.size == cells &&
+                snap.cellColors.all { it in 0 until snap.colorCount } &&
+                snap.moves >= 0 && snap.puzzlesSolved >= 0 && snap.hintsUsed >= 0 &&
+                snap.players.size == roster.size &&
+                snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }
+            if (!shapeOk) return null
+            val timesOk = (snap.activeElapsedMillis ?: 0L) >= 0L && (snap.finishedElapsedMillis ?: 0L) >= 0L &&
+                (snap.won == (snap.finishedElapsedMillis != null))
+            if (!timesOk) return null
+            val territory = floodFrom(snap.cellColors, ORIGIN, snap.size)
+            if (snap.won != (territory.size == cells)) return null
+            snap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun stateOf(snap: ColorFloodSnapshot): ColorFloodState = ColorFloodState(
+        size = snap.size,
+        colorCount = snap.colorCount,
+        cellColors = snap.cellColors,
+        territory = floodFrom(snap.cellColors, ORIGIN, snap.size),
+        moves = snap.moves,
+        won = snap.won
+    )
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            val tier = CpuDifficulty.values().first { it.name == snap.difficulty }
+            val newState = stateOf(snap)
+            val now = nowMillis()
+            val finished = snap.finishedElapsedMillis
+            val active = snap.activeElapsedMillis
+            matchOver.value = false
+            difficulty = tier
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            when {
+                finished != null -> {
+                    timerStartElapsedRealtime.value = now - finished
+                    finishedElapsedMillis.value = finished
+                }
+                active != null -> {
+                    timerStartElapsedRealtime.value = now - active
+                    finishedElapsedMillis.value = null
+                }
+                else -> {
+                    timerStartElapsedRealtime.value = null
+                    finishedElapsedMillis.value = null
+                }
+            }
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            dailySeedInUse.value = snap.dailySeed
+            hintColor.value = null
+            history.clear()
+            state.value = newState
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    /** A flooded board cannot be un-won: its result is already on the record, so undo would let it be won (and recorded) again. */
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.isOver == false
+
+    /**
+     * Takes back the last colour pick (one step each). Counters that only go up ([hintsUsed],
+     * [puzzlesSolved]) keep the larger value and the clock keeps running, so undo cannot be used to
+     * shed a hint or rewind time. No-op once the board is flooded or the session has ended.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val current = state.value ?: return
+        if (current.isOver) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        if (snap.size != current.size || snap.colorCount != current.colorCount) return
+        state.value = stateOf(snap)
+        puzzlesSolved.value = maxOf(puzzlesSolved.value, snap.puzzlesSolved)
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintColor.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests the colour that absorbs the most cells right now (lowest index on a tie), shows it
+     * via [hintColor] and returns it; null when the board is over, the session ended or nothing
+     * would be absorbed. The first hint on a board counts toward [hintsUsed]; asking again while
+     * the same suggestion is showing is free. A board solved with any hint never sets a record.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        hintColor.value?.let { return it }
+        var best = -1
+        var bestCount = 0
+        for (c in 0 until s.colorCount) {
+            val n = absorbCount(c)
+            if (n > bestCount) {
+                best = c
+                bestCount = n
+            }
+        }
+        if (best < 0) return null
+        hintsUsed.value += 1
+        hintColor.value = best
+        return best
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -120,6 +323,10 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
         matchOver.value = false
+        dailySeedInUse.value = dailySeed
+        hintsUsed.value = 0
+        hintColor.value = null
+        history.clear()
 
         val colors = List(size * size) { random.nextInt(colorCount) }
         state.value = ColorFloodState(
@@ -163,6 +370,21 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first pick minus every paused
+     * interval, including a pause that is still running (so the display freezes while the app is
+     * backgrounded instead of ticking on and then jumping back at the win). Null before the first
+     * pick. Once the board is won it is just [finishedElapsedMillis]. Read-only; never mutates the
+     * timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -191,6 +413,8 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         if (colorIndex !in 0 until s.colorCount) return
         if (colorIndex == s.currentColor) return
 
+        captureSnapshot()?.let { history.push(it) }
+        hintColor.value = null
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
 
         val repainted = s.cellColors.mapIndexed { i, color -> if (i in s.territory) colorIndex else color }
@@ -202,6 +426,21 @@ class ColorFloodGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
             puzzlesSolved.value += 1
             freezeTimer()
         }
+    }
+
+    /**
+     * How many cells picking [colorIndex] would ADD to the territory right now: the same
+     * repaint-and-flood [pick] performs, without committing it. 0 for the territory's current
+     * color, an out-of-range index, a won board, an ended session, or before the first board.
+     * Lets the screen label each swatch with what it would absorb (a pick that touches nothing
+     * still costs a move, so "+0" is worth knowing). Read-only; agrees with [pick] by test.
+     */
+    fun absorbCount(colorIndex: Int): Int {
+        val s = state.value ?: return 0
+        if (matchOver.value || s.isOver) return 0
+        if (colorIndex !in 0 until s.colorCount || colorIndex == s.currentColor) return 0
+        val repainted = s.cellColors.mapIndexed { i, color -> if (i in s.territory) colorIndex else color }
+        return floodFrom(repainted, ORIGIN, s.size).size - s.territory.size
     }
 
     private fun freezeTimer() {

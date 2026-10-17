@@ -764,7 +764,8 @@ fun UnoScreen(
                                     score = s.cumulativeScores[p.playerId] ?: 0,
                                     // Crowded narrow tables use the compact plate: the count chip already says
                                     // how many cards, and there is no room for the fan.
-                                    showFan = !layout.compact
+                                    showFan = !layout.compact,
+                                    compactPlate = layout.compact
                                 )
                             }
                         }
@@ -1436,6 +1437,7 @@ private fun ColorPickerDialog(onColorChosen: (UnoColor) -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ChallengeDialog(playedByName: String, onAccept: () -> Unit, onChallenge: () -> Unit) {
     Dialog(onDismissRequest = {}) {
@@ -1450,12 +1452,19 @@ private fun ChallengeDialog(playedByName: String, onAccept: () -> Unit, onChalle
                 style = MaterialTheme.typography.bodySmall
             )
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onAccept) { Text("Accept (draw 4)") }
+            // A flow row, not a Row: on a phone-width window (Fold cover, 344dp) the two buttons don't fit side by
+            // side, and the Row squeezed "Challenge!" into a green sliver that wrapped letter by letter.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onAccept) { Text("Accept (draw 4)", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = onChallenge,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
-                ) { Text("Challenge!") }
+                    // contentColor explicit: buttonColors(containerColor) keeps the THEME's onPrimary, which on the
+                    // Fold's dynamic palette is dark violet -- unreadable on this green.
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White)
+                ) { Text("Challenge!", maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -2370,7 +2379,9 @@ private fun OpponentSeat(
     /** False for the local player's own seat: their real hand is drawn face-up below the table. */
     showFan: Boolean = true,
     /** Cumulative match score; the chip only appears once someone has actually scored. */
-    score: Int = 0
+    score: Int = 0,
+    /** The crowded-table plate: only as wide as the layout gave it, so the name is shortened to fit. */
+    compactPlate: Boolean = false
 ) {
     val ss = seatScale
     val plateShape = RoundedCornerShape(16.dp * ss)
@@ -2442,6 +2453,10 @@ private fun OpponentSeat(
                     color = Color.White,
                     fontWeight = FontWeight.Black,
                     fontSize = (11f * ss).coerceAtLeast(9f).sp,
+                    // Explicit: with only fontSize overridden the text keeps the theme's 24sp line height, which made
+                    // this chip a tall pill and (below) the name pill ~10dp taller than the seat layout budgets for
+                    // on every small seat -- the plates of crowded tables then overlapped each other.
+                    lineHeight = (11f * ss).coerceAtLeast(9f).times(1.2f).sp,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .offset(x = 7.dp * ss, y = 6.dp * ss)
@@ -2461,7 +2476,9 @@ private fun OpponentSeat(
             Spacer(Modifier.height(4.dp * ss))
             Box(
                 modifier = Modifier
-                    .widthIn(max = 124.dp * ss)
+                    // Compact plates (no fan) are only as wide as the layout gave them: cap the name to that so
+                    // crowded rows don't have their names run into each other.
+                    .widthIn(max = if (!compactPlate) 124.dp * ss else maxOf(SEAT_W_COMPACT.dp * ss, COMPACT_MIN_PLATE_W.dp) - 16.dp * ss)
                     .background(
                         if (isTurn) Color(0xFF43A047) else Color(0xFF120C24).copy(alpha = 0.72f),
                         RoundedCornerShape(50)
@@ -2470,9 +2487,12 @@ private fun OpponentSeat(
                     .padding(horizontal = 8.dp * ss, vertical = 2.dp * ss)
             ) {
                 Text(
-                    player.displayName,
+                    if (compactPlate) compactSeatName(player.displayName) else player.displayName,
                     color = Color.White,
-                    fontSize = (12f * ss).coerceAtLeast(9f).sp,
+                    // 8sp floor on compact plates (9sp elsewhere): with no fan the plate is only the width of its name,
+                    // and "Player 10" has to fit a ~58dp plate on a crowded phone table.
+                    fontSize = (12f * ss).coerceAtLeast(if (!compactPlate) 9f else 8f).sp,
+                    lineHeight = (12f * ss).coerceAtLeast(if (!compactPlate) 9f else 8f).times(1.25f).sp,
                     fontWeight = if (isTurn) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2484,7 +2504,8 @@ private fun OpponentSeat(
                     "$score pts",
                     color = panelGold,
                     fontWeight = FontWeight.Bold,
-                    fontSize = (10.5f * ss).coerceAtLeast(9f).sp
+                    fontSize = (10.5f * ss).coerceAtLeast(9f).sp,
+                    lineHeight = (10.5f * ss).coerceAtLeast(9f).times(1.2f).sp
                 )
             }
             if (showFan) {
@@ -2505,6 +2526,20 @@ private fun OpponentSeat(
                     .offset(x = 4.dp, y = (-4).dp)
             )
         }
+    }
+}
+
+/**
+ * A name short enough for a compact plate, and still telling seats apart: "Player 10" -> "P10", "Alex Smith"
+ * -> "AS", one long word -> its first six letters. Short names are left alone.
+ */
+private fun compactSeatName(name: String): String {
+    if (name.length <= 6) return name
+    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    return when {
+        words.size >= 2 && words.last().all { it.isDigit() } -> words.first().take(1).uppercase() + words.last()
+        words.size >= 2 -> words.take(3).joinToString("") { it.take(1).uppercase() }
+        else -> name.take(6) + "…"
     }
 }
 

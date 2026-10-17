@@ -25,7 +25,6 @@ captures/
 # Node (server/)
 node_modules/
 server/server.log
-server/package-lock.json
 
 # ESP32 native playtest build artifacts (esp32-tictactoe/native_test/)
 esp32-tictactoe/native_test/*.exe

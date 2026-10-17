@@ -240,6 +240,35 @@ class ReversiGameTest {
     }
 
     @Test
+    fun `leaveSession on an evenly split session flags no winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        game.sessionWins.value = game.sessionWins.value.keys.associateWith { 1 }
+
+        game.leaveSession()
+        val scores = result!!.scores
+        assertEquals(2, scores.size)
+        assertTrue("a 1-1 session must not flag either player as the winner", scores.none { it.isWinner })
+    }
+
+    @Test
+    fun `leaveSession flags only the strict leader as the session winner`() {
+        val game = newTwoHumanGame()
+        var result: GameResult? = null
+        game.setOnMatchEnd { result = it }
+        game.startMatch()
+        val ids = game.sessionWins.value.keys.toList()
+        game.sessionWins.value = mapOf(ids[0] to 2, ids[1] to 1)
+
+        game.leaveSession()
+        val scores = result!!.scores
+        assertTrue(scores.first { it.playerId == ids[0] }.isWinner)
+        assertFalse(scores.first { it.playerId == ids[1] }.isWinner)
+    }
+
+    @Test
     fun `placeDisc is rejected once the session has ended via leaveSession, even if the board itself was not yet over`() {
         val game = newTwoHumanGame()
         game.startMatch()

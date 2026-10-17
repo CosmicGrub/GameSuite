@@ -19,7 +19,7 @@ uncommitted changes you didn't make, don't build, commit, or stash in it. Make y
 | Kotlin unit tests | `./gradlew :app:testDebugUnitTest :shared:allTests` |
 | Debug APK | `./gradlew :app:assembleDebug` |
 | Rust tests | `cd rust && cargo test --workspace --locked` |
-| Relay server tests | `cd server && npm install && npm test` |
+| Relay server tests | `cd server && npm ci && npm test` |
 
 CI (`.github/workflows/android.yml`) runs the first three on pull requests and pushes to `main`.
 

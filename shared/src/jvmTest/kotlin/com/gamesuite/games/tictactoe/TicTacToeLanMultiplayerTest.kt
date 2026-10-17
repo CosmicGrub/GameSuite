@@ -128,30 +128,63 @@ class TicTacToeLanMultiplayerTest {
         }
     }
 
+    /** A TicTacToe Intent for [cell], as a guest's own game would put it on the wire. */
+    private fun cellIntent(cell: Int): ByteArray = kotlinx.serialization.json.Json.encodeToString(
+        TicTacToeNetMessage.serializer(),
+        TicTacToeNetMessage.Intent(TicTacToeIntentPayload.CellClicked(cell))
+    ).encodeToByteArray()
+
+    /** Plays the guest's legitimate first move (cell 0), leaving it the HOST's turn. */
+    private fun guestPlaysCellZero(pair: ConnectedPair) {
+        pair.guest.cellClicked(0)
+        awaitCondition("the host to apply the guest's move") { pair.host.board.value[0] == 2 }
+        awaitCondition("the guest to see it confirmed") { pair.guest.currentPlayer.value == 1 }
+    }
+
     @Test
-    fun hostIgnoresAnIntentClaimingTheWrongPlayersTurn() {
+    fun hostIgnoresAnIntentFromAPlayerWhoseTurnItIsNot() {
         val pair = setUpConnectedPair()
         try {
-            // It's player 2's (the guest's) turn at this point. LanMultiplayerTransport
-            // trusts a message frame's own declared fromPlayerId at delivery time (the same
-            // design OnlineTransport's own relay already uses -- see its "message" case
-            // trusting msg.fromPlayerId) -- the actual defense against a wrong-seat move is
-            // meant to live in the GAME layer's own handling, which is exactly what this test
-            // exercises: a real Intent sent over the guest's own live connection, but
-            // dishonestly claiming to be from "host-p" instead of the guest's own "guest-p".
-            // Since currentPlayer is 2 (index 1, the guest's own real seat) and this frame
-            // claims sender index 0, TicTacToeGame.handleNetworkMessage's own
-            // senderIndex != currentPlayer.value - 1 check must reject it -- cell 1 stays
-            // untouched on both sides either way.
-            val badIntentPayload = kotlinx.serialization.json.Json.encodeToString(
-                TicTacToeNetMessage.serializer(),
-                TicTacToeNetMessage.Intent(TicTacToeIntentPayload.CellClicked(1))
-            )
-            pair.guestTransport.send(fromPlayerId = "host-p", toPlayerId = "host-p", payload = badIntentPayload.encodeToByteArray())
+            guestPlaysCellZero(pair) // now it is the host's turn, so the guest is out of turn
+            pair.guestTransport.send(fromPlayerId = "guest-p", toPlayerId = "host-p", payload = cellIntent(1))
 
             Thread.sleep(300) // give a wrongful apply a real chance to happen before asserting it didn't
             assertEquals(0, pair.host.board.value[1])
             assertEquals(0, pair.guest.board.value[1])
+        } finally {
+            pair.disconnect()
+        }
+    }
+
+    @Test
+    fun aGuestForgingTheHostsIdCannotTakeTheHostsTurn() {
+        val pair = setUpConnectedPair()
+        try {
+            guestPlaysCellZero(pair) // the host's turn: exactly when impersonating the host would pay off
+            // The guest's own connection, but the frame claims to be from the host. LanMultiplayerTransport
+            // used to believe that claim, so the host game would have played cell 1 AS the host. The
+            // host now stamps the sender from the connection, so this arrives as "guest-p": out of turn.
+            pair.guestTransport.send(fromPlayerId = "host-p", toPlayerId = "host-p", payload = cellIntent(1))
+
+            Thread.sleep(300)
+            assertEquals(0, pair.host.board.value[1])
+            assertEquals(0, pair.guest.board.value[1])
+        } finally {
+            pair.disconnect()
+        }
+    }
+
+    @Test
+    fun aForgedSenderClaimIsDisregardedSoTheMoveIsJudgedAsTheGuestsOwn() {
+        val pair = setUpConnectedPair()
+        try {
+            // It is the guest's own turn here, and the frame (falsely) says it is from the host. The
+            // claim is ignored rather than the frame rejected: it is judged, and applied, as the
+            // guest's own move. Before the fix the same frame was dropped as "the host moving out of turn".
+            pair.guestTransport.send(fromPlayerId = "host-p", toPlayerId = "host-p", payload = cellIntent(1))
+
+            awaitCondition("the host to apply it as the guest's move") { pair.host.board.value[1] == 2 }
+            awaitCondition("the guest to see the broadcast") { pair.guest.board.value[1] == 2 }
         } finally {
             pair.disconnect()
         }

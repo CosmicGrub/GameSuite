@@ -533,4 +533,133 @@ class SudokuGameTest {
         game.leaveSession()
         assertTrue("leaveSession() after a fresh startMatch() must actually end the match", game.matchOver.value)
     }
+
+    /** An EASY game on a caller-controlled clock, so a test can move time by hand. */
+    private fun newEasyGameOnClock(clock: () -> Long): SudokuGame {
+        val game = SudokuGame(nowMillis = clock)
+        game.init(
+            GameContext(
+                activeMode = PlayMode.SINGLE_PLAYER_VS_BOT,
+                players = listOf(PlayerInfo(playerId = "p1", displayName = "Player 1")),
+                localPlayerIndex = 0,
+                transport = LocalPassAndPlayTransport()
+            )
+        )
+        game.difficulty = CpuDifficulty.EASY
+        return game
+    }
+
+    @Test
+    fun `setValue, toggleNote and clearValue report whether they actually changed anything`() {
+        // The screen used to play its placement tap and haptic for every digit press, including
+        // ones the engine silently ignored (no cell selected, a given cell, a note on a filled
+        // cell). The return value is what lets it tell the player nothing happened.
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 5L)
+        val s = game.state.value!!
+        val givenIndex = s.cells.indices.first { s.cells[it].isGiven }
+        val emptyIndex = s.cells.indices.first { !s.cells[it].isGiven }
+
+        assertFalse("nothing is selected yet", game.setValue(1))
+        assertFalse("nothing is selected yet", game.toggleNote(1))
+        assertFalse("nothing is selected yet", game.clearValue())
+
+        game.selectCell(givenIndex)
+        assertFalse("a given cell takes no digit", game.setValue((s.solution[givenIndex] % 9) + 1))
+        assertFalse("a given cell takes no note", game.toggleNote(1))
+        assertFalse("a given cell cannot be erased", game.clearValue())
+
+        game.selectCell(emptyIndex)
+        assertFalse("an empty cell has no digit to erase", game.clearValue())
+        assertTrue("a note on an empty cell is applied", game.toggleNote(3))
+        assertTrue("a digit on an empty cell is applied", game.setValue(s.solution[emptyIndex]))
+        assertFalse("a cell that holds a digit takes no note", game.toggleNote(3))
+        assertTrue("erasing a placed digit is applied", game.clearValue())
+
+        assertTrue("a WRONG digit is still applied (it just counts as a mistake)", game.setValue((s.solution[emptyIndex] % 9) + 1))
+        assertEquals(1, game.state.value!!.mistakes)
+
+        game.leaveSession()
+        assertFalse("no digit after the session ended", game.setValue(s.solution[emptyIndex]))
+        assertFalse("no note after the session ended", game.toggleNote(2))
+        assertFalse("no erase after the session ended", game.clearValue())
+    }
+
+    @Test
+    fun `setValue reports false once the board is won`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 9L)
+        val s = game.state.value!!
+        for (i in s.cells.indices) {
+            if (!s.cells[i].isGiven) {
+                game.selectCell(i)
+                assertTrue(game.setValue(s.solution[i]))
+            }
+        }
+        assertTrue(game.state.value!!.won)
+        assertFalse("a won board takes no further digits", game.setValue(1))
+        assertFalse("a won board takes no further notes", game.toggleNote(1))
+        assertFalse("a won board cannot be erased", game.clearValue())
+    }
+
+    @Test
+    fun `selectCell is ignored once the session has ended`() {
+        val game = newGame(CpuDifficulty.EASY)
+        game.startMatch(dailySeed = 5L)
+        game.selectCell(10)
+        assertEquals(10, game.state.value!!.selectedIndex)
+
+        game.leaveSession()
+        val stateAtLeave = game.state.value
+
+        game.selectCell(20)
+        assertEquals("a selectCell() after leaveSession() must be a total no-op", stateAtLeave, game.state.value)
+    }
+
+    @Test
+    fun `activeElapsedMillis is null before the first digit, freezes while paused, and ends equal to the recorded solve time`() {
+        // The screen's live clock used to compute `now - timerStartElapsedRealtime` itself, which
+        // keeps ticking through a pause and then jumps DOWN at the solve (the recorded time
+        // subtracts the paused interval). activeElapsedMillis() is that same arithmetic in the engine.
+        var clock = 1_000L
+        val game = newEasyGameOnClock { clock }
+        game.startMatch(dailySeed = 5L)
+        assertNull("no digit yet, so the stopwatch has not started", game.activeElapsedMillis())
+
+        val s = game.state.value!!
+        val empties = s.cells.indices.filter { !s.cells[it].isGiven }
+        game.selectCell(empties[0])
+        game.toggleNote(1)
+        assertNull("a pencil note does not start the stopwatch", game.activeElapsedMillis())
+
+        clock = 2_000L
+        game.setValue(s.solution[empties[0]]) // starts the stopwatch at t=2000
+        assertEquals(0L, game.activeElapsedMillis())
+
+        clock = 2_060L
+        assertEquals(60L, game.activeElapsedMillis())
+
+        clock = 2_100L
+        game.pause()
+        clock = 9_000L // the app sits in the background
+        assertEquals("the display must freeze while paused", 100L, game.activeElapsedMillis())
+
+        game.resume() // 6_900ms were paused
+        assertEquals(100L, game.activeElapsedMillis())
+        clock = 9_050L
+        assertEquals(150L, game.activeElapsedMillis())
+
+        for (i in empties.drop(1)) {
+            game.selectCell(i)
+            game.setValue(s.solution[i])
+        }
+        assertTrue(game.state.value!!.won)
+        val finished = game.finishedElapsedMillis.value!!
+        assertEquals(150L, finished)
+        clock = 20_000L
+        assertEquals("once won, the live reading is exactly the recorded solve time", finished, game.activeElapsedMillis())
+
+        game.startMatch(dailySeed = 6L)
+        assertNull("a fresh board has not started its stopwatch", game.activeElapsedMillis())
+    }
 }

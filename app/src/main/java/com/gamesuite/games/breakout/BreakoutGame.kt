@@ -22,7 +22,17 @@ import kotlin.random.Random
  * brainstorm doc's own reasoning for why this is lower-risk than Tower Defence.
  *
  * Coordinates: normalized 0f..1f on both axes, y=0 top / y=1 bottom, same convention as
- * AirHockeyGame — the UI multiplies by canvas width/height when drawing.
+ * AirHockeyGame — the UI multiplies by canvas width/height when drawing. The play field is NOT
+ * square: the UI draws it [BOARD_ASPECT] times taller than wide, so one normalized unit is a
+ * longer distance on y than on x. The ball is a circle on screen, so its radius is
+ * [BALL_RADIUS] along x and [BALL_RADIUS_Y] along y, and [circleRectHit] measures overlap in
+ * screen space; otherwise the collision shape is a tall ellipse that bounces a few dp before
+ * the drawn ball touches anything and leaves it floating above the paddle.
+ *
+ * PAUSE: [pause] freezes a ball that is in flight (see its KDoc) and, unlike a plain
+ * "stop the clock" pause, [resume] deliberately does NOT unfreeze it; the player does, with
+ * [resumePlay], so coming back from the background or from a dialog never drops them into a
+ * live ball.
  *
  * No approved design doc exists for this one (unlike Edge Match/Party Toolkit) — the
  * brainstorm doc's own scope note is the only prior decision, and it doesn't flag this
@@ -59,12 +69,11 @@ import kotlin.random.Random
  *    replicated here: the failure mode is far less consequential in this game (a missed
  *    brick hit just leaves that brick alive for a later pass; a missed paddle catch costs
  *    one life) than Air Hockey's own case (a missed paddle block there is an unfair
- *    conceded goal, a direct match-outcome impact), and it only manifests at the
- *    `dtSeconds` clamp's 0.05s worst case combined with the fastest ball speed this game
- *    ever reaches — normal 60fps frames (~0.0167s) are nowhere near it. [MAX_SPEED_MULTIPLIER]
- *    and each tier's [DifficultyConfig.ballSpeed] were chosen to keep that worst case
- *    comfortably rare, not to make it impossible — a real, named trade-off rather than an
- *    unexamined gap.
+ *    conceded goal, a direct match-outcome impact). Instead [tick] splits any frame longer
+ *    than [MAX_SUBSTEP_SECONDS] into two halves, which keeps one step shorter than the
+ *    paddle's (smallest) collision window even at the fastest ball speed this game ever
+ *    reaches (the Hard tier at [MAX_SPEED_MULTIPLIER]); normal 60fps frames (~0.0167s) are
+ *    never split.
  *  - Ball launch angle is genuinely randomized (via [Random], not an injectable seed) —
  *    there's no puzzle-solvability or daily-challenge concern riding on it the way
  *    SlidingPuzzleGame.scramble's own random source has, so this doesn't need the
@@ -83,8 +92,19 @@ class BreakoutGame : GameModule {
     companion object {
         const val PADDLE_Y = 0.92f
         const val PADDLE_HALF_HEIGHT = 0.012f
+
+        /** Height of the play field divided by its width, as the UI lays it out. The screen must
+         *  size its canvas to exactly this ratio (see BreakoutScreen) or the ball stops being a
+         *  circle on screen. */
+        const val BOARD_ASPECT = 1.35f
+
+        /** Ball radius in normalized x units (a fraction of the field's WIDTH). */
         const val BALL_RADIUS = 0.014f
-        const val RESTING_BALL_Y = PADDLE_Y - PADDLE_HALF_HEIGHT - BALL_RADIUS
+
+        /** The same physical radius in normalized y units (a fraction of the field's HEIGHT):
+         *  [BALL_RADIUS] / [BOARD_ASPECT], so the ball is a circle on screen. */
+        const val BALL_RADIUS_Y = BALL_RADIUS / BOARD_ASPECT
+        const val RESTING_BALL_Y = PADDLE_Y - PADDLE_HALF_HEIGHT - BALL_RADIUS_Y
 
         const val STARTING_LIVES = 3
         const val BRICK_ROWS = 5
@@ -100,6 +120,15 @@ class BreakoutGame : GameModule {
         const val LEVEL_SPEED_GROWTH = 0.06f
         const val MAX_SPEED_MULTIPLIER = 1.6f
 
+        /**
+         * The longest single physics step [tick] takes; a longer frame is simulated as two halves.
+         * The top speed tier moves the ball 1.088 field-heights per second (0.68 * [MAX_SPEED_MULTIPLIER]),
+         * so a 0.03s step moves it at most 0.033, comfortably under the paddle's collision window
+         * (the paddle's height plus the ball's diameter: 2 * [PADDLE_HALF_HEIGHT] + 2 * [BALL_RADIUS_Y]
+         * = 0.045). One unsplit 0.05s step would move it 0.054, enough to skip the paddle.
+         */
+        const val MAX_SUBSTEP_SECONDS = 0.03f
+
         /** How much a paddle-hit's offset from the paddle's own center steers the ball's
          *  x velocity on the bounce (see [tick]'s paddle-collision block) — the classic
          *  Breakout "aim with where you catch it" feel, not just a flat vertical bounce. */
@@ -114,6 +143,15 @@ class BreakoutGame : GameModule {
          *  actual (narrower, cheaper-to-guard) failure mode rather than a general stall
          *  timeout. */
         const val MIN_VERTICAL_SPEED_FRACTION = 0.35f
+
+        /**
+         * Whether a finished run's [score] sets a new record given the tier's [existing] best
+         * (null when that tier has never been played to a game-over). A run that scored nothing
+         * never sets a record, even on a tier with no history: otherwise the very first run, if
+         * it ended on 0, was celebrated as a "New best!".
+         */
+        fun isNewBestScore(existing: Int?, score: Int): Boolean =
+            score > 0 && (existing == null || score > existing)
     }
 
     /** See the class KDoc's DIFFICULTY section — brick grid stays fixed; only paddle width
@@ -171,6 +209,16 @@ class BreakoutGame : GameModule {
      *  see [BreakoutState.gameOver]'s KDoc. */
     val matchOver = mutableStateOf(false)
 
+    /** True while a ball in flight is frozen by [pause]; cleared by [resumePlay] or a new run
+     *  ([startMatch]). Never true while the ball rests on the paddle or after the run is over
+     *  (nothing is simulated then). Observable so the UI can show its "Paused" scrim. */
+    val paused = mutableStateOf(false)
+
+    /** How many runs this session have actually ended (lives reached 0). A run still in
+     *  progress is not counted: this is the "finished unit" the screen's leave-confirm uses to
+     *  decide whether quitting is a pure abort or still reports the session's finished runs. */
+    val runsFinished = mutableStateOf(0)
+
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
@@ -199,21 +247,40 @@ class BreakoutGame : GameModule {
             ballPos = Offset(0.5f, RESTING_BALL_Y),
             runSeq = state.value.runSeq + 1
         )
+        paused.value = false
         matchOver.value = false
     }
 
     /**
-     * Genuine no-ops — same real, already-shipped precedent as
-     * [com.gamesuite.games.airhockey.AirHockeyGame.pause]/`resume`, not a fresh guess. There's
-     * no wall-clock solve-timer here for a backgrounding gap to silently inflate (the bug every
-     * solo PUZZLE game in this batch had to fix); the only state that advances with real time is
-     * the physics [tick] loop itself, which the UI's own `withFrameNanos` loop simply stops
-     * calling while the screen isn't being drawn, and [tick]'s own `dtSeconds.coerceIn(0f, 0.05f)`
-     * clamp (see the class KDoc) already prevents a huge stale `dt` on resume from teleporting
-     * the ball. Nothing extra to track.
+     * Freezes a ball that is in flight: [tick] and [movePaddle] ignore everything until
+     * [resumePlay]. Called from the host Activity's onPause (via GameSessionManager) and by the
+     * screen whenever its window loses focus (a menu or dialog opened, the notification shade
+     * came down, split-screen focus moved). There is no wall-clock timer to protect here; what
+     * this prevents is a live ball being lost while the player is not looking at it.
+     *
+     * A no-op, and so idempotent, when already paused, when the ball is resting on the paddle
+     * (nothing is simulated), or once the run or session is over. The first call after a launch
+     * wins; later calls change nothing.
      */
-    override fun pause() {}
+    override fun pause() {
+        if (paused.value) return
+        val s = state.value
+        if (matchOver.value || s.gameOver || !s.ballLaunched) return
+        paused.value = true
+    }
+
+    /**
+     * The host Activity's onResume. Intentionally leaves a paused run paused: the player must opt
+     * back in with [resumePlay] (a tap on the screen's "Paused" scrim), so returning from the
+     * background never drops them into a ball that is already moving. Idempotent trivially.
+     */
     override fun resume() {}
+
+    /** The player's own "carry on": unfreezes a run paused by [pause]. A no-op when not paused. */
+    fun resumePlay() {
+        if (!paused.value) return
+        paused.value = false
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -222,7 +289,7 @@ class BreakoutGame : GameModule {
 
     fun movePaddle(x: Float) {
         val s = state.value
-        if (matchOver.value || s.gameOver) return
+        if (matchOver.value || s.gameOver || paused.value) return
         val clampedX = x.coerceIn(s.paddleHalfWidth, 1f - s.paddleHalfWidth)
         state.value = if (!s.ballLaunched) {
             // Ball rides along with the paddle while resting on it, pre-launch.
@@ -252,11 +319,19 @@ class BreakoutGame : GameModule {
 
     /** Called every frame from the UI's game loop with elapsed seconds — same shape as
      *  AirHockeyGame.tick(dtSeconds). A no-op while the session or this run has already ended,
-     *  or while the ball is still resting pre-launch (nothing to simulate yet). */
+     *  while the ball is still resting pre-launch (nothing to simulate yet), or while [paused]. */
     fun tick(dtSeconds: Float) {
         val s = state.value
-        if (matchOver.value || s.gameOver || !s.ballLaunched) return
+        if (matchOver.value || s.gameOver || !s.ballLaunched || paused.value) return
         val dt = dtSeconds.coerceIn(0f, 0.05f) // see the class KDoc's tunneling scope-cut note
+        if (dt > MAX_SUBSTEP_SECONDS) {
+            // A hitch (a slow frame) is two shorter steps, so the ball cannot jump past the paddle
+            // in one. The second call re-checks the guards above, so it does nothing if the first
+            // half already lost a life, cleared the level or ended the run.
+            tick(dt / 2f)
+            tick(dt / 2f)
+            return
+        }
 
         var ball = s.ballPos + s.ballVel * dt
         var vel = s.ballVel
@@ -273,8 +348,8 @@ class BreakoutGame : GameModule {
             eventSeq++; wallBounce = WallBounceEvent(eventSeq, ball)
         }
         // Top wall -- fully elastic; only reachable once the top row(s) are gone or through a gap.
-        if (ball.y - BALL_RADIUS < 0f) {
-            ball = ball.copy(y = BALL_RADIUS); vel = vel.copy(y = -vel.y)
+        if (ball.y - BALL_RADIUS_Y < 0f) {
+            ball = ball.copy(y = BALL_RADIUS_Y); vel = vel.copy(y = -vel.y)
             eventSeq++; wallBounce = WallBounceEvent(eventSeq, ball)
         }
 
@@ -321,18 +396,21 @@ class BreakoutGame : GameModule {
                 val newVx = hitOffset * speedNow * PADDLE_ANGLE_FACTOR
                 val newVy = -sqrt((speedNow * speedNow - newVx * newVx).coerceAtLeast(speedNow * speedNow * 0.1f))
                 vel = Offset(newVx, newVy)
-                ball = ball.copy(y = paddleRect.top - BALL_RADIUS)
+                ball = ball.copy(y = paddleRect.top - BALL_RADIUS_Y)
                 eventSeq++; paddleBounce = PaddleBounceEvent(eventSeq, ball)
             }
         }
 
         // Life lost -- ball fell past the paddle.
-        if (ball.y - BALL_RADIUS > 1f) {
+        if (ball.y - BALL_RADIUS_Y > 1f) {
             val livesRemaining = s.lives - 1
             val over = livesRemaining <= 0
             eventSeq++
             val lifeLost = LifeLostEvent(eventSeq, livesRemaining, over)
-            if (over) bestScoreThisSession = maxOf(bestScoreThisSession, score)
+            if (over) {
+                bestScoreThisSession = maxOf(bestScoreThisSession, score)
+                runsFinished.value += 1
+            }
             state.value = s.copy(
                 lives = livesRemaining,
                 score = score,
@@ -387,12 +465,15 @@ class BreakoutGame : GameModule {
         startMatch()
     }
 
-    /** Called from the finished-run panel's (or in-progress screen's) "Back to Menu" button —
-     *  ends the whole session, reporting [bestScoreThisSession] — same shape as
-     *  LightsOutGame.leaveSession() reporting `puzzlesSolved`. */
+    /** Called from the finished-run panel's "Back to Menu" button, and by the screen's
+     *  leave-confirm when earlier runs were already finished — ends the whole session, reporting
+     *  [bestScoreThisSession] — same shape as LightsOutGame.leaveSession() reporting
+     *  `puzzlesSolved`. Only FINISHED runs count: [bestScoreThisSession] is folded in when a run
+     *  ends (see [tick]'s life-lost block), and a run still in progress here is abandoned, so
+     *  quitting mid-run can never bank a partial score (the personal-best store likewise only
+     *  records at game over). */
     fun leaveSession() {
         if (matchOver.value) return
-        bestScoreThisSession = maxOf(bestScoreThisSession, state.value.score)
         val player = context.players.getOrNull(context.localPlayerIndex)
         val result = GameResult(
             scores = if (player != null) listOf(
@@ -423,11 +504,14 @@ class BreakoutGame : GameModule {
      *  collision scope cut) — reflect `vel.x`. */
     private data class CircleRectHit(val hit: Boolean, val hitVertical: Boolean)
 
+    /** [radius] is the ball's radius in normalized x units ([BALL_RADIUS]). The y distance is
+     *  scaled by [BOARD_ASPECT] first so the overlap is measured in screen space (a true circle),
+     *  not in the stretched normalized space (an ellipse) — see the class KDoc. */
     private fun circleRectHit(ball: Offset, radius: Float, rect: Rect): CircleRectHit {
         val closestX = ball.x.coerceIn(rect.left, rect.right)
         val closestY = ball.y.coerceIn(rect.top, rect.bottom)
         val dx = ball.x - closestX
-        val dy = ball.y - closestY
+        val dy = (ball.y - closestY) * BOARD_ASPECT
         if (dx * dx + dy * dy >= radius * radius) return CircleRectHit(hit = false, hitVertical = false)
         return CircleRectHit(hit = true, hitVertical = ball.x in rect.left..rect.right)
     }

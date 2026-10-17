@@ -45,8 +45,9 @@ import kotlin.math.roundToInt
  * ([UPGRADE_COST_GROWTH]) up to [MAX_UPGRADE_LEVEL].
  *
  * PAUSE: a genuinely different shape from every other real-time game's own `pause()`/`resume()`
- * in this app (AirHockeyGame/BreakoutGame's are empty no-ops — see BreakoutGame's own KDoc for
- * why that's the right call THERE). Tower Defence's strategic, think-under-pressure pacing makes
+ * in this app (AirHockeyGame's are empty no-ops; BreakoutGame's pause() freezes only a ball in
+ * flight and its resume() deliberately leaves it frozen for the player to restart — see
+ * BreakoutGame's own KDoc). Tower Defence's strategic, think-under-pressure pacing makes
  * an actual "freeze the simulation, review the board, place/upgrade towers" pause a real genre
  * expectation, per the design doc. [TowerDefenceState.paused] is checked by [tick] and returns
  * early on it — but deliberately NOT by [placeTower]/[upgradeTower], since reviewing the board and

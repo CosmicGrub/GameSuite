@@ -19,6 +19,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The smoke test finishes in seconds; without this a hang would run for GitHub's 6 hour default.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: server

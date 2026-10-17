@@ -14,10 +14,16 @@ import java.io.InputStreamReader
 object WordDictionary {
     private var allWords: Set<String> = emptySet()
     private var byLength: Map<Int, List<String>> = emptyMap()
+    // @Volatile + @Synchronized: Word Search loads this off the main thread (Dispatchers.Default)
+    // while other word games may call ensureLoaded from the main thread.
+    @Volatile
     private var loaded = false
 
+    @Synchronized
     fun ensureLoaded(context: Context) {
         if (loaded) return
+        // mutableSetOf() is insertion-ordered (LinkedHashSet) on purpose: wordsOfLength() must come
+        // back in file order, because the seeded Daily Word Search indexes into it.
         val words = mutableSetOf<String>()
         context.assets.open("words.txt").use { stream ->
             BufferedReader(InputStreamReader(stream)).useLines { lines ->

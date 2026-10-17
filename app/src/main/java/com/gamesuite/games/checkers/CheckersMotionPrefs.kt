@@ -12,8 +12,9 @@ import kotlinx.coroutines.flow.map
 /**
  * Checkers' own 3-tier motion-intensity setting (premium-2026-vision pitch:
  * unlike Tic-Tac-Toe's deliberately-left-alone single scale-in, Checkers'
- * gap between "flat literal Color fill" and the full wood/felt+hit-stop+
- * haptics treatment is wide enough that a real 3-way split earns its keep).
+ * gap between plain instant moves and the full sheen + hit-stop + camera-
+ * shake treatment is wide enough that a real 3-way split earns its keep;
+ * the wood/felt board art itself is drawn at every tier).
  * Composes with, rather than replaces, the existing global gates
  * ([com.gamesuite.settings.LocalCard3DMode]/[com.gamesuite.settings.LocalEnhancedAnimations]) —
  * see CheckersScreen's own `effectiveTier`/`card3D`/`enhanced`/`maximum` for
@@ -24,17 +25,19 @@ import kotlinx.coroutines.flow.map
  *    other screen's motion in this project (and IS forced whenever that
  *    system-wide setting is on, regardless of this preference — see
  *    CheckersScreen's `effectiveTier`). No lift/hop, no capture-fade, no
- *    promotion flip, no wood/felt shader, no hit-stop/camera-shake, no new
- *    haptics.
+ *    promotion flip, no board sheen shader, no hit-stop/camera-shake.
  *  - [STANDARD]: today's already-shipped motion only — the lift/hop glide,
  *    promotion [com.gamesuite.games.cards.card3DFlip], and per-hop
  *    capture-fade this screen already had before this pass (still gated by
- *    the existing global settings exactly as before). No wood/felt shader,
- *    no hit-stop/camera-shake, no new haptics.
- *  - [MAXIMUM]: everything [STANDARD] has, plus this pass's additions — the
- *    wood-grain+felt board and lacquered-piece/metallic-crown shader
- *    treatment, capture hit-stop + camera shake, and the full haptic
- *    vocabulary.
+ *    the existing global settings exactly as before). No board sheen shader,
+ *    no hit-stop/camera-shake.
+ *  - [MAXIMUM]: everything [STANDARD] has, plus the single shared specular
+ *    sheen drifting across the wood board and pieces, and capture hit-stop +
+ *    camera shake.
+ *
+ * Haptics are NOT part of this tier: CheckersScreen fires its haptic
+ * vocabulary at every tier, gated only by the master haptics setting
+ * (`LocalHapticsEnabled` via `rememberHaptics`).
  */
 enum class CheckersMotionTier { OFF, STANDARD, MAXIMUM }
 

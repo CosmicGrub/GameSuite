@@ -33,6 +33,15 @@ interface GameModule {
 
     /** Called by the game itself when the match concludes, or by the shell to force-quit. */
     fun endMatch(result: GameResult)
+
+    /**
+     * The player left mid-match (back-confirm, corner menu). Ends the match with
+     * `wasAborted = true` and no scores, which GameSessionManager.endActiveGame never records to
+     * stats -- quitting is not a win or a loss. A default so every game gets one uniform abort
+     * path instead of each engine growing its own `abortSession()`; override only if an engine's
+     * [endMatch] needs different teardown for an abort.
+     */
+    fun abortMatch() = endMatch(GameResult(wasAborted = true))
 }
 
 /**
