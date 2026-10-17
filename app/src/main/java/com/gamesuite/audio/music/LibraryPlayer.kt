@@ -43,6 +43,9 @@ class LibraryPlayer(
         var fadingIn = true
         var nearEndFired = false
 
+        /** True only for a natural near-end hand-over, which may wait for its fade window (see [maybeStartHandoff]). */
+        var holdForTail = false
+
         fun startFade(inbound: Boolean, ms: Long) {
             fadingIn = inbound
             fadeMs = ms
@@ -155,7 +158,7 @@ class LibraryPlayer(
     // ---- transport ------------------------------------------------------------------------
 
     /** Start [track]; if something is playing it fades out over [fadeMs] while this fades in. */
-    fun play(track: MusicTrack, fadeMs: Long) {
+    fun play(track: MusicTrack, fadeMs: Long, nearEnd: Boolean = false) {
         cancelPending()
         if (!requestFocus()) {
             callbacks.onFocusDenied()
@@ -165,6 +168,7 @@ class LibraryPlayer(
         val mp = MediaPlayer()
         val slot = Slot(mp, track.id)
         slot.fadeMs = fadeMs.coerceAtLeast(0L)
+        slot.holdForTail = nearEnd
         pending = slot
         try {
             mp.setAudioAttributes(attrs)
@@ -190,8 +194,34 @@ class LibraryPlayer(
             slot.release()
             return
         }
-        pending = null
         slot.durationMs = try { slot.player.duration.toLong().coerceAtLeast(0L) } catch (_: Exception) { 0L }
+        maybeStartHandoff(slot)
+    }
+
+    /**
+     * A natural near-end hand-over is requested a full outgoing window early, but its fade can be
+     * shorter (a short incoming track). Hold the prepared track until exactly that many ms of media
+     * remain, so the outgoing track's tail is not cut. The remaining time is re-read from the player
+     * each time (a buffering stream may stop advancing), and the slot stays `pending`, so pause, stop or a
+     * new play cancel it. Explicit skips (not [Slot.holdForTail]) start at once.
+     */
+    private fun maybeStartHandoff(slot: Slot) {
+        if (slot !== pending) return
+        val current = active
+        if (current != null && slot.fadeMs > 0L && current.durationMs > 0L) {
+            val remaining = current.durationMs - (try { current.player.currentPosition.toLong() } catch (_: Exception) { 0L })
+            val wait = Crossfade.handoffDelayMs(slot.holdForTail, remaining, slot.fadeMs)
+            if (wait > 0L) {
+                handler.postDelayed({ maybeStartHandoff(slot) }, wait)
+                return
+            }
+        }
+        startPrepared(slot)
+    }
+
+    private fun startPrepared(slot: Slot) {
+        if (slot !== pending) return
+        pending = null
         val old = active
         outgoing?.release()
         outgoing = null

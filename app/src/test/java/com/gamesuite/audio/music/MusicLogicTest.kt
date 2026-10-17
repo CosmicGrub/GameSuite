@@ -318,6 +318,66 @@ class MusicLogicTest {
         assertEquals("c", q.next(false))
     }
 
+    @Test fun restoreDoesNotBringBackACurrentTrackThatLeftTheList() {
+        val q = PlaybackQueue(Random(8))
+        q.setList(ids("a", "b", "c"))
+        q.next(false); q.next(false) // a, b
+        val snap = q.snapshot()      // current = b
+        q.setList(ids("a", "c"))     // b was disabled or removed
+        q.restore(snap)
+        assertNull("a disabled track must not be resumable through the queue", q.current)
+    }
+
+    @Test fun handoffWaitsUntilTheFadeWindowRemains() {
+        // 3 s left when the next track is ready but its fade is only 1 s: wait 2 s so the tail is not cut.
+        assertEquals(2000L, Crossfade.handoffDelayMs(remainingMs = 3000L, fadeMs = 1000L))
+        // the fade is as long as what remains (or longer): start at once
+        assertEquals(0L, Crossfade.handoffDelayMs(3000L, 3000L))
+        assertEquals(0L, Crossfade.handoffDelayMs(2000L, 3000L))
+        // a difference within the slack is not worth waiting for
+        assertEquals(0L, Crossfade.handoffDelayMs(3100L, 3000L))
+        // no fade or nothing left: never wait
+        assertEquals(0L, Crossfade.handoffDelayMs(3000L, 0L))
+        assertEquals(0L, Crossfade.handoffDelayMs(0L, 1000L))
+    }
+
+    // ---- regression guard: explicit track changes must never wait for a crossfade window ----------
+
+    @Test fun anExplicitTrackChangeNeverWaitsHoweverMuchOfTheCurrentTrackRemains() {
+        // Next/Previous with two minutes left and a 3 s fade: start at once.
+        assertEquals(0L, Crossfade.handoffDelayMs(nearEnd = false, remainingMs = 120_000L, fadeMs = 3_000L))
+        assertEquals(0L, Crossfade.handoffDelayMs(nearEnd = false, remainingMs = 3_500L, fadeMs = 1_000L))
+        // only the natural near-end hand-over waits (3 s left, 1 s fade -> wait 2 s)
+        assertEquals(2_000L, Crossfade.handoffDelayMs(nearEnd = true, remainingMs = 3_000L, fadeMs = 1_000L))
+        assertEquals(0L, Crossfade.handoffDelayMs(nearEnd = true, remainingMs = 1_000L, fadeMs = 1_000L))
+    }
+
+    private fun musicManagerSource(): String {
+        val rel = "src/main/java/com/gamesuite/audio/music/MusicManager.kt"
+        val f = listOf(java.io.File(rel), java.io.File("app/$rel")).first { it.exists() }
+        return f.readText().replace("\r\n", "\n")
+    }
+
+    /** The text from [signature] up to the next member declaration, so a test inspects one function body. */
+    private fun bodyOf(src: String, signature: String): String {
+        val start = src.indexOf(signature)
+        require(start >= 0) { "missing $signature" }
+        val next = Regex("\n    (private |override |internal |fun |/\\*\\*)").find(src, start + signature.length)
+        return src.substring(start, next?.range?.first ?: src.length)
+    }
+
+    @Test fun onlyTheNaturalAdvanceEverRequestsAHeldHandoff() {
+        val src = musicManagerSource()
+        // The explicit paths must not mention nearEnd at all: they use playById's default (false).
+        for (sig in listOf("fun skipNext()", "fun skipPrevious()")) {
+            assertFalse("$sig must not request a held hand-over", bodyOf(src, sig).contains("nearEnd"))
+        }
+        // Exactly one call site passes a non-false nearEnd, and it is the natural advance, derived from the near-end flag.
+        val passes = Regex("nearEnd\\s*=\\s*[^\\n,)]+").findAll(src).map { it.value.replace(" ", "") }.toList()
+        assertEquals("only one call may pass nearEnd, got $passes", 1, passes.count { it != "nearEnd=false" })
+        assertTrue(bodyOf(src, "private fun advanceAfterEnd").contains("nearEnd = fadeMs < 0L"))
+    }
+
     @Test fun atomicWriteReplacesAndKeepsOldFileOnFailure() {
         val target = java.io.File(tmpDir.root, "lib.json")
         val f = AtomicTextFile(target)

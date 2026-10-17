@@ -70,7 +70,9 @@ class PlaybackQueue(private val rng: Random = Random.Default) {
 
     /** Roll the position back to [s]; ids no longer in the list are dropped from played/history. */
     fun restore(s: State) {
-        current = s.current
+        // A committed track that has since left the list (disabled, rescanned away) must not become current
+        // again: Previous and resume would otherwise play a track the user turned off.
+        current = s.current?.takeIf { it in ids }
         played.clear()
         played.addAll(s.played.filter { it in ids })
         history.clear()
@@ -154,6 +156,26 @@ object Crossfade {
     }
 
     /** Should the next track start now so the fade overlaps the end of the current one? */
+    /**
+     * How long to wait after the next track is ready before starting its hand-over. The trigger fires a
+     * full OUTGOING window before the end, but the fade is capped by the shorter of the two tracks, so
+     * starting it at once would release the outgoing track early and cut its tail. Wait until exactly
+     * [fadeMs] remain; differences within [slackMs] are not worth waiting for.
+     */
+    fun handoffDelayMs(remainingMs: Long, fadeMs: Long, slackMs: Long = 150L): Long {
+        if (fadeMs <= 0L || remainingMs <= 0L) return 0L
+        val wait = remainingMs - fadeMs
+        return if (wait > slackMs) wait else 0L
+    }
+
+    /**
+     * The hold applied to a prepared track, by who asked for it. Only a NATURAL near-end hand-over
+     * ([nearEnd]) may wait for its fade window; an explicit change (Next, Previous, picking a track,
+     * switching context) must start at once, however much of the current track remains.
+     */
+    fun handoffDelayMs(nearEnd: Boolean, remainingMs: Long, fadeMs: Long, slackMs: Long = 150L): Long =
+        if (nearEnd) handoffDelayMs(remainingMs, fadeMs, slackMs) else 0L
+
     fun shouldStartNext(positionMs: Long, durationMs: Long, crossfadeMs: Long): Boolean =
         crossfadeMs > 0L && durationMs > 0L && durationMs - positionMs <= crossfadeMs
 }
