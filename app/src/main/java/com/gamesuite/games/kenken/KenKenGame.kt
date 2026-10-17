@@ -4,7 +4,48 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a KenKen session back exactly as it was: the puzzle (cages AND the hidden
+ * solution it was dealt with), the entries and pencil marks, the selection, the mistake and hint
+ * counts, the session's solved tally, the tier, the daily seed and the ACTIVE (pause-adjusted)
+ * elapsed time. One shape serves both Resume (written to disk) and Undo (kept in memory), so a
+ * board and its tally can never be restored out of step with each other.
+ */
+@Serializable
+private data class KenKenSnapshot(
+    val size: Int,
+    /** Row-major; null = empty cell. */
+    val cellValues: List<Int?>,
+    val cellNotes: List<List<Int>>,
+    val cellCageIds: List<Int>,
+    val solution: List<Int>,
+    val cages: List<KenKenSnapshotCage>,
+    val selectedIndex: Int?,
+    val mistakes: Int,
+    val won: Boolean,
+    val hintsUsed: Int,
+    val puzzlesSolved: Int,
+    val difficulty: String,
+    /** Non-null while the puzzle on the board is a daily (seeded) one. */
+    val dailySeed: Long?,
+    /** Pause-adjusted time on the board's clock; null if the clock has not started. */
+    val activeElapsedMillis: Long?,
+    /** Frozen solve time once the board is won; null before. */
+    val finishedElapsedMillis: Long?,
+    val players: List<KenKenSnapshotPlayer>
+)
+
+@Serializable
+private data class KenKenSnapshotCage(val id: Int, val cellIndices: List<Int>, val operator: String?, val target: Int)
+
+@Serializable
+private data class KenKenSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val kenKenSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * The four clue operators a cage can carry. `null` (not a value of this enum)
@@ -262,11 +303,10 @@ data class KenKenState(
  *
  * DELIBERATE SCOPE CUTS (honest MVP, same spirit as every other game's own
  * documented cuts):
- *   - No hint/solver, no real-time row/column/cage conflict highlighting (a
- *     wrong entry is detected purely by comparing against the known
- *     [KenKenState.solution] — see SCOPING DECISION 5 above), no undo stack
- *     — the same three cuts SudokuGame's own KDoc documents, for the same
- *     reasons.
+ *   - No real-time row/column/cage conflict highlighting (a wrong entry is
+ *     detected purely by comparing against the known [KenKenState.solution]
+ *     — see SCOPING DECISION 5 above). Resume, Undo and Hint were added
+ *     later: see the "Resume", "Undo" and "Hint" sections of the class body.
  *   - [countKenKenSolutions] only checks a cage's arithmetic once ALL of
  *     that cage's cells are filled, not via incremental partial-sum/product
  *     bound pruning (e.g. rejecting an ADD cage the instant its running sum
@@ -277,7 +317,7 @@ data class KenKenState(
  *     actually ships (9x9 and below) — see [KenKenGameTest]'s own measured
  *     timing sweep, not just this assumption.
  */
-class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "kenken"
     override val displayName = "KenKen"
     override val category = GameCategory.PUZZLE
@@ -316,10 +356,237 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         CpuDifficulty.HARD to 9
     )
 
+    /** Hints taken on the CURRENT puzzle (never decreases within it, reset by a new puzzle). Any hint makes the solve "assisted": it still counts as solved but sets no best-time record. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The cell the last [hint] filled, shown marked until the next entry, undo, new puzzle or restore. */
+    val hintCell = mutableStateOf<Int?>(null)
+
+    /** The seed of the daily puzzle on the board, or null for a random one. Lets the screen re-derive its "Daily puzzle" tag after a resume. */
+    var dailySeedInUse: Long? = null
+        private set
+
+    /** True once this puzzle has been solved (or is being solved) with help; such a solve must not set a record. */
+    val isAssisted: Boolean get() = hintsUsed.value > 0
+
+    /** Snapshots taken just BEFORE each human entry/note/hint, newest last; popping one is Undo. Per puzzle: a new puzzle starts empty. */
+    private val history = SnapshotHistory()
+
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintCell.value = null
+        dailySeedInUse = null
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(s: KenKenState): String {
+        val roster = context.players.map { KenKenSnapshotPlayer(it.playerId, it.isBot) }
+        return kenKenSnapshotJson.encodeToString(
+            KenKenSnapshot.serializer(),
+            KenKenSnapshot(
+                size = s.size,
+                cellValues = s.cells.map { it.value },
+                cellNotes = s.cells.map { it.notes.sorted() },
+                cellCageIds = s.cells.map { it.cageId },
+                solution = s.solution,
+                cages = s.cages.map { KenKenSnapshotCage(it.id, it.cellIndices, it.operator?.name, it.target) },
+                selectedIndex = s.selectedIndex,
+                mistakes = s.mistakes,
+                won = s.won,
+                hintsUsed = hintsUsed.value,
+                puzzlesSolved = puzzlesSolved.value,
+                difficulty = difficulty.name,
+                dailySeed = dailySeedInUse,
+                activeElapsedMillis = activeElapsedMillis(),
+                finishedElapsedMillis = finishedElapsedMillis.value,
+                players = roster
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's tiers, roster and puzzle rules; null if it is unusable. Never throws. */
+    private fun decodeSnapshot(text: String): KenKenSnapshot? {
+        try {
+            if (!this::context.isInitialized) return null
+            val snap = kenKenSnapshotJson.decodeFromString(KenKenSnapshot.serializer(), text)
+            val n = snap.size
+            val cellCount = n * n
+            val roster = context.players
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return null
+            if (boardSizePerTier[tier] != n) return null
+            if (snap.cellValues.size != cellCount || snap.cellNotes.size != cellCount ||
+                snap.cellCageIds.size != cellCount || snap.solution.size != cellCount
+            ) return null
+            if (snap.players.size != roster.size) return null
+            if (!snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }) return null
+            if (snap.solution.any { it !in 1..n }) return null
+            // The solution must be a Latin square: each digit once per row and once per column.
+            for (i in 0 until n) {
+                if ((0 until n).map { snap.solution[i * n + it] }.toSet().size != n) return null
+                if ((0 until n).map { snap.solution[it * n + i] }.toSet().size != n) return null
+            }
+            if (snap.cellValues.any { it != null && it !in 1..n }) return null
+            if (snap.cellNotes.any { notes -> notes.any { it !in 1..n } }) return null
+            if (snap.selectedIndex != null && snap.selectedIndex !in 0 until cellCount) return null
+            if (snap.mistakes < 0 || snap.hintsUsed < 0 || snap.puzzlesSolved < 0) return null
+            if ((snap.activeElapsedMillis ?: 0L) < 0L || (snap.finishedElapsedMillis ?: 0L) < 0L) return null
+            // Cages: ids unique, every cell in exactly one cage, each cell's cageId agrees, clue matches the solution.
+            if (snap.cages.map { it.id }.toSet().size != snap.cages.size) return null
+            val seen = BooleanArray(cellCount)
+            for (cage in snap.cages) {
+                if (cage.cellIndices.isEmpty()) return null
+                val op: KenKenOperator? = if (cage.operator == null) {
+                    null
+                } else {
+                    KenKenOperator.values().firstOrNull { it.name == cage.operator } ?: return null
+                }
+                for (idx in cage.cellIndices) {
+                    if (idx !in 0 until cellCount || seen[idx]) return null
+                    seen[idx] = true
+                    if (snap.cellCageIds[idx] != cage.id) return null
+                }
+                if (!cageIsSatisfied(op, cage.target, cage.cellIndices.map { snap.solution[it] })) return null
+            }
+            if (seen.any { !it }) return null
+            val allCorrect = (0 until cellCount).all { snap.cellValues[it] == snap.solution[it] }
+            if (snap.won != allCorrect) return null
+            return snap
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    /** The board a (valid) snapshot describes. */
+    private fun stateFromSnapshot(snap: KenKenSnapshot): KenKenState {
+        val n = snap.size
+        return KenKenState(
+            size = n,
+            cells = List(n * n) { i ->
+                KenKenCell(value = snap.cellValues[i], notes = snap.cellNotes[i].toSet(), cageId = snap.cellCageIds[i])
+            },
+            solution = snap.solution,
+            cages = snap.cages.map { c ->
+                KenKenCage(
+                    id = c.id,
+                    cellIndices = c.cellIndices.sorted(),
+                    operator = c.operator?.let { name -> KenKenOperator.values().first { it.name == name } },
+                    target = c.target
+                )
+            },
+            selectedIndex = snap.selectedIndex,
+            mistakes = snap.mistakes,
+            won = snap.won
+        )
+    }
+
+    /** Null when there is nothing to save: no puzzle yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        try {
+            if (!this::context.isInitialized) return null
+            val s = state.value ?: return null
+            if (matchOver.value) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            return captureSnapshot(s)
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        val snap = decodeSnapshot(snapshot) ?: return false
+        return try {
+            // Everything is computed before anything is assigned (all-or-nothing).
+            val newState = stateFromSnapshot(snap)
+            val tier = CpuDifficulty.values().first { it.name == snap.difficulty }
+            val now = nowMillis()
+            val finished = if (snap.won) (snap.finishedElapsedMillis ?: snap.activeElapsedMillis ?: 0L) else null
+            val timerStart: Long? = when {
+                finished != null -> now - finished
+                snap.activeElapsedMillis != null -> now - snap.activeElapsedMillis
+                else -> null
+            }
+            matchOver.value = false
+            difficulty = tier
+            dailySeedInUse = snap.dailySeed
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            hintCell.value = null
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            timerStartElapsedRealtime.value = timerStart
+            finishedElapsedMillis.value = finished
+            history.clear()
+            state.value = newState
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.isOver != true
+
+    /**
+     * Takes back the last entry, note or hint (one step each). The clock is never rewound, and
+     * mistakes and hints used never go down, so undo cannot be used to launder either. Does nothing
+     * once the puzzle is solved (a recorded solve is not reopened) or the session has ended.
+     */
+    override fun undo() {
+        val current = state.value ?: return
+        if (matchOver.value || current.isOver) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        val restored = stateFromSnapshot(snap)
+        state.value = restored.copy(mistakes = maxOf(current.mistakes, snap.mistakes))
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintCell.value = null
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Fills one cell with its correct value and returns its index; null when there is nothing to
+     * fill (board solved or session over). Which cell: the selected cell if it is empty; otherwise
+     * an empty cell of the most constrained cage (the one with the fewest empty cells, then the
+     * smallest cage); if no cell is empty (a full board that still has wrong numbers), the first
+     * wrong cell. Counts in [hintsUsed], which makes the solve assisted (see [isAssisted]), and is
+     * itself one undo step.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val index = chooseHintCell(s) ?: return null
+        history.push(captureSnapshot(s))
+        hintsUsed.value += 1
+        hintCell.value = index
+        placeValue(s.copy(selectedIndex = index), index, s.solution[index])
+        return index
+    }
+
+    private fun chooseHintCell(s: KenKenState): Int? {
+        val selected = s.selectedIndex
+        if (selected != null && s.cells[selected].value == null) return selected
+        var bestCage: KenKenCage? = null
+        var bestEmpty: List<Int> = emptyList()
+        for (cage in s.cages) {
+            val empty = cage.cellIndices.filter { s.cells[it].value == null }
+            if (empty.isEmpty()) continue
+            val better = bestCage == null ||
+                empty.size < bestEmpty.size ||
+                (empty.size == bestEmpty.size && cage.cellIndices.size < bestCage.cellIndices.size)
+            if (better) {
+                bestCage = cage
+                bestEmpty = empty
+            }
+        }
+        if (bestCage != null) return bestEmpty.first()
+        return s.cells.indices.firstOrNull { s.cells[it].value != s.solution[it] }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -337,6 +604,12 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         finishedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        // A new puzzle starts a new undo history and a fresh hint count: undo never reaches back
+        // into the previous puzzle.
+        history.clear()
+        hintsUsed.value = 0
+        hintCell.value = null
+        dailySeedInUse = dailySeed
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true -- see
         // SudokuGame/NonogramGame's own KDocs on this exact fix, built in
@@ -408,6 +681,13 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         val index = s.selectedIndex ?: return
         if (matchOver.value || s.isOver) return
         if (value !in 1..s.size) return
+        history.push(captureSnapshot(s))
+        hintCell.value = null
+        placeValue(s, index, value)
+    }
+
+    /** Writes [value] into [index] of [s] (clearing it from peers' notes), counting a wrong one as a mistake and finishing the board on a win. Shared by [setValue] and [hint]. */
+    private fun placeValue(s: KenKenState, index: Int, value: Int) {
         val cell = s.cells[index]
 
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
@@ -439,6 +719,8 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (matchOver.value || s.isOver) return
         val cell = s.cells[index]
         if (cell.value == null) return
+        history.push(captureSnapshot(s))
+        hintCell.value = null
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(value = null)
         state.value = s.copy(cells = cells)
@@ -452,6 +734,8 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (value !in 1..s.size) return
         val cell = s.cells[index]
         if (cell.value != null) return
+        history.push(captureSnapshot(s))
+        hintCell.value = null
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(notes = if (value in cell.notes) cell.notes - value else cell.notes + value)
         state.value = s.copy(cells = cells)

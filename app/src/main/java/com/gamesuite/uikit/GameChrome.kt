@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +35,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+/**
+ * What [GameChrome] needs from the shell to park a game for later, without the uikit knowing
+ * about the session manager: [canSave] says whether the active game is resumable right now, and
+ * [save] writes its snapshot. MainActivity provides it; a screen previewed on its own gets null
+ * and the chrome simply behaves as before.
+ */
+class ProgressSaver(val canSave: () -> Boolean, val save: () -> Boolean)
+
+val LocalProgressSaver = staticCompositionLocalOf<ProgressSaver?> { null }
 
 /** The corner button's own touch target. 48dp is the accessibility floor for a control. */
 private val ChromeButtonSize = 48.dp
@@ -66,6 +77,14 @@ val GameChromeEndInset: Dp = ChromeButtonSize + ChromeButtonMargin * 2
  *
  * [extraItems] lets a game add its own entries (e.g. Pause, New Board) above "Back to Menu".
  *
+ * **Undo / Hint** are standard menu entries: pass [onUndo] (enabled by [canUndo]) and/or [onHint]
+ * and the chrome adds them under "How to Play". A game that also wants a visible button next to
+ * its board can call the same functions from its own layout.
+ *
+ * **Leaving keeps your place.** When the shell reports the game is resumable (see
+ * [LocalProgressSaver]), confirming "Leave" saves the game just before [onAbort] ends the match,
+ * and the dialog says so; the menu then offers Resume the next time that game is picked.
+ *
  * Colors default to the Material theme but a game with its own palette (Reversi's warm cream)
  * should pass it so the button reads as part of that screen rather than a Material overlay.
  */
@@ -81,9 +100,19 @@ fun GameChrome(
     buttonContent: Color = MaterialTheme.colorScheme.onBackground,
     leaveTitle: String = "Leave this game?",
     leaveBody: String = "This game is still in progress. Leaving now won't count it as a win or a loss.",
+    /**
+     * False when [onAbort] will record the session through `leaveSession()` (earlier finished
+     * boards exist): that ends the session, which discards its save, so the dialog must not
+     * promise one and nothing is saved.
+     */
+    leaveKeepsProgress: Boolean = true,
+    onUndo: (() -> Unit)? = null,
+    canUndo: Boolean = true,
+    onHint: (() -> Unit)? = null,
     extraItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {},
     content: @Composable BoxScope.() -> Unit
 ) {
+    val progressSaver = LocalProgressSaver.current
     var showMenu by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -125,6 +154,16 @@ fun GameChrome(
             }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                 DropdownMenuItem(text = { Text("How to Play") }, onClick = { showMenu = false; showHelp = true })
+                if (onUndo != null) {
+                    DropdownMenuItem(
+                        text = { Text("Undo") },
+                        enabled = canUndo,
+                        onClick = { showMenu = false; onUndo() }
+                    )
+                }
+                if (onHint != null) {
+                    DropdownMenuItem(text = { Text("Hint") }, onClick = { showMenu = false; onHint() })
+                }
                 extraItems { showMenu = false }
                 DropdownMenuItem(text = { Text("Back to Menu") }, onClick = { showMenu = false; requestLeave() })
             }
@@ -132,14 +171,29 @@ fun GameChrome(
     }
 
     if (showLeaveConfirm) {
+        val savesProgress = leaveKeepsProgress && progressSaver?.canSave?.invoke() == true
         AlertDialog(
             onDismissRequest = { showLeaveConfirm = false },
             title = { Text(leaveTitle) },
-            text = { Text(leaveBody) },
+            text = {
+                Text(
+                    if (savesProgress) {
+                        "$leaveBody\n\nYour progress is saved: pick this game from the menu to resume it."
+                    } else {
+                        leaveBody
+                    }
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showLeaveConfirm = false
-                    if (!leaving) { leaving = true; onAbort() }
+                    if (!leaving) {
+                        leaving = true
+                        // Save BEFORE aborting: abortMatch() ends the match, after which the
+                        // engine has nothing left to snapshot.
+                        if (savesProgress) progressSaver?.save?.invoke()
+                        onAbort()
+                    }
                 }) { Text("Leave") }
             },
             dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text("Keep Playing") } }

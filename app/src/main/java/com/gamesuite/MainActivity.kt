@@ -5,7 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -20,8 +23,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.gamesuite.core.GameModule
+import com.gamesuite.core.GameResult
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.SavedGame
+import com.gamesuite.core.SavedGameStore
+import com.gamesuite.core.savedAgoText
+import com.gamesuite.uikit.LocalProgressSaver
+import com.gamesuite.uikit.ProgressSaver
+import java.io.File
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.foldable.rememberFoldState
 import com.gamesuite.games.cards.CardSounds
@@ -137,6 +147,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Where resumable games are parked (see GameSessionManager.saveActiveProgress). The
+        // ViewModel outlives the Activity, so this just re-points it at the same directory.
+        sessionManager.savedGames = SavedGameStore(File(filesDir, "saved_games"))
         setContent {
             val foldState = rememberFoldState(this)
             val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
@@ -181,7 +194,29 @@ class MainActivity : ComponentActivity() {
                     // needs to know about a specific game's rule types (see GameModule's own KDoc).
                     var pendingUnoRules by remember { mutableStateOf<com.gamesuite.games.uno.UnoRules?>(null) }
 
+                    // A game the player left (or the OS reclaimed) mid-match is parked in
+                    // sessionManager.savedGames. Picking that game again asks Resume vs New game
+                    // here, once, for every route, so no game screen or menu button needs its own.
+                    var resumeOffer by remember { mutableStateOf<SavedGame?>(null) }
+
+                    // After Android reclaims the process, Compose restores the nav back stack to the
+                    // game screen that was open, but the new process has no launch context for it.
+                    // Send the player to the menu instead of a blank game; picking the game there
+                    // offers Resume. (A normal recreation keeps its context and is left alone.)
+                    LaunchedEffect(Unit) {
+                        if (savedInstanceState != null && sessionManager.activeContext.value == null) {
+                            navController.popBackStack("menu", inclusive = false)
+                        }
+                    }
+                    val progressSaver = remember {
+                        ProgressSaver(
+                            canSave = { sessionManager.canSaveActiveProgress() },
+                            save = { sessionManager.saveActiveProgress() }
+                        )
+                    }
+
                     CompositionLocalProvider(
+                        LocalProgressSaver provides progressSaver,
                         LocalFoldState provides foldState,
                         LocalCardScale provides cardScale,
                         LocalReducedMotion provides settings.reducedMotion,
@@ -197,7 +232,10 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 settingsViewModel = settingsViewModel,
                                 statsViewModel = statsViewModel,
-                                onNavigateToGame = { route -> navController.navigate(route) },
+                                onNavigateToGame = { route ->
+                                    val saved = sessionManager.savedGameForLaunch(route)
+                                    if (saved != null) resumeOffer = saved else navController.navigate(route)
+                                },
                                 onNavigateToSettings = { navController.navigate("settings") },
                                 onNavigateToStats = { navController.navigate("stats") }
                             )
@@ -271,7 +309,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("tic-tac-toe") {
-                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
+                            val ticTacToeGame = rememberActiveModule(sessionManager, "tic-tac-toe") { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
                                 game = ticTacToeGame,
@@ -282,7 +320,7 @@ class MainActivity : ComponentActivity() {
                         composable("tic-tac-toe-misere") {
                             // Same GameModule/screen as "tic-tac-toe" — misere = true is the only
                             // difference (roadmap item 13c). See TicTacToeScreen's KDoc.
-                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
+                            val ticTacToeGame = rememberActiveModule(sessionManager, "tic-tac-toe-misere") { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
                                 game = ticTacToeGame,
@@ -295,7 +333,7 @@ class MainActivity : ComponentActivity() {
                             // Same GameModule/screen as "tic-tac-toe" — wild = true is the only
                             // difference. Each mover chooses X or O; the win-check reads the
                             // symbol occupying a cell rather than who placed it.
-                            val ticTacToeGame = rememberActiveModule(sessionManager) { TicTacToeGame() }
+                            val ticTacToeGame = rememberActiveModule(sessionManager, "tic-tac-toe-wild") { TicTacToeGame() }
                             TicTacToeScreen(
                                 sessionManager = sessionManager,
                                 game = ticTacToeGame,
@@ -305,7 +343,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("uno") {
-                            val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
+                            val unoGame = rememberActiveModule(sessionManager, "uno") { UnoGame() }
                             UnoScreen(
                                 sessionManager = sessionManager,
                                 game = unoGame,
@@ -314,7 +352,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("uno-teams") {
-                            val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
+                            val unoGame = rememberActiveModule(sessionManager, "uno-teams") { UnoGame() }
                             UnoScreen(
                                 sessionManager = sessionManager,
                                 game = unoGame,
@@ -342,7 +380,7 @@ class MainActivity : ComponentActivity() {
                             // so there's no staleness risk from a plain "Play UNO" button reusing an
                             // old value — those buttons navigate to "uno"/"uno-teams" instead, which
                             // never read this field.
-                            val unoGame = rememberActiveModule(sessionManager) { UnoGame() }
+                            val unoGame = rememberActiveModule(sessionManager, "uno-custom") { UnoGame() }
                             UnoScreen(
                                 sessionManager = sessionManager,
                                 game = unoGame,
@@ -352,7 +390,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("hangman") {
-                            val hangmanGame = rememberActiveModule(sessionManager) { HangmanGame() }
+                            val hangmanGame = rememberActiveModule(sessionManager, "hangman") { HangmanGame() }
                             HangmanScreen(
                                 sessionManager = sessionManager,
                                 game = hangmanGame,
@@ -361,7 +399,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("word-search") {
-                            val wordSearchGame = rememberActiveModule(sessionManager) { WordSearchGame() }
+                            val wordSearchGame = rememberActiveModule(sessionManager, "word-search") { WordSearchGame() }
                             WordSearchScreen(
                                 sessionManager = sessionManager,
                                 game = wordSearchGame,
@@ -372,7 +410,7 @@ class MainActivity : ComponentActivity() {
                         composable("word-search-daily") {
                             // Same GameModule/screen as "word-search" — a today's-date seed is
                             // the only difference, so every player gets the identical puzzle.
-                            val wordSearchGame = rememberActiveModule(sessionManager) { WordSearchGame() }
+                            val wordSearchGame = rememberActiveModule(sessionManager, "word-search-daily") { WordSearchGame() }
                             WordSearchScreen(
                                 sessionManager = sessionManager,
                                 game = wordSearchGame,
@@ -382,7 +420,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("crossword") {
-                            val crosswordGame = rememberActiveModule(sessionManager) { CrosswordGame() }
+                            val crosswordGame = rememberActiveModule(sessionManager, "crossword") { CrosswordGame() }
                             CrosswordScreen(
                                 sessionManager = sessionManager,
                                 game = crosswordGame,
@@ -391,7 +429,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("word-tiles") {
-                            val tileGame = rememberActiveModule(sessionManager) { TileGame() }
+                            val tileGame = rememberActiveModule(sessionManager, "word-tiles") { TileGame() }
                             TileGameScreen(
                                 sessionManager = sessionManager,
                                 game = tileGame,
@@ -400,7 +438,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("dominoes") {
-                            val dominoGame = rememberActiveModule(sessionManager) { DominoGame() }
+                            val dominoGame = rememberActiveModule(sessionManager, "dominoes") { DominoGame() }
                             DominoesScreen(
                                 sessionManager = sessionManager,
                                 game = dominoGame,
@@ -409,7 +447,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("dots-and-boxes") {
-                            val dotsAndBoxesGame = rememberActiveModule(sessionManager) { DotsAndBoxesGame() }
+                            val dotsAndBoxesGame = rememberActiveModule(sessionManager, "dots-and-boxes") { DotsAndBoxesGame() }
                             DotsAndBoxesScreen(
                                 sessionManager = sessionManager,
                                 game = dotsAndBoxesGame,
@@ -418,7 +456,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("connect-four") {
-                            val connectFourGame = rememberActiveModule(sessionManager) { ConnectFourGame() }
+                            val connectFourGame = rememberActiveModule(sessionManager, "connect-four") { ConnectFourGame() }
                             ConnectFourScreen(
                                 sessionManager = sessionManager,
                                 game = connectFourGame,
@@ -427,7 +465,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("checkers") {
-                            val checkersGame = rememberActiveModule(sessionManager) { CheckersGame() }
+                            val checkersGame = rememberActiveModule(sessionManager, "checkers") { CheckersGame() }
                             CheckersScreen(
                                 sessionManager = sessionManager,
                                 game = checkersGame,
@@ -436,7 +474,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("chess") {
-                            val chessGame = rememberActiveModule(sessionManager) { ChessGame() }
+                            val chessGame = rememberActiveModule(sessionManager, "chess") { ChessGame() }
                             ChessScreen(
                                 sessionManager = sessionManager,
                                 game = chessGame,
@@ -445,7 +483,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("reversi") {
-                            val reversiGame = rememberActiveModule(sessionManager) { ReversiGame() }
+                            val reversiGame = rememberActiveModule(sessionManager, "reversi") { ReversiGame() }
                             ReversiScreen(
                                 sessionManager = sessionManager,
                                 game = reversiGame,
@@ -454,7 +492,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("mancala") {
-                            val mancalaGame = rememberActiveModule(sessionManager) { MancalaGame() }
+                            val mancalaGame = rememberActiveModule(sessionManager, "mancala") { MancalaGame() }
                             MancalaScreen(
                                 sessionManager = sessionManager,
                                 game = mancalaGame,
@@ -468,7 +506,7 @@ class MainActivity : ComponentActivity() {
                             // report for why this route constructs it instead of the shared
                             // module's AirHockeyGame (still used, unchanged, by the desktop
                             // target — see shared/src/desktopMain/kotlin/Main.kt).
-                            val airHockeyGame = rememberActiveModule(sessionManager) { AirHockeyRustGame() }
+                            val airHockeyGame = rememberActiveModule(sessionManager, "air-hockey") { AirHockeyRustGame() }
                             AirHockeyScreen(
                                 sessionManager = sessionManager,
                                 game = airHockeyGame,
@@ -477,7 +515,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("solitaire") {
-                            val solitaireGame = rememberActiveModule(sessionManager) { SolitaireGame() }
+                            val solitaireGame = rememberActiveModule(sessionManager, "solitaire") { SolitaireGame() }
                             SolitaireScreen(
                                 sessionManager = sessionManager,
                                 game = solitaireGame,
@@ -485,7 +523,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("sliding-puzzle") {
-                            val slidingPuzzleGame = rememberActiveModule(sessionManager) { SlidingPuzzleGame() }
+                            val slidingPuzzleGame = rememberActiveModule(sessionManager, "sliding-puzzle") { SlidingPuzzleGame() }
                             SlidingPuzzleScreen(
                                 sessionManager = sessionManager,
                                 game = slidingPuzzleGame,
@@ -496,7 +534,7 @@ class MainActivity : ComponentActivity() {
                         composable("sliding-puzzle-daily") {
                             // Same GameModule/screen as "sliding-puzzle" — a today's-date seed is
                             // the only difference, so every player gets the identical scramble.
-                            val slidingPuzzleGame = rememberActiveModule(sessionManager) { SlidingPuzzleGame() }
+                            val slidingPuzzleGame = rememberActiveModule(sessionManager, "sliding-puzzle-daily") { SlidingPuzzleGame() }
                             SlidingPuzzleScreen(
                                 sessionManager = sessionManager,
                                 game = slidingPuzzleGame,
@@ -506,7 +544,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("minesweeper") {
-                            val minesweeperGame = rememberActiveModule(sessionManager) { MinesweeperGame() }
+                            val minesweeperGame = rememberActiveModule(sessionManager, "minesweeper") { MinesweeperGame() }
                             MinesweeperScreen(
                                 sessionManager = sessionManager,
                                 game = minesweeperGame,
@@ -517,7 +555,7 @@ class MainActivity : ComponentActivity() {
                         composable("minesweeper-daily") {
                             // Same GameModule/screen as "minesweeper" — a today's-date seed is
                             // the only difference, so every player gets the identical board.
-                            val minesweeperGame = rememberActiveModule(sessionManager) { MinesweeperGame() }
+                            val minesweeperGame = rememberActiveModule(sessionManager, "minesweeper-daily") { MinesweeperGame() }
                             MinesweeperScreen(
                                 sessionManager = sessionManager,
                                 game = minesweeperGame,
@@ -527,7 +565,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("sudoku") {
-                            val sudokuGame = rememberActiveModule(sessionManager) { SudokuGame() }
+                            val sudokuGame = rememberActiveModule(sessionManager, "sudoku") { SudokuGame() }
                             SudokuScreen(
                                 sessionManager = sessionManager,
                                 game = sudokuGame,
@@ -538,7 +576,7 @@ class MainActivity : ComponentActivity() {
                         composable("sudoku-daily") {
                             // Same GameModule/screen as "sudoku" — a today's-date seed is the
                             // only difference, so every player gets the identical puzzle.
-                            val sudokuGame = rememberActiveModule(sessionManager) { SudokuGame() }
+                            val sudokuGame = rememberActiveModule(sessionManager, "sudoku-daily") { SudokuGame() }
                             SudokuScreen(
                                 sessionManager = sessionManager,
                                 game = sudokuGame,
@@ -548,7 +586,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("lights-out") {
-                            val lightsOutGame = rememberActiveModule(sessionManager) { LightsOutGame() }
+                            val lightsOutGame = rememberActiveModule(sessionManager, "lights-out") { LightsOutGame() }
                             LightsOutScreen(
                                 sessionManager = sessionManager,
                                 game = lightsOutGame,
@@ -559,7 +597,7 @@ class MainActivity : ComponentActivity() {
                         composable("lights-out-daily") {
                             // Same GameModule/screen as "lights-out" — a today's-date seed is
                             // the only difference, so every player gets the identical board.
-                            val lightsOutGame = rememberActiveModule(sessionManager) { LightsOutGame() }
+                            val lightsOutGame = rememberActiveModule(sessionManager, "lights-out-daily") { LightsOutGame() }
                             LightsOutScreen(
                                 sessionManager = sessionManager,
                                 game = lightsOutGame,
@@ -569,7 +607,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("color-flood") {
-                            val colorFloodGame = rememberActiveModule(sessionManager) { ColorFloodGame() }
+                            val colorFloodGame = rememberActiveModule(sessionManager, "color-flood") { ColorFloodGame() }
                             ColorFloodScreen(
                                 sessionManager = sessionManager,
                                 game = colorFloodGame,
@@ -580,7 +618,7 @@ class MainActivity : ComponentActivity() {
                         composable("color-flood-daily") {
                             // Same GameModule/screen as "color-flood" — a today's-date seed is
                             // the only difference, so every player gets the identical board.
-                            val colorFloodGame = rememberActiveModule(sessionManager) { ColorFloodGame() }
+                            val colorFloodGame = rememberActiveModule(sessionManager, "color-flood-daily") { ColorFloodGame() }
                             ColorFloodScreen(
                                 sessionManager = sessionManager,
                                 game = colorFloodGame,
@@ -590,7 +628,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("edge-match") {
-                            val edgeMatchGame = rememberActiveModule(sessionManager) { EdgeMatchGame() }
+                            val edgeMatchGame = rememberActiveModule(sessionManager, "edge-match") { EdgeMatchGame() }
                             EdgeMatchScreen(
                                 sessionManager = sessionManager,
                                 game = edgeMatchGame,
@@ -601,7 +639,7 @@ class MainActivity : ComponentActivity() {
                         composable("edge-match-daily") {
                             // Same GameModule/screen as "edge-match" — a today's-date seed is
                             // the only difference, so every player gets the identical puzzle.
-                            val edgeMatchGame = rememberActiveModule(sessionManager) { EdgeMatchGame() }
+                            val edgeMatchGame = rememberActiveModule(sessionManager, "edge-match-daily") { EdgeMatchGame() }
                             EdgeMatchScreen(
                                 sessionManager = sessionManager,
                                 game = edgeMatchGame,
@@ -611,7 +649,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("nonogram") {
-                            val nonogramGame = rememberActiveModule(sessionManager) { NonogramGame() }
+                            val nonogramGame = rememberActiveModule(sessionManager, "nonogram") { NonogramGame() }
                             NonogramScreen(
                                 sessionManager = sessionManager,
                                 game = nonogramGame,
@@ -622,7 +660,7 @@ class MainActivity : ComponentActivity() {
                         composable("nonogram-daily") {
                             // Same GameModule/screen as "nonogram" — a today's-date seed is the
                             // only difference, so every player gets the identical puzzle.
-                            val nonogramGame = rememberActiveModule(sessionManager) { NonogramGame() }
+                            val nonogramGame = rememberActiveModule(sessionManager, "nonogram-daily") { NonogramGame() }
                             NonogramScreen(
                                 sessionManager = sessionManager,
                                 game = nonogramGame,
@@ -632,7 +670,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("party-toolkit") {
-                            val partyToolkitGame = rememberActiveModule(sessionManager) { PartyToolkitGame() }
+                            val partyToolkitGame = rememberActiveModule(sessionManager, "party-toolkit") { PartyToolkitGame() }
                             PartyToolkitScreen(
                                 sessionManager = sessionManager,
                                 game = partyToolkitGame,
@@ -640,7 +678,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("breakout") {
-                            val breakoutGame = rememberActiveModule(sessionManager) { BreakoutGame() }
+                            val breakoutGame = rememberActiveModule(sessionManager, "breakout") { BreakoutGame() }
                             BreakoutScreen(
                                 sessionManager = sessionManager,
                                 game = breakoutGame,
@@ -649,7 +687,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("kakuro") {
-                            val kakuroGame = rememberActiveModule(sessionManager) { KakuroGame() }
+                            val kakuroGame = rememberActiveModule(sessionManager, "kakuro") { KakuroGame() }
                             KakuroScreen(
                                 sessionManager = sessionManager,
                                 game = kakuroGame,
@@ -660,7 +698,7 @@ class MainActivity : ComponentActivity() {
                         composable("kakuro-daily") {
                             // Same GameModule/screen as "kakuro" -- a today's-date seed is the
                             // only difference, so every player gets the identical puzzle.
-                            val kakuroGame = rememberActiveModule(sessionManager) { KakuroGame() }
+                            val kakuroGame = rememberActiveModule(sessionManager, "kakuro-daily") { KakuroGame() }
                             KakuroScreen(
                                 sessionManager = sessionManager,
                                 game = kakuroGame,
@@ -670,7 +708,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("kenken") {
-                            val kenkenGame = rememberActiveModule(sessionManager) { KenKenGame() }
+                            val kenkenGame = rememberActiveModule(sessionManager, "kenken") { KenKenGame() }
                             KenKenScreen(
                                 sessionManager = sessionManager,
                                 game = kenkenGame,
@@ -681,7 +719,7 @@ class MainActivity : ComponentActivity() {
                         composable("kenken-daily") {
                             // Same GameModule/screen as "kenken" -- a today's-date seed is the
                             // only difference, so every player gets the identical puzzle.
-                            val kenkenGame = rememberActiveModule(sessionManager) { KenKenGame() }
+                            val kenkenGame = rememberActiveModule(sessionManager, "kenken-daily") { KenKenGame() }
                             KenKenScreen(
                                 sessionManager = sessionManager,
                                 game = kenkenGame,
@@ -691,7 +729,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("mastermind") {
-                            val mastermindGame = rememberActiveModule(sessionManager) { MastermindGame() }
+                            val mastermindGame = rememberActiveModule(sessionManager, "mastermind") { MastermindGame() }
                             MastermindScreen(
                                 sessionManager = sessionManager,
                                 game = mastermindGame,
@@ -702,7 +740,7 @@ class MainActivity : ComponentActivity() {
                         composable("mastermind-daily") {
                             // Same GameModule/screen as "mastermind" -- a today's-date seed is the
                             // only difference, so every player gets the identical secret.
-                            val mastermindGame = rememberActiveModule(sessionManager) { MastermindGame() }
+                            val mastermindGame = rememberActiveModule(sessionManager, "mastermind-daily") { MastermindGame() }
                             MastermindScreen(
                                 sessionManager = sessionManager,
                                 game = mastermindGame,
@@ -712,7 +750,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("word-guess") {
-                            val wordGuessGame = rememberActiveModule(sessionManager) { WordGuessGame() }
+                            val wordGuessGame = rememberActiveModule(sessionManager, "word-guess") { WordGuessGame() }
                             WordGuessScreen(
                                 sessionManager = sessionManager,
                                 game = wordGuessGame,
@@ -723,7 +761,7 @@ class MainActivity : ComponentActivity() {
                         composable("word-guess-daily") {
                             // Same GameModule/screen as "word-guess" -- a today's-date seed is the
                             // only difference, so every player gets the identical word.
-                            val wordGuessGame = rememberActiveModule(sessionManager) { WordGuessGame() }
+                            val wordGuessGame = rememberActiveModule(sessionManager, "word-guess-daily") { WordGuessGame() }
                             WordGuessScreen(
                                 sessionManager = sessionManager,
                                 game = wordGuessGame,
@@ -733,7 +771,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("tower-defence") {
-                            val towerDefenceGame = rememberActiveModule(sessionManager) { TowerDefenceGame() }
+                            val towerDefenceGame = rememberActiveModule(sessionManager, "tower-defence") { TowerDefenceGame() }
                             TowerDefenceScreen(
                                 sessionManager = sessionManager,
                                 game = towerDefenceGame,
@@ -741,6 +779,40 @@ class MainActivity : ComponentActivity() {
                                 onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
                             )
                         }
+                    }
+
+                    resumeOffer?.let { offer ->
+                        AlertDialog(
+                            // Backing out of the prompt cancels the launch. The menu already
+                            // opened a game context for this pick, so close it (an abort is never
+                            // recorded) rather than leaving a context with no screen.
+                            onDismissRequest = {
+                                resumeOffer = null
+                                sessionManager.endActiveGame(GameResult(wasAborted = true))
+                            },
+                            title = { Text("Resume ${offer.label}?") },
+                            text = {
+                                Text(
+                                    "You left a game in progress " +
+                                        savedAgoText(offer.savedAtMillis, System.currentTimeMillis()) +
+                                        ". Pick up where you stopped, or start a new one?"
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    resumeOffer = null
+                                    sessionManager.pendingResume = offer
+                                    navController.navigate(offer.navRoute)
+                                }) { Text("Resume") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    resumeOffer = null
+                                    sessionManager.savedGames?.delete(offer.route)
+                                    navController.navigate(offer.navRoute)
+                                }) { Text("New game") }
+                            }
+                        )
                     }
                     }
                 }
@@ -755,15 +827,20 @@ class MainActivity : ComponentActivity() {
  * this — so [MainActivity]'s onPause/onResume have something to forward to
  * (see [GameSessionManager.pauseActiveGame]/[GameSessionManager.resumeActiveGame]).
  * Clears the active module on dispose (navigating away from the game).
+ *
+ * [route] is the nav route the screen was reached on. It keys the game's saved state (see
+ * [GameSessionManager.saveActiveProgress]), so variants of one engine ("sudoku" vs "sudoku-daily",
+ * the three Tic-Tac-Toe rule sets) each get their own save.
  */
 @Composable
 private fun <T : GameModule> rememberActiveModule(
     sessionManager: GameSessionManager,
+    route: String,
     factory: () -> T
 ): T {
     val module = remember { factory() }
     DisposableEffect(module) {
-        sessionManager.setActiveModule(module)
+        sessionManager.setActiveModule(module, route)
         onDispose { sessionManager.setActiveModule(null) }
     }
     return module

@@ -184,7 +184,12 @@ fun WordGuessScreen(
             onMatchEnded()
         }
         dailyWordActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The tier and the today's-word tag live in the engine now: re-derive the screen's copy.
+            dailyWordActive = game.activeDailySeed != null
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -223,9 +228,15 @@ fun WordGuessScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedResult == null) {
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            val result = statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime)
-            reportedResult = result.isNewBestGuesses to result.isNewBestTimeMillis
+            if (game.assisted) {
+                // A word solved with hints still counts as solved (the engine tallied it) but
+                // must not set a best-guesses / best-time record.
+                reportedResult = false to false
+            } else {
+                val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                val result = statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime)
+                reportedResult = result.isNewBestGuesses to result.isNewBestTimeMillis
+            }
         }
     }
 
@@ -324,6 +335,19 @@ fun WordGuessScreen(
         }
     }
 
+    // A hint reveals one letter position as a message above the keyboard (and through the polite
+    // live region); it never fills the typed row. The corner menu and the Hint button share this.
+    val onHint: () -> Unit = {
+        val suggestion = game.hint()
+        if (suggestion != null) {
+            showInvalidMessage = false
+            announcement = suggestion.message
+            haptics(HapticSignal.LIGHT_TICK)
+        }
+    }
+    val activeHint = game.activeHint.value
+    val hintsUsed = game.hintsUsed.value
+
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-word discards
     // ONLY the unfinished word: if words were already decided this session (solved or lost),
     // leaving goes through leaveSession() (the same call the finished panel's "Back to Menu" makes)
@@ -335,6 +359,8 @@ fun WordGuessScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedWords > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedWords == 0,
+        onHint = onHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this word?",
@@ -364,6 +390,8 @@ fun WordGuessScreen(
                     guessesUsed = s.guesses.size,
                     maxGuesses = s.maxGuesses,
                     game = game,
+                    canHint = !s.isOver && !game.matchOver.value,
+                    onHint = onHint,
                     palette = palette,
                     onSelectTier = onSelectTier,
                     modifier = headerModifier
@@ -388,6 +416,8 @@ fun WordGuessScreen(
                     canSubmit = currentInput.length == WordGuessGameWordLength,
                     showInvalidMessage = showInvalidMessage,
                     announcement = announcement,
+                    hintMessage = activeHint?.message,
+                    hintsUsed = hintsUsed,
                     record = record,
                     isNewBestGuesses = reportedResult?.first ?: false,
                     isNewBestTime = reportedResult?.second ?: false,
@@ -714,6 +744,8 @@ private fun WordGuessHeader(
     guessesUsed: Int,
     maxGuesses: Int,
     game: WordGuessGame,
+    canHint: Boolean,
+    onHint: () -> Unit,
     palette: WordGuessPalette,
     onSelectTier: (CpuDifficulty) -> Unit,
     modifier: Modifier = Modifier
@@ -731,6 +763,8 @@ private fun WordGuessHeader(
             guessesUsed = guessesUsed,
             maxGuesses = maxGuesses,
             game = game,
+            canHint = canHint,
+            onHint = onHint,
             palette = palette
         )
     }
@@ -790,6 +824,8 @@ private fun WordGuessStatusRow(
     guessesUsed: Int,
     maxGuesses: Int,
     game: WordGuessGame,
+    canHint: Boolean,
+    onHint: () -> Unit,
     palette: WordGuessPalette
 ) {
     Row(
@@ -810,6 +846,22 @@ private fun WordGuessStatusRow(
                     contentDescription = (if (dailyActive) "Today's word. " else "") + "$guessesUsed of $maxGuesses guesses used"
                 }
         )
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (canHint) {
+                        "Hint: reveal one letter of the word. The word then counts as solved with a hint and sets no record"
+                    } else {
+                        "Hint unavailable, this word is already decided"
+                    }
+                }
+        ) { Text("Hint", maxLines = 1, modifier = Modifier.clearAndSetSemantics {}) }
+        Spacer(Modifier.width(8.dp))
         WordGuessClock(game = game, palette = palette)
     }
 }
@@ -1091,6 +1143,8 @@ private fun WordGuessInputZone(
     canSubmit: Boolean,
     showInvalidMessage: Boolean,
     announcement: String,
+    hintMessage: String?,
+    hintsUsed: Int,
     record: WordGuessRecord?,
     isNewBestGuesses: Boolean,
     isNewBestTime: Boolean,
@@ -1111,7 +1165,11 @@ private fun WordGuessInputZone(
                     .height(MESSAGE_SLOT_HEIGHT)
                     .semantics {
                         liveRegion = LiveRegionMode.Polite
-                        if (announcement.isNotEmpty()) contentDescription = announcement
+                        if (announcement.isNotEmpty()) {
+                            contentDescription = announcement
+                        } else if (hintMessage != null) {
+                            contentDescription = hintMessage
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -1120,6 +1178,16 @@ private fun WordGuessInputZone(
                         "Not a valid word",
                         color = palette.textPrimary,
                         fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clearAndSetSemantics {}
+                    )
+                } else if (hintMessage != null) {
+                    // Text, not colour: the hint is a written label above the keyboard.
+                    Text(
+                        hintMessage,
+                        color = palette.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.clearAndSetSemantics {}
                     )
                 }
@@ -1140,6 +1208,7 @@ private fun WordGuessInputZone(
             solved = s.solved,
             secret = s.secret,
             guessCount = s.guesses.size,
+            hintsUsed = hintsUsed,
             record = record,
             isNewBestGuesses = isNewBestGuesses,
             isNewBestTime = isNewBestTime,
@@ -1345,6 +1414,7 @@ private fun WordGuessFinishedPanel(
     solved: Boolean,
     secret: String,
     guessCount: Int,
+    hintsUsed: Int,
     record: WordGuessRecord?,
     isNewBestGuesses: Boolean,
     isNewBestTime: Boolean,
@@ -1378,6 +1448,13 @@ private fun WordGuessFinishedPanel(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text("Guesses: $guessCount", style = MaterialTheme.typography.bodyMedium)
+                if (hintsUsed > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Solved with $hintsUsed ${if (hintsUsed == 1) "hint" else "hints"} (no record set)",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 if (isNewBestGuesses) {
                     Spacer(Modifier.height(4.dp))
                     Text("New best guess count!", fontWeight = FontWeight.Bold)

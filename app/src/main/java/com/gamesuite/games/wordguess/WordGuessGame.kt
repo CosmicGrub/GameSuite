@@ -6,7 +6,44 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * Everything needed to put a Word Guess session back exactly as it was: the hidden secret, the
+ * guesses so far (their feedback is recomputed from the secret on restore), the tier, the daily
+ * flag and seed, the session tally, the hint bookkeeping and the ACTIVE (pause-adjusted) elapsed
+ * time. The half-typed current row lives in the screen and is not part of it.
+ */
+@Serializable
+private data class WordGuessSnapshot(
+    val players: List<WordGuessSnapshotPlayer>,
+    val secret: String,
+    val maxGuesses: Int,
+    val guesses: List<String>,
+    val difficulty: String,
+    val dailySeed: Long?,
+    val puzzlesSolved: Int,
+    val puzzlesFailed: Int,
+    val hintsUsed: Int,
+    val hintedPositions: List<Int>,
+    /** Pause-adjusted elapsed time of the current round, or null while the stopwatch has not started. */
+    val activeElapsedMillis: Long?,
+    /** The frozen round time once the word is decided, else null. */
+    val finishedElapsedMillis: Long?
+)
+
+@Serializable
+private data class WordGuessSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val wordGuessSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/** A suggestion from [WordGuessGame.hint]: the 0-based [position] of one secret letter that is not yet green, and that [letter]. */
+data class WordGuessHint(val position: Int, val letter: Char) {
+    /** The text shown to the player, e.g. "Hint: letter 3 is R". */
+    val message: String get() = "Hint: letter ${position + 1} is ${letter.uppercaseChar()}"
+}
 
 /** One letter's own feedback: exactly correct spot, present but wrong spot, or not in the secret at all. */
 enum class LetterFeedback { CORRECT, PRESENT, ABSENT }
@@ -78,7 +115,7 @@ class WordGuessGame(
     private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() },
     private val pickSecret: (Random) -> String = { WordGuessAnswerList.randomAnswer(it) },
     private val isValidGuess: (String) -> Boolean = { WordDictionary.isValidWord(it) }
-) : GameModule {
+) : GameModule, ResumableGame {
     override val gameId = "word-guess"
     override val displayName = "Word Guess"
     override val category = GameCategory.PUZZLE
@@ -102,6 +139,22 @@ class WordGuessGame(
 
     /** Total time for the current round, frozen the instant [submitGuess] detects a solve OR a loss; null until then. */
     val finishedElapsedMillis = mutableStateOf<Long?>(null)
+
+    /** Hints taken on the CURRENT word (reset per word). Any hint makes the word "assisted": it still counts as solved but must not set a record. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** The latest hint, shown until the next guess, new word or restore. */
+    val activeHint = mutableStateOf<WordGuessHint?>(null)
+
+    /** True once the current word has had a hint; the screen skips the best-guesses / best-time record for it. */
+    val assisted: Boolean get() = hintsUsed.value > 0
+
+    /** The seed of today's word when the current word is the daily one, else null. Set by [startMatch]; a resume restores it. */
+    var activeDailySeed: Long? = null
+        private set
+
+    /** Positions already revealed by a hint this word, so a repeat hint moves on to a different letter. */
+    private val hintedPositions = mutableListOf<Int>()
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
@@ -127,6 +180,14 @@ class WordGuessGame(
         puzzlesSolved.value = 0
         puzzlesFailed.value = 0
         matchOver.value = false
+        resetHints()
+        activeDailySeed = null
+    }
+
+    private fun resetHints() {
+        hintsUsed.value = 0
+        hintedPositions.clear()
+        activeHint.value = null
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -159,6 +220,8 @@ class WordGuessGame(
         // found after the fact), the same fix already needed across every other
         // engine in this batch (see e.g. ColorFloodGame's own KDoc on this exact fix).
         matchOver.value = false
+        resetHints()
+        activeDailySeed = dailySeed
         val random = if (dailySeed != null) Random(dailySeed) else Random
         state.value = WordGuessState(
             secret = pickSecret(random).lowercase(),
@@ -215,6 +278,7 @@ class WordGuessGame(
         }
 
         val feedback = scoreGuess(normalized, s.secret)
+        activeHint.value = null
         val entries = s.guesses + WordGuessEntry(normalized, feedback)
         val solved = normalized == s.secret
         val outOfGuesses = !solved && entries.size >= s.maxGuesses
@@ -314,6 +378,132 @@ class WordGuessGame(
             }
         }
         return feedback
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return wordGuessSnapshotJson.encodeToString(
+            WordGuessSnapshot.serializer(),
+            WordGuessSnapshot(
+                players = context.players.map { WordGuessSnapshotPlayer(it.playerId, it.isBot) },
+                secret = s.secret,
+                maxGuesses = s.maxGuesses,
+                guesses = s.guesses.map { it.word },
+                difficulty = difficulty.name,
+                dailySeed = activeDailySeed,
+                puzzlesSolved = puzzlesSolved.value,
+                puzzlesFailed = puzzlesFailed.value,
+                hintsUsed = hintsUsed.value,
+                hintedPositions = hintedPositions.toList(),
+                activeElapsedMillis = activeElapsedMillis(),
+                finishedElapsedMillis = finishedElapsedMillis.value
+            )
+        )
+    }
+
+    /** Null when there is nothing to save: no word yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isLowerWord(word: String): Boolean = word.length == WORD_LENGTH && word.all { it in 'a'..'z' }
+
+    /**
+     * Decodes, validates (roster, tier, shapes, ranges) and applies a snapshot, all-or-nothing:
+     * the new state is computed in full first and assigned only once everything checked out.
+     * The stopwatch is rebuilt so it continues from the saved ACTIVE time and does not count the
+     * time the app was gone.
+     */
+    override fun restore(snapshot: String): Boolean {
+        try {
+            val snap = wordGuessSnapshotJson.decodeFromString(WordGuessSnapshot.serializer(), snapshot)
+            val roster = context.players
+            if (snap.players.size != roster.size) return false
+            for (i in roster.indices) {
+                if (snap.players[i].playerId != roster[i].playerId || snap.players[i].isBot != roster[i].isBot) return false
+            }
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: return false
+            val maxGuesses = difficultyConfig.getValue(tier)
+            if (snap.maxGuesses != maxGuesses) return false
+            if (!isLowerWord(snap.secret)) return false
+            if (snap.guesses.size > maxGuesses || !snap.guesses.all { isLowerWord(it) }) return false
+            // Only the last guess may equal the secret: a solve ends the word.
+            if (snap.guesses.dropLast(1).any { it == snap.secret }) return false
+            if (snap.puzzlesSolved < 0 || snap.puzzlesFailed < 0 || snap.hintsUsed < 0) return false
+            if (!snap.hintedPositions.all { it in 0 until WORD_LENGTH }) return false
+
+            val solved = snap.guesses.lastOrNull() == snap.secret
+            val outOfGuesses = !solved && snap.guesses.size >= maxGuesses
+            val over = solved || outOfGuesses
+            if (over != (snap.finishedElapsedMillis != null)) return false
+            if (snap.finishedElapsedMillis != null && snap.finishedElapsedMillis < 0L) return false
+            if (snap.activeElapsedMillis != null && snap.activeElapsedMillis < 0L) return false
+            // The stopwatch starts on the first accepted guess, so it exists exactly when a guess does.
+            if ((snap.activeElapsedMillis != null) != snap.guesses.isNotEmpty()) return false
+
+            val newState = WordGuessState(
+                secret = snap.secret,
+                maxGuesses = maxGuesses,
+                guesses = snap.guesses.map { WordGuessEntry(it, scoreGuess(it, snap.secret)) },
+                solved = solved,
+                outOfGuesses = outOfGuesses
+            )
+            val now = nowMillis()
+            val frozen = snap.finishedElapsedMillis
+            val active = snap.activeElapsedMillis
+
+            matchOver.value = false
+            difficulty = tier
+            activeDailySeed = snap.dailySeed
+            puzzlesSolved.value = snap.puzzlesSolved
+            puzzlesFailed.value = snap.puzzlesFailed
+            hintsUsed.value = snap.hintsUsed
+            hintedPositions.clear()
+            hintedPositions.addAll(snap.hintedPositions)
+            activeHint.value = null
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            finishedElapsedMillis.value = frozen
+            timerStartElapsedRealtime.value = when {
+                frozen != null -> now - frozen
+                active != null -> now - active
+                else -> null
+            }
+            state.value = newState
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Reveals one letter of the secret at a position that is not green yet, e.g. "letter 3 is R",
+     * preferring a position no earlier hint revealed. Sets [activeHint], counts it in [hintsUsed]
+     * (which marks the word [assisted]) and returns it; null when the word is already decided or
+     * the session is over. It is a suggestion: it never fills the typed row.
+     */
+    fun hint(): WordGuessHint? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val unsolved = (0 until WORD_LENGTH).filter { pos ->
+            s.guesses.none { it.feedback[pos] == LetterFeedback.CORRECT }
+        }
+        val position = unsolved.firstOrNull { it !in hintedPositions } ?: unsolved.firstOrNull() ?: return null
+        if (position !in hintedPositions) hintedPositions.add(position)
+        hintsUsed.value += 1
+        val suggestion = WordGuessHint(position, s.secret[position])
+        activeHint.value = suggestion
+        return suggestion
     }
 
     companion object {

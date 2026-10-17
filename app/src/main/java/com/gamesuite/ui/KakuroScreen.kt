@@ -34,6 +34,8 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -214,12 +216,18 @@ fun KakuroScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
+        // A saved puzzle comes back synchronously, before any generation can start, so a resume
+        // never races the background deal. The screen's own daily tag is then re-derived from it.
+        if (sessionManager.tryResume(game)) {
+            dailyBoardActive = game.dailyBoard.value
+            return@LaunchedEffect
+        }
         dailyBoardActive = dailySeed != null
         val tier = game.difficulty
         // HARD can take a while to generate: never on the main thread.
         val puzzle = withContext(Dispatchers.Default) { game.generate(tier, dailySeed) }
         // The player may have backed out while it was generating; never revive a finished session.
-        if (!game.matchOver.value) game.beginPuzzle(puzzle)
+        if (!game.matchOver.value) game.beginPuzzle(puzzle, dailySeed)
     }
 
     val s = state
@@ -242,7 +250,9 @@ fun KakuroScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-        reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+        // A solve that used a hint is assisted: it still counts as solved for the session
+        // (puzzlesSolved) but must not set a best time.
+        reportedNewBest = if (game.hintsUsed.value > 0) false else statsStore.recordWin(game.difficulty, finalTime)
     }
 
     // Derived once per change of the cells / selection, not once per cell per frame.
@@ -329,6 +339,21 @@ fun KakuroScreen(
         }
     }
 
+    val canUndoNow = game.canUndo && !generating
+    val canHintNow = !s.isOver && !generating && !game.matchOver.value
+    val onUndoTap: () -> Unit = {
+        if (!generating && !game.matchOver.value) {
+            game.undo()
+            haptics(HapticSignal.LIGHT_TICK)
+        }
+    }
+    val onHintTap: () -> Unit = {
+        val live = game.state.value
+        if (live != null && !live.isOver && !generating && !game.matchOver.value) {
+            if (game.hint() != null) haptics(HapticSignal.NORMAL_ACTION)
+        }
+    }
+
     // "Finished units" for the abort policy: puzzles already solved this session. If any exist,
     // leaving mid-puzzle must still score them -- see onAbort below.
     val finishedPuzzles = game.puzzlesSolved.value
@@ -344,8 +369,12 @@ fun KakuroScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
+        onUndo = onUndoTap,
+        canUndo = canUndoNow,
+        onHint = onHintTap,
         leaveTitle = "Leave this puzzle?",
         leaveBody = if (finishedPuzzles > 0) {
             "This puzzle is still unsolved and won't count, but the puzzles you've already solved stay on your record."
@@ -388,6 +417,7 @@ fun KakuroScreen(
                     completedClues = completedClues,
                     enabled = !s.isOver && !generating,
                     generating = generating,
+                    hintCell = game.hintCell.value,
                     palette = palette,
                     colorblind = colorblind,
                     onTapCell = onTapCell,
@@ -409,6 +439,14 @@ fun KakuroScreen(
                             onNotesChange = { notesMode = it },
                             palette = palette
                         )
+                        Spacer(Modifier.height(6.dp))
+                        KakuroControlsRow(
+                            canUndo = canUndoNow,
+                            canHint = canHintNow,
+                            onUndo = onUndoTap,
+                            onHint = onHintTap,
+                            palette = palette
+                        )
                     }
                     AnimatedVisibility(visible = s.isOver, enter = resultEnter, exit = ExitTransition.None) {
                         KakuroResultPanel(
@@ -417,6 +455,7 @@ fun KakuroScreen(
                             timeMillis = game.finishedElapsedMillis.value,
                             bestTimeMillis = bestTimeMillis,
                             isNewBest = reportedNewBest,
+                            hintsUsed = game.hintsUsed.value,
                             puzzlesSolved = finishedPuzzles,
                             generating = generating,
                             onNewPuzzle = { dealPuzzle(game.difficulty) },
@@ -836,6 +875,7 @@ private fun KakuroBoardSlot(
     completedClues: Set<Int>,
     enabled: Boolean,
     generating: Boolean,
+    hintCell: Int?,
     palette: KakuroPalette,
     colorblind: Boolean,
     onTapCell: (Int) -> Unit,
@@ -899,6 +939,7 @@ private fun KakuroBoardSlot(
                                         isSelected = index == s.selectedIndex,
                                         inRun = index in selection.runCells,
                                         isWrong = cell.value != null && cell.value != s.solution[index],
+                                        isHint = index == hintCell,
                                         enabled = enabled,
                                         cellSize = cellSize,
                                         palette = palette,
@@ -1035,6 +1076,7 @@ private fun KakuroEntryCell(
     isSelected: Boolean,
     inRun: Boolean,
     isWrong: Boolean,
+    isHint: Boolean,
     enabled: Boolean,
     cellSize: Dp,
     palette: KakuroPalette,
@@ -1043,14 +1085,14 @@ private fun KakuroEntryCell(
 ) {
     val value = cell.value
     val notes = cell.notes
-    val description = remember(value, notes, isSelected, isWrong, row, col) {
+    val description = remember(value, notes, isSelected, isWrong, isHint, row, col) {
         val base = when {
             value != null && isWrong -> "Wrong digit $value"
             value != null -> "Digit $value"
             notes.isNotEmpty() -> "Notes " + notes.sorted().joinToString(", ")
             else -> "Empty"
         }
-        val prefix = if (isSelected) "Selected, " else ""
+        val prefix = (if (isSelected) "Selected, " else "") + (if (isHint) "Hint, filled in for you, " else "")
         "$prefix$base, row ${row + 1}, column ${col + 1}"
     }
     val density = LocalDensity.current
@@ -1090,6 +1132,27 @@ private fun KakuroEntryCell(
                     )
                 }
                 drawContent()
+                if (isHint) {
+                    // Non-colour cue: a dashed inner frame plus a solid corner triangle.
+                    val frame = 2.dp.toPx()
+                    drawRect(
+                        color = palette.textPrimary,
+                        topLeft = Offset(gap + frame * 1.5f, gap + frame * 1.5f),
+                        size = Size(innerWidth - frame * 3f, innerHeight - frame * 3f),
+                        style = Stroke(
+                            width = frame,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+                        )
+                    )
+                    val corner = size.width * 0.3f
+                    val tri = Path().apply {
+                        moveTo(gap, gap)
+                        lineTo(gap + corner, gap)
+                        lineTo(gap, gap + corner)
+                        close()
+                    }
+                    drawPath(tri, color = palette.textPrimary)
+                }
                 if (isWrong) {
                     drawLine(
                         color = digitColor,
@@ -1295,6 +1358,46 @@ private fun KakuroPadKey(
     }
 }
 
+/**
+ * Visible Undo and Hint under the number pad, so neither is hidden in the corner menu. Both are
+ * the same actions the menu offers. Undo is enabled once there is an entry to take back; Hint
+ * fills one cell correctly and marks the puzzle assisted (no best time). Both at least 48dp tall.
+ */
+@Composable
+private fun KakuroControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: KakuroPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(
+        modifier = modifier.widthIn(max = KAKURO_CONTROLS_MAX_WIDTH_DP.dp).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .semantics { if (!canUndo) stateDescription = "Nothing to undo" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .semantics { stateDescription = if (canHint) "Fills one cell and ends best-time eligibility" else "No hint available" }
+        ) { Text("Hint") }
+    }
+}
+
 /** The pencil-marks switch: at least 48dp tall, announced as a switch named "Notes" (its on/off state is read by the toggle role). */
 @Composable
 private fun KakuroNotesSwitch(
@@ -1342,6 +1445,7 @@ private fun KakuroResultPanel(
     timeMillis: Long?,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
+    hintsUsed: Int,
     puzzlesSolved: Int,
     generating: Boolean,
     onNewPuzzle: () -> Unit,
@@ -1372,7 +1476,19 @@ private fun KakuroResultPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
-            if (isNewBest) {
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "A hinted solve doesn't set a best time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.textPrimary.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+            } else if (isNewBest) {
                 Spacer(Modifier.height(4.dp))
                 Text("New best time!", fontWeight = FontWeight.Bold)
             } else if (bestTimeMillis != null) {

@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
 import com.gamesuite.transport.NearbyRoster
 import kotlinx.serialization.decodeFromString
@@ -112,7 +113,11 @@ fun NearbyHostLobbyScreen(
                 // what is installed is exactly what is announced. This screen only applies the plan.
                 val launch = roster.launch(gameRoute)
                 roster = launch.roster
-                val players = launch.players
+                // The host's seat keeps its id; only its display name is the remembered one.
+                val hostName = PlayerNameStore(context).lobbyName("Host")
+                val players = launch.players.map {
+                    if (it.playerId == com.gamesuite.transport.NEARBY_HOST_PLAYER_ID) it.copy(displayName = hostName) else it
+                }
 
                 transport.setPlayerIdMapping(launch.endpointToPlayerId)
                 transport.stopAdvertising()

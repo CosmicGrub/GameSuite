@@ -3,6 +3,47 @@ package com.gamesuite.games.dominoes
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Dominoes session back exactly as it was, hidden information included:
+ * both (all) hands, the boneyard IN ORDER (index 0 is the next tile drawn), the chain with each
+ * tile's orientation, whose turn it is, the consecutive-pass count, the running session scores and
+ * the count of finished hands. One shape serves Resume (disk) and Undo (memory).
+ */
+@Serializable
+private data class DominoSnapshot(
+    val players: List<DominoSnapshotPlayer>,
+    val boneyard: List<DominoSnapshotTile>,
+    val chain: List<DominoSnapshotPlaced>,
+    val currentPlayerIndex: Int,
+    val consecutivePasses: Int,
+    val lastAction: String,
+    val handOver: Boolean,
+    val winnerPlayerId: String?,
+    val sessionScores: Map<String, Int>,
+    val handsFinished: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class DominoSnapshotTile(val a: Int, val b: Int, val id: Int)
+
+@Serializable
+private data class DominoSnapshotPlaced(val tile: DominoSnapshotTile, val flipped: Boolean)
+
+@Serializable
+private data class DominoSnapshotPlayer(
+    val playerId: String,
+    val displayName: String,
+    val isBot: Boolean,
+    val hand: List<DominoSnapshotTile>
+)
+
+private val dominoSnapshotJson = Json { ignoreUnknownKeys = true }
+
+private const val DOMINO_SET_SIZE = 28
 
 data class Domino(val a: Int, val b: Int, val instanceId: Int) {
     val isDouble: Boolean get() = a == b
@@ -49,7 +90,7 @@ data class DominoState(
  * player empties their hand (win) or every player is blocked (lowest total
  * pips in hand wins).
  */
-class DominoGame : GameModule {
+class DominoGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "dominoes"
     override val displayName = "Dominoes"
     override val category = GameCategory.BOARD
@@ -81,10 +122,158 @@ class DominoGame : GameModule {
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var boneyard: MutableList<Domino> = mutableListOf()
 
+    /**
+     * Hands this session that reached their own end (a win or a blocked hand). The screen uses it to
+     * decide whether leaving mid-hand aborts or scores the session; it is part of the snapshot so a
+     * resumed (or undone) session keeps it honest.
+     */
+    val handsFinished = mutableStateOf(0)
+
+    /** Snapshots taken just BEFORE each human action (play, draw, pass), newest last; popping one is Undo. Per hand. */
+    private val history = SnapshotHistory()
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         sessionScores.value = context.players.associate { it.playerId to 0 }
+        handsFinished.value = 0
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun tileToSnap(d: Domino) = DominoSnapshotTile(d.a, d.b, d.instanceId)
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return dominoSnapshotJson.encodeToString(
+            DominoSnapshot.serializer(),
+            DominoSnapshot(
+                players = s.players.map { p ->
+                    DominoSnapshotPlayer(p.playerId, p.displayName, p.isBot, p.hand.map { tileToSnap(it) })
+                },
+                boneyard = boneyard.map { tileToSnap(it) },
+                chain = s.chain.map { DominoSnapshotPlaced(tileToSnap(it.domino), it.flipped) },
+                currentPlayerIndex = s.currentPlayerIndex,
+                consecutivePasses = s.consecutivePasses,
+                lastAction = s.lastAction,
+                handOver = s.handOver,
+                winnerPlayerId = s.winnerPlayerId,
+                sessionScores = sessionScores.value,
+                handsFinished = handsFinished.value,
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's roster and the 28-tile set; null if unusable. */
+    private fun decodeSnapshot(text: String): DominoSnapshot? {
+        val snap = try {
+            dominoSnapshotJson.decodeFromString(DominoSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        if (snap.players.size != roster.size) return null
+        if (!snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot }) return null
+        if (snap.currentPlayerIndex !in snap.players.indices) return null
+        if (snap.consecutivePasses < 0 || snap.handsFinished < 0) return null
+        if (snap.winnerPlayerId != null && snap.players.none { it.playerId == snap.winnerPlayerId }) return null
+        if (!roster.all { (snap.sessionScores[it.playerId] ?: -1) >= 0 }) return null
+
+        // The whole 28-tile set must be accounted for exactly once across hands, boneyard and chain.
+        val tiles = snap.players.flatMap { it.hand } + snap.boneyard + snap.chain.map { it.tile }
+        if (tiles.size != DOMINO_SET_SIZE) return null
+        if (tiles.map { it.id }.toSet().size != DOMINO_SET_SIZE) return null
+        // Each id must carry its real pips (ids are dealt in (0-0, 0-1, ... 6-6) order), so a stale or
+        // edited save cannot hold two tiles with the same pips.
+        val canonical = ArrayList<Pair<Int, Int>>(DOMINO_SET_SIZE)
+        for (a in 0..6) for (b in a..6) canonical.add(a to b)
+        if (!tiles.all { it.id in 0 until DOMINO_SET_SIZE && canonical[it.id] == (it.a to it.b) }) return null
+
+        // Neighbouring chain tiles must actually touch with matching pips.
+        for (i in 0 until snap.chain.size - 1) {
+            val left = snap.chain[i]
+            val right = snap.chain[i + 1]
+            val leftRight = if (left.flipped) left.tile.a else left.tile.b
+            val rightLeft = if (right.flipped) right.tile.b else right.tile.a
+            if (leftRight != rightLeft) return null
+        }
+        return snap
+    }
+
+    private fun snapToTile(t: DominoSnapshotTile) = Domino(t.a, t.b, t.id)
+
+    private fun applySnapshot(snap: DominoSnapshot) {
+        val newBoneyard = snap.boneyard.map { snapToTile(it) }.toMutableList()
+        boneyard = newBoneyard
+        state.value = DominoState(
+            players = snap.players.map { p ->
+                DominoPlayerState(p.playerId, p.displayName, p.isBot, p.hand.map { snapToTile(it) })
+            },
+            boneyardSize = newBoneyard.size,
+            chain = snap.chain.map { PlacedDomino(snapToTile(it.tile), it.flipped) },
+            currentPlayerIndex = snap.currentPlayerIndex,
+            consecutivePasses = snap.consecutivePasses,
+            lastAction = snap.lastAction,
+            handOver = snap.handOver,
+            winnerPlayerId = snap.winnerPlayerId
+        )
+        sessionScores.value = context.players.associate { it.playerId to (snap.sessionScores[it.playerId] ?: 0) }
+        handsFinished.value = snap.handsFinished
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+    }
+
+    /** Null when there is nothing to save: no hand yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        if (matchOver.value || state.value == null) return null
+        if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+        return try {
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            matchOver.value = false
+            applySnapshot(snap)
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    /** Not while the CPU is on the move (its turn is mid-flight); a finished hand can still be taken back. */
+    override val canUndo: Boolean
+        get() {
+            if (history.depth <= 0 || matchOver.value) return false
+            val s = state.value ?: return false
+            return s.handOver || s.players.getOrNull(s.currentPlayerIndex)?.isBot == false
+        }
+
+    /**
+     * Takes back the last human action (a played tile, a draw, or a pass). Against the CPU that also
+     * takes back the CPU's reply, because the snapshot was taken before the human's action. An undone
+     * draw puts the tile back on top of the boneyard (the order is in the snapshot). Undoing the
+     * winning tile re-opens the hand and takes its points and finished-hand count back.
+     */
+    override fun undo() {
+        if (!canUndo) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap)
+    }
+
+    /** Records an undo step before a HUMAN action is applied; the CPU's own moves never leave a step. */
+    private fun recordUndoStep(actor: DominoPlayerState) {
+        if (actor.isBot) return
+        captureSnapshot()?.let { history.push(it) }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -92,6 +281,8 @@ class DominoGame : GameModule {
     }
 
     override fun startMatch() {
+        // A new hand starts a new undo history: undo never reaches back into the previous hand.
+        history.clear()
         var id = 0
         val full = mutableListOf<Domino>()
         for (a in 0..6) for (b in a..6) full.add(Domino(a, b, id++))
@@ -207,6 +398,7 @@ class DominoGame : GameModule {
         val player = s.players[playerIndex]
         if (!player.hand.any { it.instanceId == domino.instanceId }) return
         if (!canPlace(domino, attachToLeft)) return // doesn't match, illegal
+        recordUndoStep(player)
 
         val newChain: List<PlacedDomino> = if (s.chain.isEmpty()) {
             listOf(PlacedDomino(domino, flipped = false))
@@ -237,6 +429,7 @@ class DominoGame : GameModule {
         if (s.handOver || playerIndex != s.currentPlayerIndex || boneyard.isEmpty()) return
         if (canPlay(playerIndex)) return // must play a legal tile instead of drawing
         val player = s.players[playerIndex]
+        recordUndoStep(player)
         val drawn = draw(1)
         val updatedPlayers = s.players.toMutableList()
         updatedPlayers[playerIndex] = player.copy(hand = player.hand + drawn)
@@ -253,6 +446,7 @@ class DominoGame : GameModule {
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
         // Only allowed once the boneyard is empty and the player genuinely has no legal move.
         if (boneyard.isNotEmpty() || canPlay(playerIndex)) return
+        recordUndoStep(s.players[playerIndex])
         val consecutivePasses = s.consecutivePasses + 1
         val blocked = consecutivePasses >= s.players.size
 
@@ -342,6 +536,7 @@ class DominoGame : GameModule {
         val s = state.value ?: return
         val winner = s.players[playerIndex]
         awardHandPoints(winner.playerId, s.players)
+        handsFinished.value += 1
         state.value = s.copy(handOver = true, winnerPlayerId = winner.playerId, lastAction = "${winner.displayName} wins!")
     }
 
@@ -350,6 +545,7 @@ class DominoGame : GameModule {
         val pipTotals = s.players.associate { it.playerId to it.hand.sumOf { d -> d.a + d.b } }
         val winnerId = pipTotals.minByOrNull { it.value }?.key
         awardHandPoints(winnerId, s.players)
+        handsFinished.value += 1
         state.value = s.copy(winnerPlayerId = winnerId, lastAction = "Blocked — lowest pips wins")
     }
 

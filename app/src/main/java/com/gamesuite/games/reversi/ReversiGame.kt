@@ -3,6 +3,34 @@ package com.gamesuite.games.reversi
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Reversi session back exactly as it was: the board, whose turn it is,
+ * the pass flag, the session tally, who opens the next board and the difficulty. One shape serves
+ * both Resume (written to disk) and Undo (kept in memory). The legal-move set and the disc counts
+ * are derived from the cells on restore, so they cannot disagree with the board.
+ */
+@Serializable
+private data class ReversiSnapshot(
+    val cells: List<Int?>,
+    val players: List<ReversiSnapshotPlayer>,
+    val currentPlayerIndex: Int,
+    val lastAction: String,
+    val justPassed: Boolean,
+    val boardOver: Boolean,
+    val winnerPlayerId: String?,
+    val sessionWins: Map<String, Int>,
+    val sessionDraws: Int,
+    val nextStartingPlayerIndex: Int,
+    val difficulty: String
+)
+
+@Serializable
+private data class ReversiSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
+
+private val reversiSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /** A player's identity + bot flag — mirrors ConnectFourPlayerState's own shape (see that class's
  *  KDoc for why this is a list even though Reversi, like Connect Four, is always exactly 2 players). */
@@ -81,7 +109,7 @@ data class ReversiState(
  * be strong first lets pruning cut off more of the tree sooner, not a gameplay rule of its own,
  * same disclaimer ConnectFourGame's own `columnSearchOrder` KDoc makes about its center-first order.
  */
-class ReversiGame : GameModule {
+class ReversiGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "reversi"
     override val displayName = "Reversi"
     override val category = GameCategory.BOARD
@@ -112,12 +140,149 @@ class ReversiGame : GameModule {
      *  same idiom ConnectFourGame's own Play Again uses. */
     private var nextStartingPlayerIndex = 0
 
+    /** Snapshots taken just BEFORE each human move, newest last; popping one is Undo. Per board. */
+    private val history = SnapshotHistory()
+
+    /** The cell the last [hint] suggested, shown ringed until the next move, undo or new board. */
+    val hintMove = mutableStateOf<Int?>(null)
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
         nextStartingPlayerIndex = 0
+        history.clear()
+        hintMove.value = null
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        return reversiSnapshotJson.encodeToString(
+            ReversiSnapshot.serializer(),
+            ReversiSnapshot(
+                cells = s.cells,
+                players = s.players.map { ReversiSnapshotPlayer(it.playerId, it.displayName, it.isBot) },
+                currentPlayerIndex = s.currentPlayerIndex,
+                lastAction = s.lastAction,
+                justPassed = s.justPassed,
+                boardOver = s.boardOver,
+                winnerPlayerId = s.winnerPlayerId,
+                sessionWins = sessionWins.value,
+                sessionDraws = sessionDraws.value,
+                nextStartingPlayerIndex = nextStartingPlayerIndex,
+                difficulty = difficulty.name
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against this game's board shape and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): ReversiSnapshot? {
+        return try {
+            val snap = reversiSnapshotJson.decodeFromString(ReversiSnapshot.serializer(), text)
+            val roster = context.players
+            val valid = snap.cells.size == 64 &&
+                snap.players.size == 2 &&
+                snap.cells.all { it == null || it in snap.players.indices } &&
+                snap.players.size == roster.size &&
+                snap.players.indices.all {
+                    snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
+                } &&
+                snap.currentPlayerIndex in snap.players.indices &&
+                snap.nextStartingPlayerIndex in snap.players.indices &&
+                snap.sessionDraws >= 0 &&
+                snap.sessionWins.all { (id, wins) -> wins >= 0 && roster.any { it.playerId == id } } &&
+                (snap.winnerPlayerId == null || snap.players.any { it.playerId == snap.winnerPlayerId }) &&
+                (snap.boardOver || legalMovesFor(snap.cells, snap.currentPlayerIndex).isNotEmpty())
+            if (valid) snap else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun applySnapshot(snap: ReversiSnapshot, restoreDifficulty: Boolean) {
+        state.value = ReversiState(
+            cells = snap.cells,
+            players = snap.players.map { ReversiPlayerState(it.playerId, it.displayName, it.isBot) },
+            currentPlayerIndex = snap.currentPlayerIndex,
+            legalMoves = if (snap.boardOver) emptySet() else legalMovesFor(snap.cells, snap.currentPlayerIndex),
+            scores = computeScores(snap.cells, snap.players.size),
+            lastAction = snap.lastAction,
+            justPassed = snap.justPassed,
+            boardOver = snap.boardOver,
+            winnerPlayerId = snap.winnerPlayerId
+        )
+        sessionWins.value = snap.sessionWins
+        sessionDraws.value = snap.sessionDraws
+        nextStartingPlayerIndex = snap.nextStartingPlayerIndex
+        if (restoreDifficulty) {
+            difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        }
+        hintMove.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT &&
+                context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+            ) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        val snap = decodeSnapshot(snapshot) ?: return false
+        matchOver.value = false
+        applySnapshot(snap, restoreDifficulty = true)
+        history.clear()
+        return true
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human move. Against the CPU that also takes back the CPU's reply (and any
+     * pass that followed), since the snapshot was taken before the human's move. Undoing a
+     * board-ending move re-opens the board and takes its win/draw back off the session tally.
+     * Reversi has no clock and no only-goes-up counters, so everything is restored as saved; the
+     * CPU difficulty is left as currently set.
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap, restoreDifficulty = false)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests a cell for the player to move: the strongest move the bot's own search can find
+     * (iterative deepening up to [HINT_SEARCH_DEPTH] plies, regardless of the CPU difficulty
+     * setting, stopping early once [HINT_TIME_BUDGET_MS] has been spent). Highlights it
+     * ([hintMove]) and returns it; null when it is not a human's turn or the board is over.
+     * Reversi keeps no records, so a hint costs nothing.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.boardOver || s.legalMoves.isEmpty()) return null
+        if (s.players[s.currentPlayerIndex].isBot) return null
+        val started = System.nanoTime()
+        var best: Int? = null
+        for (depth in HINT_SEARCH_DEPTHS) {
+            best = chooseBotMove(s, depthOverride = depth) ?: best
+            if ((System.nanoTime() - started) / 1_000_000L > HINT_TIME_BUDGET_MS) break
+        }
+        hintMove.value = best
+        return best
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -137,6 +302,9 @@ class ReversiGame : GameModule {
     override fun startMatch() {
         val players = context.players.map { ReversiPlayerState(it.playerId, it.displayName, it.isBot) }
         matchOver.value = false
+        // A new board starts a new undo history: undo never reaches back into the previous board.
+        history.clear()
+        hintMove.value = null
 
         val startingPlayerIndex = nextStartingPlayerIndex % players.size
         val otherPlayerIndex = 1 - startingPlayerIndex // safe: this game is always exactly 2 players
@@ -204,6 +372,10 @@ class ReversiGame : GameModule {
         if (index !in s.legalMoves) return
 
         val mover = s.players[s.currentPlayerIndex]
+        // Undo step: taken before a HUMAN move is applied (never for the bot's), after the move
+        // passed validation, so a rejected tap leaves nothing behind.
+        if (!mover.isBot) captureSnapshot()?.let { history.push(it) }
+        hintMove.value = null
         val newCells = applyMove(s.cells, index, s.currentPlayerIndex)
         val flippedCount = s.cells.indices.count { newCells[it] == s.currentPlayerIndex && s.cells[it] != null && s.cells[it] != s.currentPlayerIndex }
 
@@ -260,8 +432,10 @@ class ReversiGame : GameModule {
      * move-ordering technique ConnectFourGame's own `chooseBotMove` KDoc explains in full (provably
      * can't change which move is ultimately chosen, only tightens pruning).
      */
-    private fun chooseBotMove(s: ReversiState): Int? {
-        val depth = difficultySearchDepth[difficulty] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
+    private fun chooseBotMove(s: ReversiState, depthOverride: Int? = null): Int? {
+        val depth = depthOverride
+            ?: difficultySearchDepth[difficulty]
+            ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
         val bot = s.currentPlayerIndex
         val opponent = 1 - bot
 
@@ -582,6 +756,11 @@ class ReversiGame : GameModule {
     }
 
     private companion object {
+        /** Hint search: iterative deepening through these plies (the strongest is the HARD tier's
+         *  own depth), abandoning deeper passes once the budget in ms is spent. */
+        val HINT_SEARCH_DEPTHS = listOf(2, 4, 6)
+        const val HINT_TIME_BUDGET_MS = 400L
+
         const val CORNER_WEIGHT = 120
         const val X_SQUARE_WEIGHT = -20
         const val C_SQUARE_WEIGHT_CORNER_OPEN = -40

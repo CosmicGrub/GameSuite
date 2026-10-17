@@ -114,7 +114,10 @@ private const val HELP_TEXT =
         "neighbor.\n\n" +
         "Easy, Medium and Hard use 4x4, 6x6 and 8x8 boards with 4, 5 and 6 colors, and Custom lets " +
         "you choose square or hex tiles, 2 to 10 across, with 2 to 8 colors. Your clock starts on " +
-        "your first tap."
+        "your first tap.\n\n" +
+        "Undo takes back your last tap. Hint outlines one tile that is not yet in its solved " +
+        "orientation; a puzzle solved with a hint still counts as solved but sets no best time or " +
+        "best move record."
 
 /**
  * Renders EdgeMatchGame's state reactively: tier chips plus a Custom Game Builder, a live
@@ -187,6 +190,7 @@ fun EdgeMatchScreen(
     rememberAmbientMusic(profile = MusicProfiles.PUZZLE_FOCUS, enabled = musicEnabled)
     val statsStore = remember { EdgeMatchStatsStore(androidContext) }
     val state by game.state
+    val hintTile by game.hintTile
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val palette = edgeMatchPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
     val reducedMotion = LocalReducedMotion.current
@@ -204,8 +208,15 @@ fun EdgeMatchScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        // Picking this game from the menu after leaving it mid-puzzle offers Resume; when the
+        // player took it, the engine is put back exactly as it was instead of dealing a new board.
+        if (sessionManager.tryResume(game)) {
+            // The tier chips and Custom state are read off the engine; the daily tag is derived too.
+            dailyBoardActive = game.activeDailySeed != null
+        } else {
+            dailyBoardActive = dailySeed != null
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -243,9 +254,15 @@ fun EdgeMatchScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedResult == null) {
-            val finalTime = game.solvedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            val result = statsStore.recordSolve(game.statsKey(), s.moves, finalTime)
-            reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
+            if (!game.countsForRecord) {
+                // An assisted solve (a hint was used) still counts as solved for the session, but
+                // must not set a best-moves / best-time record.
+                reportedResult = false to false
+            } else {
+                val finalTime = game.solvedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                val result = statsStore.recordSolve(game.statsKey(), s.moves, finalTime)
+                reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
+            }
         }
     }
 
@@ -298,6 +315,10 @@ fun EdgeMatchScreen(
         matchInProgress = !s.solved,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
+        onUndo = { game.undo() },
+        canUndo = game.canUndo,
+        onHint = { game.hint() },
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this puzzle?",
@@ -356,9 +377,22 @@ fun EdgeMatchScreen(
                     onSelectCustom = onSelectCustom
                 )
             }
+            val controlsRow: @Composable () -> Unit = {
+                EdgeMatchControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = !s.solved && !game.matchOver.value,
+                    hintTile = hintTile,
+                    hintsUsed = game.hintsUsed.value,
+                    boardSize = s.size,
+                    onUndo = { game.undo() },
+                    onHint = { game.hint() },
+                    palette = palette
+                )
+            }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
                 EdgeMatchBoardSlot(
                     s = s,
+                    hintTile = hintTile,
                     matching = matching,
                     neighborCounts = neighborCounts,
                     palette = palette,
@@ -371,6 +405,7 @@ fun EdgeMatchScreen(
             val resultPanel: @Composable (Modifier) -> Unit = { panelModifier ->
                 EdgeMatchFinishedPanel(
                     moves = s.moves,
+                    hintsUsed = game.hintsUsed.value,
                     timeMillis = game.solvedElapsedMillis.value,
                     record = record,
                     isNewBestMoves = reportedResult?.first ?: false,
@@ -398,6 +433,7 @@ fun EdgeMatchScreen(
                     ) {
                         statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
                         tiersRow()
+                        controlsRow()
                         if (s.solved) resultPanel(Modifier.fillMaxWidth())
                     }
                 }
@@ -413,6 +449,7 @@ fun EdgeMatchScreen(
                     tiersRow()
                     Spacer(Modifier.height(12.dp))
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
+                    controlsRow()
                     if (s.solved) {
                         Spacer(Modifier.height(12.dp))
                         // Capped so even a large font scale cannot push the board out of the slot
@@ -544,7 +581,8 @@ private fun tileDescription(
     matchedSides: Int,
     neighborSides: Int,
     row: Int,
-    col: Int
+    col: Int,
+    hinted: Boolean = false
 ): String {
     val sideNames = if (geometry == EdgeMatchGeometry.HEX) HEX_SIDE_NAMES else SQUARE_SIDE_NAMES
     val edges = sideNames.indices.joinToString(", ") { direction ->
@@ -556,7 +594,8 @@ private fun tileDescription(
     } else {
         "$matchedSides of $neighborSides sides match"
     }
-    return "Tile, $edges, $matches, row ${row + 1}, column ${col + 1}"
+    val suggested = if (hinted) ", suggested tile" else ""
+    return "Tile, $edges, $matches, row ${row + 1}, column ${col + 1}$suggested"
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +662,70 @@ private fun EdgeMatchTab(label: String, selected: Boolean, palette: EdgeMatchPal
                 label,
                 color = if (selected) palette.textOnAccent else palette.textPrimary,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+/**
+ * Undo and Hint buttons (48dp tall, disabled rather than hidden when they do not apply), plus a text
+ * line naming the suggested tile while a hint is showing. Undo takes back the last tap; Hint outlines
+ * one tile that is not in its solved orientation and marks the puzzle as assisted (no record).
+ */
+@Composable
+private fun EdgeMatchControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    hintTile: Int?,
+    hintsUsed: Int,
+    boardSize: Int,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: EdgeMatchPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (canUndo) "Undo last tile turn" else "Undo, nothing to undo yet" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = colors,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (canHint) {
+                        "Hint, outlines a suggested tile and marks this puzzle as assisted"
+                    } else {
+                        "Hint, unavailable because the puzzle is solved"
+                    }
+                }
+        ) { Text("Hint") }
+        if (hintTile != null && boardSize > 0) {
+            Text(
+                "Suggested tile: row ${hintTile / boardSize + 1}, column ${hintTile % boardSize + 1}",
+                color = palette.textPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        } else if (hintsUsed > 0) {
+            Text(
+                "Hints: $hintsUsed",
+                color = palette.textPrimary.copy(alpha = 0.75f),
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
@@ -822,6 +925,7 @@ private fun EdgeMatchCustomDialog(
 @Composable
 private fun EdgeMatchBoardSlot(
     s: EdgeMatchState,
+    hintTile: Int?,
     matching: List<Set<Int>>,
     neighborCounts: List<Int>,
     palette: EdgeMatchPalette,
@@ -852,6 +956,7 @@ private fun EdgeMatchBoardSlot(
             Box(modifier = if (scrolls) Modifier.horizontalScroll(hScroll).verticalScroll(vScroll) else Modifier) {
                 HexBoard(
                     s = s,
+                    hintTile = hintTile,
                     matching = matching,
                     neighborCounts = neighborCounts,
                     radius = radius,
@@ -899,6 +1004,7 @@ private fun EdgeMatchBoardSlot(
                                     col = col,
                                     tileSize = cellSize,
                                     solved = s.solved,
+                                    hinted = hintTile == index,
                                     palette = palette,
                                     colorblind = colorblind,
                                     reducedMotion = reducedMotion,
@@ -925,6 +1031,7 @@ private fun EdgeMatchBoardSlot(
 @Composable
 private fun HexBoard(
     s: EdgeMatchState,
+    hintTile: Int?,
     matching: List<Set<Int>>,
     neighborCounts: List<Int>,
     radius: Dp,
@@ -968,6 +1075,7 @@ private fun HexBoard(
                         col = q,
                         radius = radius,
                         solved = s.solved,
+                        hinted = hintTile == index,
                         palette = palette,
                         colorblind = colorblind,
                         reducedMotion = reducedMotion,
@@ -1040,13 +1148,14 @@ private fun EdgeMatchTileView(
     col: Int,
     tileSize: Dp,
     solved: Boolean,
+    hinted: Boolean,
     palette: EdgeMatchPalette,
     colorblind: Boolean,
     reducedMotion: Boolean,
     onTap: () -> Unit
 ) {
-    val description = remember(tile, matching, neighborSides, row, col) {
-        tileDescription(tile, EdgeMatchGeometry.SQUARE, matching.size, neighborSides, row, col)
+    val description = remember(tile, matching, neighborSides, row, col, hinted) {
+        tileDescription(tile, EdgeMatchGeometry.SQUARE, matching.size, neighborSides, row, col, hinted)
     }
     val spin = rememberTileSpin(tile, animate = !reducedMotion, colorsTurnClockwise = true)
     Box(
@@ -1065,7 +1174,7 @@ private fun EdgeMatchTileView(
             val corners = arrayOf(Offset(0f, 0f), Offset(w, 0f), Offset(w, h), Offset(0f, h))
             val starts = Array(4) { corners[it] }
             val ends = Array(4) { corners[(it + 1) % 4] }
-            drawWedges(tile, matching, Offset(w / 2f, h / 2f), starts, ends, palette, colorblind)
+            drawWedges(tile, matching, Offset(w / 2f, h / 2f), starts, ends, palette, colorblind, hinted)
         }
     }
 }
@@ -1094,14 +1203,15 @@ private fun HexEdgeMatchTileView(
     col: Int,
     radius: Dp,
     solved: Boolean,
+    hinted: Boolean,
     palette: EdgeMatchPalette,
     colorblind: Boolean,
     reducedMotion: Boolean,
     onTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val description = remember(tile, matching, neighborSides, row, col) {
-        tileDescription(tile, EdgeMatchGeometry.HEX, matching.size, neighborSides, row, col)
+    val description = remember(tile, matching, neighborSides, row, col, hinted) {
+        tileDescription(tile, EdgeMatchGeometry.HEX, matching.size, neighborSides, row, col, hinted)
     }
     val spin = rememberTileSpin(tile, animate = !reducedMotion, colorsTurnClockwise = false)
     Box(modifier = modifier.size(radius * 2)) {
@@ -1119,7 +1229,7 @@ private fun HexEdgeMatchTileView(
 
             val starts = Array(6) { d -> vertex(((1 - d) % 6 + 6) % 6) }
             val ends = Array(6) { d -> vertex((((1 - d) % 6 + 6) % 6 + 1) % 6) }
-            drawWedges(tile, matching, Offset(cx, cy), starts, ends, palette, colorblind)
+            drawWedges(tile, matching, Offset(cx, cy), starts, ends, palette, colorblind, hinted)
         }
         Box(
             modifier = Modifier
@@ -1159,7 +1269,8 @@ private fun DrawScope.drawWedges(
     starts: Array<Offset>,
     ends: Array<Offset>,
     palette: EdgeMatchPalette,
-    colorblind: Boolean
+    colorblind: Boolean,
+    hinted: Boolean = false
 ) {
     val sides = starts.size
     for (d in 0 until sides) {
@@ -1195,6 +1306,20 @@ private fun DrawScope.drawWedges(
             drawLine(color = INK_DARK, start = a, end = b, strokeWidth = thickness * 1.9f, cap = StrokeCap.Round)
             drawLine(color = palette.matchGlow, start = a, end = b, strokeWidth = thickness, cap = StrokeCap.Round)
         }
+    }
+    if (hinted) {
+        // "Suggested tile" cue that does not rely on hue: a thick near-black ring with a white ring
+        // inside it, drawn just inside the tile's outline, so it reads by luminance on any wedge colors.
+        val width = (centre - starts[0]).getDistance() * 0.12f
+        val ring = Path().apply {
+            for (d in 0 until sides) {
+                val p = Offset(mix(starts[d].x, centre.x, 0.10f), mix(starts[d].y, centre.y, 0.10f))
+                if (d == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+            }
+            close()
+        }
+        drawPath(ring, color = INK_DARK, style = Stroke(width = width * 1.9f))
+        drawPath(ring, color = Color.White, style = Stroke(width = width))
     }
 }
 
@@ -1257,6 +1382,7 @@ private fun DrawScope.drawEdgeMark(colorIndex: Int, at: Offset, unit: Float, ink
 @Composable
 private fun EdgeMatchFinishedPanel(
     moves: Int,
+    hintsUsed: Int,
     timeMillis: Long?,
     record: EdgeMatchRecord?,
     isNewBestMoves: Boolean,
@@ -1287,6 +1413,14 @@ private fun EdgeMatchFinishedPanel(
             )
             Spacer(Modifier.height(4.dp))
             Text("Moves: $moves", style = MaterialTheme.typography.bodyMedium)
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint (not a record)" else "Solved with $hintsUsed hints (not a record)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             if (timeMillis != null) {
                 Spacer(Modifier.height(2.dp))
                 Text("Time: ${formatClock(timeMillis)}", style = MaterialTheme.typography.bodyMedium)

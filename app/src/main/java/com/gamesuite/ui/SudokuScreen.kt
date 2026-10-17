@@ -127,8 +127,11 @@ private val PAD_MAX_WIDTH = 340.dp
 /** The reserved line above the pad for a "that did nothing" hint, so showing it never shifts the pad. */
 private val HINT_SLOT_HEIGHT = 24.dp
 
-/** The whole bottom zone while playing (hint line + gap + three pad rows); the result panel is at least this tall, so solving never resizes the board. */
-private val BOTTOM_ZONE_HEIGHT = HINT_SLOT_HEIGHT + 4.dp + PAD_KEY_HEIGHT * 3 + PAD_GAP * 2
+/** The Undo / Hint row above the pad: 48dp keys. */
+private val CONTROLS_ROW_HEIGHT = 48.dp
+
+/** The whole bottom zone while playing (hint line + gap + Undo/Hint row + gap + three pad rows); the result panel is at least this tall, so solving never resizes the board. */
+private val BOTTOM_ZONE_HEIGHT = HINT_SLOT_HEIGHT + 4.dp + CONTROLS_ROW_HEIGHT + 4.dp + PAD_KEY_HEIGHT * 3 + PAD_GAP * 2
 
 private const val HELP_TEXT =
     "Fill the grid so every row, every column and every 3x3 box contains each digit from 1 to 9 " +
@@ -251,7 +254,12 @@ fun SudokuScreen(
             onMatchEnded()
         }
         dailyActive = dailySeed != null
-        game.startMatch(dailySeed)
+        if (sessionManager.tryResume(game)) {
+            // The screen's own "Daily puzzle" tag follows the puzzle that was actually restored.
+            dailyActive = game.dailySeedInUse != null
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     LaunchedEffect(hintTick) {
@@ -276,8 +284,13 @@ fun SudokuScreen(
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedNewBest == null) {
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+            if (game.hintsUsed.value > 0) {
+                // An assisted solve still counts as solved, but never sets a best-time record.
+                reportedNewBest = false
+            } else {
+                val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+            }
         }
     }
 
@@ -404,6 +417,27 @@ fun SudokuScreen(
         }
     }
 
+    val onUndo: () -> Unit = {
+        if (game.canUndo) {
+            game.undo()
+            hint = ""
+            haptics(HapticSignal.LIGHT_TICK)
+        }
+    }
+    val onHint: () -> Unit = {
+        val live = game.state.value
+        if (live != null && !live.isOver && !game.matchOver.value) {
+            val filled = game.hint()
+            if (filled != null) {
+                haptics(HapticSignal.NORMAL_ACTION)
+                showHint("Hint: row ${filled / 9 + 1}, column ${filled % 9 + 1}")
+            } else {
+                haptics(HapticSignal.FAILURE)
+                showHint("No hint available")
+            }
+        }
+    }
+
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-puzzle discards
     // ONLY the unfinished puzzle: if puzzles were already solved this session, leaving goes through
     // leaveSession() (the same call the solved panel's "Back to Menu" makes) so they still count;
@@ -415,6 +449,10 @@ fun SudokuScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedPuzzles > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedPuzzles == 0,
+        onUndo = onUndo,
+        canUndo = game.canUndo,
+        onHint = onHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this puzzle?",
@@ -453,6 +491,7 @@ fun SudokuScreen(
                     s = s,
                     palette = palette,
                     colorblind = colorblind,
+                    hintedCells = game.hintedCells.value,
                     reducedMotion = reducedMotion,
                     mistakeShake = mistakeShake,
                     winShake = winShake,
@@ -466,6 +505,10 @@ fun SudokuScreen(
                     notesMode = notesMode,
                     remainingCounts = remainingCounts,
                     hint = hint,
+                    canUndo = game.canUndo,
+                    onUndo = onUndo,
+                    onHint = onHint,
+                    hintsUsed = game.hintsUsed.value,
                     timeMillis = game.finishedElapsedMillis.value,
                     bestTimeMillis = bestTimeMillis,
                     isNewBest = reportedNewBest == true,
@@ -642,10 +685,11 @@ private fun formatSudokuClock(millis: Long): String {
  * is a clue, entered, or entered and wrong, then 1-indexed row and column, then "selected".
  * Same shape as ReversiScreen.CellView ("Dark disc, row 3, column 4").
  */
-private fun sudokuCellDescription(row: Int, col: Int, cell: SudokuCell, isSelected: Boolean, isWrong: Boolean): String {
+private fun sudokuCellDescription(row: Int, col: Int, cell: SudokuCell, isSelected: Boolean, isWrong: Boolean, isHinted: Boolean): String {
     val what = when {
         cell.value != null && cell.isGiven -> "${cell.value}, given"
         cell.value != null && isWrong -> "${cell.value}, entered, wrong"
+        cell.value != null && isHinted -> "${cell.value}, filled by hint"
         cell.value != null -> "${cell.value}, entered"
         cell.notes.isNotEmpty() -> "Empty, notes ${cell.notes.sorted().joinToString(" ")}"
         else -> "Empty"
@@ -908,6 +952,7 @@ private fun SudokuBoardSlot(
     s: SudokuState,
     palette: SudokuPalette,
     colorblind: Boolean,
+    hintedCells: Set<Int>,
     reducedMotion: Boolean,
     mistakeShake: CameraShake,
     winShake: CameraShake,
@@ -1024,6 +1069,7 @@ private fun SudokuBoardSlot(
                                             (row == selectedRow || col == selectedCol || sudokuBoxOf(row, col) == selectedBox),
                                         isSameValueHighlighted = selectedValue != null && index != selected && cell.value == selectedValue,
                                         isWrong = cell.value != null && !cell.isGiven && cell.value != s.solution[index],
+                                        isHinted = index in hintedCells && cell.value != null && !cell.isGiven,
                                         enabled = !s.isOver,
                                         palette = palette,
                                         colorblind = colorblind,
@@ -1085,6 +1131,7 @@ private fun SudokuCellView(
     isPeerHighlighted: Boolean,
     isSameValueHighlighted: Boolean,
     isWrong: Boolean,
+    isHinted: Boolean,
     enabled: Boolean,
     palette: SudokuPalette,
     colorblind: Boolean,
@@ -1103,8 +1150,8 @@ private fun SudokuCellView(
         cell.isGiven -> palette.givenText
         else -> palette.enteredText
     }
-    val description = remember(row, col, cell, isSelected, isWrong) {
-        sudokuCellDescription(row, col, cell, isSelected, isWrong)
+    val description = remember(row, col, cell, isSelected, isWrong, isHinted) {
+        sudokuCellDescription(row, col, cell, isSelected, isWrong, isHinted)
     }
 
     Box(
@@ -1130,6 +1177,17 @@ private fun SudokuCellView(
                         close()
                     }
                     drawPath(corner, color = palette.danger)
+                }
+                if (isHinted) {
+                    // A hinted cell: a triangle in the bottom-left corner, so it never rides on colour.
+                    val mark = size.minDimension * 0.34f
+                    val corner = Path().apply {
+                        moveTo(0f, size.height - mark)
+                        lineTo(0f, size.height)
+                        lineTo(mark, size.height)
+                        close()
+                    }
+                    drawPath(corner, color = palette.textPrimary)
                 }
                 if (isSelected) {
                     val ring = 3.dp.toPx()
@@ -1202,6 +1260,10 @@ private fun SudokuBottomZone(
     notesMode: Boolean,
     remainingCounts: Map<Int, Int>,
     hint: String,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    hintsUsed: Int,
     timeMillis: Long?,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
@@ -1238,6 +1300,8 @@ private fun SudokuBottomZone(
                 }
             }
             Spacer(Modifier.height(4.dp))
+            SudokuControlsRow(canUndo = canUndo, onUndo = onUndo, onHint = onHint, palette = palette)
+            Spacer(Modifier.height(4.dp))
             SudokuNumberPad(
                 notesMode = notesMode,
                 remainingCounts = remainingCounts,
@@ -1253,11 +1317,50 @@ private fun SudokuBottomZone(
             timeMillis = timeMillis,
             bestTimeMillis = bestTimeMillis,
             isNewBest = isNewBest,
+            hintsUsed = hintsUsed,
             onNewPuzzle = onNewPuzzle,
             onBackToMenu = onBackToMenu,
             palette = palette,
             modifier = modifier
         )
+    }
+}
+
+/**
+ * Visible Undo and Hint above the pad (the same actions the corner menu offers). Undo is disabled
+ * (never hidden) while there is nothing to take back; Hint fills the selected empty cell, or else
+ * the easiest empty one, and marks the puzzle as assisted. Both are at least 48dp tall.
+ */
+@Composable
+private fun SudokuControlsRow(
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    palette: SudokuPalette,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+    Row(
+        modifier = modifier.widthIn(max = PAD_MAX_WIDTH).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(PAD_GAP)
+    ) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = CONTROLS_ROW_HEIGHT)
+                .semantics { contentDescription = if (canUndo) "Undo last entry" else "Undo, nothing to undo" }
+        ) { Text("Undo", modifier = Modifier.clearAndSetSemantics {}) }
+        OutlinedButton(
+            onClick = onHint,
+            colors = colors,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = CONTROLS_ROW_HEIGHT)
+                .semantics { contentDescription = "Hint: fills one cell and marks the puzzle as assisted" }
+        ) { Text("Hint", modifier = Modifier.clearAndSetSemantics {}) }
     }
 }
 
@@ -1420,6 +1523,7 @@ private fun SudokuResultPanel(
     timeMillis: Long?,
     bestTimeMillis: Long?,
     isNewBest: Boolean,
+    hintsUsed: Int,
     onNewPuzzle: () -> Unit,
     onBackToMenu: () -> Unit,
     palette: SudokuPalette,
@@ -1452,6 +1556,15 @@ private fun SudokuResultPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
+            if (hintsUsed > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (hintsUsed == 1) "Solved with 1 hint" else "Solved with $hintsUsed hints",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text("Assisted solves don't set a best time", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            }
             if (isNewBest) {
                 Spacer(Modifier.height(4.dp))
                 Text("New best time!", fontWeight = FontWeight.Bold)

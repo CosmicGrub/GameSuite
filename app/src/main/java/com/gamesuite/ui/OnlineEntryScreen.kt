@@ -71,6 +71,8 @@ fun OnlineEntryScreen(
         } else {
             Text("Server: $serverUrl", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(16.dp))
+            LobbyNameField()
+            Spacer(Modifier.height(16.dp))
             Button(
                 onClick = {
                     sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)

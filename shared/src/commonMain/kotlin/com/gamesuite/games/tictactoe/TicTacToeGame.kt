@@ -4,9 +4,39 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
 import kotlin.random.Random
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a local Tic-Tac-Toe session back exactly as it was: the board, whose
+ * turn it is (and the Wild symbol picked so far), the round state, the session tally, who opens
+ * the next round, the CPU difficulty and the rule variant. One shape serves Resume (on disk) and
+ * Undo (in memory).
+ */
+@Serializable
+private data class TicTacToeSnapshot(
+    val board: List<Int>,
+    val currentPlayer: Int,
+    val selectedSymbol: Int,
+    val roundOver: Boolean,
+    val winningLine: List<Int>?,
+    val scoreP1: Int,
+    val scoreP2: Int,
+    val draws: Int,
+    val roundNumber: Int,
+    val startingPlayer: Int,
+    val difficulty: String,
+    val misere: Boolean,
+    val wild: Boolean,
+    val players: List<TicTacToeSnapshotPlayer>
+)
+
+@Serializable
+private data class TicTacToeSnapshotPlayer(val playerId: String, val isBot: Boolean)
+
+private val ticTacToeSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * First proof-of-concept game module, since upgraded with a real research
@@ -41,7 +71,7 @@ import kotlinx.serialization.json.Json
  * disagree. [misere] and [wild] compose freely — see [heuristicMove] and
  * [minimax] for how the two flags combine.
  */
-class TicTacToeGame : GameModule {
+class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "tic-tac-toe"
     override val displayName = "Tic-Tac-Toe"
     override val category = GameCategory.BOARD
@@ -125,8 +155,20 @@ class TicTacToeGame : GameModule {
      *  stray out-of-order delivery can never move state backward. */
     private var lastAppliedStateVersion = -1
 
+    /** Snapshots taken just BEFORE each human move, newest last; popping one is Undo. Per round. */
+    private val history = SnapshotHistory()
+
+    /** The (cell, symbol) the last [hint] suggested, shown until the next move, undo or new round. Symbol is 1=X, 2=O. */
+    val hintMove = mutableStateOf<Pair<Int, Int>?>(null)
+
+    /** True once [startMatch] or a successful [restore] has dealt a board; transient (never saved). */
+    private var started = false
+
     override fun init(context: GameContext) {
         this.context = context
+        started = false
+        history.clear()
+        hintMove.value = null
         board.value = IntArray(9)
         currentPlayer.value = 1
         selectedSymbol.value = 1
@@ -150,7 +192,132 @@ class TicTacToeGame : GameModule {
         }
     }
 
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String = ticTacToeSnapshotJson.encodeToString(
+        TicTacToeSnapshot.serializer(),
+        TicTacToeSnapshot(
+            board = board.value.toList(),
+            currentPlayer = currentPlayer.value,
+            selectedSymbol = selectedSymbol.value,
+            roundOver = roundOver.value,
+            winningLine = winningLine.value,
+            scoreP1 = scoreP1.value,
+            scoreP2 = scoreP2.value,
+            draws = draws.value,
+            roundNumber = roundNumber.value,
+            startingPlayer = startingPlayer,
+            difficulty = difficulty.name,
+            misere = misere,
+            wild = wild,
+            players = context.players.map { TicTacToeSnapshotPlayer(it.playerId, it.isBot) }
+        )
+    )
+
+    /** Decodes and sanity-checks a snapshot against THIS engine's variant and roster; null if unusable. */
+    private fun decodeSnapshot(text: String): TicTacToeSnapshot? {
+        val snap = try {
+            ticTacToeSnapshotJson.decodeFromString(TicTacToeSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        val roster = context.players
+        val line = snap.winningLine
+        val valid = snap.misere == misere && snap.wild == wild &&
+            snap.board.size == 9 && snap.board.all { it in 0..2 } &&
+            snap.currentPlayer in 1..2 && snap.selectedSymbol in 1..2 && snap.startingPlayer in 1..2 &&
+            snap.scoreP1 >= 0 && snap.scoreP2 >= 0 && snap.draws >= 0 && snap.roundNumber >= 1 &&
+            snap.players.size == roster.size &&
+            snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
+            (line == null || (snap.roundOver && line.size == 3 && line.all { it in 0..8 && snap.board[it] != 0 }))
+        return if (valid) snap else null
+    }
+
+    private fun applySnapshot(snap: TicTacToeSnapshot) {
+        board.value = snap.board.toIntArray()
+        currentPlayer.value = snap.currentPlayer
+        selectedSymbol.value = snap.selectedSymbol
+        roundOver.value = snap.roundOver
+        winningLine.value = snap.winningLine
+        scoreP1.value = snap.scoreP1
+        scoreP2.value = snap.scoreP2
+        draws.value = snap.draws
+        roundNumber.value = snap.roundNumber
+        startingPlayer = snap.startingPlayer
+        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        hintMove.value = null
+    }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? = try {
+        if (!started || matchOver.value) {
+            null
+        } else if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) {
+            null
+        } else {
+            captureSnapshot()
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    override fun restore(snapshot: String): Boolean = try {
+        val mode = context.activeMode
+        val snap = if (mode == PlayMode.SINGLE_PLAYER_VS_BOT || mode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) {
+            decodeSnapshot(snapshot)
+        } else {
+            null
+        }
+        if (snap == null) {
+            false
+        } else {
+            matchOver.value = false
+            applySnapshot(snap)
+            history.clear()
+            started = true
+            true
+        }
+    } catch (_: Exception) {
+        false
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+
+    /**
+     * Takes back the last human move. Against the CPU that also takes back the CPU's reply (the
+     * snapshot was taken before the human's move), so you are back on your own turn. Undoing a
+     * line-completing move re-opens the round and takes its point back off the tally. Tic-Tac-Toe
+     * has no mistake/hint counters or clock, so nothing needs to stay "spent".
+     */
+    override fun undo() {
+        if (matchOver.value) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        applySnapshot(snap)
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Suggests the (cell, symbol) the perfect minimax search would play for the player to move,
+     * regardless of the CPU difficulty setting (symbol is only meaningful under [wild]; otherwise
+     * it is the mover's own mark). Exposed as [hintMove] until the next move, undo or new round.
+     * Null when it is not a local human's turn, the round is over, or in network play.
+     */
+    fun hint(): Pair<Int, Int>? {
+        if (!started || matchOver.value || roundOver.value || isNetworked) return null
+        if (context.players.getOrNull(currentPlayer.value - 1)?.isBot != false) return null
+        val move = minimaxBestMove(board.value, currentPlayer.value)
+        hintMove.value = move
+        return move
+    }
+
     override fun startMatch() {
+        started = true
+        history.clear()
+        hintMove.value = null
         // Nothing extra needed for local pass-and-play; the bot's moves are
         // driven from the UI via playBotTurn() when it becomes its turn —
         // see TicTacToeScreen's LaunchedEffect, mirroring MancalaScreen.
@@ -219,6 +386,8 @@ class TicTacToeGame : GameModule {
 
     private fun applyPlayAgain() {
         if (matchOver.value) return
+        history.clear()
+        hintMove.value = null
         startingPlayer = if (startingPlayer == 1) 2 else 1
         roundNumber.value += 1
         board.value = IntArray(9)
@@ -355,7 +524,15 @@ class TicTacToeGame : GameModule {
      *  [cellClicked] when this instance IS the host (its own local tap), and by
      *  [handleNetworkMessage] when the host applies a validated guest intent. */
     private fun applyCellClicked(index: Int) {
-        if (roundOver.value || matchOver.value || board.value[index] != 0) return
+        if (index !in 0..8 || roundOver.value || matchOver.value || board.value[index] != 0) return
+
+        // Undo only ever lands on a HUMAN's turn: remember the position before each local human
+        // move (not the bot's, not network play's), so undoing against the CPU also takes the
+        // CPU's reply back. A rejected tap returned above and leaves no step.
+        if (!isNetworked && context.players.getOrNull(currentPlayer.value - 1)?.isBot != true) {
+            history.push(captureSnapshot())
+        }
+        hintMove.value = null
 
         val newBoard = board.value.copyOf()
         // Standard: the cell records the mover's own fixed symbol. Wild: the
@@ -540,7 +717,7 @@ class TicTacToeGame : GameModule {
             for (symbol in availableSymbols(player)) {
                 val next = b.copyOf()
                 next[i] = symbol
-                val score = minimax(next, depth = 1, isMaximizing = false, maximizer = player, minimizer = opponent)
+                val score = minimax(next, depth = 1, isMaximizing = false, maximizer = player, minimizer = opponent, alpha = bestScore)
                 if (score > bestScore) {
                     bestScore = score
                     bestMove = i to symbol

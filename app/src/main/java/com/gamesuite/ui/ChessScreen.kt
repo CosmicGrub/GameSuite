@@ -223,7 +223,8 @@ fun ChessScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // After a resume the engine carries the saved difficulty (shown via game.difficulty below).
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     var selectedSquare by remember { mutableStateOf<Int?>(null) }
@@ -329,6 +330,9 @@ fun ChessScreen(
     val currentPlayerIndex = playerIndexForColor(s.sideToMove)
     val isHumanTurn = ctx.players.getOrNull(currentPlayerIndex)?.isBot != true
     val legalDestinations = selectedSquare?.let { if (isHumanTurn) game.legalDestinationsFor(it) else emptySet() } ?: emptySet()
+    // Undo / Hint only exist in the local modes; the engine ignores them in networked play.
+    val localMode = ctx.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT || ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+    val hintMove by game.hintMove
     val checkedKingSquare = if (s.inCheck) s.board.indexOfFirst { it?.type == PieceType.KING && it.color == s.sideToMove } else -1
 
     // Turn status: whose move it is plus the last move played. The title + last move are one
@@ -360,11 +364,24 @@ fun ChessScreen(
             }
             if (ctx.players.any { it.isBot }) {
                 Text(
-                    "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                    "CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
                     style = MaterialTheme.typography.labelSmall,
                     textAlign = TextAlign.Center
                 )
             }
+        }
+    }
+
+    // Visible Undo / Hint buttons (local modes only), next to the board rather than hidden in the corner menu.
+    val controlsBlock: @Composable (Modifier) -> Unit = { controlsModifier ->
+        if (localMode) {
+            ChessControlsRow(
+                canUndo = game.canUndo,
+                canHint = isHumanTurn && !s.roundOver,
+                onUndo = { game.undo() },
+                onHint = { game.hint() },
+                modifier = controlsModifier
+            )
         }
     }
 
@@ -625,7 +642,16 @@ fun ChessScreen(
                             ownPiece -> "Select piece"
                             else -> "Clear selection"
                         }
-                        val squareState = squareStateDescription(isSelected, isLegalDest, piece != null, isCheckSquare, isLastMoveSquare)
+                        val isHintFrom = hintMove?.from == square
+                        val isHintTo = hintMove?.to == square
+                        val squareState = squareStateDescription(
+                            isSelected, isLegalDest, piece != null, isCheckSquare, isLastMoveSquare,
+                            hintNote = when {
+                                isHintFrom -> "Suggested move: move this piece"
+                                isHintTo -> "Suggested move: move to this square"
+                                else -> null
+                            }
+                        )
 
                         Box(
                             modifier = Modifier
@@ -703,6 +729,27 @@ fun ChessScreen(
                             if (colorblind && (isSelected || isLastMoveSquare || isCheckSquare)) {
                                 SquareStateMarks(isSelected, isLastMoveSquare, isCheckSquare, squareSize)
                             }
+                            // Hint: a two-tone (dark + light) double frame on both squares, an extra
+                            // ring on the destination, plus the arrow drawn over the board below.
+                            // Shape, not hue; the screen-reader text is in the square's state.
+                            if (isHintFrom || isHintTo) {
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .padding(squareSize * 0.03f)
+                                        .border(squareSize * 0.08f, HINT_FRAME_DARK)
+                                        .padding(squareSize * 0.08f)
+                                        .border(squareSize * 0.04f, HINT_FRAME_LIGHT)
+                                )
+                                if (isHintTo) {
+                                    Box(
+                                        Modifier
+                                            .matchParentSize()
+                                            .padding(squareSize * 0.24f)
+                                            .border(squareSize * 0.04f, HINT_FRAME_DARK, CircleShape)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -762,6 +809,45 @@ fun ChessScreen(
                         }
                     }
 
+                    // Hint arrow: from the suggested piece's square to its destination, with a head.
+                    val hintForArrow = hintMove
+                    if (hintForArrow != null) {
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val start = Offset(
+                                (hintForArrow.from % 8) * squarePx + squarePx / 2f,
+                                (7 - hintForArrow.from / 8) * squarePx + squarePx / 2f
+                            )
+                            val end = Offset(
+                                (hintForArrow.to % 8) * squarePx + squarePx / 2f,
+                                (7 - hintForArrow.to / 8) * squarePx + squarePx / 2f
+                            )
+                            val dx = end.x - start.x
+                            val dy = end.y - start.y
+                            val len = kotlin.math.sqrt(dx * dx + dy * dy)
+                            if (len > 1f) {
+                                val ux = dx / len
+                                val uy = dy / len
+                                val head = squarePx * 0.28f
+                                val tail = Offset(end.x - ux * head * 0.6f, end.y - uy * head * 0.6f)
+                                // Dark outline pass first, light pass on top: readable on both square colours.
+                                for ((color, extra) in listOf(HINT_FRAME_DARK to 0.035f, HINT_FRAME_LIGHT to 0f)) {
+                                    val w = squarePx * (0.06f + extra)
+                                    val h = head * (1f + extra * 6f)
+                                    drawLine(color = color, start = start, end = tail, strokeWidth = w, cap = StrokeCap.Round)
+                                    val left = Offset(end.x - ux * h - uy * h * 0.5f, end.y - uy * h + ux * h * 0.5f)
+                                    val right = Offset(end.x - ux * h + uy * h * 0.5f, end.y - uy * h - ux * h * 0.5f)
+                                    val tri = Path().apply {
+                                        moveTo(end.x, end.y)
+                                        lineTo(left.x, left.y)
+                                        lineTo(right.x, right.y)
+                                        close()
+                                    }
+                                    drawPath(tri, color = color)
+                                }
+                            }
+                        }
+                    }
+
                     // Checkmate attack line: mating piece(s) -> king, drawn on top of everything else.
                     if (attackerSquares.isNotEmpty() && checkedKingSquare >= 0) {
                         Canvas(modifier = Modifier.matchParentSize()) {
@@ -804,6 +890,10 @@ fun ChessScreen(
         matchInProgress = !s.roundOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedGames > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedGames == 0,
+        onUndo = if (localMode) ({ game.undo() }) else null,
+        canUndo = game.canUndo,
+        onHint = if (localMode) ({ game.hint() }) else null,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -885,6 +975,8 @@ fun ChessScreen(
                                 ) {
                                     statusBlock(Modifier.fillMaxWidth().padding(end = GameChromeEndInset))
                                     Spacer(Modifier.height(12.dp))
+                                    controlsBlock(Modifier)
+                                    Spacer(Modifier.height(12.dp))
                                     infoBlock(Modifier.fillMaxWidth())
                                 }
                             }
@@ -899,7 +991,9 @@ fun ChessScreen(
                                 statusBlock(Modifier.fillMaxWidth().padding(horizontal = GameChromeEndInset))
                                 Spacer(Modifier.height(12.dp))
                                 boardBlock(Modifier.weight(1f, fill = false).aspectRatio(1f))
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(8.dp))
+                                controlsBlock(Modifier)
+                                Spacer(Modifier.height(8.dp))
                                 infoBlock(Modifier.fillMaxWidth())
                             }
                         }
@@ -907,6 +1001,37 @@ fun ChessScreen(
                 }
             )
         }
+    }
+}
+
+/**
+ * Visible Undo and Hint, the same actions the corner menu offers. Undo is enabled once there is a
+ * human move to take back; Hint only on a human's turn while the game is on, since there is nothing
+ * to suggest while the CPU is thinking or the game is over. Disabled, never hidden.
+ */
+@Composable
+private fun ChessControlsRow(
+    canUndo: Boolean,
+    canHint: Boolean,
+    onUndo: () -> Unit,
+    onHint: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { if (!canUndo) stateDescription = "Nothing to undo yet" }
+        ) { Text("Undo") }
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { if (!canHint) stateDescription = "No hint available: not your turn" }
+        ) { Text("Hint") }
     }
 }
 
@@ -1345,9 +1470,11 @@ private fun squareStateDescription(
     isLegalDest: Boolean,
     hasPiece: Boolean,
     isCheck: Boolean,
-    isLastMove: Boolean
+    isLastMove: Boolean,
+    hintNote: String? = null
 ): String? {
     val parts = buildList<String> {
+        if (hintNote != null) add(hintNote)
         if (isSelected) add("Selected")
         if (isLegalDest) add(if (hasPiece) "Legal capture" else "Legal move")
         if (isCheck) add("King in check")
@@ -1536,6 +1663,8 @@ private val DARK_SQUARE_GRAIN = Color(0xFF4E6B3A)
 private val SELECTED_TINT = Color(0xFFF7EC5B).copy(alpha = 0.55f)
 private val LAST_MOVE_TINT = Color(0xFFF7EC5B).copy(alpha = 0.30f)
 private val CHECK_TINT = Color(0xFFE5544D).copy(alpha = 0.70f)
+private val HINT_FRAME_DARK = Color(0xFF1B1B1B)
+private val HINT_FRAME_LIGHT = Color(0xFFFFFFFF)
 private val LEGAL_DOT_COLOR = Color(0xFF2B2724).copy(alpha = 0.30f)
 private val CAPTURE_RING_COLOR = Color(0xFF2B2724).copy(alpha = 0.55f)
 private val IDLE_PULSE_COLOR = Color(0xFF6FA8DC)

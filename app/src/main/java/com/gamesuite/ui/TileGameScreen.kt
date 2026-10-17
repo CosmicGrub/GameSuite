@@ -230,7 +230,9 @@ fun TileGameScreen(
                 wordFlourishNonce++
             }
         }
-        game.startMatch()
+        // Picking this game after leaving it mid-match offers Resume; when taken, the board, racks and
+        // bag are put back as they were (the engine restores the difficulty too).
+        if (!sessionManager.tryResume(game)) game.startMatch()
     }
 
     // Maximum-tier camera micro-punch, fired only on the human's Bingo (the callback above only

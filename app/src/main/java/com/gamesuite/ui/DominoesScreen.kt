@@ -191,6 +191,10 @@ fun DominoesScreen(
     val enhanced = LocalEnhancedAnimations.current && !reducedMotion
     val colorblind = LocalColorblindMode.current
 
+    // Set before a state change that must appear as the FINAL position with no replayed animation
+    // (a resume, an undo); consumed by the per-move reaction effect below.
+    val animGuard = remember { DominoesAnimGuard() }
+
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
@@ -199,7 +203,12 @@ fun DominoesScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        if (sessionManager.tryResume(game)) {
+            // A resumed hand shows as it was: no deal-in reveal, no toppling replay, no sounds.
+            animGuard.skip = true
+        } else {
+            game.startMatch()
+        }
     }
 
     LaunchedEffect(state?.currentPlayerIndex, state?.handOver) {
@@ -218,9 +227,9 @@ fun DominoesScreen(
     // Celebration (haptic, chime, toppling chain) is for a HUMAN winning the hand only: a CPU win
     // or a tie gets a plain acknowledgement. In pass-and-play either human winning counts.
     val humanWon = s.handOver && winnerPlayer != null && !winnerPlayer.isBot
-    // Hands this session that reached their own end -- see the KDoc's CHROME note for why the
-    // screen tallies this itself. Decides whether leaving mid-hand aborts or scores the session.
-    var finishedHands by remember { mutableStateOf(0) }
+    // Hands this session that reached their own end, owned by the engine so it survives a resume
+    // and an undo. Decides whether leaving mid-hand aborts or scores the session.
+    val finishedHands by game.handsFinished
 
     // Win-only toppling celebration (premium 2026 vision pitch): a ONE-TIME cascade of
     // the final chain, computed synchronously the instant a hand-over with a human winner
@@ -230,12 +239,14 @@ fun DominoesScreen(
     // genuine tie (nothing to celebrate), an empty chain, or with enhanced motion off/reduced
     // motion on.
     var handOverPhase by remember(s.handOver) {
-        mutableStateOf(humanWon && enhanced && s.chain.isNotEmpty())
+        mutableStateOf(humanWon && enhanced && s.chain.isNotEmpty() && !animGuard.skip)
     }
     val toppleAnims = remember(s.handOver) { List(s.chain.size) { Animatable(0f) } }
     LaunchedEffect(s.handOver) {
         if (!s.handOver) return@LaunchedEffect
-        finishedHands += 1
+        // Resuming straight into a finished hand: show the result panel quietly. (This effect is
+        // declared before the per-move effect that consumes animGuard.skip, so it still reads true.)
+        if (animGuard.skip) return@LaunchedEffect
         if (humanWon) {
             haptics(HapticSignal.CELEBRATION)
             playSfx(SfxKind.SUCCESS_CHIME)
@@ -404,6 +415,15 @@ fun DominoesScreen(
         val prev = prevDominoState
         prevDominoState = s
 
+        // A resume or an undo lands on its final position: no deal-in, no sounds, no flight.
+        if (animGuard.skip) {
+            animGuard.skip = false
+            dealtCount = Int.MAX_VALUE
+            lastPlacementWasDrag = false
+            flyingDomino = null
+            return@LaunchedEffect
+        }
+
         val isDealIn = s.lastAction == "Game started" && (prev == null || prev.lastAction != "Game started")
         if (isDealIn) {
             // The currently-silent, zero-animation initial deal (DominoGame.startMatch())
@@ -490,6 +510,26 @@ fun DominoesScreen(
         if (reducedMotion) chainListState.scrollToItem(target) else chainListState.animateScrollToItem(target)
     }
 
+    /**
+     * Takes back the last human action. The restored position is shown as it is, with no replayed
+     * animation, and any in-progress selection, drag or flight is dropped.
+     */
+    fun undoNow() {
+        if (!game.canUndo) return
+        val before = game.state.value
+        animGuard.skip = true
+        game.undo()
+        if (game.state.value == before) animGuard.skip = false
+        selectedDomino = null
+        draggedDomino = null
+        isActivelyDragging = false
+        dragOffsetState = Offset.Zero
+        flyingDomino = null
+        // Hotseat: the seat that gets the turn back must not have its hand shown to whoever just
+        // pressed Undo; the hand-off curtain goes up again.
+        revealedSeat = null
+    }
+
     // The turn prompt, read out by a polite live region so a screen reader announces the CPU's
     // reply and what to do next without being asked.
     val activeName = activePlayer?.displayName ?: "Player"
@@ -520,12 +560,15 @@ fun DominoesScreen(
             "The winner scores every pip left in the other hands, and Play Again keeps the " +
             "running score.",
         matchInProgress = !s.handOver,
+        onUndo = { undoNow() },
+        canUndo = game.canUndo,
         onLeave = game::leaveSession,
         // Leaving mid-hand discards ONLY the unfinished hand: if earlier hands in this session
         // already finished, leaving goes through leaveSession() (the same call the result
         // panel's "Back to Menu" makes) so their points still count; with nothing finished it is
         // a pure abort, never a win or a loss. A finished hand always leaves via leaveSession().
         onAbort = { if (finishedHands > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedHands == 0,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this hand?",
@@ -767,6 +810,8 @@ fun DominoesScreen(
                                 ) { Text("Pass") }
                             }
                         }
+                        Spacer(Modifier.height(8.dp))
+                        DominoesUndoRow(canUndo = game.canUndo, onUndo = { undoNow() })
                         Spacer(Modifier.height(8.dp))
                     }
                 },
@@ -1036,6 +1081,27 @@ fun DominoesScreen(
         flyingDomino?.let { fly ->
             FlyingDominoOverlay(fly = fly, progress = flyProgress.asState(), use3D = card3D)
         }
+    }
+}
+
+/** Carries the "show the final position, replay nothing" request from a resume/undo to the per-move effect. */
+private class DominoesAnimGuard {
+    var skip = false
+}
+
+/**
+ * A visible Undo under the actions, so it is not hidden in the corner menu. Disabled (never hidden)
+ * when there is nothing to take back, or while the CPU is moving. Dominoes has no Hint button: the
+ * hand already dims every tile that does not match an end.
+ */
+@Composable
+private fun DominoesUndoRow(canUndo: Boolean, onUndo: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+        ) { Text("Undo") }
     }
 }
 

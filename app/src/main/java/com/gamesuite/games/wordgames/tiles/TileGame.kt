@@ -5,6 +5,46 @@ import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Everything needed to put a Word Tiles match back exactly as it was: the board, both racks, the bag
+ * IN ORDER (so the same tiles are drawn next), scores, pass count, whose turn it is and the bot
+ * difficulty. Tiles staged on the board but not yet submitted are NOT saved: they never left the
+ * player's rack in the engine, so a resumed game simply shows them back in the rack. The dictionary
+ * is not part of the snapshot (it is loaded from assets by the screen).
+ */
+@Serializable
+private data class TileGameSnapshot(
+    val boardSize: Int,
+    val cells: List<TileGameSnapshotCell?>,
+    val players: List<TileGameSnapshotPlayer>,
+    val bag: List<TileGameSnapshotTile>,
+    val currentPlayerIndex: Int,
+    val consecutivePasses: Int,
+    val lastAction: String,
+    val lastPlayedWords: List<String>,
+    val difficulty: String
+)
+
+@Serializable
+private data class TileGameSnapshotTile(val letter: String, val isBlank: Boolean, val instanceId: Int)
+
+/** A tile on the board plus a blank's chosen letter (null for a normal tile). */
+@Serializable
+private data class TileGameSnapshotCell(val tile: TileGameSnapshotTile, val letterOverride: String? = null)
+
+@Serializable
+private data class TileGameSnapshotPlayer(
+    val playerId: String,
+    val displayName: String,
+    val isBot: Boolean,
+    val rack: List<TileGameSnapshotTile>,
+    val score: Int
+)
+
+private val tileGameSnapshotJson = Json { ignoreUnknownKeys = true }
 
 data class BoardCell(val tile: RackTile? = null, val letterOverride: Char? = null) {
     /** The letter to score/validate with — a blank's chosen letter, or the tile's own letter. */
@@ -91,7 +131,7 @@ fun TileGameState.leaders(): List<TilePlayerState> {
  * word + all crossing words, premium squares, bingo bonus) but the bot is a
  * bounded heuristic (see TileBot), not a full move-generator/solver.
  */
-class TileGame : GameModule {
+class TileGame : GameModule, ResumableGame {
     override val gameId = "word-tiles"
     override val displayName = "Word Tiles"
     override val category = GameCategory.WORD
@@ -117,6 +157,121 @@ class TileGame : GameModule {
 
     override fun init(context: GameContext) {
         this.context = context
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun tileToSnapshot(t: RackTile) = TileGameSnapshotTile(t.letter.toString(), t.isBlank, t.instanceId)
+
+    /** A letter field is exactly one character; a normal tile is A-Z, a blank tile's own letter is a space. */
+    private fun tileFromSnapshot(t: TileGameSnapshotTile): RackTile? {
+        if (t.letter.length != 1) return null
+        val ch = t.letter[0]
+        if (t.isBlank) {
+            if (ch != ' ') return null
+        } else if (ch !in 'A'..'Z') return null
+        return RackTile(ch, t.isBlank, t.instanceId)
+    }
+
+    /** Null when there is nothing to save: no match yet, the match already over, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            val s = state.value ?: return null
+            if (s.matchOver || matchEnded) return null
+            if (!this::context.isInitialized) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT &&
+                context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+            ) return null
+            val cells = ArrayList<TileGameSnapshotCell?>(BOARD_SIZE * BOARD_SIZE)
+            for (r in 0 until BOARD_SIZE) for (c in 0 until BOARD_SIZE) {
+                val cell = s.board[r][c]
+                val tile = cell.tile
+                cells.add(
+                    if (tile == null) null
+                    else TileGameSnapshotCell(tileToSnapshot(tile), cell.letterOverride?.toString())
+                )
+            }
+            tileGameSnapshotJson.encodeToString(
+                TileGameSnapshot.serializer(),
+                TileGameSnapshot(
+                    boardSize = BOARD_SIZE,
+                    cells = cells,
+                    players = s.players.map { p ->
+                        TileGameSnapshotPlayer(p.playerId, p.displayName, p.isBot, p.rack.map { tileToSnapshot(it) }, p.score)
+                    },
+                    bag = bag.map { tileToSnapshot(it) },
+                    currentPlayerIndex = s.currentPlayerIndex,
+                    consecutivePasses = s.consecutivePasses,
+                    lastAction = s.lastAction,
+                    lastPlayedWords = s.lastPlayedWords,
+                    difficulty = difficulty.name
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** All-or-nothing: the whole new state is built and checked first, then assigned. */
+    override fun restore(snapshot: String): Boolean {
+        try {
+            if (!this::context.isInitialized) return false
+            val snap = tileGameSnapshotJson.decodeFromString(TileGameSnapshot.serializer(), snapshot)
+            val roster = context.players
+            if (snap.boardSize != BOARD_SIZE || snap.cells.size != BOARD_SIZE * BOARD_SIZE) return false
+            if (snap.players.size != roster.size) return false
+            for (i in roster.indices) {
+                if (snap.players[i].playerId != roster[i].playerId || snap.players[i].isBot != roster[i].isBot) return false
+            }
+            if (snap.currentPlayerIndex !in snap.players.indices) return false
+            if (snap.consecutivePasses < 0) return false
+
+            val seenIds = HashSet<Int>()
+            fun tile(t: TileGameSnapshotTile): RackTile? {
+                val rt = tileFromSnapshot(t) ?: return null
+                return if (seenIds.add(rt.instanceId)) rt else null
+            }
+
+            val rows = List(BOARD_SIZE) { r ->
+                List(BOARD_SIZE) { c ->
+                    val sc = snap.cells[r * BOARD_SIZE + c]
+                    if (sc == null) BoardCell() else {
+                        val rt = tile(sc.tile) ?: return false
+                        val chosen = sc.letterOverride
+                        if (rt.isBlank) {
+                            if (chosen == null || chosen.length != 1 || chosen[0] !in 'A'..'Z') return false
+                        } else if (chosen != null) return false
+                        BoardCell(rt, chosen?.get(0))
+                    }
+                }
+            }
+            val players = ArrayList<TilePlayerState>(snap.players.size)
+            for (sp in snap.players) {
+                val rack = sp.rack.map { tile(it) ?: return false }
+                if (rack.size > 7) return false
+                players.add(TilePlayerState(sp.playerId, sp.displayName, sp.isBot, rack, sp.score))
+            }
+            val newBag = snap.bag.map { tile(it) ?: return false }.toMutableList()
+            val newDifficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+
+            matchEnded = false
+            bag = newBag
+            difficulty = newDifficulty
+            state.value = TileGameState(
+                board = rows,
+                players = players,
+                currentPlayerIndex = snap.currentPlayerIndex,
+                bagCount = newBag.size,
+                pending = emptyList(),
+                consecutivePasses = snap.consecutivePasses,
+                lastAction = snap.lastAction,
+                lastPlayedWords = snap.lastPlayedWords,
+                matchOver = false
+            )
+            return true
+        } catch (_: Exception) {
+            return false
+        }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {

@@ -15,9 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.OnlineLobbyMessage
 import com.gamesuite.transport.isFromHost
 import com.gamesuite.transport.localSeatIndex
@@ -46,6 +48,8 @@ fun OnlineJoinLobbyScreen(
         return
     }
 
+    val context = LocalContext.current
+    val guestName = remember(context) { PlayerNameStore(context).lobbyName("Guest (${Build.MODEL})") }
     val clientPlayerId = remember { "p-" + UUID.randomUUID().toString() }
     var roomCodeInput by remember { mutableStateOf("") }
     var hasJoined by remember { mutableStateOf(false) }
@@ -164,7 +168,7 @@ fun OnlineJoinLobbyScreen(
                         onClick = {
                             transport.clearError()
                             joinedAsSpectator = false
-                            transport.joinRoom(roomCodeInput, clientPlayerId, "Guest (${Build.MODEL})")
+                            transport.joinRoom(roomCodeInput, clientPlayerId, guestName)
                         }
                     ) {
                         Text("Join")

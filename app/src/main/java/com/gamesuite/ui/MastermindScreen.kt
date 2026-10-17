@@ -203,7 +203,14 @@ fun MastermindScreen(
             onMatchEnded()
         }
         dailyBoardActive = dailySeed != null
-        game.startMatch(dailySeed)
+        // Picking this game from the menu after leaving it mid-code offers Resume; when the player
+        // took it the engine is put back exactly as it was (same secret, guesses, tally, clock).
+        if (sessionManager.tryResume(game)) {
+            // The screen's own tag state follows the engine: the resumed code is the daily one only if it was seeded.
+            dailyBoardActive = game.activeDailySeed.value != null
+        } else {
+            game.startMatch(dailySeed)
+        }
     }
 
     val s = state ?: return
@@ -228,13 +235,19 @@ fun MastermindScreen(
 
     LaunchedEffect(s.solved, round) {
         if (!s.solved) return@LaunchedEffect
+        // A finished code that was resumed already had its celebration and its record handled.
+        if (game.resultHandled.value) return@LaunchedEffect
         // A solve is always the human's (the only player), so the celebration is unconditional.
         haptics(HapticSignal.CELEBRATION)
         playSfx(SfxKind.SUCCESS_CHIME)
         if (reportedResult == null) {
-            val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            val result = statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime)
-            reportedResult = result.isNewBestGuesses to result.isNewBestTimeMillis
+            if (!game.isAssisted) {
+                val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
+                val result = statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime)
+                reportedResult = result.isNewBestGuesses to result.isNewBestTimeMillis
+            }
+            // An assisted solve (a hint was used) still counts as solved for the session, but sets no record.
+            game.markResultHandled()
         }
     }
 
@@ -293,6 +306,21 @@ fun MastermindScreen(
         }
     }
 
+    val canHint = !s.isOver && !game.matchOver.value
+    // Pre-fills the current guess row with a code consistent with all feedback so far (not submitted).
+    val onHint: () -> Unit = {
+        if (canHint) {
+            val code = game.hint()
+            if (code != null) {
+                currentGuess = code
+                selectedSlot = null
+                haptics(HapticSignal.LIGHT_TICK)
+            }
+        }
+    }
+    // The label stays only while the row still holds exactly the hinted code.
+    val hintActive = game.hintCode.value?.let { it == currentGuess } == true
+
     // "Finished units" for the abort policy: codes already solved OR lost this session. If any
     // exist, leaving mid-code must still score them -- see onAbort below.
     val finishedCodes = game.puzzlesSolved.value + game.puzzlesFailed.value
@@ -308,6 +336,8 @@ fun MastermindScreen(
         matchInProgress = !s.isOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedCodes > 0) game.leaveSession() else game.abortMatch() },
+        leaveKeepsProgress = finishedCodes == 0,
+        onHint = onHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this code?",
@@ -370,6 +400,7 @@ fun MastermindScreen(
                             selectedSlot = selectedSlot,
                             palette = palette,
                             colorblind = colorblind,
+                            hintActive = hintActive,
                             onSlotTap = onSlotTap,
                             onPickColor = onPickColor,
                             onSubmit = onSubmit
@@ -379,6 +410,7 @@ fun MastermindScreen(
                             solved = s.solved,
                             secret = s.secret,
                             guessCount = s.guesses.size,
+                            hintsUsed = game.hintsUsed.value,
                             record = record,
                             isNewBestGuesses = reportedResult?.first ?: false,
                             isNewBestTime = reportedResult?.second ?: false,
@@ -389,6 +421,9 @@ fun MastermindScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
+                    Spacer(Modifier.height(8.dp))
+                    MastermindControlsRow(canHint = canHint, onHint = onHint, palette = palette)
 
                     if (s.guesses.isNotEmpty()) {
                         Spacer(Modifier.height(16.dp))
@@ -714,6 +749,7 @@ private fun MastermindInput(
     selectedSlot: Int?,
     palette: MastermindPalette,
     colorblind: Boolean,
+    hintActive: Boolean,
     onSlotTap: (Int) -> Unit,
     onPickColor: (Int) -> Unit,
     onSubmit: () -> Unit
@@ -730,6 +766,23 @@ private fun MastermindInput(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Your guess", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+            if (hintActive) {
+                // Non-colour cue for a pre-filled hint: a labelled, outlined badge (also spoken).
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Hint: a code that fits all the feedback so far",
+                    color = palette.textPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .border(1.5.dp, palette.textPrimary, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .semantics {
+                            liveRegion = LiveRegionMode.Polite
+                            contentDescription = "Hint filled in: a code that fits all the feedback so far. Press Submit Guess to try it."
+                        }
+                )
+            }
             Spacer(Modifier.height(8.dp))
 
             val fit = fitBoard(
@@ -808,6 +861,29 @@ private fun MastermindInput(
                 )
             ) { Text("Submit Guess", fontWeight = FontWeight.Bold) }
         }
+    }
+}
+
+/**
+ * The visible Hint button under the input (the same action the corner menu offers). Disabled, never
+ * hidden, once the code is decided, with the reason in its screen-reader description.
+ */
+@Composable
+private fun MastermindControlsRow(canHint: Boolean, onHint: () -> Unit, palette: MastermindPalette) {
+    val description = if (canHint) {
+        "Hint: fill the guess with a code that fits all the feedback so far"
+    } else {
+        "Hint unavailable: this code is finished"
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = onHint,
+            enabled = canHint,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = description }
+        ) { Text("Hint") }
     }
 }
 
@@ -1078,6 +1154,7 @@ private fun MastermindFinishedPanel(
     solved: Boolean,
     secret: List<Int>,
     guessCount: Int,
+    hintsUsed: Int,
     record: MastermindRecord?,
     isNewBestGuesses: Boolean,
     isNewBestTime: Boolean,
@@ -1112,6 +1189,13 @@ private fun MastermindFinishedPanel(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text("Guesses: $guessCount", style = MaterialTheme.typography.bodyMedium)
+                if (hintsUsed > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Solved with $hintsUsed ${if (hintsUsed == 1) "hint" else "hints"}",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 if (isNewBestGuesses) {
                     Spacer(Modifier.height(4.dp))
                     Text("New best guess count!", fontWeight = FontWeight.Bold)

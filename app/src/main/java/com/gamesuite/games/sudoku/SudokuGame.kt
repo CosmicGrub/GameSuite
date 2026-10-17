@@ -4,7 +4,40 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.random.Random
+
+/**
+ * One cell of a [SudokuSnapshot]. [value] 0 means empty. The hidden solution travels in the
+ * snapshot's own [SudokuSnapshot.solution] list, so a resumed puzzle is the SAME puzzle.
+ */
+@Serializable
+private data class SudokuSnapshotCell(val value: Int, val given: Boolean, val notes: List<Int>)
+
+/**
+ * Everything needed to put a Sudoku session back exactly as it was. One shape serves Resume (disk)
+ * and Undo (memory). The clock is stored as ACTIVE elapsed milliseconds, never as an absolute clock
+ * reading, so a resumed puzzle continues from where it was and does not count the time away.
+ */
+@Serializable
+private data class SudokuSnapshot(
+    val playerIds: List<String>,
+    val cells: List<SudokuSnapshotCell>,
+    val solution: List<Int>,
+    val selectedIndex: Int?,
+    val mistakes: Int,
+    val puzzlesSolved: Int,
+    val hintsUsed: Int,
+    val hintedCells: List<Int>,
+    val difficulty: String,
+    val dailySeed: Long?,
+    val timerStarted: Boolean,
+    val elapsedMillis: Long,
+    val finishedMillis: Long?
+)
+
+private val sudokuSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
  * One of 81 cells, row-major (index = row * 9 + col).
@@ -80,16 +113,14 @@ data class SudokuState(
  *     solution), not by independently re-deriving which cells conflict with
  *     which. Good enough to tell the player "that's wrong"; a future pass
  *     could highlight exactly which peer(s) it conflicts with.
- *   - No undo stack — unlike Solitaire (where a move can strand cards),
- *     every Sudoku entry directly overwrites the same cell, which already
- *     serves as its own "undo": just enter the right value. A dedicated
- *     undo history would only matter for restoring cleared pencil marks,
- *     judged not worth the complexity for a first version.
+ *   - Undo is a snapshot stack ([SnapshotHistory]) pushed before each entry,
+ *     erase, note toggle or hint; it is per puzzle and closed once the
+ *     puzzle is solved (the solve is already counted and recorded).
  *   - Daily-seed support mirrors MinesweeperGame/SlidingPuzzleGame's
  *     `startMatch(dailySeed)` exact shape/reasoning — this file never reads
  *     today's date itself.
  */
-class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule {
+class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "sudoku"
     override val displayName = "Sudoku"
     override val category = GameCategory.PUZZLE
@@ -112,9 +143,21 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     /** Total time for the current board, frozen the instant [setValue] detects a win; null until then. */
     val finishedElapsedMillis = mutableStateOf<Long?>(null)
 
+    /** Hints used on the CURRENT puzzle; any hint makes the solve "assisted" (no best-time record). Never decreases within a puzzle, not even through undo. */
+    val hintsUsed = mutableStateOf(0)
+
+    /** Cells whose digit was filled in by a hint, so the screen can mark them with a non-colour cue. A cell leaves the set when the player erases or overwrites it. */
+    val hintedCells = mutableStateOf<Set<Int>>(emptySet())
+
+    /** Snapshots taken just BEFORE each human entry (digit, erase, note toggle) or hint; popping one is Undo. Per puzzle. */
+    private val history = SnapshotHistory()
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var currentDailySeed: Long? = null
+
+    /** The daily seed of the puzzle on screen, or null for a random puzzle; lets the screen re-derive its "Daily puzzle" tag after a resume. */
+    val dailySeedInUse: Long? get() = currentDailySeed
 
     /** [pause]'s own nowMillis() reading, or null while not currently paused — see [pause]/[resume]'s KDoc. */
     private var pausedAtElapsedRealtime: Long? = null
@@ -133,6 +176,199 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         this.context = context
         puzzlesSolved.value = 0
         matchOver.value = false
+        hintsUsed.value = 0
+        hintedCells.value = emptySet()
+        history.clear()
+    }
+
+    // --- Resume -----------------------------------------------------------------------------
+
+    private fun captureSnapshot(): String? {
+        val s = state.value ?: return null
+        val roster = if (::context.isInitialized) context.players.map { it.playerId } else emptyList()
+        return sudokuSnapshotJson.encodeToString(
+            SudokuSnapshot.serializer(),
+            SudokuSnapshot(
+                playerIds = roster,
+                cells = s.cells.map { SudokuSnapshotCell(it.value ?: 0, it.isGiven, it.notes.sorted()) },
+                solution = s.solution,
+                selectedIndex = s.selectedIndex,
+                mistakes = s.mistakes,
+                puzzlesSolved = puzzlesSolved.value,
+                hintsUsed = hintsUsed.value,
+                hintedCells = hintedCells.value.sorted(),
+                difficulty = difficulty.name,
+                dailySeed = currentDailySeed,
+                timerStarted = timerStartElapsedRealtime.value != null,
+                elapsedMillis = activeElapsedMillis() ?: 0L,
+                finishedMillis = finishedElapsedMillis.value
+            )
+        )
+    }
+
+    /** Decodes and sanity-checks a snapshot against THIS game's roster and board shape; null if unusable. */
+    private fun decodeSnapshot(text: String): SudokuSnapshot? {
+        val snap = try {
+            sudokuSnapshotJson.decodeFromString(SudokuSnapshot.serializer(), text)
+        } catch (_: Exception) {
+            return null
+        }
+        if (!::context.isInitialized) return null
+        val roster = context.players.map { it.playerId }
+        if (snap.playerIds != roster) return null
+        if (snap.cells.size != 81 || snap.solution.size != 81) return null
+        if (snap.solution.any { it !in 1..9 }) return null
+        for (i in 0 until 81) {
+            val c = snap.cells[i]
+            if (c.value !in 0..9) return null
+            if (c.notes.any { it !in 1..9 }) return null
+            if (c.value != 0 && c.notes.isNotEmpty()) return null
+            if (c.given && c.value != snap.solution[i]) return null
+        }
+        // The solution must itself be a valid grid: every row, column and box holds 1-9 once.
+        for (u in 0 until 9) {
+            var rowBits = 0
+            var colBits = 0
+            var boxBits = 0
+            for (k in 0 until 9) {
+                rowBits = rowBits or (1 shl snap.solution[u * 9 + k])
+                colBits = colBits or (1 shl snap.solution[k * 9 + u])
+                boxBits = boxBits or (1 shl snap.solution[((u / 3) * 3 + k / 3) * 9 + (u % 3) * 3 + k % 3])
+            }
+            if (rowBits != ALL_DIGITS_MASK || colBits != ALL_DIGITS_MASK || boxBits != ALL_DIGITS_MASK) return null
+        }
+        if (snap.selectedIndex != null && snap.selectedIndex !in 0 until 81) return null
+        if (snap.mistakes < 0 || snap.puzzlesSolved < 0 || snap.hintsUsed < 0 || snap.elapsedMillis < 0L) return null
+        if (snap.finishedMillis != null && snap.finishedMillis < 0L) return null
+        if (snap.hintedCells.any { it !in 0 until 81 }) return null
+        return snap
+    }
+
+    private fun snapshotCells(snap: SudokuSnapshot): List<SudokuCell> =
+        snap.cells.map { SudokuCell(value = if (it.value == 0) null else it.value, isGiven = it.given, notes = it.notes.toSet()) }
+
+    /** Null when there is nothing to save: no board yet, the session already ended, or a mode whose state lives with other players. */
+    override fun snapshot(): String? {
+        return try {
+            if (matchOver.value || state.value == null || !::context.isInitialized) return null
+            if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+            captureSnapshot()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = decodeSnapshot(snapshot) ?: return false
+            val cells = snapshotCells(snap)
+            val won = cells.indices.all { cells[it].value == snap.solution[it] }
+            // A solved board always has a running clock; one without would record a bogus 0 ms best time.
+            if (won && !snap.timerStarted) return false
+            val newState = SudokuState(
+                cells = cells,
+                solution = snap.solution,
+                selectedIndex = snap.selectedIndex,
+                mistakes = snap.mistakes,
+                won = won
+            )
+            val tier = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+            // Everything validated and computed: assign.
+            matchOver.value = false
+            difficulty = tier
+            currentDailySeed = snap.dailySeed
+            puzzlesSolved.value = snap.puzzlesSolved
+            hintsUsed.value = snap.hintsUsed
+            hintedCells.value = snap.hintedCells.toSet()
+            pausedAtElapsedRealtime = null
+            totalPausedMillis = 0L
+            timerStartElapsedRealtime.value = if (snap.timerStarted) nowMillis() - snap.elapsedMillis else null
+            finishedElapsedMillis.value = if (won && snap.timerStarted) (snap.finishedMillis ?: snap.elapsedMillis) else null
+            state.value = newState
+            history.clear()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // --- Undo -------------------------------------------------------------------------------
+
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && state.value?.isOver != true
+
+    /**
+     * Takes back the last cell entry or note toggle (or a hint's fill). Mistakes and hints used never
+     * go down, and the clock keeps running. Not available once the puzzle is solved, because the
+     * solve has already been counted and recorded.
+     */
+    override fun undo() {
+        val s = state.value ?: return
+        if (matchOver.value || s.isOver) return
+        val previous = history.pop() ?: return
+        val snap = decodeSnapshot(previous) ?: return
+        if (snap.solution != s.solution) return
+        state.value = SudokuState(
+            cells = snapshotCells(snap),
+            solution = s.solution,
+            selectedIndex = snap.selectedIndex,
+            mistakes = maxOf(s.mistakes, snap.mistakes),
+            won = false
+        )
+        hintsUsed.value = maxOf(hintsUsed.value, snap.hintsUsed)
+        hintedCells.value = snap.hintedCells.toSet()
+    }
+
+    private fun pushUndo() {
+        captureSnapshot()?.let { history.push(it) }
+    }
+
+    // --- Hint -------------------------------------------------------------------------------
+
+    /**
+     * Fills one cell with its correct digit and returns its index, or null when there is nothing
+     * to fill (board solved or session over). Picks the selected cell when it is empty, otherwise
+     * the empty cell with the fewest candidates (lowest index on ties); a board with no empty cell
+     * left but wrong entries gets the first wrong entry corrected. The cell is marked in
+     * [hintedCells], [hintsUsed] goes up, and the puzzle becomes "assisted": its solve must not set
+     * a best-time record. Never counts as a mistake.
+     */
+    fun hint(): Int? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.isOver) return null
+        val target = chooseHintCell(s) ?: return null
+        pushUndo()
+        hintsUsed.value += 1
+        placeValue(s, target, s.solution[target], hinted = true)
+        return target
+    }
+
+    private fun chooseHintCell(s: SudokuState): Int? {
+        val selected = s.selectedIndex
+        if (selected != null && selected in s.cells.indices) {
+            val c = s.cells[selected]
+            if (!c.isGiven && c.value == null) return selected
+        }
+        var best = -1
+        var bestCount = 10
+        for (i in 0 until 81) {
+            val c = s.cells[i]
+            if (c.isGiven || c.value != null) continue
+            var used = 0
+            for (p in peersOf(i)) {
+                val v = s.cells[p].value
+                if (v != null) used = used or (1 shl v)
+            }
+            val count = Integer.bitCount(ALL_DIGITS_MASK and used.inv())
+            if (count < bestCount) {
+                bestCount = count
+                best = i
+            }
+        }
+        if (best >= 0) return best
+        return (0 until 81).firstOrNull { i ->
+            val c = s.cells[i]
+            !c.isGiven && c.value != null && c.value != s.solution[i]
+        }
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -153,6 +389,10 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         finishedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        // A new puzzle starts a new undo history and a fresh hint count: undo never reaches back into the previous puzzle.
+        history.clear()
+        hintsUsed.value = 0
+        hintedCells.value = emptySet()
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true (see the class KDoc's
         // note on this fix) -- found by adversarial review, see that note.
@@ -241,7 +481,17 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
         if (cell.isGiven) return false
+        // Only digits 1-9 are real entries; anything else would produce a state no snapshot can describe.
+        if (value !in 1..9) return false
 
+        pushUndo()
+        placeValue(s, index, value, hinted = false)
+        return true
+    }
+
+    /** Applies a digit to [index]: starts the clock, clears peers' notes, counts a mistake (never for a hint) and detects the win. Callers have already validated and pushed undo. */
+    private fun placeValue(s: SudokuState, index: Int, value: Int, hinted: Boolean) {
+        val cell = s.cells[index]
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
 
         val cells = s.cells.toMutableList()
@@ -254,14 +504,19 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
             if (value in peer.notes) cells[p] = peer.copy(notes = peer.notes - value)
         }
 
-        val mistakes = if (value != s.solution[index]) s.mistakes + 1 else s.mistakes
+        val mistakes = if (!hinted && value != s.solution[index]) s.mistakes + 1 else s.mistakes
         val won = cells.indices.all { cells[it].value == s.solution[it] }
-        state.value = s.copy(cells = cells, mistakes = mistakes, won = won)
+        hintedCells.value = if (hinted) hintedCells.value + index else hintedCells.value - index
+        state.value = s.copy(
+            cells = cells,
+            mistakes = mistakes,
+            won = won,
+            selectedIndex = if (hinted) index else s.selectedIndex
+        )
         if (won) {
             puzzlesSolved.value += 1
             freezeTimer()
         }
-        return true
     }
 
     /** Clears the selected cell's value only (notes are untouched). No-op on a given cell, an already-empty cell, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). Returns true only if a value was actually erased. */
@@ -271,8 +526,10 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
         if (cell.isGiven || cell.value == null) return false
+        pushUndo()
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(value = null)
+        hintedCells.value = hintedCells.value - index
         state.value = s.copy(cells = cells)
         return true
     }
@@ -283,7 +540,8 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         val index = s.selectedIndex ?: return false
         if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
-        if (cell.isGiven || cell.value != null) return false
+        if (cell.isGiven || cell.value != null || value !in 1..9) return false
+        pushUndo()
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(notes = if (value in cell.notes) cell.notes - value else cell.notes + value)
         state.value = s.copy(cells = cells)

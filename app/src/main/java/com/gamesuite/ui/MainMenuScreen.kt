@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +23,7 @@ import com.gamesuite.R
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
+import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.meshGradientBackground
 import com.gamesuite.stats.StatsViewModel
@@ -44,6 +46,14 @@ import com.gamesuite.stats.StatsViewModel
  * ONE screen fully extracted as the reference pattern; the other game screens/Settings/Stats
  * are not yet (see README.md).
  */
+/** A pending "name the human players" prompt: what to ask and what to launch afterwards. */
+private class PendingNameRequest(
+    val title: String,
+    val count: Int,
+    val teamHint: Boolean = false,
+    val launch: (List<String>) -> Unit
+)
+
 @Composable
 fun MainMenuScreen(
     sessionManager: GameSessionManager,
@@ -55,6 +65,25 @@ fun MainMenuScreen(
 ) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val stats by statsViewModel.allStats.collectAsStateWithLifecycle()
+
+    // Naming of human players for pass-and-play launches (not quick-match games).
+    val context = LocalContext.current
+    val nameStore = remember(context) { PlayerNameStore(context) }
+    var pendingNames by remember { mutableStateOf<PendingNameRequest?>(null) }
+    pendingNames?.let { req ->
+        PlayerNamesDialog(
+            title = req.title,
+            count = req.count,
+            initial = List(req.count) { nameStore.name(it, "") },
+            showTeamHint = req.teamHint,
+            onConfirm = { names ->
+                nameStore.setNames(names)
+                pendingNames = null
+                req.launch(names)
+            },
+            onDismiss = { pendingNames = null }
+        )
+    }
 
     // Fold/Tab compatibility audit finding: this screen's game list was a single fixed
     // column regardless of window width, which is correct on a phone or the Fold's
@@ -590,15 +619,17 @@ fun MainMenuScreen(
                     GameEntry(stringResource(R.string.game_dominoes_vs_cpu)) { primaryLaunch.getValue("dominoes").invoke() },
                     GameEntry(stringResource(R.string.game_dots_and_boxes_vs_cpu)) { primaryLaunch.getValue("dots-and-boxes").invoke() },
                     GameEntry(stringResource(R.string.game_dots_and_boxes_pass_play)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2")
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("dots-and-boxes")
+                        pendingNames = PendingNameRequest("Dots and Boxes: player names", 2) { n ->
+                            sessionManager.launchGame(
+                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                                players = listOf(
+                                    PlayerInfo(playerId = "p1", displayName = n[0]),
+                                    PlayerInfo(playerId = "p2", displayName = n[1])
+                                ),
+                                localPlayerIndex = 0
+                            )
+                            onNavigateToGame("dots-and-boxes")
+                        }
                     },
                     GameEntry(stringResource(R.string.game_connect_four_vs_cpu)) { primaryLaunch.getValue("connect-four").invoke() },
                     GameEntry(stringResource(R.string.game_connect_four_pass_play)) {
@@ -627,30 +658,34 @@ fun MainMenuScreen(
                 entries = listOf(
                     GameEntry(stringResource(R.string.game_uno_vs_cpu)) { primaryLaunch.getValue("uno").invoke() },
                     GameEntry(stringResource(R.string.game_uno_pass_play)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2"),
-                                PlayerInfo(playerId = "p3", displayName = "Player 3"),
-                                PlayerInfo(playerId = "p4", displayName = "Player 4")
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("uno")
+                        pendingNames = PendingNameRequest("UNO: player names", 4) { n ->
+                            sessionManager.launchGame(
+                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                                players = listOf(
+                                    PlayerInfo(playerId = "p1", displayName = n[0]),
+                                    PlayerInfo(playerId = "p2", displayName = n[1]),
+                                    PlayerInfo(playerId = "p3", displayName = n[2]),
+                                    PlayerInfo(playerId = "p4", displayName = n[3])
+                                ),
+                                localPlayerIndex = 0
+                            )
+                            onNavigateToGame("uno")
+                        }
                     },
                     GameEntry(stringResource(R.string.game_uno_teams)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1", teamId = 0),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2", teamId = 1),
-                                PlayerInfo(playerId = "p3", displayName = "Player 3", teamId = 0),
-                                PlayerInfo(playerId = "p4", displayName = "Player 4", teamId = 1)
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("uno-teams")
+                        pendingNames = PendingNameRequest("UNO Teams: player names", 4, teamHint = true) { n ->
+                            sessionManager.launchGame(
+                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
+                                players = listOf(
+                                    PlayerInfo(playerId = "p1", displayName = n[0], teamId = 0),
+                                    PlayerInfo(playerId = "p2", displayName = n[1], teamId = 1),
+                                    PlayerInfo(playerId = "p3", displayName = n[2], teamId = 0),
+                                    PlayerInfo(playerId = "p4", displayName = n[3], teamId = 1)
+                                ),
+                                localPlayerIndex = 0
+                            )
+                            onNavigateToGame("uno-teams")
+                        }
                     },
                     // No launchGame() call here — the house-rules picker screen decides the ruleset
                     // AND the player roster itself, then launches the game from there.
