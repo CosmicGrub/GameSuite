@@ -318,6 +318,29 @@ class MusicLogicTest {
         assertEquals("c", q.next(false))
     }
 
+    @Test fun restoreDoesNotBringBackACurrentTrackThatLeftTheList() {
+        val q = PlaybackQueue(Random(8))
+        q.setList(ids("a", "b", "c"))
+        q.next(false); q.next(false) // a, b
+        val snap = q.snapshot()      // current = b
+        q.setList(ids("a", "c"))     // b was disabled or removed
+        q.restore(snap)
+        assertNull("a disabled track must not be resumable through the queue", q.current)
+    }
+
+    @Test fun handoffWaitsUntilTheFadeWindowRemains() {
+        // 3 s left when the next track is ready but its fade is only 1 s: wait 2 s so the tail is not cut.
+        assertEquals(2000L, Crossfade.handoffDelayMs(remainingMs = 3000L, fadeMs = 1000L))
+        // the fade is as long as what remains (or longer): start at once
+        assertEquals(0L, Crossfade.handoffDelayMs(3000L, 3000L))
+        assertEquals(0L, Crossfade.handoffDelayMs(2000L, 3000L))
+        // a difference within the slack is not worth waiting for
+        assertEquals(0L, Crossfade.handoffDelayMs(3100L, 3000L))
+        // no fade or nothing left: never wait
+        assertEquals(0L, Crossfade.handoffDelayMs(3000L, 0L))
+        assertEquals(0L, Crossfade.handoffDelayMs(0L, 1000L))
+    }
+
     @Test fun atomicWriteReplacesAndKeepsOldFileOnFailure() {
         val target = java.io.File(tmpDir.root, "lib.json")
         val f = AtomicTextFile(target)

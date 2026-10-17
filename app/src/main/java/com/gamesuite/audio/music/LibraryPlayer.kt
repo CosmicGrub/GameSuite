@@ -190,8 +190,25 @@ class LibraryPlayer(
             slot.release()
             return
         }
-        pending = null
         slot.durationMs = try { slot.player.duration.toLong().coerceAtLeast(0L) } catch (_: Exception) { 0L }
+        // A near-end hand-over is requested a full outgoing window early, but its fade can be shorter
+        // (a short incoming track). Hold the prepared track until exactly that many ms remain so the
+        // outgoing track's tail is not cut. It stays `pending`, so pause/stop/a new play cancel it.
+        val current = active
+        if (current != null && slot.fadeMs > 0L && current.durationMs > 0L) {
+            val remaining = current.durationMs - (try { current.player.currentPosition.toLong() } catch (_: Exception) { 0L })
+            val wait = Crossfade.handoffDelayMs(remaining, slot.fadeMs)
+            if (wait > 0L) {
+                handler.postDelayed({ if (slot === pending) startPrepared(slot) }, wait)
+                return
+            }
+        }
+        startPrepared(slot)
+    }
+
+    private fun startPrepared(slot: Slot) {
+        if (slot !== pending) return
+        pending = null
         val old = active
         outgoing?.release()
         outgoing = null
