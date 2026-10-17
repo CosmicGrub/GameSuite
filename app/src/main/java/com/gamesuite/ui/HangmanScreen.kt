@@ -835,6 +835,12 @@ private fun HangmanResultPanel(
         border = BorderStroke(1.dp, chalkText.copy(alpha = 0.6f)),
         modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
     ) { Text("Back to Menu") }
+    Spacer(Modifier.height(8.dp))
+    com.gamesuite.uikit.ChangeSetupButton(
+        onLeave = onBackToMenu,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = chalkText),
+        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+    )
 }
 
 /**

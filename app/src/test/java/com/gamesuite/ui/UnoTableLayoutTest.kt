@@ -118,6 +118,62 @@ class UnoTableLayoutTest {
         }
     }
 
+    private val crowdedSizes = listOf(
+        Shape("312x560", 312f, 560f),
+        Shape("Fold cover 344x770", 344f, 770f),
+        Shape("430x900", 430f, 900f),
+        Shape("900x500", 900f, 500f),
+        Shape("1200x600", 1200f, 600f)
+    )
+
+    @Test
+    // UNO seats at most 10 players, so at most 9 OPPONENTS are ever laid out around the table.
+    fun `two to nine opponents never overlap each other or the piles and stay on the table`() {
+        val problems = mutableListOf<String>()
+        for (shape in crowdedSizes) for (n in 2..9) {
+            val layout = computeTableLayout(shape.w, shape.h, n, 1f)
+            val ps = plates(layout)
+            val cluster = Plate(
+                layout.clusterCenterX - layout.clusterHalfW, layout.clusterTop,
+                layout.clusterCenterX + layout.clusterHalfW, layout.clusterBottom
+            )
+            ps.forEachIndexed { i, p ->
+                if (!(p.l >= -1f && p.t >= -1f && p.r <= shape.w + 1f && p.b <= shape.h + 1f)) {
+                    problems += "${shape.name} n=$n seat $i leaves the table"
+                }
+                val c = p.overlapArea(cluster) / p.area
+                if (c > 0.10f) problems += "${shape.name} n=$n seat $i overlaps the piles by ${(c * 100).toInt()}%"
+                for (j in i + 1 until ps.size) {
+                    val f = p.overlapArea(ps[j]) / minOf(p.area, ps[j].area)
+                    if (f > 0.12f) problems += "${shape.name} n=$n seats $i and $j overlap by ${(f * 100).toInt()}%"
+                }
+            }
+        }
+        assertTrue("${problems.size} violation(s):\n" + problems.joinToString("\n"), problems.isEmpty())
+    }
+
+    @Test
+    fun `status pill and turn tag width never reaches a seat plate beside them`() {
+        val problems = mutableListOf<String>()
+        for (shape in crowdedSizes + shapes) for (n in 1..10) {
+            val layout = computeTableLayout(shape.w, shape.h, n, 1f)
+            val half = layout.statusMaxW / 2f
+            if (layout.statusMaxW > shape.w * 0.8f + 0.01f) problems += "${shape.name} n=$n statusMaxW ${layout.statusMaxW} exceeds 80% of the table"
+            // The pill/tag live below the piles, in the lower part of the cluster's band.
+            val discardH = layout.discardH
+            val band = Plate(
+                layout.clusterCenterX - half, layout.clusterTop + discardH,
+                layout.clusterCenterX + half, layout.clusterBottom
+            )
+            // Only enforce when the cap came from the gap (not the floor at the cluster's own width).
+            if (layout.statusMaxW <= 2f * layout.clusterHalfW + 0.01f) continue
+            plates(layout).forEachIndexed { i, p ->
+                if (p.overlapArea(band) > 0.5f) problems += "${shape.name} n=$n seat $i overlaps the status band (max ${layout.statusMaxW})"
+            }
+        }
+        assertTrue("${problems.size} violation(s):\n" + problems.joinToString("\n"), problems.isEmpty())
+    }
+
     @Test
     fun `narrow tables use rows and wide ones use the arc`() {
         assertTrue(computeTableLayout(344f, 620f, 3, 1f).usedRows)

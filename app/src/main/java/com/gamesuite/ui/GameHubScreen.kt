@@ -51,7 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -64,6 +66,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gamesuite.R
 import com.gamesuite.core.GameHubSpec
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.HubChoices
@@ -78,7 +81,6 @@ import com.gamesuite.core.MAX_PLAYER_NAME_LENGTH
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.core.SavedGame
 import com.gamesuite.core.launchHubMode
-import com.gamesuite.core.savedAgoText
 import com.gamesuite.core.summarizeHubChoices
 
 private const val HUB_MAX_NAME_SLOTS = 10
@@ -99,6 +101,9 @@ fun GameHubScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    // Reading the configuration re-resolves the catalog text when the locale changes.
+    val configuration = LocalConfiguration.current
+    val localize: (String) -> String = remember(context, configuration) { { text -> HubText.resolve(context, text) } }
     val store = remember(context) { HubChoicesStore(context) }
     val nameStore = remember(context) { PlayerNameStore(context) }
 
@@ -173,7 +178,7 @@ fun GameHubScreen(
         } else {
             sessionManager.savedGames?.delete(saved.route)
             saveTick += 1
-            message = "That saved game could not be resumed, so it was removed."
+            message = context.getString(R.string.hub_ui_resume_failed)
         }
     }
 
@@ -198,7 +203,7 @@ fun GameHubScreen(
 
     val resumeBlock: @Composable () -> Unit = {
         if (saves.isNotEmpty()) {
-            HubSectionTitle("Resume")
+            HubSectionTitle(stringResource(R.string.hub_ui_resume))
             Spacer(Modifier.height(8.dp))
             saves.forEach { saved ->
                 HubResumeCard(
@@ -215,15 +220,15 @@ fun GameHubScreen(
 
     val playBlock: @Composable () -> Unit = {
         HubPlayButton(
-            title = playMode.title,
-            summary = summarizeHubChoices(playMode, choicesOf(playMode)),
+            title = localize(playMode.title),
+            summary = summarizeHubChoices(playMode, choicesOf(playMode), localize),
             onClick = ::onPlay
         )
         Spacer(Modifier.height(20.dp))
     }
 
     val tilesBlock: @Composable () -> Unit = {
-        HubSectionTitle("Modes")
+        HubSectionTitle(stringResource(R.string.hub_ui_modes))
         Spacer(Modifier.height(8.dp))
         Column(
             modifier = Modifier.selectableGroup().focusGroup(),
@@ -289,8 +294,8 @@ fun GameHubScreen(
     if (pending != null) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = null },
-            title = { Text("Discard this saved game?") },
-            text = { Text("The game in progress will be deleted. This cannot be undone.") },
+            title = { Text(stringResource(R.string.hub_ui_discard_title)) },
+            text = { Text(stringResource(R.string.hub_ui_discard_body)) },
             confirmButton = {
                 TextButton(
                     modifier = Modifier.heightIn(min = HubMinTouch).pointerHoverIcon(PointerIcon.Hand),
@@ -299,13 +304,13 @@ fun GameHubScreen(
                         confirmDiscard = null
                         saveTick += 1
                     }
-                ) { Text("Discard") }
+                ) { Text(stringResource(R.string.hub_ui_discard)) }
             },
             dismissButton = {
                 TextButton(
                     modifier = Modifier.heightIn(min = HubMinTouch).pointerHoverIcon(PointerIcon.Hand),
                     onClick = { confirmDiscard = null }
-                ) { Text("Keep it") }
+                ) { Text(stringResource(R.string.hub_ui_keep)) }
             }
         )
     }
@@ -313,24 +318,25 @@ fun GameHubScreen(
 
 @Composable
 private fun HubHeader(spec: GameHubSpec, onBack: () -> Unit) {
+    val backDescription = stringResource(R.string.hub_ui_back_desc)
     Column(modifier = Modifier.fillMaxWidth()) {
         TextButton(
             onClick = onBack,
             modifier = Modifier
                 .heightIn(min = HubMinTouch)
-                .semantics { contentDescription = "Back to the games menu" }
+                .semantics { contentDescription = backDescription }
                 .pointerHoverIcon(PointerIcon.Hand)
         ) {
-            Text("← Back", modifier = Modifier.clearAndSetSemantics { })
+            Text(stringResource(R.string.hub_ui_back), modifier = Modifier.clearAndSetSemantics { })
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            spec.title,
+            hubText(spec.title),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.semantics { heading() }
         )
         Spacer(Modifier.height(4.dp))
-        Text(spec.tagline, style = MaterialTheme.typography.bodyMedium)
+        Text(hubText(spec.tagline), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -347,6 +353,9 @@ private fun HubSectionTitle(text: String) {
 @Composable
 private fun HubResumeCard(saved: SavedGame, now: Long, onResume: () -> Unit, onDiscard: () -> Unit) {
     val title = saved.summary.ifBlank { saved.label }
+    val context = LocalContext.current
+    val resumeDescription = stringResource(R.string.hub_ui_resume_desc, title)
+    val discardDescription = stringResource(R.string.hub_ui_discard_desc, title)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -356,7 +365,7 @@ private fun HubResumeCard(saved: SavedGame, now: Long, onResume: () -> Unit, onD
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text("Saved ${savedAgoText(saved.savedAtMillis, now)}", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.hub_ui_saved, HubText.savedAgo(context, saved.savedAtMillis, now)), style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(8.dp))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -366,16 +375,16 @@ private fun HubResumeCard(saved: SavedGame, now: Long, onResume: () -> Unit, onD
                     onClick = onResume,
                     modifier = Modifier
                         .heightIn(min = HubMinTouch)
-                        .semantics { contentDescription = "Resume saved game: $title" }
+                        .semantics { contentDescription = resumeDescription }
                         .pointerHoverIcon(PointerIcon.Hand)
-                ) { Text("Resume", modifier = Modifier.clearAndSetSemantics { }) }
+                ) { Text(stringResource(R.string.hub_ui_resume), modifier = Modifier.clearAndSetSemantics { }) }
                 OutlinedButton(
                     onClick = onDiscard,
                     modifier = Modifier
                         .heightIn(min = HubMinTouch)
-                        .semantics { contentDescription = "Discard saved game: $title" }
+                        .semantics { contentDescription = discardDescription }
                         .pointerHoverIcon(PointerIcon.Hand)
-                ) { Text("Discard", modifier = Modifier.clearAndSetSemantics { }) }
+                ) { Text(stringResource(R.string.hub_ui_discard), modifier = Modifier.clearAndSetSemantics { }) }
             }
         }
     }
@@ -393,7 +402,7 @@ private fun HubPlayButton(title: String, summary: String, onClick: () -> Unit) {
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-            Text("Play: $title", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.hub_ui_play_title, title), style = MaterialTheme.typography.titleLarge)
             if (summary != title) {
                 Text(summary, style = MaterialTheme.typography.bodyMedium)
             }
@@ -426,8 +435,8 @@ private fun HubModeTile(mode: HubMode, selected: Boolean, onClick: () -> Unit) {
                 modifier = Modifier.padding(end = 12.dp).clearAndSetSemantics { }
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(mode.title, style = MaterialTheme.typography.titleMedium)
-                Text(mode.blurb, style = MaterialTheme.typography.bodySmall)
+                Text(hubText(mode.title), style = MaterialTheme.typography.titleMedium)
+                Text(hubText(mode.blurb), style = MaterialTheme.typography.bodySmall)
             }
             if (mode.kind == HubModeKind.DAILY) {
                 Spacer(Modifier.size(8.dp))
@@ -437,7 +446,7 @@ private fun HubModeTile(mode: HubMode, selected: Boolean, onClick: () -> Unit) {
                     contentColor = scheme.onTertiaryContainer
                 ) {
                     Text(
-                        "Daily",
+                        stringResource(R.string.badge_daily),
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
@@ -458,9 +467,9 @@ private fun HubOptionsPanel(
     val isLobby = mode.start == HubStart.LOBBY
     val isPass = mode.kind == HubModeKind.PASS_AND_PLAY
     val startLabel = when {
-        isLobby -> "Open lobby"
-        mode.kind == HubModeKind.DAILY -> "Play today's puzzle"
-        else -> "Start game"
+        isLobby -> stringResource(R.string.hub_ui_open_lobby)
+        mode.kind == HubModeKind.DAILY -> stringResource(R.string.hub_ui_play_daily)
+        else -> stringResource(R.string.hub_ui_start_game)
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -471,17 +480,17 @@ private fun HubOptionsPanel(
     ) {
         Column(modifier = Modifier.padding(16.dp).focusGroup()) {
             Text(
-                mode.title,
+                hubText(mode.title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { heading() }
             )
             Spacer(Modifier.height(4.dp))
-            Text(mode.blurb, style = MaterialTheme.typography.bodyMedium)
+            Text(hubText(mode.blurb), style = MaterialTheme.typography.bodyMedium)
 
             if (isLobby) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "You will pick or join a room in the lobby, and the host starts once everyone is in.",
+                    stringResource(R.string.hub_ui_lobby_note),
                     style = MaterialTheme.typography.bodySmall
                 )
             } else {
@@ -544,9 +553,9 @@ private fun hubMarkCustom(mode: HubMode, c: HubChoices, changedKey: String): Hub
 private fun HubChoiceRow(option: HubOption.Choice, choices: HubChoices, onChange: (String, HubChoices) -> Unit) {
     val current = choices.string(option.key, option.default)
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(option.label, style = MaterialTheme.typography.titleSmall)
+        Text(hubText(option.label), style = MaterialTheme.typography.titleSmall)
         if (option.help.isNotBlank()) {
-            Text(option.help, style = MaterialTheme.typography.bodySmall)
+            Text(hubText(option.help), style = MaterialTheme.typography.bodySmall)
         }
         Spacer(Modifier.height(8.dp))
         FlowRow(
@@ -564,7 +573,7 @@ private fun HubChoiceRow(option: HubOption.Choice, choices: HubChoices, onChange
                         // A preset's own key never re-marks itself custom.
                         onChange(option.key, c)
                     },
-                    label = { Text(choice.label) },
+                    label = { Text(hubText(choice.label)) },
                     leadingIcon = if (selected) {
                         { Text("✓", modifier = Modifier.clearAndSetSemantics { }) }
                     } else {
@@ -580,7 +589,7 @@ private fun HubChoiceRow(option: HubOption.Choice, choices: HubChoices, onChange
         val help = option.choices.firstOrNull { it.id == current }?.help.orEmpty()
         if (help.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
-            Text(help, style = MaterialTheme.typography.bodySmall)
+            Text(hubText(help), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -601,9 +610,9 @@ private fun HubToggleRow(option: HubOption.Toggle, choices: HubChoices, onChange
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(option.label, style = MaterialTheme.typography.bodyLarge)
+            Text(hubText(option.label), style = MaterialTheme.typography.bodyLarge)
             if (option.help.isNotBlank()) {
-                Text(option.help, style = MaterialTheme.typography.bodySmall)
+                Text(hubText(option.help), style = MaterialTheme.typography.bodySmall)
             }
         }
         Switch(checked = checked, onCheckedChange = null)
@@ -613,14 +622,18 @@ private fun HubToggleRow(option: HubOption.Toggle, choices: HubChoices, onChange
 @Composable
 private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChange: (String, HubChoices) -> Unit) {
     val value = choices.int(option.key, option.default).coerceIn(option.min, option.max)
+    val label = hubText(option.label)
+    val decreaseDescription = stringResource(R.string.hub_ui_decrease, label)
+    val increaseDescription = stringResource(R.string.hub_ui_increase, label)
+    val rangeDescription = stringResource(R.string.hub_ui_stepper_state, value, option.min, option.max)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(option.label, style = MaterialTheme.typography.bodyLarge)
+            Text(hubText(option.label), style = MaterialTheme.typography.bodyLarge)
             if (option.help.isNotBlank()) {
-                Text(option.help, style = MaterialTheme.typography.bodySmall)
+                Text(hubText(option.help), style = MaterialTheme.typography.bodySmall)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -629,7 +642,7 @@ private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChan
                 enabled = value > option.min,
                 modifier = Modifier
                     .size(HubMinTouch)
-                    .semantics { contentDescription = "Decrease ${option.label}" }
+                    .semantics { contentDescription = decreaseDescription }
                     .pointerHoverIcon(PointerIcon.Hand),
                 contentPadding = PaddingValues(0.dp)
             ) { Text("−", modifier = Modifier.clearAndSetSemantics { }) }
@@ -640,8 +653,8 @@ private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChan
                 modifier = Modifier
                     .widthIn(min = 40.dp)
                     .semantics {
-                        contentDescription = option.label
-                        stateDescription = "$value of ${option.min} to ${option.max}"
+                        contentDescription = label
+                        stateDescription = rangeDescription
                     }
             )
             OutlinedButton(
@@ -649,7 +662,7 @@ private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChan
                 enabled = value < option.max,
                 modifier = Modifier
                     .size(HubMinTouch)
-                    .semantics { contentDescription = "Increase ${option.label}" }
+                    .semantics { contentDescription = increaseDescription }
                     .pointerHoverIcon(PointerIcon.Hand),
                 contentPadding = PaddingValues(0.dp)
             ) { Text("+", modifier = Modifier.clearAndSetSemantics { }) }
@@ -660,9 +673,9 @@ private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChan
 @Composable
 private fun HubNameFields(count: Int, names: MutableList<String>) {
     Column(modifier = Modifier.fillMaxWidth().focusGroup()) {
-        Text("Players", style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.hub_ui_players), style = MaterialTheme.typography.titleSmall)
         Text(
-            "Type a name for each seat, or leave it blank. The device is handed between turns, so pass it along when a turn ends.",
+            stringResource(R.string.hub_ui_names_help),
             style = MaterialTheme.typography.bodySmall
         )
         Spacer(Modifier.height(8.dp))
@@ -670,8 +683,8 @@ private fun HubNameFields(count: Int, names: MutableList<String>) {
             OutlinedTextField(
                 value = names[i],
                 onValueChange = { names[i] = it.take(MAX_PLAYER_NAME_LENGTH) },
-                label = { Text("Player ${i + 1} name") },
-                placeholder = { Text(if (count == 1) "You" else "Player ${i + 1}") },
+                label = { Text(stringResource(R.string.hub_ui_player_name, i + 1)) },
+                placeholder = { Text(if (count == 1) hubText("You") else stringResource(R.string.hub_ui_player_n, i + 1)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     imeAction = if (i == count - 1) ImeAction.Done else ImeAction.Next

@@ -33,6 +33,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -112,12 +114,25 @@ fun GamesScreen(
     val savedGameIds = remember(saves) { saves.mapNotNull { gameIdForRoute(specs, it.navRoute) }.toSet() }
     val columns = rememberGameColumns()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
 
     var query by rememberSaveable { mutableStateOf("") }
     var familyName by rememberSaveable { mutableStateOf<String?>(null) }
     val family = familyName?.let { name -> HubFamily.values().firstOrNull { it.name == name } }
 
-    val visible = remember(query, family) { filterGames(specs, query, family) }
+    // filterGames matches the English catalog text; also match what this locale shows on the cards,
+    // so typing "ajedrez" finds Chess on a Spanish device.
+    val visible = remember(query, family, context, configuration) {
+        val byEnglish = filterGames(specs, query, family).map { it.gameId }.toSet()
+        val q = query.trim().lowercase()
+        specs.filter { spec ->
+            spec.gameId in byEnglish ||
+                (q.isNotEmpty() && (family == null || spec.family == family) &&
+                    (HubText.resolve(context, spec.title).lowercase().contains(q) ||
+                        HubText.resolve(context, spec.tagline).lowercase().contains(q)))
+        }
+    }
     val grouped = remember(visible) { groupByFamily(visible) }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {

@@ -44,5 +44,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setOnlineServerUrl(url: String) = viewModelScope.launch { repository.setOnlineServerUrl(url) }
     fun setHasSeenOnboarding(seen: Boolean) = viewModelScope.launch { repository.setHasSeenOnboarding(seen) }
 
+    fun setMusicSource(source: MusicSource) = viewModelScope.launch { repository.setMusicSource(source) }
+    fun setMusicVolume(volume: Float) = viewModelScope.launch { repository.setMusicVolume(volume) }
+    fun setMusicShuffle(enabled: Boolean) = viewModelScope.launch { repository.setMusicShuffle(enabled) }
+    fun setMusicCrossfadeSeconds(seconds: Int) = viewModelScope.launch { repository.setMusicCrossfadeSeconds(seconds) }
+
     fun resetAll() = viewModelScope.launch { repository.resetAll() }
 }

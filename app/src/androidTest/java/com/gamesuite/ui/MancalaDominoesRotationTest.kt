@@ -10,7 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -24,10 +24,9 @@ import org.junit.runner.RunWith
  * `dumpsys gfxinfo`, and a real back-press).
  *
  * Selector notes:
- *  - Both menu entries are found by their real string resources,
- *    [com.gamesuite.R.string.game_mancala_vs_cpu] ("Mancala (vs CPU)") and
- *    [com.gamesuite.R.string.game_dominoes_vs_cpu] ("Dominoes (vs CPU)"),
- *    never a hardcoded literal, so a copy change cannot silently break these.
+ *  - Both games are opened through the new app shell by
+ *    [NavRotationTestSupport.openGameFromMenu] ("Mancala" / "Dominoes": Games tab -> card -> Game Hub ->
+ *    "Play: ..." button, default vs-computer mode).
  *  - Mancala's mid-game interaction targets the human's own pit 1, addressed by the exact
  *    `contentDescription` `PitView`'s own `"$ownerLabel pit $pitNumber, ${stoneCountLabel(count)}"`
  *    produces for that pit -- "Your pit 1, 4 stones" (see MancalaScreen.kt). This is not a string
@@ -63,9 +62,7 @@ class MancalaDominoesRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_mancala_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Mancala")
         Thread.sleep(600) // let the board's own entrance/first-render animation actually start/settle
 
         NavRotationTestSupport.captureJankAround("mancala") {
@@ -97,9 +94,7 @@ class MancalaDominoesRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_mancala_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Mancala")
         Thread.sleep(600)
 
         // Real gameplay interaction before rotating: sow the human's own pit 1 (always present,
@@ -140,9 +135,7 @@ class MancalaDominoesRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_dominoes_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Dominoes")
         Thread.sleep(600) // let the hand's own deal-in stagger animation actually start/settle
 
         NavRotationTestSupport.captureJankAround("dominoes") {

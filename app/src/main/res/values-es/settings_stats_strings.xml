@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ajustes -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_back">← Atrás</string>
+    <string name="settings_search_label">Buscar ajustes</string>
+    <string name="settings_search_clear">Borrar</string>
+    <string name="settings_no_match">Ningún ajuste coincide</string>
+    <string name="settings_no_match_hint">Prueba con otra palabra.</string>
+
+    <string name="settings_section_play">Juego</string>
+    <string name="settings_section_look">Aspecto</string>
+    <string name="settings_section_sound">Sonido y música</string>
+    <string name="settings_section_access">Accesibilidad</string>
+    <string name="settings_section_online">En línea</string>
+    <string name="settings_section_about">Acerca de</string>
+
+    <string name="settings_cpu_difficulty">Dificultad de la CPU por defecto</string>
+    <string name="settings_cpu_difficulty_desc">Preselecciona el selector de dificultad de cada juego. Aún puedes cambiarla en cada partida.</string>
+    <string name="settings_game_speed">Velocidad de juego</string>
+    <string name="settings_game_speed_desc">Cuánto tardan los oponentes en mover y cuánto duran los momentos importantes. Lenta te da tiempo para leer la mesa entre turnos; Rápida mantiene el ritmo ágil.</string>
+
+    <string name="settings_theme_mode">Tema</string>
+    <string name="settings_theme_system">Seguir el sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_dynamic_color">Color dinámico (Material You)</string>
+    <string name="settings_dynamic_color_desc">Usa los colores de tu fondo de pantalla</string>
+    <string name="settings_palette">Paleta de colores</string>
+    <string name="settings_palette_classic">Clásica</string>
+    <string name="settings_palette_high_contrast">Alto contraste</string>
+    <string name="settings_palette_midnight">Arcade de medianoche</string>
+    <string name="settings_palette_disabled">Desactiva el color dinámico para elegir una paleta</string>
+    <string name="settings_text_size_label">Tamaño del texto</string>
+    <string name="settings_text_size_value">Tamaño del texto: %1$d%%</string>
+    <string name="settings_card_size">Tamaño de las cartas</string>
+    <string name="settings_card_size_desc">Se aplica a todos los juegos de cartas. Las cartas se limitan a un rango calculado para este dispositivo: el tamaño mínimo sigue siendo cómodo de tocar y el máximo aún cabe en la mesa.</string>
+    <string name="settings_card_size_small">Pequeño</string>
+    <string name="settings_card_size_large">Grande</string>
+    <string name="settings_3d">Modo de perspectiva 3D</string>
+    <string name="settings_3d_desc">Las cartas y las fichas ganan profundidad y giros con perspectiva, y los tableros y mesas tienen una ligera inclinación</string>
+    <string name="settings_animations">Animaciones de movimiento mejoradas</string>
+    <string name="settings_animations_desc">Las fichas y cartas se mueven con peso en lugar de saltar de golpe: levantar y colocar, capturas con desvanecimiento, lanzamientos al objetivo</string>
+
+    <string name="settings_sound">Efectos de sonido</string>
+    <string name="settings_haptics">Vibración háptica</string>
+    <string name="settings_music">Música</string>
+    <string name="settings_music_desc">Ambiente, tu propia biblioteca o la música de otra aplicación</string>
+    <string name="settings_music_off">Desactivada</string>
+    <string name="settings_music_ambience">Ambiente</string>
+    <string name="settings_music_library">Tu biblioteca</string>
+    <string name="settings_music_other_apps">Otras aplicaciones</string>
+    <string name="settings_music_open">Abrir ajustes de música</string>
+
+    <string name="settings_reduced_motion">Movimiento reducido</string>
+    <string name="settings_reduced_motion_desc">Minimiza las animaciones en todos los juegos</string>
+    <string name="settings_colorblind">Modo para daltonismo</string>
+    <string name="settings_colorblind_desc">Añade formas y patrones además del color (por ejemplo, en los colores de las cartas de UNO)</string>
+
+    <string name="settings_online_server">Servidor en línea</string>
+    <string name="settings_online_server_desc">Una dirección ws:// o wss:// del servidor de retransmisión que usan los modos en línea (consulta server/README.md). Si la dejas en blanco, el juego en línea queda desactivado.</string>
+    <string name="settings_online_save">Guardar dirección del servidor</string>
+
+    <string name="settings_version">Versión</string>
+    <string name="settings_version_value">%1$s (compilación %2$d)</string>
+    <string name="settings_about_blurb">También disponible: una versión de hardware independiente de parte de este proyecto funciona como una máquina recreativa física con ESP32, con la misma lógica de juego e IA creadas desde cero en C++ para un microcontrolador con pantalla táctil.</string>
+    <string name="settings_reset_all">Restablecer todos los ajustes</string>
+    <string name="settings_reset_title">¿Restablecer todos los ajustes?</string>
+    <string name="settings_reset_text">Todos los ajustes vuelven a sus valores por defecto. No se puede deshacer.</string>
+    <string name="settings_reset_confirm">Restablecer</string>
+    <string name="settings_cancel">Cancelar</string>
+
+    <!-- Estadísticas -->
+    <string name="stats_title">Mis estadísticas</string>
+    <string name="stats_back">← Atrás</string>
+    <string name="stats_empty">Juega una partida para empezar a registrar tus estadísticas. Cada juego que termines suma a tu historial.</string>
+    <string name="stats_tile_games">Juegos</string>
+    <string name="stats_tile_matches">Partidas</string>
+    <string name="stats_tile_record">Récord total</string>
+    <string name="stats_record">%1$dG – %2$dP</string>
+    <string name="stats_record_draws">%1$dG – %2$dP – %3$dE</string>
+    <plurals name="stats_matches_played">
+        <item quantity="one">%1$d partida jugada</item>
+        <item quantity="other">%1$d partidas jugadas</item>
+    </plurals>
+    <string name="stats_row_description">%1$s: %2$s, %3$s</string>
+    <string name="stats_sort_label">Ordenar por</string>
+    <string name="stats_sort_recent">Recientes</string>
+    <string name="stats_sort_most_played">Más jugados</string>
+    <string name="stats_sort_az">De la A a la Z</string>
+    <string name="stats_reset">Restablecer estadísticas</string>
+    <string name="stats_reset_title">¿Restablecer todas las estadísticas?</string>
+    <string name="stats_reset_text">Esto borra de forma permanente el historial de victorias y derrotas de cada juego. No se puede deshacer.</string>
+    <string name="stats_reset_confirm">Restablecer</string>
+    <string name="stats_cancel">Cancelar</string>
+</resources>

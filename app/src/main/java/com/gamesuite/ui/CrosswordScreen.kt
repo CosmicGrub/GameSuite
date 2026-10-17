@@ -874,6 +874,12 @@ private fun CrosswordResultPanel(
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                 ) { Text("Back to Menu") }
             }
+            Spacer(Modifier.height(8.dp))
+            com.gamesuite.uikit.ChangeSetupButton(
+                onLeave = onLeave,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.ink),
+                modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
+            )
         }
     }
 }

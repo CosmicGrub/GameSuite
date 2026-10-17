@@ -141,6 +141,8 @@ fun GameCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val title = hubText(spec.title)
+    val tagline = hubText(spec.tagline)
     val dailyBadge = stringResource(R.string.badge_daily)
     val onlineBadge = stringResource(R.string.badge_online)
     val resumeBadge = stringResource(R.string.badge_resume)
@@ -150,14 +152,14 @@ fun GameCard(
         if (hasSave) add(resumeBadge)
     }
     val description = buildString {
-        append(spec.title).append(". ").append(spec.tagline)
+        append(title).append(". ").append(tagline)
         if (badges.isNotEmpty()) append(". ").append(badges.joinToString(", "))
     }
     val accent = familyAccent(spec.family)
     val favName = if (isFavorite) {
-        stringResource(R.string.fav_remove, spec.title)
+        stringResource(R.string.fav_remove, title)
     } else {
-        stringResource(R.string.fav_add, spec.title)
+        stringResource(R.string.fav_add, title)
     }
     val favState = stringResource(if (isFavorite) R.string.fav_state_on else R.string.fav_state_off)
 
@@ -188,14 +190,14 @@ fun GameCard(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            spec.title,
+                            title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            spec.tagline,
+                            tagline,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">← Back</string>
+    <string name="settings_search_label">Search settings</string>
+    <string name="settings_search_clear">Clear</string>
+    <string name="settings_no_match">No settings match</string>
+    <string name="settings_no_match_hint">Try a different word.</string>
+
+    <string name="settings_section_play">Play</string>
+    <string name="settings_section_look">Look &amp; feel</string>
+    <string name="settings_section_sound">Sound &amp; music</string>
+    <string name="settings_section_access">Accessibility</string>
+    <string name="settings_section_online">Online</string>
+    <string name="settings_section_about">About</string>
+
+    <string name="settings_cpu_difficulty">Default CPU difficulty</string>
+    <string name="settings_cpu_difficulty_desc">Pre-selects each game\'s own difficulty picker. You can still override per match.</string>
+    <string name="settings_game_speed">Game speed</string>
+    <string name="settings_game_speed_desc">How long opponents take to move and how long big moments hold. Slow gives you time to read the table between turns; Quick keeps things snappy.</string>
+
+    <string name="settings_theme_mode">Theme</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Dynamic color (Material You)</string>
+    <string name="settings_dynamic_color_desc">Match your wallpaper\'s colors</string>
+    <string name="settings_palette">Color palette</string>
+    <string name="settings_palette_classic">Classic</string>
+    <string name="settings_palette_high_contrast">High Contrast</string>
+    <string name="settings_palette_midnight">Midnight Arcade</string>
+    <string name="settings_palette_disabled">Disable dynamic color to pick a palette</string>
+    <string name="settings_text_size_label">Text size</string>
+    <string name="settings_text_size_value">Text size: %1$d%%</string>
+    <string name="settings_card_size">Card size</string>
+    <string name="settings_card_size_desc">Applies to every card game. Cards are capped to a size range computed for this device, so the smallest setting stays comfortably tappable and the largest still fits the table.</string>
+    <string name="settings_card_size_small">Small</string>
+    <string name="settings_card_size_large">Large</string>
+    <string name="settings_3d">3D perspective mode</string>
+    <string name="settings_3d_desc">Cards and pieces get real depth and perspective flips, and boards and tables get a resting tilt</string>
+    <string name="settings_animations">Enhanced move animations</string>
+    <string name="settings_animations_desc">Pieces and cards move with weight instead of snapping instantly: lift-and-place, capture fades, fly-to-target tosses</string>
+
+    <string name="settings_sound">Sound effects</string>
+    <string name="settings_haptics">Haptics</string>
+    <string name="settings_music">Music</string>
+    <string name="settings_music_desc">Ambience, your own library, or another app\'s music</string>
+    <string name="settings_music_off">Off</string>
+    <string name="settings_music_ambience">Ambience</string>
+    <string name="settings_music_library">Your library</string>
+    <string name="settings_music_other_apps">Other apps</string>
+    <string name="settings_music_open">Open music settings</string>
+
+    <string name="settings_reduced_motion">Reduced motion</string>
+    <string name="settings_reduced_motion_desc">Minimize animations across all games</string>
+    <string name="settings_colorblind">Colorblind-safe mode</string>
+    <string name="settings_colorblind_desc">Add shape and pattern cues alongside color (for example UNO card colors)</string>
+
+    <string name="settings_online_server">Online server</string>
+    <string name="settings_online_server_desc">A ws:// or wss:// address for the relay server that online modes connect through (see server/README.md). Leave blank and Online play stays disabled.</string>
+    <string name="settings_online_save">Save server address</string>
+
+    <string name="settings_version">Version</string>
+    <string name="settings_version_value">%1$s (build %2$d)</string>
+    <string name="settings_about_blurb">Also available: a standalone hardware version of part of this project runs as a physical ESP32-based arcade cabinet, with the same game logic and AI built from scratch in C++ for a touchscreen microcontroller.</string>
+    <string name="settings_reset_all">Reset all settings</string>
+    <string name="settings_reset_title">Reset all settings?</string>
+    <string name="settings_reset_text">Every setting returns to its default. This can\'t be undone.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="settings_cancel">Cancel</string>
+
+    <!-- Stats -->
+    <string name="stats_title">My Stats</string>
+    <string name="stats_back">← Back</string>
+    <string name="stats_empty">Play a match to start tracking your stats. Every game you finish builds your all-time record.</string>
+    <string name="stats_tile_games">Games</string>
+    <string name="stats_tile_matches">Matches</string>
+    <string name="stats_tile_record">Overall record</string>
+    <string name="stats_record">%1$dW – %2$dL</string>
+    <string name="stats_record_draws">%1$dW – %2$dL – %3$dD</string>
+    <plurals name="stats_matches_played">
+        <item quantity="one">%1$d match played</item>
+        <item quantity="other">%1$d matches played</item>
+    </plurals>
+    <string name="stats_row_description">%1$s: %2$s, %3$s</string>
+    <string name="stats_sort_label">Sort by</string>
+    <string name="stats_sort_recent">Recent</string>
+    <string name="stats_sort_most_played">Most played</string>
+    <string name="stats_sort_az">A to Z</string>
+    <string name="stats_reset">Reset stats</string>
+    <string name="stats_reset_title">Reset all stats?</string>
+    <string name="stats_reset_text">This permanently clears every game\'s win/loss record. This can\'t be undone.</string>
+    <string name="stats_reset_confirm">Reset</string>
+    <string name="stats_cancel">Cancel</string>
+</resources>

@@ -82,6 +82,7 @@ import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
@@ -1168,6 +1169,11 @@ private fun CheckersResultPanel(
             enabled = canPlayAgain,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
         ) { Text(playAgainLabel) }
+        Spacer(Modifier.height(8.dp))
+        ChangeSetupButton(
+            onLeave = onBackToMenu,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+        )
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
             onClick = onBackToMenu,

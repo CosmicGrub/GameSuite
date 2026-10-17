@@ -1,0 +1,265 @@
+package com.gamesuite.audio.music
+
+import kotlin.random.Random
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MusicLogicTest {
+
+    // ---- route -> context ----
+
+    @Test fun menuRoutes() {
+        listOf("menu", "games", "stats", "settings", "music", "hub/chess", "hub/anything", "party-toolkit")
+            .forEach { assertEquals(it, MusicContext.MENU, contextForRoute(it)) }
+    }
+
+    @Test fun boardRoutes() {
+        listOf(
+            "chess", "checkers", "reversi", "mancala", "connect-four", "dots-and-boxes", "dominoes",
+            "word-tiles", "tic-tac-toe", "tic-tac-toe-misere", "tic-tac-toe-wild"
+        ).forEach { assertEquals(it, MusicContext.BOARD, contextForRoute(it)) }
+    }
+
+    @Test fun cardRoutes() {
+        listOf("uno", "uno-custom", "uno-house-rules", "uno-teams", "solitaire")
+            .forEach { assertEquals(it, MusicContext.CARD, contextForRoute(it)) }
+    }
+
+    @Test fun puzzleAndWordRoutes() {
+        listOf(
+            "hangman", "word-guess", "word-guess-daily", "word-search", "crossword", "sudoku", "sudoku-daily",
+            "kenken", "kakuro", "nonogram", "minesweeper", "lights-out", "sliding-puzzle", "color-flood",
+            "edge-match", "mastermind", "mastermind-daily"
+        ).forEach { assertEquals(it, MusicContext.PUZZLE_WORD, contextForRoute(it)) }
+    }
+
+    @Test fun arcadeRoutes() {
+        listOf("breakout", "tower-defence", "air-hockey")
+            .forEach { assertEquals(it, MusicContext.ARCADE, contextForRoute(it)) }
+    }
+
+    @Test fun wordTilesIsBoardNotPuzzle() {
+        assertEquals(MusicContext.BOARD, contextForRoute("word-tiles"))
+    }
+
+    @Test fun unknownAndMessyRoutesFallBackToMenu() {
+        assertEquals(MusicContext.MENU, contextForRoute(null))
+        assertEquals(MusicContext.MENU, contextForRoute(""))
+        assertEquals(MusicContext.MENU, contextForRoute("   "))
+        assertEquals(MusicContext.MENU, contextForRoute("totally-unknown"))
+        assertEquals(MusicContext.BOARD, contextForRoute("/Chess/"))
+        assertEquals(MusicContext.CARD, contextForRoute("uno?mode=x"))
+        assertEquals(MusicContext.ARCADE, contextForRoute("breakout/level/3"))
+    }
+
+    // ---- playlists ----
+
+    private fun ids(vararg s: String) = s.toList()
+
+    @Test fun reconcileDefaultsToEveryTrackEnabled() {
+        val out = Playlists.reconcile(emptyList(), ids("a", "b", "c"))
+        assertEquals(ids("a", "b", "c"), out.map { it.trackId })
+        assertTrue(out.all { it.enabled })
+    }
+
+    @Test fun reconcileKeepsOrderAndFlagsDropsMissingAppendsNew() {
+        val existing = listOf(PlaylistEntry("c", false), PlaylistEntry("gone", true), PlaylistEntry("a", true))
+        val out = Playlists.reconcile(existing, ids("a", "b", "c"))
+        assertEquals(ids("c", "a", "b"), out.map { it.trackId })
+        assertFalse(out[0].enabled)
+        assertTrue(out[2].enabled)
+    }
+
+    @Test fun reconcileDeduplicates() {
+        val out = Playlists.reconcile(listOf(PlaylistEntry("a"), PlaylistEntry("a")), ids("a", "a", "b"))
+        assertEquals(ids("a", "b"), out.map { it.trackId })
+    }
+
+    @Test fun toggleAndEnableAll() {
+        val base = Playlists.reconcile(emptyList(), ids("a", "b"))
+        val off = Playlists.toggle(base, "b", false)
+        assertEquals(ids("a"), Playlists.enabledIds(off))
+        assertEquals(ids("a", "b"), Playlists.enabledIds(Playlists.enableAll(off)))
+        assertEquals(base, Playlists.toggle(base, "missing", false))
+    }
+
+    @Test fun moveReordersAndIgnoresOutOfRange() {
+        val base = Playlists.reconcile(emptyList(), ids("a", "b", "c"))
+        assertEquals(ids("b", "a", "c"), Playlists.move(base, 1, -1).map { it.trackId })
+        assertEquals(ids("a", "c", "b"), Playlists.move(base, 1, +1).map { it.trackId })
+        assertEquals(base, Playlists.move(base, 0, -1))
+        assertEquals(base, Playlists.move(base, 2, +1))
+        assertEquals(base, Playlists.move(base, 9, -1))
+        assertEquals(base, Playlists.move(base, 1, 0))
+    }
+
+    // ---- playback queue ----
+
+    @Test fun sequentialWrapsAround() {
+        val q = PlaybackQueue(Random(1))
+        q.setList(ids("a", "b", "c"))
+        assertEquals("a", q.next(false))
+        assertEquals("b", q.next(false))
+        assertEquals("c", q.next(false))
+        assertEquals("a", q.next(false))
+    }
+
+    @Test fun shuffleNeverRepeatsUntilAllPlayed() {
+        repeat(50) { seed ->
+            val q = PlaybackQueue(Random(seed))
+            val list = ids("a", "b", "c", "d", "e")
+            q.setList(list)
+            val round1 = List(5) { q.next(true)!! }
+            assertEquals(list.toSet(), round1.toSet())
+            // The next round must not start with the track that just finished.
+            val first = q.next(true)
+            assertTrue(first != round1.last())
+        }
+    }
+
+    @Test fun shuffleLongRunNeverImmediateRepeat() {
+        val q = PlaybackQueue(Random(7))
+        q.setList(ids("a", "b", "c"))
+        var prev: String? = null
+        repeat(200) {
+            val n = q.next(true)
+            assertTrue(n != prev)
+            prev = n
+        }
+    }
+
+    @Test fun singleTrackRepeatsAndEmptyIsNull() {
+        val q = PlaybackQueue(Random(2))
+        q.setList(ids("only"))
+        assertEquals("only", q.next(true))
+        assertEquals("only", q.next(true))
+        assertEquals("only", q.next(false))
+        q.setList(emptyList())
+        assertNull(q.next(true))
+        assertNull(q.next(false))
+    }
+
+    @Test fun previousWalksHistory() {
+        val q = PlaybackQueue(Random(3))
+        q.setList(ids("a", "b", "c"))
+        q.next(false); q.next(false); q.next(false) // a b c
+        assertEquals("b", q.previous())
+        assertEquals("a", q.previous())
+        assertNull(q.previous())
+    }
+
+    @Test fun contextSwitchKeepsCurrentWhenStillEnabled() {
+        val q = PlaybackQueue(Random(4))
+        q.setList(ids("a", "b", "c"))
+        q.next(false) // a
+        q.next(false) // b
+        q.setList(ids("b", "c"))
+        assertTrue(q.contains(q.current))
+        q.setList(ids("c"))
+        assertFalse(q.contains(q.current))
+        assertEquals("c", q.next(false))
+    }
+
+    // ---- serialization ----
+
+    @Test fun codecRoundTrip() {
+        val data = MusicLibraryData(
+            folderUri = "content://tree/music",
+            tracks = listOf(
+                MusicTrack("u1", "content://u1", "Song \"One\"", "Artist", 1234L),
+                MusicTrack("u2", "content://u2", "Two")
+            ),
+            playlists = mapOf(
+                MusicContext.BOARD to listOf(PlaylistEntry("u2", false), PlaylistEntry("u1", true))
+            )
+        )
+        val back = MusicLibraryCodec.decode(MusicLibraryCodec.encode(data))
+        assertEquals(data, back)
+    }
+
+    @Test fun codecToleratesGarbage() {
+        listOf(null, "", "   ", "not json", "[]", "42", "{", "{\"tracks\": 5}", "{\"tracks\":[1,null,\"x\",{}]}")
+            .forEach { assertEquals(it, MusicLibraryData(), MusicLibraryCodec.decode(it)) }
+    }
+
+    @Test fun codecSkipsBadEntriesAndUnknownContexts() {
+        val text = """
+            {"folderUri":"f","tracks":[{"id":"a","uri":"ua","title":"A","durationMs":"oops"},
+              {"id":"","uri":"x"},{"uri":"nid"},{"id":"a","uri":"dup"}],
+             "playlists":{"BOARD":[{"id":"a","on":false},{"on":true},7],"NOPE":[{"id":"a"}],"CARD":"bad"},
+             "extra":1}
+        """.trimIndent()
+        val d = MusicLibraryCodec.decode(text)
+        assertEquals("f", d.folderUri)
+        assertEquals(1, d.tracks.size)
+        assertEquals(0L, d.tracks[0].durationMs)
+        assertEquals(listOf(PlaylistEntry("a", false)), d.playlists[MusicContext.BOARD])
+        assertEquals(emptyList<PlaylistEntry>(), d.playlists[MusicContext.CARD])
+        assertEquals(setOf(MusicContext.BOARD, MusicContext.CARD), d.playlists.keys)
+    }
+
+    @Test fun playlistForReconcilesAgainstTracks() {
+        val d = MusicLibraryData(
+            tracks = listOf(MusicTrack("a", "a", "A"), MusicTrack("b", "b", "B")),
+            playlists = mapOf(MusicContext.ARCADE to listOf(PlaylistEntry("zzz"), PlaylistEntry("b", false)))
+        )
+        assertEquals(listOf(PlaylistEntry("b", false), PlaylistEntry("a", true)), d.playlistFor(MusicContext.ARCADE))
+        assertEquals(listOf(PlaylistEntry("a"), PlaylistEntry("b")), d.playlistFor(MusicContext.MENU))
+    }
+
+    // ---- crossfade math ----
+
+    @Test fun equalPowerKeepsConstantPower() {
+        for (i in 0..20) {
+            val (inG, outG) = Crossfade.equalPower(i / 20f)
+            assertEquals(1.0, (inG * inG + outG * outG).toDouble(), 1e-5)
+        }
+        val (i0, o0) = Crossfade.equalPower(0f)
+        assertEquals(0f, i0, 1e-6f); assertEquals(1f, o0, 1e-6f)
+        val (i1, o1) = Crossfade.equalPower(1f)
+        assertEquals(1f, i1, 1e-6f); assertEquals(0f, o1, 1e-6f)
+    }
+
+    @Test fun progressClampsAndHandlesZeroDuration() {
+        assertEquals(0.5f, Crossfade.progress(500, 1000), 1e-6f)
+        assertEquals(1f, Crossfade.progress(5000, 1000), 1e-6f)
+        assertEquals(0f, Crossfade.progress(-5, 1000), 1e-6f)
+        assertEquals(1f, Crossfade.progress(10, 0), 1e-6f)
+    }
+
+    @Test fun effectiveCrossfadeNeverExceedsHalfTheTrack() {
+        assertEquals(3000L, Crossfade.effectiveMs(3, 180_000))
+        assertEquals(2500L, Crossfade.effectiveMs(8, 5_000))
+        assertEquals(0L, Crossfade.effectiveMs(0, 180_000))
+        assertEquals(8000L, Crossfade.effectiveMs(99, 0)) // unknown duration: clamp to 8 s
+        assertEquals(0L, Crossfade.effectiveMs(-4, 100_000))
+    }
+
+    @Test fun nearEndWindow() {
+        assertFalse(Crossfade.shouldStartNext(10_000, 60_000, 3_000))
+        assertTrue(Crossfade.shouldStartNext(57_000, 60_000, 3_000))
+        assertFalse(Crossfade.shouldStartNext(59_000, 60_000, 0))
+        assertFalse(Crossfade.shouldStartNext(1_000, 0, 3_000))
+    }
+
+    // ---- file detection ----
+
+    @Test fun audioDetection() {
+        assertTrue(AudioFiles.isAudio("x.bin", "audio/mpeg"))
+        assertTrue(AudioFiles.isAudio("song.FLAC", "application/octet-stream"))
+        assertTrue(AudioFiles.isAudio("song.mp3", null))
+        assertFalse(AudioFiles.isAudio("photo.jpg", "image/jpeg"))
+        assertFalse(AudioFiles.isAudio("notes.txt", null))
+        assertFalse(AudioFiles.isAudio(null, null))
+    }
+
+    @Test fun titleFromFileName() {
+        assertEquals("01 - My Song", AudioFiles.titleFromFileName("01 - My Song.mp3"))
+        assertEquals("noext", AudioFiles.titleFromFileName("noext"))
+        assertEquals("", AudioFiles.titleFromFileName(null))
+        assertEquals(".hidden", AudioFiles.titleFromFileName(".hidden"))
+    }
+}

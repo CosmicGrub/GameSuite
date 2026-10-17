@@ -84,6 +84,7 @@ import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.ui.effects.specularSweep
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
@@ -1579,9 +1580,16 @@ private fun TileResultPanel(
         Spacer(Modifier.height(16.dp))
         // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover use case,
         // docs/DEVICE_SPECIFIC_PLAN.md §4c) -- purely additive, no effect on touch.
-        Button(
+        ChangeSetupButton(
+            onLeave = onBackToMenu,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
             onClick = onBackToMenu,
-            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+            modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
         ) { Text("Back to menu") }
     }
 }

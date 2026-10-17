@@ -68,6 +68,7 @@ import com.gamesuite.ui.effects.ParticleBurst
 import com.gamesuite.ui.effects.cameraShake
 import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
@@ -966,6 +967,7 @@ private fun DiscMark(owner: Int, discColor: Color, modifier: Modifier = Modifier
 // Result panel
 // ---------------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ResultPanel(
     s: ConnectFourState,
@@ -1008,17 +1010,26 @@ private fun ResultPanel(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
                     onClick = onPlayAgain,
                     enabled = canPlayAgain,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.boardFrame, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Play Again", textAlign = TextAlign.Center) }
+                ChangeSetupButton(
+                    onLeave = onBackToMenu,
+                    modifier = Modifier,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
+                )
                 OutlinedButton(
                     onClick = onBackToMenu,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Back to Menu", textAlign = TextAlign.Center) }

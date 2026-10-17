@@ -15,7 +15,7 @@ import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.captureJankAround
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import com.gamesuite.NavRotationTestSupport.waitForNode
 import com.gamesuite.R
 import org.junit.Assert.assertEquals
@@ -61,7 +61,7 @@ class WordGamesRotationTest {
     fun hangman_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(composeTestRule.activity.getString(R.string.game_hangman))
+        composeTestRule.openGameFromMenu("Hangman")
         Thread.sleep(600) // let the game screen's own entrance animation settle
         captureJankAround("hangman") {
             with(device) { cycleOrientations("hangman") }
@@ -79,7 +79,7 @@ class WordGamesRotationTest {
     fun hangman_guessLetterThenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(composeTestRule.activity.getString(R.string.game_hangman))
+        composeTestRule.openGameFromMenu("Hangman")
         Thread.sleep(600)
         // DIAGNOSTIC (temporary): dump the real on-device semantics tree.
         composeTestRule.onRoot().printToLog("GameSuiteE2E_HM_DUMP")
@@ -127,7 +127,7 @@ class WordGamesRotationTest {
     fun wordSearch_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(composeTestRule.activity.getString(R.string.game_word_search))
+        composeTestRule.openGameFromMenu("Word Search")
         Thread.sleep(600)
         captureJankAround("wordSearch") {
             with(device) { cycleOrientations("wordSearch") }
@@ -169,7 +169,7 @@ class WordGamesRotationTest {
     fun crossword_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(composeTestRule.activity.getString(R.string.game_crossword))
+        composeTestRule.openGameFromMenu("Crossword")
         Thread.sleep(600)
         captureJankAround("crossword") {
             with(device) { cycleOrientations("crossword") }
@@ -187,7 +187,7 @@ class WordGamesRotationTest {
     fun crossword_selectClueThenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(composeTestRule.activity.getString(R.string.game_crossword))
+        composeTestRule.openGameFromMenu("Crossword")
         Thread.sleep(600)
 
         // Every generated crossword grid numbers its first entry "1" (by

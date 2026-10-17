@@ -1554,6 +1554,11 @@ private fun SolitaireSolvedPanel(
                     onClick = onBackToMenu,
                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                 ) { Text("Back to menu") }
+                Spacer(modifier = Modifier.height(8.dp))
+                com.gamesuite.uikit.ChangeSetupButton(
+                    onLeave = onBackToMenu,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                )
             }
         }
     }

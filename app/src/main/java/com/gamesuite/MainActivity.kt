@@ -19,7 +19,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.audio.music.MusicManager
+import com.gamesuite.settings.MusicSource
+import com.gamesuite.ui.MusicSettingsScreen
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -37,6 +42,7 @@ import com.gamesuite.core.PlayMode
 import com.gamesuite.core.SavedGameStore
 import com.gamesuite.transport.LobbySeatLimits
 import com.gamesuite.transport.lobbyRouteFor
+import com.gamesuite.uikit.LocalChangeSetup
 import com.gamesuite.uikit.LocalProgressSaver
 import com.gamesuite.uikit.ProgressSaver
 import java.io.File
@@ -164,6 +170,17 @@ class MainActivity : ComponentActivity() {
         // Where resumable games are parked (see GameSessionManager.saveActiveProgress). The
         // ViewModel outlives the Activity, so this just re-points it at the same directory.
         sessionManager.savedGames = SavedGameStore(File(filesDir, "saved_games"))
+        // The music player (library / other-apps modes) pauses while the whole app is in the
+        // background and resumes when it returns. Activity-level start/stop is the right signal.
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                MusicManager.get(applicationContext).onAppForegrounded()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                MusicManager.get(applicationContext).onAppBackgrounded()
+            }
+        })
         setContent {
             val foldState = rememberFoldState(this)
             val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
@@ -201,6 +218,17 @@ class MainActivity : ComponentActivity() {
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
+                    // "Change setup" on a result panel marks the next match end as "go back to this game's Hub"
+                    // (the screen below the game on the back stack) instead of all the way to the menu.
+                    var changeSetupRequested by remember { mutableStateOf(false) }
+                    val finishMatch: () -> Unit = {
+                        if (changeSetupRequested) {
+                            changeSetupRequested = false
+                            navController.popBackStack()
+                        } else {
+                            navController.popBackStack("menu", inclusive = false)
+                        }
+                    }
                     val cardScale = rememberCardScaleMultiplier(settings.cardSizePreference)
                     // Handoff-only state for the House Rules picker (uno-house-rules -> uno-custom),
                     // mirroring how "uno-teams" already passes a fixed custom UnoRules inline — kept
@@ -228,12 +256,15 @@ class MainActivity : ComponentActivity() {
 
                     CompositionLocalProvider(
                         LocalProgressSaver provides progressSaver,
+                        LocalChangeSetup provides { changeSetupRequested = true },
                         LocalFoldState provides foldState,
                         LocalCardScale provides cardScale,
                         LocalReducedMotion provides settings.reducedMotion,
                         LocalCard3DMode provides settings.card3DEnabled,
                         LocalHapticsEnabled provides settings.hapticsEnabled,
-                        LocalMusicEnabled provides settings.musicEnabled,
+                        // The built-in procedural ambience only plays in AMBIENCE mode; with the
+                        // user's library or another app's music it stays silent.
+                        LocalMusicEnabled provides (settings.musicSource == MusicSource.AMBIENCE),
                         LocalColorblindMode provides settings.colorblindMode,
                         LocalEnhancedAnimations provides settings.enhancedAnimationsEnabled,
                         LocalGameSpeed provides settings.gameSpeed
@@ -242,6 +273,12 @@ class MainActivity : ComponentActivity() {
                     // the four top-level routes only. Game, Hub and lobby routes use the full screen.
                     val backStackEntry by navController.currentBackStackEntryAsState()
                     val currentTab = AppTab.forRoute(backStackEntry?.destination?.route)
+                    // Tell the music player which screen is showing (raw route string) so it can
+                    // pick a per-context playlist; fires on every route change.
+                    val currentRoute: String? = backStackEntry?.destination?.route
+                    LaunchedEffect(currentRoute) {
+                        currentRoute?.let { MusicManager.get(applicationContext).setContextForRoute(it) }
+                    }
                     val expanded = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass ==
                         WindowWidthSizeClass.EXPANDED
                     val selectTab: (AppTab) -> Unit = { tab ->
@@ -300,6 +337,13 @@ class MainActivity : ComponentActivity() {
                         composable("settings") {
                             SettingsScreen(
                                 viewModel = settingsViewModel,
+                                onBack = { navController.popBackStack() },
+                                onOpenMusic = { navController.navigate("music") }
+                            )
+                        }
+                        composable("music") {
+                            MusicSettingsScreen(
+                                settingsViewModel = settingsViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -409,7 +453,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("tic-tac-toe-misere") {
@@ -421,7 +465,7 @@ class MainActivity : ComponentActivity() {
                                 game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
                                 misere = true,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("tic-tac-toe-wild") {
@@ -434,7 +478,7 @@ class MainActivity : ComponentActivity() {
                                 game = ticTacToeGame,
                                 settingsViewModel = settingsViewModel,
                                 wild = true,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("uno") {
@@ -443,7 +487,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = unoGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("uno-teams") {
@@ -452,7 +496,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = unoGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 initialRules = com.gamesuite.games.uno.UnoRules(teamPlay = true)
                             )
                         }
@@ -480,7 +524,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = unoGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 initialRules = pendingUnoRules ?: com.gamesuite.games.uno.UnoRules()
                             )
                         }
@@ -490,7 +534,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = hangmanGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("word-search") {
@@ -499,7 +543,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = wordSearchGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("word-search-daily") {
@@ -510,7 +554,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = wordSearchGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -520,7 +564,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = crosswordGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("word-tiles") {
@@ -529,7 +573,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = tileGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("dominoes") {
@@ -538,7 +582,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = dominoGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("dots-and-boxes") {
@@ -547,7 +591,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = dotsAndBoxesGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("connect-four") {
@@ -556,7 +600,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = connectFourGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("checkers") {
@@ -565,7 +609,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = checkersGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("chess") {
@@ -574,7 +618,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = chessGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("reversi") {
@@ -583,7 +627,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = reversiGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("mancala") {
@@ -592,7 +636,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = mancalaGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("air-hockey") {
@@ -606,7 +650,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = airHockeyGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("solitaire") {
@@ -614,7 +658,7 @@ class MainActivity : ComponentActivity() {
                             SolitaireScreen(
                                 sessionManager = sessionManager,
                                 game = solitaireGame,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("sliding-puzzle") {
@@ -623,7 +667,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = slidingPuzzleGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("sliding-puzzle-daily") {
@@ -634,7 +678,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = slidingPuzzleGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -644,7 +688,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = minesweeperGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("minesweeper-daily") {
@@ -655,7 +699,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = minesweeperGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -665,7 +709,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = sudokuGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("sudoku-daily") {
@@ -676,7 +720,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = sudokuGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -686,7 +730,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = lightsOutGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("lights-out-daily") {
@@ -697,7 +741,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = lightsOutGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -707,7 +751,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = colorFloodGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("color-flood-daily") {
@@ -718,7 +762,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = colorFloodGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -728,7 +772,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = edgeMatchGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("edge-match-daily") {
@@ -739,7 +783,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = edgeMatchGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -749,7 +793,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = nonogramGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("nonogram-daily") {
@@ -760,7 +804,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = nonogramGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -769,7 +813,7 @@ class MainActivity : ComponentActivity() {
                             PartyToolkitScreen(
                                 sessionManager = sessionManager,
                                 game = partyToolkitGame,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("breakout") {
@@ -778,7 +822,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = breakoutGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("kakuro") {
@@ -787,7 +831,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = kakuroGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("kakuro-daily") {
@@ -798,7 +842,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = kakuroGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -808,7 +852,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = kenkenGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("kenken-daily") {
@@ -819,7 +863,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = kenkenGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -829,7 +873,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = mastermindGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("mastermind-daily") {
@@ -840,7 +884,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = mastermindGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -850,7 +894,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = wordGuessGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                         composable("word-guess-daily") {
@@ -861,7 +905,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = wordGuessGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) },
+                                onMatchEnded = finishMatch,
                                 dailySeed = java.time.LocalDate.now().toEpochDay()
                             )
                         }
@@ -871,7 +915,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 game = towerDefenceGame,
                                 settingsViewModel = settingsViewModel,
-                                onMatchEnded = { navController.popBackStack("menu", inclusive = false) }
+                                onMatchEnded = finishMatch
                             )
                         }
                     }

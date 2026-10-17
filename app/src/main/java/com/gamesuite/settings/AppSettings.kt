@@ -3,6 +3,14 @@ package com.gamesuite.settings
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /**
+ * Where background music comes from. AMBIENCE = the procedural engine
+ * (com.gamesuite.audio.AmbientMusicEngine), LIBRARY = the user's own folder via
+ * com.gamesuite.audio.music.MusicManager, OTHER_APPS = the app plays no music and never takes
+ * audio focus so Spotify/YouTube Music/etc. keep going underneath.
+ */
+enum class MusicSource { OFF, AMBIENCE, LIBRARY, OTHER_APPS }
+
+/**
  * A named color palette, independent of light/dark — see theme/AppTheme.kt.
  * CLASSIC, HIGH_CONTRAST, and MIDNIGHT_ARCADE (which ports the ESP32
  * hardware arcade cabinet's own palette — see theme/Color.kt's
@@ -102,5 +110,13 @@ data class AppSettings(
     val onlineServerUrl: String = "",
     /** True once the player has dismissed the main menu's first-run welcome banner — see
      *  MainMenuScreen's OnboardingBanner. Not shown again after that, on this device. */
-    val hasSeenOnboarding: Boolean = false
+    val hasSeenOnboarding: Boolean = false,
+    /** Which music source is active; see [MusicSource]. [musicEnabled] stays as the legacy flag. */
+    val musicSource: MusicSource = MusicSource.AMBIENCE,
+    /** 0f..1f volume for the user-library player. */
+    val musicVolume: Float = 0.6f,
+    /** Library player: shuffle (never repeats a track until all have played). */
+    val musicShuffle: Boolean = true,
+    /** Library player crossfade length, 0..8 seconds. */
+    val musicCrossfadeSeconds: Int = 3
 )

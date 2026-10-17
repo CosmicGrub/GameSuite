@@ -12,7 +12,7 @@ import com.gamesuite.MainActivity
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import com.gamesuite.R
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -54,9 +54,7 @@ class SolitaireWordTilesRotationTest {
     fun solitaire_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_solitaire)
-        )
+        composeTestRule.openGameFromMenu("Solitaire")
         // Let the game screen's own entrance animation (the staggered deal-in) actually
         // start/settle before we start yanking the sensor orientation around underneath it.
         Thread.sleep(600)
@@ -79,9 +77,7 @@ class SolitaireWordTilesRotationTest {
     fun solitaire_drawFromStock_thenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_solitaire)
-        )
+        composeTestRule.openGameFromMenu("Solitaire")
         Thread.sleep(600)
 
         // Locate the stock pile: the only clickable node in the same row (same top) as
@@ -134,9 +130,7 @@ class SolitaireWordTilesRotationTest {
     fun wordTiles_navigateInAndRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_word_tiles_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Word Tiles")
         Thread.sleep(600)
 
         NavRotationTestSupport.captureJankAround("wordTiles") {
@@ -157,9 +151,7 @@ class SolitaireWordTilesRotationTest {
     fun wordTiles_passTurn_thenRotate_survivesAndStaysResponsive() {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(R.string.game_word_tiles_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Word Tiles")
         Thread.sleep(600)
 
         // "Pass" is always present and always a legal move with no staged-word or

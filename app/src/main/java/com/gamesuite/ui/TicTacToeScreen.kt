@@ -68,6 +68,7 @@ import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
@@ -1065,6 +1066,11 @@ private fun RoundOverPanel(
             ) {
                 Text("Play Again")
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            ChangeSetupButton(
+                onLeave = onBackToMenu,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = onBackToMenu,

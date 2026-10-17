@@ -10,7 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gamesuite.NavRotationTestSupport
 import com.gamesuite.NavRotationTestSupport.backToMenu
 import com.gamesuite.NavRotationTestSupport.cycleOrientations
-import com.gamesuite.NavRotationTestSupport.navigateFromMenu
+import com.gamesuite.NavRotationTestSupport.openGameFromMenu
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -23,8 +23,8 @@ import org.junit.runner.RunWith
  * rotation, real jank capture via `dumpsys gfxinfo`, and a real back-press).
  *
  * Selector notes:
- *  - The menu entry is found by its real string resource, [com.gamesuite.R.string.game_chess_vs_cpu]
- *    ("Chess (vs CPU)"), never a hardcoded literal, so a copy change cannot silently break this.
+ *  - The game is opened through the new app shell by [NavRotationTestSupport.openGameFromMenu]:
+ *    Games tab -> the "Chess. ..." card -> Game Hub -> the "Play: ..." button (default vs-computer mode).
  *  - The mid-game interaction in the second test targets the White pawn that starts every match
  *    on square a2, addressed by the exact `contentDescription` ChessScreen.kt's own
  *    `squareDescription(square, piece)` produces for that square/piece combination -- "a2, White
@@ -45,9 +45,7 @@ class ChessRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_chess_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Chess")
         Thread.sleep(600) // let the board's own entrance/first-render animation actually start/settle
 
         NavRotationTestSupport.captureJankAround("chess") {
@@ -78,9 +76,7 @@ class ChessRotationTest {
         val device = NavRotationTestSupport.uiDevice()
         composeTestRule.waitForIdle()
 
-        composeTestRule.navigateFromMenu(
-            composeTestRule.activity.getString(com.gamesuite.R.string.game_chess_vs_cpu)
-        )
+        composeTestRule.openGameFromMenu("Chess")
         Thread.sleep(600)
 
         // Real gameplay interaction before rotating: select White's a2 pawn (always present,
