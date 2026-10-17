@@ -37,6 +37,7 @@ import com.gamesuite.core.GameHubSpec
 import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.gameIdForRoute
 import com.gamesuite.core.HubModeKind
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.SavedGameStore
@@ -219,12 +220,23 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     // "Change setup" on a result panel marks the next match end as "go back to this game's Hub"
-                    // (the screen below the game on the back stack) instead of all the way to the menu.
+                    // instead of all the way to the menu. The Hub is not always on the back stack (a daily
+                    // started from Home's Today row, or a lobby launch that cleared back to the menu), so
+                    // pop to it when it is there and otherwise open it explicitly.
                     var changeSetupRequested by remember { mutableStateOf(false) }
                     val finishMatch: () -> Unit = {
-                        if (changeSetupRequested) {
-                            changeSetupRequested = false
-                            navController.popBackStack()
+                        val wantsHub = changeSetupRequested
+                        changeSetupRequested = false
+                        val gameId = if (wantsHub) {
+                            navController.currentBackStackEntry?.destination?.route
+                                ?.let { gameIdForRoute(GameHubSpecs.all, it) }
+                                ?.takeIf { id -> !GameHubSpecs.get(id).skipsHub }
+                        } else null
+                        if (gameId != null) {
+                            if (!navController.popBackStack("hub/{gameId}", inclusive = false)) {
+                                navController.popBackStack("menu", inclusive = false)
+                                navController.navigate("hub/$gameId")
+                            }
                         } else {
                             navController.popBackStack("menu", inclusive = false)
                         }

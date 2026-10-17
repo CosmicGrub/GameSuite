@@ -60,6 +60,8 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
     private val saveMutex = Mutex()
     private val player = LibraryPlayer(app, this)
     private val queue = PlaybackQueue()
+    /** Queue position as of the last track that actually started; advances are undone to this. */
+    private var committed = queue.snapshot()
 
     private val _state = MutableStateFlow(MusicUiState())
     val state: StateFlow<MusicUiState> = _state.asStateFlow()
@@ -330,6 +332,7 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
 
     override fun onTrackStarted(trackId: String, durationMs: Long) {
         consecutiveFailures = 0
+        if (queue.current == trackId) committed = queue.snapshot()
         val track = _state.value.library.trackById(trackId)
         _state.update { it.copy(nowPlaying = track) }
     }
@@ -353,13 +356,27 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
 
     /** [fadeMs] < 0 means "use the track's crossfade". */
     private fun advanceAfterEnd(fadeMs: Long) {
+        val outgoingId = queue.current
         val id = queue.next(settings.musicShuffle)
         if (id == null) {
             player.stop()
             _state.update { it.copy(nowPlaying = null, emptyPlaylist = true) }
             return
         }
-        playById(id, if (fadeMs < 0L) crossfadeMsFor(id) else fadeMs)
+        playById(id, if (fadeMs < 0L) overlapMsFor(outgoingId, id) else fadeMs)
+    }
+
+    /** Near-end hand-over: capped by both the outgoing and the incoming track. */
+    private fun overlapMsFor(outgoingId: String?, incomingId: String): Long {
+        val lib = _state.value.library
+        val outDur = outgoingId?.let { lib.trackById(it)?.durationMs } ?: 0L
+        val inDur = lib.trackById(incomingId)?.durationMs ?: 0L
+        return Crossfade.overlapMs(settings.musicCrossfadeSeconds, outDur, inDur)
+    }
+
+    /** A queued advance never became audible: put the queue back on the track that is. */
+    override fun onPendingCancelled() {
+        queue.restore(committed)
     }
 
     override fun onPlayingChanged() {
@@ -367,6 +384,7 @@ class MusicManager private constructor(context: Context) : LibraryPlayer.Callbac
     }
 
     override fun onFocusDenied() {
+        queue.restore(committed)
         _state.update { it.copy(message = MusicMessage.FOCUS_DENIED, isPlaying = false) }
     }
 

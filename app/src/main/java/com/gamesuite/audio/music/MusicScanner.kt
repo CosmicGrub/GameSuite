@@ -32,6 +32,15 @@ object AudioFiles {
     }
 }
 
+/** The folder (or a subfolder) could not be listed; the scan result would be incomplete. */
+class ScanFailedException(message: String) : java.io.IOException(message)
+
+object ScanGuard {
+    /** @return [listing] unchanged; throws [ScanFailedException] when the provider returned null. */
+    fun <T : Any> requireListing(listing: T?, where: String): T =
+        listing ?: throw ScanFailedException("Could not list folder: $where")
+}
+
 /**
  * Walks a Storage Access Framework tree with [DocumentsContract] (androidx.documentfile is not a
  * dependency) and reads title/artist/duration with [MediaMetadataRetriever]. Blocking: call from a
@@ -72,8 +81,10 @@ class MusicScanner(private val context: Context) {
                 DocumentsContract.Document.COLUMN_MIME_TYPE
             ),
             null, null, null
-        ) ?: return
-        cursor.use { c ->
+        )
+        // A null cursor means the provider could not answer (cloud/USB hiccup), NOT an empty folder.
+        // Fail the whole scan so the caller keeps the existing library.
+        ScanGuard.requireListing(cursor, parentDocId).use { c ->
             while (c.moveToNext()) {
                 val docId = c.getString(0) ?: continue
                 val name = c.getString(1) ?: ""
@@ -127,23 +138,53 @@ class MusicScanner(private val context: Context) {
     }
 }
 
+/**
+ * Crash-safe text file: writes a sibling temp file, then atomically moves it over [file]. The old
+ * file is never deleted first, so it survives until the replacement is fully on disk. JVM-only APIs.
+ */
+class AtomicTextFile(private val file: File) {
+    private val tmp = File(file.parentFile, file.name + ".tmp")
+
+    fun exists(): Boolean = file.exists()
+
+    fun read(): String = file.readText()
+
+    /** @return true when [text] replaced the file; false leaves the previous file untouched. */
+    fun write(text: String): Boolean = try {
+        java.io.FileOutputStream(tmp).use { out ->
+            out.write(text.toByteArray(Charsets.UTF_8))
+            out.flush()
+            out.fd.sync()
+        }
+        try {
+            java.nio.file.Files.move(
+                tmp.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            java.nio.file.Files.move(
+                tmp.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+        true
+    } catch (_: Exception) {
+        try { tmp.delete() } catch (_: Exception) {}
+        false
+    }
+}
+
 /** Persists [MusicLibraryData] as one small JSON file in app-private storage. Never throws. */
 class MusicLibraryStore(context: Context) {
-    private val file = File(context.filesDir, "music_library.json")
-    private val tmp = File(context.filesDir, "music_library.json.tmp")
+    private val store = AtomicTextFile(File(context.filesDir, "music_library.json"))
 
     fun load(): MusicLibraryData = try {
-        if (file.exists()) MusicLibraryCodec.decode(file.readText()) else MusicLibraryData()
+        if (store.exists()) MusicLibraryCodec.decode(store.read()) else MusicLibraryData()
     } catch (_: Exception) {
         MusicLibraryData()
     }
 
     /** @return true when the data reached disk. */
-    fun save(data: MusicLibraryData): Boolean = try {
-        tmp.writeText(MusicLibraryCodec.encode(data))
-        if (file.exists()) file.delete()
-        tmp.renameTo(file)
-    } catch (_: Exception) {
-        false
-    }
+    fun save(data: MusicLibraryData): Boolean = store.write(MusicLibraryCodec.encode(data))
 }

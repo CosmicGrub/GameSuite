@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_speed_slow">Slow</string>
+    <string name="settings_speed_slow_desc">Long, deliberate pauses: time to study every turn.</string>
+    <string name="settings_speed_relaxed">Relaxed</string>
+    <string name="settings_speed_relaxed_desc">A little slower than the original pacing.</string>
+    <string name="settings_speed_normal">Normal</string>
+    <string name="settings_speed_normal_desc">The original pacing.</string>
+    <string name="settings_speed_quick">Quick</string>
+    <string name="settings_speed_quick_desc">Opponents move fast.</string>
+    <string name="settings_difficulty_easy">Easy</string>
+    <string name="settings_difficulty_medium">Medium</string>
+    <string name="settings_difficulty_hard">Hard</string>
+</resources>

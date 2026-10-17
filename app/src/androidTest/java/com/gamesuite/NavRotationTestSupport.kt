@@ -147,15 +147,28 @@ object NavRotationTestSupport {
     }
 
     /** The Games-tab card for [title]: its content description is "Title. Tagline[. badges]" (see GameCard). */
-    private fun gameCardMatcher(title: String): SemanticsMatcher =
-        SemanticsMatcher("contentDescription starts with \"$title. \"") { node ->
+    private fun gameCardMatcher(englishTitle: String): SemanticsMatcher {
+        val title = localizedHubText(englishTitle)
+        return SemanticsMatcher("contentDescription starts with \"$title. \"") { node ->
             SemanticsProperties.ContentDescription in node.config &&
                 node.config[SemanticsProperties.ContentDescription].any { it.startsWith("$title. ") }
         }
+    }
+
+    /** The target app's current-locale text for an English catalog string (HubText.resolve's lookup, English fallback). */
+    private fun localizedHubText(text: String): String {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val id = context.resources.getIdentifier(com.gamesuite.core.hubKey(text), "string", context.packageName)
+        return if (id == 0) text else context.getString(id)
+    }
 
     /** The Game Hub's big Play button; its text is "Play: <mode>" (see GameHubScreen's HubPlayButton). */
     private fun hubPlayMatcher(): SemanticsMatcher =
-        hasText("Play: ", substring = true) and hasClickAction()
+        hasText(
+            InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(com.gamesuite.R.string.hub_ui_play_title, ""),
+            substring = true
+        ) and hasClickAction()
 
     /**
      * Opens the game titled [title] the way a player does in the new app shell: bottom bar "Games" ->
