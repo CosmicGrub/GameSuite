@@ -65,12 +65,16 @@ sealed class ChessNetMessage {
 
 @Serializable
 sealed class ChessIntentPayload {
+    /** A guest's move request. [promotion] is optional: the engine only auto-queens, so null
+     *  or QUEEN are honoured and any other piece is refused by the host (never silently
+     *  changed into a queen). The host decides legality, whose turn it is and who sent this. */
     @Serializable
-    data class PlayMove(val from: Int, val to: Int) : ChessIntentPayload()
+    data class PlayMove(val from: Int, val to: Int, val promotion: PieceType? = null) : ChessIntentPayload()
 
-    /** A guest's own "Play Again" tap -- deliberately routed through the host rather than
+    /** Either player's "Play Again" tap -- deliberately routed through the host rather than
      *  applied locally, same as [PlayMove], so both players' boards stay on the same round
-     *  after either one clicks it. */
+     *  after either one clicks it. Honoured only once the round is over; the host re-deals
+     *  (host = White again) and broadcasts, which is how the other player sees it. */
     @Serializable
     data object PlayAgain : ChessIntentPayload()
 }

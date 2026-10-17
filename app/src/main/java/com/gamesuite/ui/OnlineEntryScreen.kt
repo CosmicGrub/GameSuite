@@ -24,14 +24,17 @@ import com.gamesuite.transport.OnlineTransport
  * configured relay server address (Settings' "Online server" — see
  * server/README.md), the same shape [NearbyEntryScreen] uses to gate on
  * radios/permissions, just a config check instead of a hardware one. Once
- * satisfied, offers Host vs. Join, mirroring Nearby's entry screen.
+ * satisfied, offers Host vs. Join, mirroring Nearby's entry screen. [gameId] is carried on to the
+ * host lobby; [gameDisplayName] only titles this screen.
  */
 @Composable
 fun OnlineEntryScreen(
     sessionManager: GameSessionManager,
     settingsViewModel: SettingsViewModel,
-    onNavigateToHostLobby: () -> Unit,
-    onNavigateToJoinLobby: () -> Unit,
+    gameId: String,
+    gameDisplayName: String,
+    onNavigateToHostLobby: (gameId: String) -> Unit,
+    onNavigateToJoinLobby: (gameId: String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -49,7 +52,7 @@ fun OnlineEntryScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Play Online", style = MaterialTheme.typography.headlineSmall)
+        Text("Play $gameDisplayName Online", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text(
             "Connect to another player over the internet through a relay server — see server/README.md.",
@@ -76,7 +79,7 @@ fun OnlineEntryScreen(
             Button(
                 onClick = {
                     sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
-                    onNavigateToHostLobby()
+                    onNavigateToHostLobby(gameId)
                 },
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             ) { Text("Host") }
@@ -84,7 +87,7 @@ fun OnlineEntryScreen(
             Button(
                 onClick = {
                     sessionManager.pendingOnlineTransport = OnlineTransport(serverUrl)
-                    onNavigateToJoinLobby()
+                    onNavigateToJoinLobby(gameId)
                 },
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
             ) { Text("Join") }

@@ -4,11 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -19,16 +20,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.window.core.layout.WindowWidthSizeClass
+import com.gamesuite.core.GameHubSpec
+import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.GameModule
-import com.gamesuite.core.GameResult
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.HubModeKind
 import com.gamesuite.core.PlayMode
-import com.gamesuite.core.SavedGame
 import com.gamesuite.core.SavedGameStore
-import com.gamesuite.core.savedAgoText
+import com.gamesuite.transport.LobbySeatLimits
+import com.gamesuite.transport.lobbyRouteFor
 import com.gamesuite.uikit.LocalProgressSaver
 import com.gamesuite.uikit.ProgressSaver
 import java.io.File
@@ -40,6 +48,7 @@ import com.gamesuite.games.cards.rememberCardScaleMultiplier
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalHapticsEnabled
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
@@ -84,7 +93,12 @@ import com.gamesuite.ui.ConnectFourScreen
 import com.gamesuite.ui.CrosswordScreen
 import com.gamesuite.ui.DominoesScreen
 import com.gamesuite.ui.DotsAndBoxesScreen
+import com.gamesuite.ui.AppBottomBar
+import com.gamesuite.ui.AppNavRail
+import com.gamesuite.ui.AppTab
 import com.gamesuite.ui.EdgeMatchScreen
+import com.gamesuite.ui.GameHubScreen
+import com.gamesuite.ui.GamesScreen
 import com.gamesuite.ui.HangmanScreen
 import com.gamesuite.ui.KakuroScreen
 import com.gamesuite.ui.KenKenScreen
@@ -194,17 +208,14 @@ class MainActivity : ComponentActivity() {
                     // needs to know about a specific game's rule types (see GameModule's own KDoc).
                     var pendingUnoRules by remember { mutableStateOf<com.gamesuite.games.uno.UnoRules?>(null) }
 
-                    // A game the player left (or the OS reclaimed) mid-match is parked in
-                    // sessionManager.savedGames. Picking that game again asks Resume vs New game
-                    // here, once, for every route, so no game screen or menu button needs its own.
-                    var resumeOffer by remember { mutableStateOf<SavedGame?>(null) }
-
                     // After Android reclaims the process, Compose restores the nav back stack to the
                     // game screen that was open, but the new process has no launch context for it.
-                    // Send the player to the menu instead of a blank game; picking the game there
-                    // offers Resume. (A normal recreation keeps its context and is left alone.)
+                    // Send the player to the menu instead of a blank game; the game's Hub (opened
+                    // from a card or the Continue row) offers Resume. (A normal recreation keeps its context and is left alone.)
                     LaunchedEffect(Unit) {
-                        if (savedInstanceState != null && sessionManager.activeContext.value == null) {
+                        if (savedInstanceState != null && sessionManager.activeContext.value == null &&
+                            AppTab.forRoute(navController.currentDestination?.route) == null
+                        ) {
                             navController.popBackStack("menu", inclusive = false)
                         }
                     }
@@ -224,21 +235,67 @@ class MainActivity : ComponentActivity() {
                         LocalHapticsEnabled provides settings.hapticsEnabled,
                         LocalMusicEnabled provides settings.musicEnabled,
                         LocalColorblindMode provides settings.colorblindMode,
-                        LocalEnhancedAnimations provides settings.enhancedAnimationsEnabled
+                        LocalEnhancedAnimations provides settings.enhancedAnimationsEnabled,
+                        LocalGameSpeed provides settings.gameSpeed
                     ) {
-                    NavHost(navController = navController, startDestination = "menu") {
+                    // App shell: a bottom NavigationBar (a side NavigationRail at EXPANDED width) on
+                    // the four top-level routes only. Game, Hub and lobby routes use the full screen.
+                    val backStackEntry by navController.currentBackStackEntryAsState()
+                    val currentTab = AppTab.forRoute(backStackEntry?.destination?.route)
+                    val expanded = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass ==
+                        WindowWidthSizeClass.EXPANDED
+                    val selectTab: (AppTab) -> Unit = { tab ->
+                        // popUpTo("menu") keeps Home at the bottom of the stack: Back from a tab
+                        // returns Home, Back from Home exits.
+                        navController.navigate(tab.route) {
+                            popUpTo("menu")
+                            launchSingleTop = true
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxSize()) {
+                    if (currentTab != null && expanded) {
+                        AppNavRail(selected = currentTab, onSelect = selectTab)
+                    }
+                    Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = "menu",
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         composable("menu") {
                             MainMenuScreen(
                                 sessionManager = sessionManager,
                                 settingsViewModel = settingsViewModel,
                                 statsViewModel = statsViewModel,
-                                onNavigateToGame = { route ->
-                                    val saved = sessionManager.savedGameForLaunch(route)
-                                    if (saved != null) resumeOffer = saved else navController.navigate(route)
-                                },
-                                onNavigateToSettings = { navController.navigate("settings") },
-                                onNavigateToStats = { navController.navigate("stats") }
+                                onNavigate = { route -> navController.navigate(route) }
                             )
+                        }
+                        composable("games") {
+                            GamesScreen(
+                                sessionManager = sessionManager,
+                                onNavigate = { route -> navController.navigate(route) }
+                            )
+                        }
+                        composable(
+                            "hub/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack() }) { spec ->
+                                GameHubScreen(
+                                    spec = spec,
+                                    sessionManager = sessionManager,
+                                    onStartLocal = { route -> navController.navigate(route) },
+                                    onOpenLobby = { kind, gid, _ ->
+                                        when (kind) {
+                                            HubModeKind.NEARBY -> navController.navigate("nearby-entry/$gid")
+                                            HubModeKind.ONLINE -> navController.navigate("online-entry/$gid")
+                                            else -> Unit
+                                        }
+                                    },
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                         }
                         composable("settings") {
                             SettingsScreen(
@@ -252,61 +309,99 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() }
                             )
                         }
-                        composable("nearby-entry") {
-                            NearbyEntryScreen(
-                                sessionManager = sessionManager,
-                                onNavigateToHostLobby = { navController.navigate("nearby-host-lobby") },
-                                onNavigateToJoinLobby = { navController.navigate("nearby-join-lobby") },
-                                onBack = { navController.popBackStack() }
-                            )
+                        composable(
+                            "nearby-entry/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack() }) { spec ->
+                                NearbyEntryScreen(
+                                    sessionManager = sessionManager,
+                                    gameId = spec.gameId,
+                                    gameDisplayName = spec.title,
+                                    onNavigateToHostLobby = { gid -> navController.navigate("nearby-host-lobby/$gid") },
+                                    onNavigateToJoinLobby = { gid -> navController.navigate("nearby-join-lobby/$gid") },
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                         }
-                        composable("nearby-host-lobby") {
-                            // Hardcoded to UNO for this pass — the lobby itself is generic
-                            // (see NearbyHostLobbyScreen's KDoc), just not yet exposed for
-                            // any other LOCAL_AD_HOC-capable game.
-                            NearbyHostLobbyScreen(
-                                sessionManager = sessionManager,
-                                gameRoute = "uno",
-                                gameDisplayName = "UNO",
-                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
-                                onBack = { navController.popBackStack("menu", inclusive = false) }
-                            )
+                        composable(
+                            "nearby-host-lobby/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack("menu", inclusive = false) }) { spec ->
+                                val seats = LobbySeatLimits.forGame(spec.gameId, HubModeKind.NEARBY)
+                                NearbyHostLobbyScreen(
+                                    sessionManager = sessionManager,
+                                    gameRoute = lobbyRouteFor(spec.gameId),
+                                    gameDisplayName = spec.title,
+                                    onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                    onBack = { navController.popBackStack("menu", inclusive = false) },
+                                    minPlayers = seats.minPlayers,
+                                    maxPlayers = seats.maxPlayers
+                                )
+                            }
                         }
-                        composable("nearby-join-lobby") {
-                            NearbyJoinLobbyScreen(
-                                sessionManager = sessionManager,
-                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
-                                onBack = { navController.popBackStack("menu", inclusive = false) }
-                            )
+                        composable(
+                            "nearby-join-lobby/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack("menu", inclusive = false) }) { spec ->
+                                NearbyJoinLobbyScreen(
+                                    sessionManager = sessionManager,
+                                    onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                    onBack = { navController.popBackStack("menu", inclusive = false) },
+                                    gameId = spec.gameId,
+                                    gameDisplayName = spec.title
+                                )
+                            }
                         }
-                        composable("online-entry") {
-                            OnlineEntryScreen(
-                                sessionManager = sessionManager,
-                                settingsViewModel = settingsViewModel,
-                                onNavigateToHostLobby = { navController.navigate("online-host-lobby") },
-                                onNavigateToJoinLobby = { navController.navigate("online-join-lobby") },
-                                onNavigateToSettings = { navController.navigate("settings") },
-                                onBack = { navController.popBackStack() }
-                            )
+                        composable(
+                            "online-entry/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack() }) { spec ->
+                                OnlineEntryScreen(
+                                    sessionManager = sessionManager,
+                                    settingsViewModel = settingsViewModel,
+                                    gameId = spec.gameId,
+                                    gameDisplayName = spec.title,
+                                    onNavigateToHostLobby = { gid -> navController.navigate("online-host-lobby/$gid") },
+                                    onNavigateToJoinLobby = { gid -> navController.navigate("online-join-lobby/$gid") },
+                                    onNavigateToSettings = { navController.navigate("settings") },
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                         }
-                        composable("online-host-lobby") {
-                            // Hardcoded to UNO for this pass — the lobby itself is generic
-                            // (see OnlineHostLobbyScreen's KDoc), just not yet exposed for
-                            // any other ONLINE-capable game.
-                            OnlineHostLobbyScreen(
-                                sessionManager = sessionManager,
-                                gameRoute = "uno",
-                                gameDisplayName = "UNO",
-                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
-                                onBack = { navController.popBackStack("menu", inclusive = false) }
-                            )
+                        composable(
+                            "online-host-lobby/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack("menu", inclusive = false) }) { spec ->
+                                val seats = LobbySeatLimits.forGame(spec.gameId, HubModeKind.ONLINE)
+                                OnlineHostLobbyScreen(
+                                    sessionManager = sessionManager,
+                                    gameRoute = lobbyRouteFor(spec.gameId),
+                                    gameDisplayName = spec.title,
+                                    onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                    onBack = { navController.popBackStack("menu", inclusive = false) },
+                                    minPlayers = seats.minPlayers,
+                                    maxPlayers = seats.maxPlayers
+                                )
+                            }
                         }
-                        composable("online-join-lobby") {
-                            OnlineJoinLobbyScreen(
-                                sessionManager = sessionManager,
-                                onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
-                                onBack = { navController.popBackStack("menu", inclusive = false) }
-                            )
+                        composable(
+                            "online-join-lobby/{gameId}",
+                            arguments = listOf(navArgument("gameId") { type = NavType.StringType })
+                        ) { entry ->
+                            WithHubSpec(entry, onMissing = { navController.popBackStack("menu", inclusive = false) }) { spec ->
+                                OnlineJoinLobbyScreen(
+                                    sessionManager = sessionManager,
+                                    onGameStarted = { route -> navController.navigate(route) { popUpTo("menu") } },
+                                    onBack = { navController.popBackStack("menu", inclusive = false) },
+                                    gameId = spec.gameId,
+                                    gameDisplayName = spec.title
+                                )
+                            }
                         }
                         composable("tic-tac-toe") {
                             val ticTacToeGame = rememberActiveModule(sessionManager, "tic-tac-toe") { TicTacToeGame() }
@@ -780,39 +875,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-
-                    resumeOffer?.let { offer ->
-                        AlertDialog(
-                            // Backing out of the prompt cancels the launch. The menu already
-                            // opened a game context for this pick, so close it (an abort is never
-                            // recorded) rather than leaving a context with no screen.
-                            onDismissRequest = {
-                                resumeOffer = null
-                                sessionManager.endActiveGame(GameResult(wasAborted = true))
-                            },
-                            title = { Text("Resume ${offer.label}?") },
-                            text = {
-                                Text(
-                                    "You left a game in progress " +
-                                        savedAgoText(offer.savedAtMillis, System.currentTimeMillis()) +
-                                        ". Pick up where you stopped, or start a new one?"
-                                )
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    resumeOffer = null
-                                    sessionManager.pendingResume = offer
-                                    navController.navigate(offer.navRoute)
-                                }) { Text("Resume") }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    resumeOffer = null
-                                    sessionManager.savedGames?.delete(offer.route)
-                                    navController.navigate(offer.navRoute)
-                                }) { Text("New game") }
-                            }
-                        )
+                    }
+                    if (currentTab != null && !expanded) {
+                        AppBottomBar(selected = currentTab, onSelect = selectTab)
+                    }
+                    }
                     }
                     }
                 }
@@ -844,4 +911,22 @@ private fun <T : GameModule> rememberActiveModule(
         onDispose { sessionManager.setActiveModule(null) }
     }
     return module
+}
+
+/**
+ * Resolves the `gameId` argument of a Hub / lobby route to its [GameHubSpec] and shows [content];
+ * an unknown id (a stale link) calls [onMissing] once instead of showing a blank screen.
+ */
+@Composable
+private fun WithHubSpec(
+    entry: NavBackStackEntry,
+    onMissing: () -> Unit,
+    content: @Composable (GameHubSpec) -> Unit
+) {
+    val spec = entry.arguments?.getString("gameId")?.let { GameHubSpecs.byId(it) }
+    if (spec == null) {
+        LaunchedEffect(Unit) { onMissing() }
+    } else {
+        content(spec)
+    }
 }

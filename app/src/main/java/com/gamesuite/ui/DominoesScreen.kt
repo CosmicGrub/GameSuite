@@ -73,7 +73,9 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
+import com.gamesuite.settings.GameSpeed
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -190,6 +192,7 @@ fun DominoesScreen(
     // two compose independently. See settings/LocalEnhancedAnimations.kt's KDoc.
     val enhanced = LocalEnhancedAnimations.current && !reducedMotion
     val colorblind = LocalColorblindMode.current
+    val gameSpeed = LocalGameSpeed.current
 
     // Set before a state change that must appear as the FINAL position with no replayed animation
     // (a resume, an undo); consumed by the per-move reaction effect below.
@@ -197,7 +200,7 @@ fun DominoesScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -207,6 +210,9 @@ fun DominoesScreen(
             // A resumed hand shows as it was: no deal-in reveal, no toppling replay, no sounds.
             animGuard.skip = true
         } else {
+            // Hub "first mover": seat 0 keeps the standard opener rule (highest double); another
+            // seat is forced to open the first hand. A resumed game never reaches here.
+            game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex.takeIf { it > 0 }
             game.startMatch()
         }
     }
@@ -215,7 +221,7 @@ fun DominoesScreen(
         val s = state ?: return@LaunchedEffect
         if (s.handOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(800)
+            delay(dominoPause(gameSpeed, 800L))
             game.playBotTurn()
         }
     }
@@ -260,7 +266,7 @@ fun DominoesScreen(
             coroutineScope {
                 s.chain.indices.forEach { i ->
                     launch {
-                        delay(i * TOPPLE_STAGGER_MS)
+                        delay(i * dominoPause(gameSpeed, TOPPLE_STAGGER_MS))
                         toppleAnims.getOrNull(i)?.animateTo(TOPPLE_ANGLE_DEG, animationSpec = tween(TOPPLE_DURATION_MS))
                         // One soft clack per toppled tile -- same layering technique as
                         // every other sound in this pass, see CardSounds.kt's own KDoc.
@@ -268,7 +274,7 @@ fun DominoesScreen(
                     }
                 }
             }
-            delay(HOLD_AFTER_TOPPLE_MS)
+            delay(dominoPause(gameSpeed, HOLD_AFTER_TOPPLE_MS))
             handOverPhase = false
         }
     }
@@ -300,6 +306,9 @@ fun DominoesScreen(
     val shownHand: List<Domino> = activePlayer?.takeIf { !it.isBot }?.hand
         ?: context?.let { ctx -> s.players.getOrNull(ctx.localPlayerIndex)?.hand }
         ?: emptyList()
+
+    // A selection never follows the device to the next player (it would show their opponent's pick).
+    LaunchedEffect(activePlayerIndex) { selectedDomino = null }
 
     val dragScope = rememberCoroutineScope()
 
@@ -433,7 +442,7 @@ fun DominoesScreen(
             haptics(HapticSignal.LIGHT_TICK)
             val myHandSize = shownHand.size
             repeat(myHandSize) { i ->
-                delay(DEAL_STAGGER_MS)
+                delay(dominoPause(gameSpeed, DEAL_STAGGER_MS))
                 dealtCount = i + 1
                 sounds.playDraw()
             }
@@ -656,7 +665,7 @@ fun DominoesScreen(
                         )
                         if (vsBot) {
                             Text(
-                                "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                                "CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
@@ -1202,7 +1211,12 @@ private fun dominoHandCellDp(slotWidthDp: Float): Float {
 
 // ---- Text helpers ----
 
-private fun dominoIsYou(name: String): Boolean = name.equals("You", ignoreCase = true)
+/** "You" only means the local player when exactly one human sits at the table; in pass and play a seat may be typed "You". */
+private fun dominoIsYou(s: DominoState, name: String): Boolean =
+    s.players.count { !it.isBot } == 1 && name.equals("You", ignoreCase = true)
+
+/** A bot/animation pause scaled by the game-speed setting; beats of 60ms or less are tactile sync and stay as is. */
+internal fun dominoPause(speed: GameSpeed, ms: Long): Long = if (ms <= 60L) ms else speed.scale(ms)
 
 private fun dominoPipTotal(hand: List<Domino>): Int = hand.sumOf { it.a + it.b }
 
@@ -1214,7 +1228,7 @@ private fun dominoPointsText(points: Int): String = if (points == 1) "1 point" e
  *  ("You wins!") is not grammatical for the local player, so the screen words the result itself. */
 private fun dominoHandResultTitle(s: DominoState): String {
     val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId } ?: return "It's a tie!"
-    return if (dominoIsYou(winner.displayName)) "You win the hand!" else "${winner.displayName} wins the hand!"
+    return if (dominoIsYou(s, winner.displayName)) "You win the hand!" else "${winner.displayName} wins the hand!"
 }
 
 /** Screen-reader description of one chain tile: its position, both values, and which end it is. */
@@ -1287,12 +1301,12 @@ private fun DominoHandResultPanel(
         winner == null -> "Nobody could move and the pip totals are level."
         blocked && levelTotals -> "Blocked with level pip totals, so the first seat takes the hand."
         blocked -> "Blocked: nobody can move, so the lowest pip total wins."
-        dominoIsYou(winner.displayName) -> "You played your last tile."
+        dominoIsYou(s, winner.displayName) -> "You played your last tile."
         else -> "${winner.displayName} played the last tile."
     }
     val scoredText = when {
         winner == null -> "No points this hand."
-        dominoIsYou(winner.displayName) -> "You score ${dominoPointsText(handPoints)}."
+        dominoIsYou(s, winner.displayName) -> "You score ${dominoPointsText(handPoints)}."
         else -> "${winner.displayName} scores ${dominoPointsText(handPoints)}."
     }
 

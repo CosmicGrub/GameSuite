@@ -117,10 +117,24 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<ReversiState?>(null)
+
+    // ---- Networked play bookkeeping (host-authoritative; see ReversiNetMessage) ----
+    /** True in LOCAL_AD_HOC / ONLINE. Safe to read before [init] (false). */
+    private val isNetworked: Boolean
+        get() = this::context.isInitialized &&
+            (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+
+    /** Networked only: the other seat left; no further moves or rematches. Local state, never synced. */
+    val opponentLeft = mutableStateOf(false)
 
     /** Boards won this session, keyed by playerId; a drawn board increments nobody (see
      *  [sessionDraws] instead). Mirrors ConnectFourGame's own shape exactly. */
@@ -140,6 +154,14 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
      *  same idiom ConnectFourGame's own Play Again uses. */
     private var nextStartingPlayerIndex = 0
 
+    /**
+     * The roster seat that opens the FIRST board of a new match (the Hub's "who goes first"). Set it
+     * before [init]; [init] consumes it as the first value of [nextStartingPlayerIndex], so later
+     * boards keep alternating from there. Out-of-range values fall back to seat 0. A resumed game
+     * ignores it (the snapshot restores its own alternation).
+     */
+    var firstOpenerIndex: Int = 0
+
     /** Snapshots taken just BEFORE each human move, newest last; popping one is Undo. Per board. */
     private val history = SnapshotHistory()
 
@@ -151,9 +173,44 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         matchOver.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
-        nextStartingPlayerIndex = 0
+        nextStartingPlayerIndex = if (!isNetworked && firstOpenerIndex in context.players.indices) firstOpenerIndex else 0
         history.clear()
         hintMove.value = null
+        opponentLeft.value = false
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        if (isNetworked) registerNetworkListeners()
+    }
+
+    private fun registerNetworkListeners() {
+        val transport = context.transport
+        transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+        // A guest that registers after the host already dealt asks for the state directly.
+        if (!isHost) sendToHost(ReversiNetMessage.RequestState)
+        transport.onReconnected {
+            if (isHost) broadcastState() else sendToHost(ReversiNetMessage.RequestState)
+        }
+        transport.onPlayerLeft { playerId -> handlePlayerLeft(playerId) }
+        transport.onPlayerJoined { playerId -> handlePlayerJoined(playerId) }
+    }
+
+    private fun otherSeatId(): String? = context.players.getOrNull(1 - context.localPlayerIndex.coerceIn(0, 1))?.playerId
+
+    private fun handlePlayerLeft(playerId: String) {
+        if (!isNetworked || playerId != otherSeatId()) return
+        opponentLeft.value = true
+        val s = state.value ?: return
+        // Host: broadcast so a (still connected) guest sees it too. Guest: local only, the host is gone.
+        commit(s.copy(lastAction = "Opponent disconnected"))
+    }
+
+    private fun handlePlayerJoined(playerId: String) {
+        if (!isNetworked || !opponentLeft.value || playerId != otherSeatId()) return
+        opponentLeft.value = false
+        val s = state.value ?: return
+        if (isHost) {
+            commit(s.copy(lastAction = "Opponent reconnected"))
+        }
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -246,7 +303,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     // --- Undo -------------------------------------------------------------------------------
 
-    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && !isNetworked
 
     /**
      * Takes back the last human move. Against the CPU that also takes back the CPU's reply (and any
@@ -256,7 +313,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
      * CPU difficulty is left as currently set.
      */
     override fun undo() {
-        if (matchOver.value) return
+        if (matchOver.value || isNetworked) return
         val previous = history.pop() ?: return
         val snap = decodeSnapshot(previous) ?: return
         applySnapshot(snap, restoreDifficulty = false)
@@ -273,6 +330,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
      */
     fun hint(): Int? {
         val s = state.value ?: return null
+        if (isNetworked) return null
         if (matchOver.value || s.boardOver || s.legalMoves.isEmpty()) return null
         if (s.players[s.currentPlayerIndex].isBot) return null
         val started = System.nanoTime()
@@ -300,6 +358,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
      * start here rather than rediscovered).
      */
     override fun startMatch() {
+        if (isNetworked && !isHost) return // guest: wait for the host's StateSync (or its RequestState reply)
         val players = context.players.map { ReversiPlayerState(it.playerId, it.displayName, it.isBot) }
         matchOver.value = false
         // A new board starts a new undo history: undo never reaches back into the previous board.
@@ -314,13 +373,15 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         cells[28] = startingPlayerIndex  // row 3, col 4 -- real Othello's E4
         cells[35] = startingPlayerIndex  // row 4, col 3 -- real Othello's D5
 
-        state.value = ReversiState(
-            cells = cells,
-            players = players,
-            currentPlayerIndex = startingPlayerIndex,
-            legalMoves = legalMovesFor(cells, startingPlayerIndex),
-            scores = computeScores(cells, players.size),
-            lastAction = "Game started"
+        commit(
+            ReversiState(
+                cells = cells,
+                players = players,
+                currentPlayerIndex = startingPlayerIndex,
+                legalMoves = legalMovesFor(cells, startingPlayerIndex),
+                scores = computeScores(cells, players.size),
+                lastAction = "Game started"
+            )
         )
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % players.size
     }
@@ -355,6 +416,13 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
      *  and deals a fresh board within the same session. Mirrors ConnectFourGame.playAgain(). */
     fun playAgain() {
         if (matchOver.value) return
+        if (isNetworked) {
+            // Only a finished board with both players present can be replayed. A guest asks the host;
+            // the host re-deals (the engine alternates the opener) and broadcasts.
+            if (opponentLeft.value || state.value?.boardOver != true) return
+            if (isHost) startMatch() else sendToHost(ReversiNetMessage.RequestPlayAgain)
+            return
+        }
         startMatch()
     }
 
@@ -369,12 +437,29 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     fun placeDisc(index: Int) {
         val s = state.value ?: return
         if (matchOver.value || s.boardOver) return
+        if (isNetworked) {
+            if (opponentLeft.value || s.currentPlayerIndex != context.localPlayerIndex) return // not my turn
+            if (index !in s.legalMoves) return
+            if (!isHost) {
+                // A guest never touches its own engine: ask the host, then wait for its StateSync.
+                sendToHost(ReversiNetMessage.PlaceDisc(index))
+                return
+            }
+        }
+        applyPlacement(index)
+    }
+
+    /** The engine step: validates [index] against the current player's legal moves, applies it and
+     *  (host only) broadcasts. Shared by a local tap and a validated guest request. */
+    private fun applyPlacement(index: Int) {
+        val s = state.value ?: return
+        if (matchOver.value || s.boardOver) return
         if (index !in s.legalMoves) return
 
         val mover = s.players[s.currentPlayerIndex]
         // Undo step: taken before a HUMAN move is applied (never for the bot's), after the move
-        // passed validation, so a rejected tap leaves nothing behind.
-        if (!mover.isBot) captureSnapshot()?.let { history.push(it) }
+        // passed validation, so a rejected tap leaves nothing behind. Networked play has no undo.
+        if (!mover.isBot && !isNetworked) captureSnapshot()?.let { history.push(it) }
         hintMove.value = null
         val newCells = applyMove(s.cells, index, s.currentPlayerIndex)
         val flippedCount = s.cells.indices.count { newCells[it] == s.currentPlayerIndex && s.cells[it] != null && s.cells[it] != s.currentPlayerIndex }
@@ -394,7 +479,110 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
             }
         }
 
+        commit(newState)
+    }
+
+    // ---- Networked internals ----
+
+    /** Every state change funnels through here: sets the state and, for the networked host,
+     *  bumps the version and broadcasts it. A guest's own calls (disconnect notice) stay local. */
+    private fun commit(newState: ReversiState) {
         state.value = newState
+        if (isNetworked && isHost) {
+            stateVersion++
+            broadcastState()
+        }
+    }
+
+    private fun toNetState(s: ReversiState) = ReversiNetState(
+        cells = s.cells,
+        players = s.players.map { ReversiNetPlayer(it.playerId, it.displayName) },
+        currentPlayerIndex = s.currentPlayerIndex,
+        lastAction = s.lastAction,
+        justPassed = s.justPassed,
+        boardOver = s.boardOver,
+        winnerPlayerId = s.winnerPlayerId,
+        sessionWins = sessionWins.value,
+        sessionDraws = sessionDraws.value
+    )
+
+    /** Host: sends the authoritative state (current version) to the guest seat. */
+    private fun broadcastState() {
+        val s = state.value ?: return
+        val guestId = context.players.getOrNull(1)?.playerId ?: return
+        val hostId = context.players.getOrNull(0)?.playerId ?: return
+        val payload = Json.encodeToString(
+            ReversiNetMessage.serializer(),
+            ReversiNetMessage.StateSync(stateVersion, toNetState(s))
+        ).toByteArray(Charsets.UTF_8)
+        context.transport.send(fromPlayerId = hostId, toPlayerId = guestId, payload = payload)
+    }
+
+    private fun sendToHost(message: ReversiNetMessage) {
+        val hostId = context.players.getOrNull(0)?.playerId ?: return
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val payload = Json.encodeToString(ReversiNetMessage.serializer(), message).toByteArray(Charsets.UTF_8)
+        context.transport.send(fromPlayerId = localId, toPlayerId = hostId, payload = payload)
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = try {
+            Json.decodeFromString(ReversiNetMessage.serializer(), String(payload, Charsets.UTF_8))
+        } catch (e: Exception) {
+            return // malformed or foreign payload: ignore rather than crash the match
+        }
+        val hostId = context.players.getOrNull(0)?.playerId
+        val guestId = context.players.getOrNull(1)?.playerId
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other sender is a forgery, and the host never adopts one.
+            is ReversiNetMessage.StateSync ->
+                if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.state)
+            is ReversiNetMessage.RequestState ->
+                if (isHost && fromPlayerId == guestId) broadcastState()
+            is ReversiNetMessage.PlaceDisc ->
+                if (isHost && fromPlayerId == guestId) applyGuestPlacement(message.cell)
+            is ReversiNetMessage.RequestPlayAgain ->
+                if (isHost && fromPlayerId == guestId && !opponentLeft.value && state.value?.boardOver == true && !matchOver.value) {
+                    startMatch()
+                }
+        }
+    }
+
+    /** Host: a guest move request from the (already identity-checked) guest seat. */
+    private fun applyGuestPlacement(cell: Int) {
+        val s = state.value ?: return
+        if (matchOver.value || s.boardOver || opponentLeft.value) return
+        if (s.currentPlayerIndex != 1) return // out of turn
+        if (cell !in s.legalMoves) return // illegal, occupied or out of range
+        applyPlacement(cell)
+    }
+
+    /** Guest: adopts a strictly newer, well-formed host state. */
+    private fun applyRemoteState(version: Int, net: ReversiNetState) {
+        if (version <= lastAppliedRemoteVersion) return
+        val roster = context.players
+        val valid = net.cells.size == 64 &&
+            net.cells.all { it == null || it == 0 || it == 1 } &&
+            net.players.size == 2 && roster.size == 2 &&
+            net.players.indices.all { net.players[it].playerId == roster[it].playerId } &&
+            net.currentPlayerIndex in 0..1 &&
+            (net.winnerPlayerId == null || net.players.any { it.playerId == net.winnerPlayerId })
+        if (!valid) return
+        lastAppliedRemoteVersion = version
+        state.value = ReversiState(
+            cells = net.cells,
+            players = net.players.mapIndexed { i, p -> ReversiPlayerState(p.playerId, p.displayName, roster[i].isBot) },
+            currentPlayerIndex = net.currentPlayerIndex,
+            legalMoves = if (net.boardOver) emptySet() else legalMovesFor(net.cells, net.currentPlayerIndex),
+            scores = computeScores(net.cells, 2),
+            lastAction = net.lastAction,
+            justPassed = net.justPassed,
+            boardOver = net.boardOver,
+            winnerPlayerId = net.winnerPlayerId
+        )
+        sessionWins.value = net.sessionWins
+        sessionDraws.value = net.sessionDraws
+        hintMove.value = null
     }
 
     /**

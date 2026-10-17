@@ -117,10 +117,18 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<ConnectFourState?>(null)
+
+    /**
+     * Networked play only: true once the other seat has left (transport onPlayerLeft). Input is
+     * refused from then on and [leaveSession] aborts instead of recording a result.
+     */
+    val opponentLeft = mutableStateOf(false)
 
     /** Boards won this session, keyed by playerId; a drawn board increments nobody (see [sessionDraws] instead). Mirrors DotsAndBoxesGame's own shape. */
     val sessionWins = mutableStateOf<Map<String, Int>>(emptyMap())
@@ -131,6 +139,13 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /**
+     * The roster seat that opens the FIRST board of a new match (the Hub's "who goes first"). Set by
+     * the screen before [startMatch]; consumed (and cleared) by the first [startMatch], after which
+     * the usual alternation applies. A resumed game ignores it ([restore] clears it). Null = seat 0.
+     */
+    var firstOpenerIndex: Int? = null
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -144,6 +159,13 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     /** The column the last [hint] suggested, shown highlighted until the next drop or undo. */
     val hintColumn = mutableStateOf<Int?>(null)
 
+    // ---- Networked play bookkeeping (PlayMode.LOCAL_AD_HOC / ONLINE): host = seat 0 owns the engine ----
+    private val isNetworked: Boolean
+        get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -152,6 +174,15 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         nextStartingPlayerIndex = 0
         history.clear()
         hintColumn.value = null
+        opponentLeft.value = false
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        if (isNetworked) {
+            // A guest renders only what the host sends; drop any board left over from an earlier game.
+            if (!isHost) state.value = null
+            registerNetworkListeners()
+            if (!isHost) sendToHost(ConnectFourNetMessage.RequestState)
+        }
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -223,9 +254,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (isNetworked) return false // networked boards are never resumed
         val snap = decodeSnapshot(snapshot) ?: return false
         matchOver.value = false
         applySnapshot(snap)
+        firstOpenerIndex = null
         history.clear()
         return true
     }
@@ -256,6 +289,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     fun hint(): Int? {
         val s = state.value ?: return null
         if (matchOver.value || s.boardOver) return null
+        if (isNetworked) return null // no hints against a human opponent
         if (s.players[s.currentPlayerIndex].isBot) return null
         val col = chooseBotMove(s, depthOverride = HINT_SEARCH_DEPTH)
         hintColumn.value = col
@@ -267,7 +301,13 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun startMatch() {
+        if (isNetworked && !isHost) return // guest: wait for the host's StateSync (or its reply to RequestState)
         val players = context.players.map { ConnectFourPlayerState(it.playerId, it.displayName, it.isBot) }
+        firstOpenerIndex?.let {
+            // No first-mover choice over the network: the existing alternation (host opens board 1) applies.
+            if (!isNetworked) nextStartingPlayerIndex = it.coerceIn(0, players.size - 1)
+            firstOpenerIndex = null
+        }
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true -- built in from the
         // start here (not found after the fact) since this exact fix was
@@ -286,6 +326,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             lastAction = "Game started"
         )
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % players.size
+        publishIfHost()
     }
 
     /** No solve timer here (this is a 2-player game, not a solo puzzle — same as DotsAndBoxesGame/TicTacToeGame), so there's no pause/resume state to track. */
@@ -308,6 +349,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      */
     fun leaveSession() {
         if (matchOver.value) return
+        // The other player is gone: nothing to settle, and a walk-away must never be recorded as a loss.
+        if (isNetworked && opponentLeft.value) {
+            abortMatch()
+            return
+        }
         val wins = sessionWins.value
         val bestWins = wins.values.maxOrNull() ?: 0
         val leaders = context.players.count { (wins[it.playerId] ?: 0) == bestWins }
@@ -325,6 +371,16 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      */
     fun playAgain() {
         if (matchOver.value) return
+        if (isNetworked) {
+            if (opponentLeft.value) return
+            if (!isHost) {
+                // Only worth asking while the board we are looking at is over; the host re-checks.
+                if (state.value?.boardOver == true) sendToHost(ConnectFourNetMessage.PlayAgainRequest)
+                return
+            }
+            // Host: a request (or tap) arriving after the board was already re-dealt must not wipe it.
+            if (state.value?.boardOver != true) return
+        }
         startMatch()
     }
 
@@ -339,14 +395,29 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * the start rather than waiting to rediscover it a sixth time.
      */
     fun dropDisc(col: Int) {
+        if (isNetworked) {
+            // Networked taps are only ever the local player's own, and only on their turn.
+            val s = state.value ?: return
+            if (matchOver.value || s.boardOver || opponentLeft.value) return
+            if (s.currentPlayerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                // The guest never mutates its engine from a tap: ask the host, render its reply.
+                sendToHost(ConnectFourNetMessage.DropRequest(col))
+                return
+            }
+        }
+        applyDrop(col)
+    }
+
+    private fun applyDrop(col: Int) {
         val s = state.value ?: return
         if (matchOver.value || s.boardOver) return
         if (col !in 0 until s.cols) return
         val row = lowestEmptyRow(s.cells, col, s.rows, s.cols) ?: return // column full
 
         // Undo only ever lands on a HUMAN's turn: remember the position before each human drop
-        // (not the bot's), so undoing against the CPU also takes the CPU's reply back.
-        if (!s.players[s.currentPlayerIndex].isBot) captureSnapshot()?.let { history.push(it) }
+        // (not the bot's), so undoing against the CPU also takes the CPU's reply back. No undo over the network.
+        if (!isNetworked && !s.players[s.currentPlayerIndex].isBot) captureSnapshot()?.let { history.push(it) }
         hintColumn.value = null
 
         val newCells = s.cells.toMutableList()
@@ -379,6 +450,140 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
                 else -> "${mover.displayName} dropped a disc in column ${col + 1}"
             }
         )
+        publishIfHost()
+    }
+
+    // --- Networked play ---------------------------------------------------------------------
+
+    private fun hostId(): String = context.players[0].playerId
+
+    private fun registerNetworkListeners() {
+        val transport = context.transport
+        transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+        // After a blip the transport recovered from: a guest asks again, the host re-sends (a guest
+        // whose own link stayed up would never think to ask).
+        transport.onReconnected {
+            if (isHost) {
+                if (state.value != null) broadcastState()
+            } else {
+                sendToHost(ConnectFourNetMessage.RequestState)
+            }
+        }
+        transport.onPlayerLeft { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId }) {
+                opponentLeft.value = true
+                state.value = state.value?.copy(lastAction = OPPONENT_DISCONNECTED)
+            }
+        }
+        transport.onPlayerJoined { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId } && opponentLeft.value) {
+                opponentLeft.value = false
+                if (isHost && state.value != null) broadcastState()
+            }
+        }
+    }
+
+    private fun publishIfHost() {
+        if (isNetworked && isHost && state.value != null) broadcastState()
+    }
+
+    private fun toNetState(s: ConnectFourState) = ConnectFourNetState(
+        cells = s.cells,
+        currentPlayerIndex = s.currentPlayerIndex,
+        lastAction = s.lastAction,
+        boardOver = s.boardOver,
+        winnerPlayerId = s.winnerPlayerId,
+        winningLine = s.winningLine,
+        sessionWins = sessionWins.value,
+        sessionDraws = sessionDraws.value
+    )
+
+    /** Host: bumps the version and sends the authoritative state to every other seat. */
+    private fun broadcastState() {
+        val s = state.value ?: return
+        stateVersion++
+        context.players.forEach { recipient ->
+            if (recipient.playerId != hostId()) sendStateTo(recipient.playerId, s)
+        }
+    }
+
+    private fun sendStateTo(recipientId: String, s: ConnectFourState) {
+        send(recipientId, ConnectFourNetMessage.StateSync(stateVersion, toNetState(s)))
+    }
+
+    private fun sendToHost(message: ConnectFourNetMessage) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        context.transport.send(fromPlayerId = localId, toPlayerId = hostId(), payload = encode(message))
+    }
+
+    private fun send(toPlayerId: String, message: ConnectFourNetMessage) {
+        context.transport.send(fromPlayerId = hostId(), toPlayerId = toPlayerId, payload = encode(message))
+    }
+
+    private fun encode(message: ConnectFourNetMessage): ByteArray =
+        Json.encodeToString(ConnectFourNetMessage.serializer(), message).toByteArray(Charsets.UTF_8)
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = try {
+            Json.decodeFromString(ConnectFourNetMessage.serializer(), String(payload, Charsets.UTF_8))
+        } catch (_: Exception) {
+            return // malformed or foreign payload
+        }
+        if (!isNetworked || matchOver.value) return
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other seat is a forgery.
+            is ConnectFourNetMessage.StateSync ->
+                if (!isHost && fromPlayerId == hostId()) applyRemoteState(message.version, message.state)
+            is ConnectFourNetMessage.RequestState ->
+                if (isHost && isGuestSeat(fromPlayerId)) state.value?.let { sendStateTo(fromPlayerId, it) }
+            is ConnectFourNetMessage.DropRequest ->
+                if (isHost) handleDropRequest(fromPlayerId, message.column)
+            is ConnectFourNetMessage.PlayAgainRequest ->
+                if (isHost && isGuestSeat(fromPlayerId) && !opponentLeft.value && state.value?.boardOver == true) startMatch()
+        }
+    }
+
+    /** True for a roster seat other than the host's own (the transport never delivers our own sends). */
+    private fun isGuestSeat(playerId: String): Boolean =
+        context.players.indexOfFirst { it.playerId == playerId } > 0
+
+    /** Host: applies a guest's request only if it comes from the seat on turn and is playable. */
+    private fun handleDropRequest(fromPlayerId: String, column: Int) {
+        val s = state.value ?: return
+        if (matchOver.value || s.boardOver || opponentLeft.value) return
+        val seat = context.players.indexOfFirst { it.playerId == fromPlayerId }
+        if (seat <= 0 || seat != s.currentPlayerIndex) return // unknown, the host's own seat, or out of turn
+        if (column !in 0 until s.cols) return
+        if (s.cells[column] != null) return // column full (row 0 = top)
+        applyDrop(column)
+    }
+
+    /** Guest: accepts only strictly newer, well-formed host state. */
+    private fun applyRemoteState(version: Int, net: ConnectFourNetState) {
+        if (version <= lastAppliedRemoteVersion) return
+        val n = context.players.size
+        val valid = net.cells.size == ROWS * COLS &&
+            net.cells.all { it == null || it in 0 until n } &&
+            net.currentPlayerIndex in 0 until n &&
+            (net.winningLine?.all { it in 0 until ROWS * COLS } ?: true)
+        if (!valid) return
+        lastAppliedRemoteVersion = version
+        state.value = ConnectFourState(
+            rows = ROWS,
+            cols = COLS,
+            cells = net.cells,
+            players = context.players.map { ConnectFourPlayerState(it.playerId, it.displayName, it.isBot) },
+            currentPlayerIndex = net.currentPlayerIndex,
+            lastAction = if (opponentLeft.value) OPPONENT_DISCONNECTED else net.lastAction,
+            boardOver = net.boardOver,
+            winnerPlayerId = net.winnerPlayerId,
+            winningLine = net.winningLine
+        )
+        sessionWins.value = net.sessionWins
+        sessionDraws.value = net.sessionDraws
+        hintColumn.value = null
     }
 
     /**
@@ -605,6 +810,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     }
 
     private companion object {
+        const val OPPONENT_DISCONNECTED = "Opponent disconnected"
         const val ROWS = 6
         const val COLS = 7
         const val WIN_LENGTH = 4

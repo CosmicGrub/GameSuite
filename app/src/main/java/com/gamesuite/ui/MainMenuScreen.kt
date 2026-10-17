@@ -1,398 +1,83 @@
 package com.gamesuite.ui
 
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.window.core.layout.WindowWidthSizeClass
 import com.gamesuite.R
+import com.gamesuite.core.GameHubSpec
+import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.GameSessionManager
-import com.gamesuite.core.PlayMode
-import com.gamesuite.core.PlayerInfo
-import com.gamesuite.core.PlayerNameStore
+import com.gamesuite.core.HubLaunch
+import com.gamesuite.core.dailyModeOf
+import com.gamesuite.core.gameGlyph
+import com.gamesuite.core.gameIdForRoute
+import com.gamesuite.core.launchHubMode
+import com.gamesuite.core.savedAgoText
+import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
-import com.gamesuite.ui.effects.meshGradientBackground
 import com.gamesuite.stats.StatsViewModel
+import com.gamesuite.ui.effects.meshGradientBackground
 
 /**
- * The game library screen. Each button launches a game through the shared
- * GameSessionManager and navigates to that game's route — no game-specific
- * logic lives here, only which players/mode to hand off.
+ * The Home tab of the app shell (docs/design/game-hub.md): the first-run welcome banner, today's
+ * daily puzzles, saved games to continue, starred favourites and recently played games. The full
+ * game library lives on the Games tab ([GamesScreen]); every card here opens a game's Hub (or, for
+ * a Today card, the daily puzzle itself). [onNavigate] receives a nav route.
  *
- * Redesigned from a flat 20-button scrolling list (the audited "hasn't scaled with
- * the catalog" finding, independently flagged by both the settings/accessibility and
- * product-strategy reviews) into a categorized library: a first-run welcome banner, a
- * Continue row sourced from real match history (see StatsViewModel), and each game
- * grouped into a titled card instead of one undifferentiated scroll. Every individual
- * button's launch behavior is unchanged from before this pass — only the layout and the
- * two new entry points (Continue, My Stats) are new.
- *
- * Every visible string on this screen is now a string resource (see res/values/strings.xml
- * and res/values-es/strings.xml) — the localization infrastructure starter pass. This is the
- * ONE screen fully extracted as the reference pattern; the other game screens/Settings/Stats
- * are not yet (see README.md).
+ * Dropped from the old menu: the "My Stats" / "Settings" header buttons (the navigation bar has
+ * those tabs now) and the old per-game launch table (the Hub launches games).
  */
-/** A pending "name the human players" prompt: what to ask and what to launch afterwards. */
-private class PendingNameRequest(
-    val title: String,
-    val count: Int,
-    val teamHint: Boolean = false,
-    val launch: (List<String>) -> Unit
-)
-
 @Composable
 fun MainMenuScreen(
     sessionManager: GameSessionManager,
     settingsViewModel: SettingsViewModel,
     statsViewModel: StatsViewModel,
-    onNavigateToGame: (route: String) -> Unit,
-    onNavigateToSettings: () -> Unit = {},
-    onNavigateToStats: () -> Unit = {}
+    onNavigate: (route: String) -> Unit
 ) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val stats by statsViewModel.allStats.collectAsStateWithLifecycle()
+    val specs = GameHubSpecs.all
+    val favorites = rememberFavorites()
+    val saves = rememberSavedGames(sessionManager)
+    val reducedMotion = LocalReducedMotion.current
 
-    // Naming of human players for pass-and-play launches (not quick-match games).
-    val context = LocalContext.current
-    val nameStore = remember(context) { PlayerNameStore(context) }
-    var pendingNames by remember { mutableStateOf<PendingNameRequest?>(null) }
-    pendingNames?.let { req ->
-        PlayerNamesDialog(
-            title = req.title,
-            count = req.count,
-            initial = List(req.count) { nameStore.name(it, "") },
-            showTeamHint = req.teamHint,
-            onConfirm = { names ->
-                nameStore.setNames(names)
-                pendingNames = null
-                req.launch(names)
-            },
-            onDismiss = { pendingNames = null }
-        )
+    // Saved games that belong to a Hub game, newest first (a save from a retired route has no Hub and is skipped).
+    val continueItems = remember(saves) {
+        saves.mapNotNull { saved ->
+            val gameId = gameIdForRoute(specs, saved.navRoute) ?: return@mapNotNull null
+            val spec = specs.firstOrNull { it.gameId == gameId } ?: return@mapNotNull null
+            spec to saved
+        }.take(3)
     }
+    val favoriteSpecs = specs.filter { it.gameId in favorites.ids }
+    val recentStats = stats.values
+        .filter { GameHubSpecs.byId(it.gameId) != null && !it.dismissedFromContinue }
+        .sortedByDescending { it.lastPlayedEpochMillis }
+        .take(4)
+    val dailySpecs = specs.filter { it.hasDaily }
+    var recentMenuFor by remember { mutableStateOf<String?>(null) }
 
-    // Fold/Tab compatibility audit finding: this screen's game list was a single fixed
-    // column regardless of window width, which is correct on a phone or the Fold's
-    // cover screen (COMPACT) but leaves a Fold unfolded (MEDIUM, ~690-829dp wide) or a
-    // Tab S9 (EXPANDED, up to ~1280dp landscape) with one skinny column of buttons and
-    // huge empty margin on either side. Same runtime size-class signal DeviceClass.kt
-    // already established for game boards, read directly here since a menu screen has
-    // no two-pane/hinge-split structure worth threading through AdaptiveTwoPane for.
-    val widthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass
-    val gameColumns = when (widthSizeClass) {
-        WindowWidthSizeClass.EXPANDED -> 3
-        WindowWidthSizeClass.MEDIUM -> 2
-        else -> 1
-    }
-
-    // One place per game for "launch its default single-player/CPU configuration" — reused
-    // by both that game's own button below and the Continue row, so Continue always lands
-    // somewhere immediately playable rather than trying to resume an exact prior lobby
-    // (multiplayer modes always need a fresh lobby anyway, so this is a reasonable reading
-    // of "continue playing UNO" rather than a limitation).
-    val primaryLaunch: Map<String, () -> Unit> = remember(sessionManager) {
-        mapOf(
-            "tic-tac-toe" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("tic-tac-toe")
-            },
-            "uno" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU 1", isBot = true),
-                        PlayerInfo(playerId = "bot2", displayName = "CPU 2", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("uno")
-            },
-            "hangman" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("hangman")
-            },
-            "word-search" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("word-search")
-            },
-            "crossword" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("crossword")
-            },
-            "word-tiles" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("word-tiles")
-            },
-            "dominoes" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("dominoes")
-            },
-            "dots-and-boxes" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("dots-and-boxes")
-            },
-            "connect-four" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("connect-four")
-            },
-            "mancala" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("mancala")
-            },
-            "checkers" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("checkers")
-            },
-            "chess" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("chess")
-            },
-            "reversi" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(
-                        PlayerInfo(playerId = "p1", displayName = "You"),
-                        PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                    ),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("reversi")
-            },
-            "air-hockey" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("air-hockey")
-            },
-            "solitaire" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("solitaire")
-            },
-            "sliding-puzzle" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("sliding-puzzle")
-            },
-            "minesweeper" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("minesweeper")
-            },
-            "sudoku" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("sudoku")
-            },
-            "lights-out" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("lights-out")
-            },
-            "color-flood" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("color-flood")
-            },
-            "edge-match" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("edge-match")
-            },
-            "party-toolkit" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("party-toolkit")
-            },
-            "breakout" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("breakout")
-            },
-            "nonogram" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("nonogram")
-            },
-            "kakuro" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("kakuro")
-            },
-            "kenken" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("kenken")
-            },
-            "tower-defence" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("tower-defence")
-            },
-            "mastermind" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("mastermind")
-            },
-            "word-guess" to {
-                sessionManager.launchGame(
-                    mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                    players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                    localPlayerIndex = 0
-                )
-                onNavigateToGame("word-guess")
-            }
-        )
-    }
-
-    // Wide-window fix, mirrors AdaptiveTwoPane's own widthIn(max = 840.dp) centering
-    // trick: an outer Box fills the real window and centers a width-capped inner
-    // Column, so a Tab S9 landscape or Fold-unfolded window gets the game grid (below)
-    // centered at a sane reading width instead of every card/row stretching edge to
-    // edge across a 1200+dp screen. widthIn(max) is applied BEFORE fillMaxWidth() on
-    // the same modifier chain — the reverse order (fillMaxWidth THEN widthIn(max)) is
-    // the no-op documented in AdaptiveTwoPane.kt, since fillMaxWidth would already lock
-    // min=max=full width before the cap ever ran.
-    // AGSL deepening: a softly drifting mesh gradient replaces the previous flat
-    // background behind the whole library screen -- the first thing every user sees on
-    // launch, so it's the highest-visibility single place for this pass. Tints come from
-    // the active MaterialTheme's own container colors (never hardcoded literals), so it
-    // automatically follows theme/dynamic-color/high-contrast exactly like every other
-    // piece of chrome on this screen. Suppressed under Reduced Motion, same as every
-    // other non-essential animation (see AppSettings.reducedMotion's own doc).
+    // Soft drifting gradient from the theme's own container colours; off under Reduced Motion.
     val colorScheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .fillMaxSize()
             .meshGradientBackground(
-                enabled = !settings.reducedMotion,
+                enabled = !reducedMotion,
                 colorA = colorScheme.primaryContainer,
                 colorB = colorScheme.secondaryContainer,
                 colorC = colorScheme.tertiaryContainer
@@ -401,42 +86,17 @@ fun MainMenuScreen(
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 840.dp)
+                .widthIn(max = 960.dp)
                 .fillMaxWidth()
                 .fillMaxHeight()
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-                // Tab S9 input pass (§4c): grouped under focusGroup() so a hardware
-                // keyboard's Tab key steps past both header buttons as one cluster before
-                // moving into the page body below, instead of landing on every leaf in an
-                // order indistinguishable from the rest of the screen.
-                // horizontalScroll (same low-risk fallback this app's other difficulty-tier chip
-                // rows already reach for -- see e.g. EdgeMatchScreen's own DifficultyTabsEdgeMatch
-                // / KakuroScreen's board) so "My Stats"/"Settings" never get compressed to ~1px
-                // wide with their labels wrapping one letter per line on a narrow screen -- this
-                // row's content is simply scrolled into view instead of squeezed.
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()).focusGroup()) {
-                    TextButton(
-                        onClick = onNavigateToStats,
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                    ) {
-                        Text(stringResource(R.string.menu_my_stats), style = MaterialTheme.typography.labelLarge)
-                    }
-                    TextButton(
-                        onClick = onNavigateToSettings,
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                    ) {
-                        Text(stringResource(R.string.menu_settings), style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-            }
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.semantics { heading() }
+            )
             Spacer(Modifier.height(16.dp))
 
             if (!settings.hasSeenOnboarding) {
@@ -444,457 +104,129 @@ fun MainMenuScreen(
                 Spacer(Modifier.height(20.dp))
             }
 
-            val recentlyPlayed = stats.values
-                .filter { primaryLaunch.containsKey(it.gameId) && !it.dismissedFromContinue }
-                .sortedByDescending { it.lastPlayedEpochMillis }
-                .take(3)
-            if (recentlyPlayed.isNotEmpty()) {
-                Text(stringResource(R.string.menu_continue_playing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    // focusGroup() (§4c): the Continue row is its own logical cluster of
-                    // tiles — Tab moves through them together, then on to the next section.
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    recentlyPlayed.forEach { s ->
-                        ContinueTile(
-                            stats = s,
-                            onContinue = { primaryLaunch[s.gameId]?.invoke() },
-                            onRestart = { primaryLaunch[s.gameId]?.invoke() },
-                            onDelete = { statsViewModel.dismissFromContinueRow(s.gameId) }
+            if (dailySpecs.isNotEmpty()) {
+                HomeRow(title = stringResource(R.string.home_today)) {
+                    dailySpecs.forEach { spec ->
+                        val mode = dailyModeOf(spec) ?: return@forEach
+                        GameTile(
+                            glyph = gameGlyph(spec.gameId),
+                            title = "${spec.title} · ${mode.title}",
+                            subtitle = "",
+                            accent = familyAccent(spec.family),
+                            onClick = {
+                                if (saves.any { it.navRoute == mode.route }) {
+                                    // A daily already in progress: the Hub offers Resume instead of replacing it.
+                                    onNavigate("hub/${spec.gameId}")
+                                } else {
+                                    val result = launchHubMode(sessionManager, spec, mode, mode.defaults())
+                                    if (result is HubLaunch.Local) onNavigate(result.route)
+                                }
+                            }
                         )
                     }
                 }
-                Spacer(Modifier.height(24.dp))
             }
 
-            // Seeded from today's date at the call site (see WordSearchGame.startMatch(seed) /
-            // SlidingPuzzleGame.startMatch(dailySeed)'s KDocs) so every player gets the same
-            // puzzle today — the audited "single highest-leverage replayability feature this
-            // genre is missing" pitch.
-            GameSection(
-                title = stringResource(R.string.section_daily_challenge),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_word_search_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
+            if (continueItems.isNotEmpty()) {
+                HomeRow(title = stringResource(R.string.home_continue)) {
+                    continueItems.forEach { (spec, saved) ->
+                        GameTile(
+                            glyph = gameGlyph(spec.gameId),
+                            title = saved.label.ifBlank { spec.title },
+                            subtitle = saved.summary.ifBlank { savedAgoText(saved.savedAtMillis, System.currentTimeMillis()) },
+                            accent = familyAccent(spec.family),
+                            onClick = { onNavigate("hub/${spec.gameId}") }
                         )
-                        onNavigateToGame("word-search-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_sliding_puzzle_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("sliding-puzzle-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_minesweeper_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("minesweeper-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_sudoku_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("sudoku-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_lights_out_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("lights-out-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_color_flood_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("color-flood-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_edge_match_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("edge-match-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_nonogram_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("nonogram-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_kakuro_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("kakuro-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_kenken_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("kenken-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_mastermind_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("mastermind-daily")
-                    },
-                    GameEntry(stringResource(R.string.game_word_guess_daily)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(PlayerInfo(playerId = "p1", displayName = "You")),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("word-guess-daily")
                     }
-                )
-            )
+                }
+            }
 
-            Spacer(Modifier.height(16.dp))
+            if (favoriteSpecs.isNotEmpty()) {
+                HomeRow(title = stringResource(R.string.home_favourites)) {
+                    favoriteSpecs.forEach { spec ->
+                        GameTile(
+                            glyph = gameGlyph(spec.gameId),
+                            title = spec.title,
+                            subtitle = spec.tagline,
+                            accent = familyAccent(spec.family),
+                            onClick = { openGameFromCard(spec, sessionManager, onNavigate) }
+                        )
+                    }
+                }
+            }
 
-            GameSection(
-                title = stringResource(R.string.section_board_games),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_tictactoe_vs_cpu)) { primaryLaunch.getValue("tic-tac-toe").invoke() },
-                    GameEntry(stringResource(R.string.game_tictactoe_pass_play)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2")
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("tic-tac-toe")
-                    },
-                    GameEntry(stringResource(R.string.game_tictactoe_misere)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "You"),
-                                PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("tic-tac-toe-misere")
-                    },
-                    GameEntry(stringResource(R.string.game_tictactoe_wild)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_PLAYER_VS_BOT,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "You"),
-                                PlayerInfo(playerId = "bot1", displayName = "CPU", isBot = true)
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("tic-tac-toe-wild")
-                    },
-                    GameEntry(stringResource(R.string.game_dominoes_vs_cpu)) { primaryLaunch.getValue("dominoes").invoke() },
-                    GameEntry(stringResource(R.string.game_dots_and_boxes_vs_cpu)) { primaryLaunch.getValue("dots-and-boxes").invoke() },
-                    GameEntry(stringResource(R.string.game_dots_and_boxes_pass_play)) {
-                        pendingNames = PendingNameRequest("Dots and Boxes: player names", 2) { n ->
-                            sessionManager.launchGame(
-                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                                players = listOf(
-                                    PlayerInfo(playerId = "p1", displayName = n[0]),
-                                    PlayerInfo(playerId = "p2", displayName = n[1])
-                                ),
-                                localPlayerIndex = 0
+            if (recentStats.isNotEmpty()) {
+                HomeRow(title = stringResource(R.string.home_recent)) {
+                    recentStats.forEach { s ->
+                        val spec = GameHubSpecs.byId(s.gameId) ?: return@forEach
+                        Box {
+                            GameTile(
+                                glyph = gameGlyph(spec.gameId),
+                                title = spec.title,
+                                subtitle = "${s.wins}W – ${s.losses}L",
+                                accent = familyAccent(spec.family),
+                                onClick = { openGameFromCard(spec, sessionManager, onNavigate) },
+                                // Long-press: hide this tile from the row (the win/loss record is untouched).
+                                onLongClick = { recentMenuFor = s.gameId }
                             )
-                            onNavigateToGame("dots-and-boxes")
+                            DropdownMenu(
+                                expanded = recentMenuFor == s.gameId,
+                                onDismissRequest = { recentMenuFor = null }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.continue_menu_continue)) },
+                                    onClick = {
+                                        recentMenuFor = null
+                                        openGameFromCard(spec, sessionManager, onNavigate)
+                                    },
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.continue_menu_delete)) },
+                                    onClick = {
+                                        recentMenuFor = null
+                                        statsViewModel.dismissFromContinueRow(s.gameId)
+                                    },
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                )
+                            }
                         }
-                    },
-                    GameEntry(stringResource(R.string.game_connect_four_vs_cpu)) { primaryLaunch.getValue("connect-four").invoke() },
-                    GameEntry(stringResource(R.string.game_connect_four_pass_play)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2")
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("connect-four")
-                    },
-                    GameEntry(stringResource(R.string.game_mancala_vs_cpu)) { primaryLaunch.getValue("mancala").invoke() },
-                    GameEntry(stringResource(R.string.game_checkers_vs_cpu)) { primaryLaunch.getValue("checkers").invoke() },
-                    GameEntry(stringResource(R.string.game_chess_vs_cpu)) { primaryLaunch.getValue("chess").invoke() },
-                    GameEntry(stringResource(R.string.game_reversi_vs_cpu)) { primaryLaunch.getValue("reversi").invoke() }
-                )
-            )
+                    }
+                }
+            }
 
-            Spacer(Modifier.height(16.dp))
-
-            GameSection(
-                title = stringResource(R.string.section_cards),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_uno_vs_cpu)) { primaryLaunch.getValue("uno").invoke() },
-                    GameEntry(stringResource(R.string.game_uno_pass_play)) {
-                        pendingNames = PendingNameRequest("UNO: player names", 4) { n ->
-                            sessionManager.launchGame(
-                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                                players = listOf(
-                                    PlayerInfo(playerId = "p1", displayName = n[0]),
-                                    PlayerInfo(playerId = "p2", displayName = n[1]),
-                                    PlayerInfo(playerId = "p3", displayName = n[2]),
-                                    PlayerInfo(playerId = "p4", displayName = n[3])
-                                ),
-                                localPlayerIndex = 0
-                            )
-                            onNavigateToGame("uno")
-                        }
-                    },
-                    GameEntry(stringResource(R.string.game_uno_teams)) {
-                        pendingNames = PendingNameRequest("UNO Teams: player names", 4, teamHint = true) { n ->
-                            sessionManager.launchGame(
-                                mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                                players = listOf(
-                                    PlayerInfo(playerId = "p1", displayName = n[0], teamId = 0),
-                                    PlayerInfo(playerId = "p2", displayName = n[1], teamId = 1),
-                                    PlayerInfo(playerId = "p3", displayName = n[2], teamId = 0),
-                                    PlayerInfo(playerId = "p4", displayName = n[3], teamId = 1)
-                                ),
-                                localPlayerIndex = 0
-                            )
-                            onNavigateToGame("uno-teams")
-                        }
-                    },
-                    // No launchGame() call here — the house-rules picker screen decides the ruleset
-                    // AND the player roster itself, then launches the game from there.
-                    GameEntry(stringResource(R.string.game_uno_house_rules)) { onNavigateToGame("uno-house-rules") },
-                    // No launchGame() call here either — Nearby/Online's roster isn't known until
-                    // the lobby finishes connecting, unlike every other button on this screen.
-                    GameEntry(stringResource(R.string.game_uno_nearby)) { onNavigateToGame("nearby-entry") },
-                    GameEntry(stringResource(R.string.game_uno_online)) { onNavigateToGame("online-entry") },
-                    GameEntry(stringResource(R.string.game_solitaire)) { primaryLaunch.getValue("solitaire").invoke() }
-                )
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            GameSection(
-                title = stringResource(R.string.section_word_games),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_hangman)) { primaryLaunch.getValue("hangman").invoke() },
-                    GameEntry(stringResource(R.string.game_word_search)) { primaryLaunch.getValue("word-search").invoke() },
-                    GameEntry(stringResource(R.string.game_crossword)) { primaryLaunch.getValue("crossword").invoke() },
-                    GameEntry(stringResource(R.string.game_word_tiles_vs_cpu)) { primaryLaunch.getValue("word-tiles").invoke() },
-                    GameEntry(stringResource(R.string.game_word_guess)) { primaryLaunch.getValue("word-guess").invoke() }
-                )
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            GameSection(
-                title = stringResource(R.string.section_arcade_puzzles),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_air_hockey_vs_cpu)) { primaryLaunch.getValue("air-hockey").invoke() },
-                    GameEntry(stringResource(R.string.game_air_hockey_pass_play)) {
-                        sessionManager.launchGame(
-                            mode = PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                            players = listOf(
-                                PlayerInfo(playerId = "p1", displayName = "Player 1"),
-                                PlayerInfo(playerId = "p2", displayName = "Player 2")
-                            ),
-                            localPlayerIndex = 0
-                        )
-                        onNavigateToGame("air-hockey")
-                    },
-                    GameEntry(stringResource(R.string.game_sliding_puzzle)) { primaryLaunch.getValue("sliding-puzzle").invoke() },
-                    GameEntry(stringResource(R.string.game_minesweeper)) { primaryLaunch.getValue("minesweeper").invoke() },
-                    GameEntry(stringResource(R.string.game_sudoku)) { primaryLaunch.getValue("sudoku").invoke() },
-                    GameEntry(stringResource(R.string.game_lights_out)) { primaryLaunch.getValue("lights-out").invoke() },
-                    GameEntry(stringResource(R.string.game_color_flood)) { primaryLaunch.getValue("color-flood").invoke() },
-                    GameEntry(stringResource(R.string.game_edge_match)) { primaryLaunch.getValue("edge-match").invoke() },
-                    GameEntry(stringResource(R.string.game_breakout)) { primaryLaunch.getValue("breakout").invoke() },
-                    GameEntry(stringResource(R.string.game_nonogram)) { primaryLaunch.getValue("nonogram").invoke() },
-                    GameEntry(stringResource(R.string.game_kakuro)) { primaryLaunch.getValue("kakuro").invoke() },
-                    GameEntry(stringResource(R.string.game_kenken)) { primaryLaunch.getValue("kenken").invoke() },
-                    GameEntry(stringResource(R.string.game_mastermind)) { primaryLaunch.getValue("mastermind").invoke() },
-                    GameEntry(stringResource(R.string.game_tower_defence)) { primaryLaunch.getValue("tower-defence").invoke() }
-                )
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            GameSection(
-                title = stringResource(R.string.section_party_toolkit),
-                columns = gameColumns,
-                entries = listOf(
-                    GameEntry(stringResource(R.string.game_party_toolkit)) { primaryLaunch.getValue("party-toolkit").invoke() }
-                )
-            )
+            // Everything else lives on the Games tab.
+            OutlinedButton(
+                onClick = { onNavigate("games") },
+                modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+            ) { Text(stringResource(R.string.home_browse_games)) }
 
             Spacer(Modifier.height(24.dp))
         }
     }
 }
 
-/**
- * One tile in the Continue-playing row. A tap launches the game (unchanged
- * from before this pass); a long-press opens a small menu offering Continue/
- * Restart/Delete, per the user's request for a press-and-hold on these tiles.
- *
- * NOTE ON SCOPE: Continue and Restart currently both just launch a fresh
- * game — same as tapping the tile always has — because there is no real
- * per-match save state anywhere in the app yet (GameModule has no
- * saveState()/restoreState(), only pause()/resume() as bare lifecycle hooks;
- * see GameModule.kt's own gameId KDoc, which anticipated "save data" but
- * never got one built). Building an exact resume-where-you-left-off feature
- * is a separate, larger effort across every game engine, not a menu tweak —
- * this is deliberately scaffolded so that feature can slot in later without
- * another UI change: Continue would call the new restore path, Restart would
- * explicitly discard it and call today's fresh-launch path unchanged. Delete
- * is real today — it hides this tile via GameStats.dismissedFromContinue
- * without touching the win/loss record.
- */
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+/** A titled, horizontally scrolling row of tiles. */
 @Composable
-private fun ContinueTile(
-    stats: com.gamesuite.stats.GameStats,
-    onContinue: () -> Unit,
-    onRestart: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-    Box {
-        ElevatedCard(
-            // pointerHoverIcon (§4c): this tile is a real launch/continue target for a
-            // game, same as any other game-action button — mouse/trackpad users get a
-            // hand cursor over it. combinedClickable() already makes it keyboard-focusable
-            // and Enter/Space-activatable on its own, so no separate .focusable() is added.
-            modifier = Modifier
-                .combinedClickable(
-                    onClick = onContinue,
-                    onLongClick = { menuExpanded = true }
-                )
-                .pointerHoverIcon(PointerIcon.Hand)
-        ) {
-            Column(modifier = Modifier.padding(14.dp).widthIn(min = 110.dp)) {
-                Text(stats.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "${stats.wins}W – ${stats.losses}L",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
-        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.continue_menu_continue)) },
-                onClick = { menuExpanded = false; onContinue() },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.continue_menu_restart)) },
-                onClick = { menuExpanded = false; onRestart() },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.continue_menu_delete)) },
-                onClick = { menuExpanded = false; onDelete() },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            )
-        }
-    }
-}
-
-/** One button's label + launch action inside a [GameSection] — see its KDoc for why this is a list instead of imperative composable calls. */
-private data class GameEntry(val label: String, val onClick: () -> Unit)
-
-/**
- * A titled card of game-launch buttons. Reflows [entries] into [columns] columns instead
- * of always one — on a narrow cover screen or plain phone (COMPACT width, columns == 1)
- * this renders exactly like the original single-column list; on a Fold unfolded or Tab S9
- * (MEDIUM/EXPANDED width, columns == 2 or 3, computed once in [MainMenuScreen]) it becomes
- * a real grid instead of one skinny column of buttons with huge empty margin either side —
- * the audited "grid content doesn't reflow on wide windows" finding.
- */
-@Composable
-private fun GameSection(title: String, columns: Int, entries: List<GameEntry>) {
-    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+private fun HomeRow(title: String, content: @Composable RowScope.() -> Unit) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.semantics { heading() }
+    )
     Spacer(Modifier.height(8.dp))
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        // focusGroup() (§4c): every button in this category is one Tab-order cluster, so
-        // a hardware keyboard moves section-to-section down MainMenuScreen instead of
-        // treating each of the 11 games' buttons as an undifferentiated flat sequence.
-        Column(modifier = Modifier.padding(12.dp).focusGroup()) {
-            val rows = entries.chunked(columns)
-            rows.forEachIndexed { rowIndex, row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    row.forEach { entry ->
-                        GameButton(entry.label, modifier = Modifier.weight(1f), onClick = entry.onClick)
-                    }
-                    // A row short of `columns` entries (e.g. 8 buttons ÷ 3 columns leaves a
-                    // final row of 2) gets weighted spacers in the empty slots instead of
-                    // letting its real button(s) stretch wider than every other row's —
-                    // keeps every button the same width down a section regardless of count.
-                    repeat(columns - row.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-                if (rowIndex != rows.lastIndex) {
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GameButton(label: String, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        // Material3 buttons already get an automatic 48dp-minimum touch target via
-        // minimumInteractiveComponentSize(), but pin it explicitly too now that a button
-        // can be one of 2-3 grid columns wide instead of always the full screen width.
-        // pointerHoverIcon (§4c): every game-launch button gets a hand cursor for
-        // mouse/trackpad users (DeX, Tab S9 keyboard-cover); no effect on touch.
-        modifier = modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-    ) {
-        Text(label)
-    }
+    Row(
+        // focusGroup(): a hardware keyboard's Tab moves through a row's tiles together.
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        content = content
+    )
+    Spacer(Modifier.height(24.dp))
 }
 
 /**
- * First-run guidance for the audited "flat wall of unlabeled buttons with zero
- * onboarding" finding — a single dismiss-once banner rather than a full tutorial
- * system, since GameSuite's games are simple enough that a short pointer ("tap any
- * game to jump straight in, look for a Settings gear for CPU difficulty and
- * accessibility options") covers the real first-run confusion without building a
- * multi-screen wizard for an 11-game catalog that keeps growing.
+ * First-run guidance: a single dismiss-once banner rather than a tutorial.
  */
 @Composable
 private fun OnboardingBanner(onDismiss: () -> Unit) {
@@ -907,7 +239,7 @@ private fun OnboardingBanner(onDismiss: () -> Unit) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(
                     onClick = onDismiss,
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                 ) { Text(stringResource(R.string.onboarding_dismiss)) }
             }
         }

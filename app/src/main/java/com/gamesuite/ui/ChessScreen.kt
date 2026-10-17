@@ -71,7 +71,6 @@ import com.gamesuite.games.chess.PieceColor
 import com.gamesuite.games.chess.PieceType
 import com.gamesuite.games.chess.capturedPiecesFor
 import com.gamesuite.games.chess.materialAdvantageForWhite
-import com.gamesuite.games.chess.playerIndexForColor
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.haptics.HapticSignal
@@ -79,6 +78,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -197,8 +197,9 @@ fun ChessScreen(
     // widens it: nothing new plays with enhanced animations off, tier setting notwithstanding.
     val enhanced = LocalEnhancedAnimations.current && !reducedMotion
 
+    val gameSpeed = LocalGameSpeed.current
     val androidContext = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope =rememberCoroutineScope()
     val haptics = rememberHaptics()
     val sounds = remember { CardSounds.get(androidContext) }
     val playSfx = rememberProceduralSfx()
@@ -217,8 +218,14 @@ fun ChessScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.init(ctx)
+        // Hub first-mover choice: the chosen roster seat plays White and moves first. Local modes
+        // only (online, seat 0 = White always); a resume below overwrites this from the snapshot.
+        game.whiteSeatIndex =
+            if (ctx.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT || ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) {
+                sessionManager.launchOptions.firstMoverIndex
+            } else 0
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
@@ -252,13 +259,43 @@ fun ChessScreen(
         val s = state ?: return@LaunchedEffect
         val ctx = context ?: return@LaunchedEffect
         if (s.roundOver) return@LaunchedEffect
-        if (ctx.players.getOrNull(playerIndexForColor(s.sideToMove))?.isBot == true) {
-            delay(700)
+        if (ctx.players.getOrNull(game.seatForColor(s.sideToMove))?.isBot == true) {
+            chessPause(gameSpeed, 700)
             game.playBotTurn()
         }
     }
 
-    val s = state ?: return
+    val s = state
+    if (s == null) {
+        // A networked guest has no board until the host's first StateSync lands: say so, keep
+        // asking (the first RequestState can race the host's start-up) and keep the way out.
+        val waitingCtx = context
+        if (waitingCtx != null && (waitingCtx.activeMode == PlayMode.LOCAL_AD_HOC || waitingCtx.activeMode == PlayMode.ONLINE)) {
+            LaunchedEffect(waitingCtx) {
+                repeat(20) {
+                    delay(1500)
+                    game.requestSync()
+                }
+            }
+            GameChrome(
+                helpTitle = "How to Play Chess",
+                helpText = "Waiting for the host to start the game.",
+                matchInProgress = false,
+                onLeave = game::abortMatch,
+                onAbort = game::abortMatch,
+                buttonFill = MaterialTheme.colorScheme.background,
+                buttonContent = MaterialTheme.colorScheme.onBackground
+            ) {
+                Text(
+                    "Connecting to ${game.opponentName}...",
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp)
+                )
+            }
+        }
+        return
+    }
     // The session context is HELD here rather than read live past this point: leaving (or the
     // match ending) calls endActiveGame, which nulls it in the same beat the game flips to
     // finished, and an early return on null would blank the screen -- result panel included --
@@ -268,6 +305,8 @@ fun ChessScreen(
     val ctx = ctxHolder[0] ?: return
 
     val isCheckmate = s.result == ChessResult.WHITE_WINS || s.result == ChessResult.BLACK_WINS
+    val isNetworked = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
+    val opponentLeft by game.opponentLeft
 
     // Who delivered the mate, from THIS device's point of view. The celebration (haptic, fanfare,
     // glow, camera push) used to fire for any checkmate, including the CPU mating the human --
@@ -305,30 +344,56 @@ fun ChessScreen(
             return@LaunchedEffect
         }
         if (!isCheckmate) {
-            delay(600) // stalemate / repetition: a beat to take in the final position
+            chessPause(gameSpeed, 600) // stalemate / repetition: a beat to take in the final position
         } else if (maximum && humanWon) {
             checkmatePush.snapTo(1f)
-            delay(70) // hit-stop: a brief freeze before the camera reacts
+            chessPause(gameSpeed, 70) // hit-stop: a brief freeze before the camera reacts
             checkmatePush.animateTo(1.06f, animationSpec = tween(160))
-            delay(180)
+            chessPause(gameSpeed, 180)
             checkmatePush.animateTo(1f, animationSpec = tween(180))
-            delay(120)
+            chessPause(gameSpeed, 120)
         } else {
-            delay(420) // Standard tier, or the human got mated: no push, but still a beat to see it
+            chessPause(gameSpeed, 420) // Standard tier, or the human got mated: no push, but still a beat to see it
         }
         revealRoundOverPanel = true
     }
 
     val headline = when (s.result) {
-        ChessResult.WHITE_WINS, ChessResult.BLACK_WINS ->
-            if (winnerIsLocal) "You win by checkmate!" else "${winner?.displayName ?: "?"} wins by checkmate!"
+        ChessResult.WHITE_WINS, ChessResult.BLACK_WINS -> {
+            val winnerName = winner?.displayName ?: "?"
+            when {
+                // Networked: name the winner AND say whether it was you.
+                isNetworked && winnerIsLocal -> "$winnerName (you) wins by checkmate!"
+                isNetworked -> "$winnerName wins by checkmate. You lost."
+                winnerIsLocal -> "You win by checkmate!"
+                else -> "$winnerName wins by checkmate!"
+            }
+        }
         ChessResult.DRAW_STALEMATE -> "Draw by stalemate"
         ChessResult.DRAW_REPETITION -> "Draw by repetition"
         ChessResult.IN_PROGRESS -> ""
     }
 
-    val currentPlayerIndex = playerIndexForColor(s.sideToMove)
-    val isHumanTurn = ctx.players.getOrNull(currentPlayerIndex)?.isBot != true
+    // Seat (roster index) whose turn it is: seat 0 is White unless the Hub made the opponent seat
+    // the first mover (game.whiteSeatIndex), so never assume colour == seat here.
+    val currentPlayerIndex = game.seatForColor(s.sideToMove)
+    // Networked: only the local seat's turn is "mine" (the other seat is a person on another
+    // device), and nobody moves once the opponent has gone.
+    val isHumanTurn = if (isNetworked) {
+        currentPlayerIndex == ctx.localPlayerIndex && !opponentLeft
+    } else {
+        ctx.players.getOrNull(currentPlayerIndex)?.isBot != true
+    }
+    val isPassAndPlay = ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
+    // Board orientation: against the CPU the human sits at the bottom with their own colour (so
+    // Black is drawn flipped), and so does each networked player (the guest is Black, shown from
+    // Black's side). Pass and play keeps White at the bottom for both players (one fixed board,
+    // nothing rotates between turns).
+    val boardFlipped = (ctx.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT || isNetworked) &&
+        game.colorForSeat(ctx.localPlayerIndex) == PieceColor.BLACK
+    val opponentPlayer = if (isNetworked) ctx.players.getOrNull(1 - ctx.localPlayerIndex) else null
+    val localColorName = if (game.colorForSeat(ctx.localPlayerIndex) == PieceColor.WHITE) "White" else "Black"
+    val opponentColorName = if (localColorName == "White") "Black" else "White"
     val legalDestinations = selectedSquare?.let { if (isHumanTurn) game.legalDestinationsFor(it) else emptySet() } ?: emptySet()
     // Undo / Hint only exist in the local modes; the engine ignores them in networked play.
     val localMode = ctx.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT || ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
@@ -350,6 +415,9 @@ fun ChessScreen(
                 s.roundOver && isCheckmate -> "Checkmate!"
                 s.result == ChessResult.DRAW_REPETITION -> "Draw by repetition"
                 s.roundOver -> "Stalemate"
+                isNetworked && opponentLeft -> "Opponent disconnected"
+                isNetworked && !isHumanTurn -> "${opponentPlayer?.displayName ?: "Opponent"}'s turn ($sideName)"
+                isPassAndPlay -> "${ctx.players.getOrNull(currentPlayerIndex)?.displayName ?: "Player"}'s turn ($sideName) — tap a piece"
                 isHumanTurn -> "Your turn ($sideName) — tap a piece"
                 else -> "Opponent's turn ($sideName)"
             }
@@ -362,7 +430,18 @@ fun ChessScreen(
                 // not, so the board slot below it does not resize (and the board jitter) every move.
                 Text(s.lastAction, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, minLines = 2)
             }
-            if (ctx.players.any { it.isBot }) {
+            if (isNetworked) {
+                // Small connection / opponent line; it replaces the CPU line, which never applies.
+                Text(
+                    if (opponentLeft) {
+                        "${opponentPlayer?.displayName ?: "Opponent"} left. You can leave without it counting as a loss."
+                    } else {
+                        "Playing ${opponentPlayer?.displayName ?: "Opponent"} ($opponentColorName) · you are $localColorName"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center
+                )
+            } else if (ctx.players.any { it.isBot }) {
                 Text(
                     "CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
                     style = MaterialTheme.typography.labelSmall,
@@ -439,7 +518,7 @@ fun ChessScreen(
             // Keyed on squarePx too: these offsets are in pixels, so a resize of the board slot
             // (fold/unfold, split-screen) with the same last move would otherwise leave the moved
             // piece's overlay at the OLD pixel position while the squares re-laid-out around it.
-            val moverAnim = remember(moveKey, squarePx) { Animatable(offsetPxFor(s.lastFrom ?: s.lastTo ?: 0, squarePx), Offset.VectorConverter) }
+            val moverAnim = remember(moveKey, squarePx, boardFlipped) { Animatable(offsetPxFor(s.lastFrom ?: s.lastTo ?: 0, squarePx, boardFlipped), Offset.VectorConverter) }
             LaunchedEffect(moveKey, squarePx) {
                 // Local vals, not a direct smart-cast on s.lastFrom/lastTo: ChessState now comes
                 // from the :shared module (see docs/ENGINE_DECISION.md Action Item 5), and Kotlin
@@ -449,17 +528,17 @@ fun ChessScreen(
                 val lastFrom = s.lastFrom
                 val lastTo = s.lastTo
                 if (lastFrom != null && lastTo != null) {
-                    moverAnim.snapTo(offsetPxFor(lastFrom, squarePx))
-                    moverAnim.animateTo(offsetPxFor(lastTo, squarePx), animationSpec = landingSpec)
+                    moverAnim.snapTo(offsetPxFor(lastFrom, squarePx, boardFlipped))
+                    moverAnim.animateTo(offsetPxFor(lastTo, squarePx, boardFlipped), animationSpec = landingSpec)
                 }
             }
             val rookAnim = remember(moveKey, squarePx) {
-                Animatable(offsetPxFor(rookSquares?.first ?: 0, squarePx), Offset.VectorConverter)
+                Animatable(offsetPxFor(rookSquares?.first ?: 0, squarePx, boardFlipped), Offset.VectorConverter)
             }
             LaunchedEffect(moveKey, squarePx) {
                 if (rookSquares != null) {
-                    rookAnim.snapTo(offsetPxFor(rookSquares.first, squarePx))
-                    rookAnim.animateTo(offsetPxFor(rookSquares.second, squarePx), animationSpec = landingSpec)
+                    rookAnim.snapTo(offsetPxFor(rookSquares.first, squarePx, boardFlipped))
+                    rookAnim.animateTo(offsetPxFor(rookSquares.second, squarePx, boardFlipped), animationSpec = landingSpec)
                 }
             }
 
@@ -503,7 +582,7 @@ fun ChessScreen(
                     if (reducedMotion) {
                         captureFade.snapTo(0f)
                     } else {
-                        delay(120)
+                        chessPause(gameSpeed, 120)
                         captureFade.animateTo(0f, animationSpec = tween(180))
                     }
                 }
@@ -625,7 +704,8 @@ fun ChessScreen(
                 ) {
                     for (square in 0 until 64) {
                         val col = square % 8
-                        val displayRow = 7 - (square / 8)
+                        val displayCol = chessDisplayCol(square, boardFlipped)
+                        val displayRow = chessDisplayRow(square, boardFlipped)
                         val isDark = (square / 8 + col) % 2 == 0
                         val isSelected = selectedSquare == square
                         val isLegalDest = square in legalDestinations
@@ -655,7 +735,7 @@ fun ChessScreen(
 
                         Box(
                             modifier = Modifier
-                                .offset(x = squareSize * col, y = squareSize * displayRow)
+                                .offset(x = squareSize * displayCol, y = squareSize * displayRow)
                                 .size(squareSize)
                                 .drawBehind {
                                     val bmp = if (isDark) darkWoodBitmap else lightWoodBitmap
@@ -700,7 +780,7 @@ fun ChessScreen(
                             }
                             // a-h along the bottom rank, 1-8 along the a-file; skipped when squares
                             // are so small the text would be unreadable. Drawn under the piece.
-                            if (squareSize >= 32.dp) CoordinateLabels(col, square / 8 + 1, displayRow, isDark, squareSize)
+                            if (squareSize >= 32.dp) CoordinateLabels(col, square / 8 + 1, displayCol, displayRow, isDark, squareSize)
                             if (isLegalDest) {
                                 if (piece == null) {
                                     Box(
@@ -792,11 +872,11 @@ fun ChessScreen(
                         // passant -- see findCapturedSquare) instead of vanishing the instant the
                         // board recomposes.
                         capturedInfo?.let { info ->
-                            val col = info.square % 8
-                            val displayRow = 7 - (info.square / 8)
+                            val capCol = chessDisplayCol(info.square, boardFlipped)
+                            val capRow = chessDisplayRow(info.square, boardFlipped)
                             Box(
                                 modifier = Modifier
-                                    .offset(x = squareSize * col, y = squareSize * displayRow)
+                                    .offset(x = squareSize * capCol, y = squareSize * capRow)
                                     .size(squareSize)
                                     .graphicsLayer {
                                         alpha = captureFade.value
@@ -814,12 +894,12 @@ fun ChessScreen(
                     if (hintForArrow != null) {
                         Canvas(modifier = Modifier.matchParentSize()) {
                             val start = Offset(
-                                (hintForArrow.from % 8) * squarePx + squarePx / 2f,
-                                (7 - hintForArrow.from / 8) * squarePx + squarePx / 2f
+                                chessDisplayCol(hintForArrow.from, boardFlipped) * squarePx + squarePx / 2f,
+                                chessDisplayRow(hintForArrow.from, boardFlipped) * squarePx + squarePx / 2f
                             )
                             val end = Offset(
-                                (hintForArrow.to % 8) * squarePx + squarePx / 2f,
-                                (7 - hintForArrow.to / 8) * squarePx + squarePx / 2f
+                                chessDisplayCol(hintForArrow.to, boardFlipped) * squarePx + squarePx / 2f,
+                                chessDisplayRow(hintForArrow.to, boardFlipped) * squarePx + squarePx / 2f
                             )
                             val dx = end.x - start.x
                             val dy = end.y - start.y
@@ -852,13 +932,13 @@ fun ChessScreen(
                     if (attackerSquares.isNotEmpty() && checkedKingSquare >= 0) {
                         Canvas(modifier = Modifier.matchParentSize()) {
                             val kingCenter = Offset(
-                                (checkedKingSquare % 8) * squarePx + squarePx / 2f,
-                                (7 - checkedKingSquare / 8) * squarePx + squarePx / 2f
+                                chessDisplayCol(checkedKingSquare, boardFlipped) * squarePx + squarePx / 2f,
+                                chessDisplayRow(checkedKingSquare, boardFlipped) * squarePx + squarePx / 2f
                             )
                             attackerSquares.forEach { atk ->
                                 val atkCenter = Offset(
-                                    (atk % 8) * squarePx + squarePx / 2f,
-                                    (7 - atk / 8) * squarePx + squarePx / 2f
+                                    chessDisplayCol(atk, boardFlipped) * squarePx + squarePx / 2f,
+                                    chessDisplayRow(atk, boardFlipped) * squarePx + squarePx / 2f
                                 )
                                 drawLine(color = ATTACK_LINE_COLOR, start = atkCenter, end = kingCenter, strokeWidth = squarePx * 0.05f, cap = StrokeCap.Round)
                                 drawCircle(color = ATTACK_LINE_COLOR, radius = squarePx * 0.09f, center = atkCenter)
@@ -886,8 +966,11 @@ fun ChessScreen(
             "occurring three times, is a draw. There is no 50-move or insufficient-material " +
             "rule, so a game neither side can win ends only by repetition or by leaving from " +
             "this menu.\n\n" +
-            "White moves first and sits at the bottom.",
-        matchInProgress = !s.roundOver,
+            "White moves first. Against the computer your own pieces are at the bottom; in pass " +
+            "and play White stays at the bottom for both players.",
+        // Once the opponent has gone there is nothing left to protect: leaving is immediate and
+        // the engine turns leaveSession() into an abort (never a loss).
+        matchInProgress = !s.roundOver && !opponentLeft,
         onLeave = game::leaveSession,
         onAbort = { if (finishedGames > 0) game.leaveSession() else game.abortMatch() },
         leaveKeepsProgress = finishedGames == 0,
@@ -936,7 +1019,9 @@ fun ChessScreen(
                 celebrate = humanWon && !reducedMotion,
                 reducedMotion = reducedMotion,
                 onPlayAgain = game::playAgain,
-                onLeave = game::leaveSession
+                onLeave = game::leaveSession,
+                canPlayAgain = !opponentLeft,
+                notice = if (opponentLeft) "${opponentPlayer?.displayName ?: "Opponent"} disconnected" else null
             )
         } else {
             // Wired into AdaptiveTwoPane (secondary = null -- Chess has no natural "hand" pane) so a
@@ -1004,6 +1089,12 @@ fun ChessScreen(
     }
 }
 
+/** A cosmetic pause multiplied by the app-wide game speed; scaled pauses of 60ms or less are skipped. */
+private suspend fun chessPause(speed: com.gamesuite.settings.GameSpeed, baseMs: Long) {
+    val ms = speed.scale(baseMs)
+    if (ms > 60L) delay(ms)
+}
+
 /**
  * Visible Undo and Hint, the same actions the corner menu offers. Undo is enabled once there is a
  * human move to take back; Hint only on a human's turn while the game is on, since there is nothing
@@ -1052,7 +1143,9 @@ private fun ChessResultPanel(
     celebrate: Boolean,
     reducedMotion: Boolean,
     onPlayAgain: () -> Unit,
-    onLeave: () -> Unit
+    onLeave: () -> Unit,
+    canPlayAgain: Boolean = true,
+    notice: String? = null
 ) {
     val fade = remember { Animatable(if (reducedMotion) 1f else 0f) }
     LaunchedEffect(Unit) {
@@ -1083,11 +1176,17 @@ private fun ChessResultPanel(
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.Center
         )
+        if (notice != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(notice, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        }
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = onPlayAgain,
-            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Play Again") }
+        if (canPlayAgain) {
+            Button(
+                onClick = onPlayAgain,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            ) { Text("Play Again") }
+        }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
             onClick = onLeave,
@@ -1345,10 +1444,14 @@ private fun CapturedRow(label: String, pieces: List<PieceType>, pieceColorForIco
             .heightIn(min = 24.dp)
             .clearAndSetSemantics { contentDescription = description }
     ) {
+        // A minimum width, never a fixed one: at a larger system font scale a fixed 44dp wrapped
+        // "White:" mid-word on a narrow cover screen.
         Text(
             "$label:",
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.width(44.dp)
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.widthIn(min = 44.dp)
         )
         BoxWithConstraints(modifier = Modifier.weight(1f)) {
             val gap = 2.dp
@@ -1499,10 +1602,10 @@ private fun balanceDescription(balance: Int): String {
  * [squareDescription] already carries the coordinates for a screen reader.
  */
 @Composable
-private fun BoxScope.CoordinateLabels(col: Int, rank: Int, displayRow: Int, isDark: Boolean, squareSize: Dp) {
+private fun BoxScope.CoordinateLabels(col: Int, rank: Int, displayCol: Int, displayRow: Int, isDark: Boolean, squareSize: Dp) {
     val labelColor = if (isDark) LIGHT_SQUARE else DARK_SQUARE
     val labelSize = with(LocalDensity.current) { (squareSize * 0.22f).toSp() }
-    if (col == 0) {
+    if (displayCol == 0) {
         Text(
             text = rank.toString(),
             color = labelColor,
@@ -1594,13 +1697,16 @@ private fun pieceTypeName(type: PieceType): String = when (type) {
     PieceType.KING -> "king"
 }
 
-/** Screen-pixel offset of a square's top-left corner within the board Box, with White's home
- *  rank drawn at the bottom (`7 - row`) -- see this file's class KDoc. */
-private fun offsetPxFor(square: Int, squarePx: Float): Offset {
-    val col = square % 8
-    val displayRow = 7 - (square / 8)
-    return Offset(col * squarePx, displayRow * squarePx)
-}
+/** Display column (0 = left) of a square: the file, mirrored when the board is [flipped]. */
+private fun chessDisplayCol(square: Int, flipped: Boolean): Int = if (flipped) 7 - (square % 8) else square % 8
+
+/** Display row (0 = top) of a square: White's home rank at the bottom (`7 - row`), or Black's
+ *  when the board is [flipped] -- see this file's class KDoc. */
+private fun chessDisplayRow(square: Int, flipped: Boolean): Int = if (flipped) square / 8 else 7 - (square / 8)
+
+/** Screen-pixel offset of a square's top-left corner within the board Box. */
+private fun offsetPxFor(square: Int, squarePx: Float, flipped: Boolean = false): Offset =
+    Offset(chessDisplayCol(square, flipped) * squarePx, chessDisplayRow(square, flipped) * squarePx)
 
 /** Detects a castling king-move from the plain (from, to) the engine already reports, purely
  *  so the screen can also animate the rook: a king moving two files is only ever a castle in

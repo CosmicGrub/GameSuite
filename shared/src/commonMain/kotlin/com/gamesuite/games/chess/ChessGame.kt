@@ -161,7 +161,9 @@ private data class ChessSnapshot(
     /** [ChessGame]'s positionHistory: occurrences of each position signature this round. */
     val positionHistory: Map<String, Int>,
     val players: List<ChessSnapshotPlayer>,
-    val difficulty: String
+    val difficulty: String,
+    /** Which roster seat (0 or 1) plays White. Defaulted so saves written before it existed restore as seat 0. */
+    val whiteSeat: Int = 0
 )
 
 @Serializable
@@ -169,9 +171,10 @@ private data class ChessSnapshotPlayer(val playerId: String, val isBot: Boolean)
 
 private val chessSnapshotJson = Json { ignoreUnknownKeys = true }
 
-/** Player index 0 is always White (and always moves first, matching every other
- *  GameSuite board game's player-0-goes-first convention); player index 1 is always
- *  Black. Either index may be the bot -- see this file's top comment. */
+/** The DEFAULT seat mapping: player index 0 is White (and moves first), index 1 is Black.
+ *  [ChessGame.whiteSeatIndex] can swap that for a local game (the Hub's "opponent moves first"
+ *  option); use [ChessGame.seatForColor] / [ChessGame.colorForSeat] for the live mapping. This
+ *  free function stays for networked play and callers that always use the default. */
 fun playerIndexForColor(color: PieceColor): Int = if (color == PieceColor.WHITE) 0 else 1
 
 // ---- Internal move representation & pure rules engine -------------------
@@ -732,9 +735,9 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
 
     val state = mutableStateOf<ChessState?>(null)
 
-    /** Running session score across games -- scoreP1 counts White wins (player index 0),
-     *  scoreP2 counts Black wins (player index 1), mirroring MancalaGame/TicTacToeGame's
-     *  scoreP1/scoreP2/draws exactly. */
+    /** Running session score across games -- scoreP1 counts roster seat 0's wins, scoreP2 seat
+     *  1's wins (with the default [whiteSeatIndex] of 0 that is White / Black, exactly as
+     *  before), mirroring MancalaGame/TicTacToeGame's scoreP1/scoreP2/draws. */
     val scoreP1 = mutableStateOf(0)
     val scoreP2 = mutableStateOf(0)
     val draws = mutableStateOf(0)
@@ -745,8 +748,27 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * Which roster seat (0 or 1) plays White and therefore moves first. Set by the screen before
+     * [startMatch] (from the Hub's first-mover choice); anything but 1 is treated as 0. Restored
+     * from a resume snapshot. Ignored in networked play, where seat 0 (the host) is always White.
+     */
+    var whiteSeatIndex: Int = 0
+        set(value) { field = if (value == 1) 1 else 0 }
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
+
+    private val effectiveWhiteSeat: Int
+        get() = if (this::context.isInitialized && isNetworked) 0 else whiteSeatIndex
+
+    /** The roster seat playing [color] in this game. */
+    fun seatForColor(color: PieceColor): Int =
+        if (color == PieceColor.WHITE) effectiveWhiteSeat else 1 - effectiveWhiteSeat
+
+    /** The colour roster seat [seat] plays in this game. */
+    fun colorForSeat(seat: Int): PieceColor =
+        if (seat == effectiveWhiteSeat) PieceColor.WHITE else PieceColor.BLACK
 
     /** How many times each position (see [positionSignature]) has occurred so far this game --
      *  real threefold-repetition tracking, not re-derivable from the current board alone the
@@ -783,6 +805,18 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      *  stray out-of-order delivery can never move state backward. */
     private var lastAppliedStateVersion = -1
 
+    /** Networked play only: true once the transport reported that the OTHER seat left for good.
+     *  The board freezes, Play Again is refused and [leaveSession] becomes an abort (never a
+     *  win or a loss). The screen shows "Opponent disconnected" while this is set. */
+    val opponentLeft = mutableStateOf(false)
+
+    /** The other seat's display name in networked play ("Opponent" when unknown). */
+    val opponentName: String
+        get() {
+            if (!this::context.isInitialized) return "Opponent"
+            return context.players.getOrNull(1 - context.localPlayerIndex)?.displayName ?: "Opponent"
+        }
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -794,6 +828,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         hintMove.value = null
         stateVersion = 0
         lastAppliedStateVersion = -1
+        opponentLeft.value = false
 
         if (isNetworked) {
             context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
@@ -801,7 +836,34 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             // documents: this guest's listener above might register after the host has
             // already broadcast (or will broadcast before this guest is ready to receive).
             if (!isHost) sendToHost(ChessNetMessage.RequestState)
+            // After a network blip the transport recovered from: a guest asks again (it may have
+            // missed broadcasts); the host re-broadcasts, since the guest's own link may have
+            // stayed up and so it would never think to ask.
+            context.transport.onReconnected {
+                if (isHost) {
+                    broadcastState()
+                } else if (!matchOver.value) {
+                    sendToHost(ChessNetMessage.RequestState)
+                }
+            }
+            context.transport.onPlayerLeft { playerId -> handlePlayerLeft(playerId) }
         }
+    }
+
+    /** Guest only: asks the host for the current state again (the screen retries this while it
+     *  still has no board). No-op for the host and for local modes. */
+    fun requestSync() {
+        if (!this::context.isInitialized || !isNetworked || isHost || matchOver.value) return
+        sendToHost(ChessNetMessage.RequestState)
+    }
+
+    private fun handlePlayerLeft(playerId: String) {
+        if (matchOver.value) return
+        if (context.localPlayerIndex !in 0..1) return
+        val opponentId = context.players.getOrNull(1 - context.localPlayerIndex)?.playerId ?: return
+        if (playerId != opponentId) return
+        opponentLeft.value = true
+        hintMove.value = null
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -838,7 +900,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
                 ),
                 positionHistory = positionHistory.toMap(),
                 players = context.players.map { ChessSnapshotPlayer(it.playerId, it.isBot) },
-                difficulty = difficulty.name
+                difficulty = difficulty.name,
+                whiteSeat = whiteSeatIndex
             )
         )
     }
@@ -857,6 +920,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         val valid = net.board.size == 64 &&
             kingsOk &&
             roster.size == 2 &&
+            snap.whiteSeat in 0..1 &&
             snap.players.size == roster.size &&
             snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
             squareOk(net.epSquare) && squareOk(net.lastFrom) && squareOk(net.lastTo) &&
@@ -871,6 +935,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         val n = snap.position
         positionHistory.clear()
         positionHistory.putAll(snap.positionHistory)
+        whiteSeatIndex = snap.whiteSeat
         scoreP1.value = n.scoreP1
         scoreP2.value = n.scoreP2
         draws.value = n.draws
@@ -949,7 +1014,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         if (!this::context.isInitialized || !isLocalMode) return null
         val s = state.value ?: return null
         if (matchOver.value || s.roundOver) return null
-        if (context.players.getOrNull(playerIndexForColor(s.sideToMove))?.isBot == true) return null
+        if (context.players.getOrNull(seatForColor(s.sideToMove))?.isBot == true) return null
         val move = minimaxBestMove(positionOf(s), s.sideToMove, HINT_SEARCH_DEPTH) ?: return null
         val suggestion = ChessHint(move.from, move.to)
         hintMove.value = suggestion
@@ -957,6 +1022,10 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun startMatch() {
+        // Networked guest: the board belongs to the host. Dealing a local starting position
+        // here would clobber a StateSync that already arrived (the screen calls startMatch on
+        // every device), so wait for the host's broadcast / RequestState reply instead.
+        if (this::context.isInitialized && isNetworked && !isHost) return
         history.clear()
         hintMove.value = null
         positionHistory.clear()
@@ -1002,6 +1071,12 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      *  MancalaGame.leaveSession()/TicTacToeGame.leaveSession(). */
     fun leaveSession() {
         if (matchOver.value) return
+        // The opponent walked away: nothing about this session is theirs to lose, so leaving
+        // is an abort (wasAborted = true, never recorded as a win or a loss).
+        if (this::context.isInitialized && isNetworked && opponentLeft.value) {
+            abortMatch()
+            return
+        }
         val scores = mutableListOf<PlayerScore>()
         context.players.getOrNull(0)?.let {
             scores += PlayerScore(playerId = it.playerId, score = scoreP1.value, isWinner = scoreP1.value > scoreP2.value)
@@ -1018,6 +1093,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      *  intent instead of applied locally, same reasoning as [playMove]. */
     fun playAgain() {
         if (isNetworked && !isHost) {
+            // Only a finished round can be replayed, and not against a vanished opponent.
+            if (state.value?.roundOver != true || opponentLeft.value || matchOver.value) return
             sendToHost(ChessIntentPayload.PlayAgain)
             return
         }
@@ -1026,6 +1103,11 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
 
     private fun applyPlayAgain() {
         if (matchOver.value) return
+        if (isNetworked) {
+            // Either player may ask once the round is over; the host re-deals and broadcasts.
+            // A request mid-round (or after the opponent left) is ignored.
+            if (opponentLeft.value || state.value?.roundOver != true) return
+        }
         startMatch()
     }
 
@@ -1045,9 +1127,17 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             // actual turn independently in handleNetworkMessage regardless of what a
             // buggy/malicious caller passes here).
             if (playerIndex != context.localPlayerIndex) return
+            // Never mutate the guest's own engine from a tap: only ask the host. Cheap local
+            // pre-checks keep obviously dead requests off the wire (the host re-validates all).
+            val gs = state.value ?: return
+            if (gs.roundOver || matchOver.value || opponentLeft.value) return
+            if (seatForColor(gs.sideToMove) != playerIndex) return
             sendToHost(ChessIntentPayload.PlayMove(from, to))
             return
         }
+        // Networked host: the local player may only move their own seat (the screen passes the
+        // seat whose turn it is, which on the guest's turn would be the guest's index).
+        if (isNetworked && playerIndex != context.localPlayerIndex) return
         applyPlayMove(playerIndex, from, to)
     }
 
@@ -1057,7 +1147,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
     private fun applyPlayMove(playerIndex: Int, from: Int, to: Int) {
         val s = state.value ?: return
         if (s.roundOver || matchOver.value) return
-        if (playerIndex != playerIndexForColor(s.sideToMove)) return
+        if (isNetworked && opponentLeft.value) return
+        if (playerIndex != seatForColor(s.sideToMove)) return
         val pos = positionOf(s)
         val move = generateLegalMoves(pos, s.sideToMove).firstOrNull { it.from == from && it.to == to } ?: return
         // Undo step: written down only now that the move is known to be legal (a rejected tap
@@ -1079,7 +1170,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
     fun playBotTurn() {
         val s = state.value ?: return
         if (s.roundOver || matchOver.value) return
-        val botPlayerIndex = playerIndexForColor(s.sideToMove)
+        val botPlayerIndex = seatForColor(s.sideToMove)
         if (context.players.getOrNull(botPlayerIndex)?.isBot != true) return
 
         val pos = positionOf(s)
@@ -1211,7 +1302,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
     private fun applyPlayedMove(s: ChessState, pos: Position, move: ChessMove) {
         hintMove.value = null
         val mover = s.sideToMove
-        val moverName = context.players.getOrNull(playerIndexForColor(mover))?.displayName ?: "Player"
+        val moverName = context.players.getOrNull(seatForColor(mover))?.displayName ?: "Player"
         val capturedType = if (move.enPassant) {
             pos.board[makeSquare(sqRow(move.from), sqCol(move.to))]?.type
         } else {
@@ -1240,8 +1331,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             statusResult
         }
         val winnerPlayerId = when (result) {
-            ChessResult.WHITE_WINS -> context.players.getOrNull(0)?.playerId
-            ChessResult.BLACK_WINS -> context.players.getOrNull(1)?.playerId
+            ChessResult.WHITE_WINS -> context.players.getOrNull(seatForColor(PieceColor.WHITE))?.playerId
+            ChessResult.BLACK_WINS -> context.players.getOrNull(seatForColor(PieceColor.BLACK))?.playerId
             else -> null
         }
 
@@ -1275,8 +1366,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
 
         if (result != ChessResult.IN_PROGRESS) {
             when (result) {
-                ChessResult.WHITE_WINS -> scoreP1.value += 1
-                ChessResult.BLACK_WINS -> scoreP2.value += 1
+                ChessResult.WHITE_WINS -> if (seatForColor(PieceColor.WHITE) == 0) scoreP1.value += 1 else scoreP2.value += 1
+                ChessResult.BLACK_WINS -> if (seatForColor(PieceColor.BLACK) == 0) scoreP1.value += 1 else scoreP2.value += 1
                 ChessResult.DRAW_STALEMATE -> draws.value += 1
                 ChessResult.DRAW_REPETITION -> draws.value += 1
                 else -> {}
@@ -1297,9 +1388,15 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      *  once from [startMatch] (which also covers [applyPlayAgain], since that delegates
      *  straight to [startMatch]). */
     private fun broadcastState() {
-        val s = state.value ?: return
+        val snapshot = currentNetState() ?: return
         stateVersion++
-        val snapshot = ChessNetState(
+        sendMessage(ChessNetMessage.StateSync(stateVersion, snapshot), toPlayerId = null)
+    }
+
+    /** The host's current visible state in wire form, or null before the first deal. */
+    private fun currentNetState(): ChessNetState? {
+        val s = state.value ?: return null
+        return ChessNetState(
             board = s.board,
             sideToMove = s.sideToMove,
             castleWK = s.castleWK, castleWQ = s.castleWQ, castleBK = s.castleBK, castleBQ = s.castleBQ,
@@ -1315,7 +1412,6 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             draws = draws.value,
             matchOver = matchOver.value
         )
-        sendMessage(ChessNetMessage.StateSync(stateVersion, snapshot), toPlayerId = null)
     }
 
     /** Guest only: replaces every visible field with the host's own values -- the guest
@@ -1339,7 +1435,9 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         scoreP1.value = netState.scoreP1
         scoreP2.value = netState.scoreP2
         draws.value = netState.draws
-        matchOver.value = netState.matchOver
+        // matchOver is deliberately NOT copied: a guest's own "session over" is decided locally
+        // (leaveSession / abortMatch) and a late StateSync must never reopen or close it.
+        hintMove.value = null
     }
 
     /** Non-host only: sends [intent] to whichever player is at [GameContext.players] index 0
@@ -1368,37 +1466,61 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = runCatching { Json.decodeFromString<ChessNetMessage>(payload.decodeToString()) }.getOrNull() ?: return
+        // Defensive: the engine only ever listens in networked modes, but a stray listener call
+        // on a local-mode instance must never touch its state.
+        if (!isNetworked || matchOver.value) return
+        // The only seat a message can legitimately come from is the OTHER one: the guest's
+        // intents/requests reach the host, the host's state reaches the guest. The sender is the
+        // transport's own stamp, never a field of the payload.
+        val otherSeat = 1 - context.localPlayerIndex
+        val senderIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
+        if (context.localPlayerIndex !in 0..1 || senderIndex != otherSeat) return
         when (message) {
             is ChessNetMessage.StateSync -> {
-                // The host is always authoritative over its own state -- an inbound
-                // StateSync would only ever arrive here due to a bug or a malicious peer,
-                // never as part of this protocol's own intended flow.
+                // Only the host is authoritative: a StateSync is accepted by a guest, from the
+                // host's seat, and only if it is strictly newer than what was last applied.
                 if (isHost) return
                 if (message.version <= lastAppliedStateVersion) return
+                if (!netStateLooksValid(message.state)) return
                 lastAppliedStateVersion = message.version
                 applyNetState(message.state)
             }
             is ChessNetMessage.Intent -> {
                 if (!isHost) return // only the host ever applies a peer's intent
-                val senderIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
-                if (senderIndex == -1) return // unknown sender -- ignore rather than trust a bare claimed identity
                 val s = state.value
                 when (val intent = message.intent) {
                     is ChessIntentPayload.PlayMove -> {
-                        // Not this sender's actual turn -- ignore rather than trust the
-                        // intent's own from/to squares blindly. applyPlayMove's own
-                        // roundOver/matchOver/legal-move guards still apply on top of
-                        // this, exactly as they do for a local tap.
-                        if (s == null || senderIndex != playerIndexForColor(s.sideToMove)) return
+                        // Not this sender's actual turn (or a finished/abandoned round) -- ignore
+                        // rather than trust the intent's own from/to squares blindly.
+                        // applyPlayMove's own legality check still applies on top of this,
+                        // exactly as it does for a local tap. Stale requests (a duplicate tap,
+                        // a move queued across a Play Again) fail the turn or legality test.
+                        if (s == null || s.roundOver || opponentLeft.value) return
+                        if (senderIndex != seatForColor(s.sideToMove)) return
+                        // The engine only knows auto-queen promotion; a request that names any
+                        // other piece cannot be honoured, so refuse it instead of changing it.
+                        if (intent.promotion != null && intent.promotion != PieceType.QUEEN) return
                         applyPlayMove(senderIndex, intent.from, intent.to)
                     }
                     ChessIntentPayload.PlayAgain -> applyPlayAgain()
                 }
             }
             ChessNetMessage.RequestState -> {
-                if (isHost) broadcastState()
+                // Direct reply to the asker with the CURRENT version (not bumped): a guest that
+                // already has it ignores it, a guest that missed it catches up.
+                if (!isHost) return
+                val reply = currentNetState() ?: return
+                sendMessage(ChessNetMessage.StateSync(stateVersion, reply), toPlayerId = fromPlayerId)
             }
         }
+    }
+
+    /** Structural sanity of a state received from the wire: a malformed one is dropped, never applied. */
+    private fun netStateLooksValid(n: ChessNetState): Boolean {
+        fun squareOk(sq: Int?): Boolean = sq == null || sq in 0..63
+        return n.board.size == 64 &&
+            PieceColor.entries.all { c -> n.board.count { it != null && it.type == PieceType.KING && it.color == c } == 1 } &&
+            squareOk(n.epSquare) && squareOk(n.lastFrom) && squareOk(n.lastTo)
     }
 
     /** Board+side-to-move+castling-rights+en-passant signature for real threefold-repetition

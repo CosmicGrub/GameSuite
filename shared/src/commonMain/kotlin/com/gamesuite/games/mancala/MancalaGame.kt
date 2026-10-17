@@ -3,6 +3,7 @@ package com.gamesuite.games.mancala
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import com.gamesuite.transport.MultiplayerTransport
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -25,7 +26,9 @@ private data class MancalaSnapshot(
     val scoreP1: Int,
     val scoreP2: Int,
     val draws: Int,
-    val difficulty: String
+    val difficulty: String,
+    /** Seat that opened the session's first board; defaulted so saves written before it existed still decode. */
+    val openingSeatIndex: Int = 0
 )
 
 @Serializable
@@ -116,7 +119,9 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<MancalaState?>(null)
@@ -137,6 +142,14 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * The roster seat (0 or 1) that takes the first sowing of the session's FIRST board. Set by the
+     * UI from the Hub's first-mover choice before [startMatch]. Values outside 0..1 count as 0.
+     * Boards dealt later by [playAgain] always open with seat 0 (the engine's existing behaviour,
+     * no alternation). The board layout never changes: seat 0's pits stay on the near side.
+     */
+    var openingSeatIndex: Int = 0
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -151,6 +164,30 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     /** The pit (absolute board index 0-12) the last [hint] suggested, shown ringed until the next sow, undo or new board. */
     val hintPit = mutableStateOf<Int?>(null)
 
+    // ---- Networked play (LOCAL_AD_HOC / ONLINE, two seats: host = 0, guest = 1) -----------------
+    // Host-authoritative: only the host runs the rules ([applySow]); a guest's tap becomes a
+    // MancalaNetMessage.SowRequest and the guest's own engine only ever adopts the host's StateSync.
+
+    /** True when this session is played over a transport (Nearby or Online). False before [init]. */
+    val isNetworkedPlay: Boolean
+        get() = ::context.isInitialized &&
+            (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
+
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+
+    /**
+     * The seat whose pits the screen draws at the bottom: the local player's own seat when
+     * networked (so the guest's board is flipped), always seat 0 in local play.
+     */
+    val viewSeat: Int get() = if (isNetworkedPlay) context.localPlayerIndex.coerceIn(0, 1) else 0
+
+    /** Set when the other seat's transport reported it left (cleared when it is heard from again). Never records a result. */
+    val opponentDisconnected = mutableStateOf(false)
+
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+    private var registeredTransport: MultiplayerTransport? = null
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -159,6 +196,176 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         draws.value = 0
         history.clear()
         hintPit.value = null
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        opponentDisconnected.value = false
+        if (isNetworkedPlay) {
+            // init can run again for the same session (the screen re-keys on its context); a second
+            // set of listeners would apply every request twice.
+            if (registeredTransport !== context.transport) {
+                registeredTransport = context.transport
+                registerNetworkListeners(context.transport)
+            }
+            // Covers the startup race where the host dealt before this device was listening.
+            if (!isHost) sendToHost(MancalaNetMessage.RequestState)
+        }
+    }
+
+    private fun registerNetworkListeners(transport: MultiplayerTransport) {
+        transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+        transport.onReconnected {
+            if (isNetworkedPlay && !matchOver.value) {
+                // A guest may have missed broadcasts; the host re-sends (its own link may be what dropped).
+                if (isHost) {
+                    if (state.value != null) sendStateToGuest()
+                } else {
+                    sendToHost(MancalaNetMessage.RequestState)
+                }
+            }
+        }
+        transport.onPlayerLeft { playerId ->
+            if (isNetworkedPlay && !matchOver.value && playerId == opponentPlayerId()) opponentDisconnected.value = true
+        }
+        transport.onPlayerJoined { playerId ->
+            if (isNetworkedPlay && !matchOver.value && playerId == opponentPlayerId()) {
+                opponentDisconnected.value = false
+                if (isHost && state.value != null) sendStateToGuest()
+            }
+        }
+    }
+
+    private fun opponentPlayerId(): String? =
+        context.players.getOrNull(1 - context.localPlayerIndex.coerceIn(0, 1))?.playerId
+
+    private fun seatOf(playerId: String): Int = context.players.indexOfFirst { it.playerId == playerId }
+
+    private fun sendToHost(message: MancalaNetMessage) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val hostId = context.players.getOrNull(0)?.playerId ?: return
+        context.transport.send(fromPlayerId = localId, toPlayerId = hostId, payload = MancalaNetCodec.encode(message))
+    }
+
+    private fun sendStateTo(guestPlayerId: String) {
+        val s = state.value ?: return
+        val hostId = context.players.getOrNull(0)?.playerId ?: return
+        val message = MancalaNetMessage.StateSync(stateVersion, toNetState(s))
+        context.transport.send(fromPlayerId = hostId, toPlayerId = guestPlayerId, payload = MancalaNetCodec.encode(message))
+    }
+
+    private fun sendStateToGuest() {
+        context.players.getOrNull(1)?.playerId?.let { sendStateTo(it) }
+    }
+
+    /** Host only: stamps the next version on the current board and sends it to the guest. */
+    private fun commitAndBroadcast() {
+        if (!isNetworkedPlay || !isHost) return
+        stateVersion++
+        sendStateToGuest()
+    }
+
+    private fun toNetState(s: MancalaState) = MancalaNetState(
+        pits = s.pits,
+        currentPlayerIndex = s.currentPlayerIndex,
+        lastAction = s.lastAction,
+        roundOver = s.roundOver,
+        winnerPlayerId = s.winnerPlayerId,
+        lastSowPath = s.lastSowPath,
+        lastCapture = s.lastCapture?.let { MancalaNetCapture(it.landingPit, it.oppositePit, it.totalSwept) },
+        scoreP1 = scoreP1.value,
+        scoreP2 = scoreP2.value,
+        draws = draws.value
+    )
+
+    private fun isValidNetState(n: MancalaNetState): Boolean {
+        val capture = n.lastCapture
+        return n.pits.size == 14 &&
+            n.pits.all { it >= 0 } &&
+            n.pits.sum() == 48 &&
+            n.currentPlayerIndex in 0..1 &&
+            (n.winnerPlayerId == null || context.players.any { it.playerId == n.winnerPlayerId }) &&
+            n.lastSowPath.size <= 60 && n.lastSowPath.all { it in 0..13 } &&
+            (capture == null || (capture.landingPit in 0..13 && capture.oppositePit in 0..13 && capture.totalSwept >= 0)) &&
+            n.scoreP1 >= 0 && n.scoreP2 >= 0 && n.draws >= 0
+    }
+
+    /** Guest only: adopts the host's board if it is newer than what is already shown. */
+    private fun applyRemoteState(version: Int, n: MancalaNetState) {
+        if (version <= 0 || version <= lastAppliedRemoteVersion) return
+        if (!isValidNetState(n)) return
+        // Not the very next board: this device missed moves (late join, reconnect), so show the
+        // position as it is instead of replaying a sow that is not happening now.
+        val restored = version != lastAppliedRemoteVersion + 1
+        lastAppliedRemoteVersion = version
+        opponentDisconnected.value = false
+        val incoming = MancalaState(
+            pits = n.pits,
+            currentPlayerIndex = n.currentPlayerIndex,
+            lastAction = n.lastAction,
+            roundOver = n.roundOver,
+            winnerPlayerId = n.winnerPlayerId,
+            lastSowPath = n.lastSowPath,
+            lastCapture = n.lastCapture?.let { MancalaCapture(it.landingPit, it.oppositePit, it.totalSwept) },
+            restored = restored
+        )
+        val current = state.value
+        // An identical board must not produce a new state object: the screen replays the hop
+        // animation for every new object.
+        if (current == null || current.copy(restored = false) != incoming.copy(restored = false)) {
+            state.value = incoming
+        }
+        scoreP1.value = n.scoreP1
+        scoreP2.value = n.scoreP2
+        draws.value = n.draws
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        if (!isNetworkedPlay || matchOver.value) return
+        val message = MancalaNetCodec.decode(payload) ?: return
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other seat is a forgery.
+            is MancalaNetMessage.StateSync -> {
+                if (!isHost && fromPlayerId == context.players.getOrNull(0)?.playerId) {
+                    applyRemoteState(message.version, message.state)
+                }
+            }
+            is MancalaNetMessage.RequestState -> {
+                if (isHost && seatOf(fromPlayerId) > 0) sendStateTo(fromPlayerId)
+            }
+            is MancalaNetMessage.SowRequest -> {
+                if (isHost) handleSowRequest(fromPlayerId, message)
+            }
+            is MancalaNetMessage.PlayAgain -> {
+                if (isHost) handlePlayAgainRequest(fromPlayerId)
+            }
+        }
+    }
+
+    /**
+     * Host only. [fromPlayerId] is the transport's real sender; the seat it maps to must be the seat
+     * on move (and not the host's own), the request must be for the version the guest saw, and the
+     * pit must be one of that seat's non-empty pits. Anything else changes nothing.
+     */
+    private fun handleSowRequest(fromPlayerId: String, request: MancalaNetMessage.SowRequest) {
+        val s = state.value ?: return
+        val seat = seatOf(fromPlayerId)
+        if (seat < 0 || seat == context.localPlayerIndex) return
+        if (s.roundOver || seat != s.currentPlayerIndex) return
+        if (request.baseVersion != stateVersion) {
+            // The guest acted on an out-of-date board: ignore the tap, hand it the real one.
+            sendStateTo(fromPlayerId)
+            return
+        }
+        val ownPits = if (seat == 0) player0Pits else player1Pits
+        if (request.pit !in ownPits || s.pits[request.pit] == 0) return
+        opponentDisconnected.value = false
+        applySow(seat, request.pit)
+    }
+
+    private fun handlePlayAgainRequest(fromPlayerId: String) {
+        val seat = seatOf(fromPlayerId)
+        if (seat < 0 || seat == context.localPlayerIndex) return
+        if (state.value?.roundOver != true) return
+        dealBoard(0)
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -179,7 +386,8 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
                 scoreP1 = scoreP1.value,
                 scoreP2 = scoreP2.value,
                 draws = draws.value,
-                difficulty = difficulty.name
+                difficulty = difficulty.name,
+                openingSeatIndex = openingSeatIndex
             )
         )
     }
@@ -246,13 +454,14 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         val snap = decodeSnapshot(snapshot) ?: return false
         matchOver.value = false
         applySnapshot(snap)
+        openingSeatIndex = if (snap.openingSeatIndex in 0..1) snap.openingSeatIndex else 0
         history.clear()
         return true
     }
 
     // --- Undo -------------------------------------------------------------------------------
 
-    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && !isNetworkedPlay
 
     /**
      * Takes back the last human sowing. Against the CPU that also takes back the CPU's reply (the
@@ -262,7 +471,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      * the difficulty is left as it is.
      */
     override fun undo() {
-        if (matchOver.value) return
+        if (matchOver.value || isNetworkedPlay) return
         val previous = history.pop() ?: return
         val snap = decodeSnapshot(previous) ?: return
         applySnapshot(snap, keepCounters = true)
@@ -277,6 +486,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      * records, so a hint costs nothing.
      */
     fun hint(): Int? {
+        if (isNetworkedPlay) return null
         val s = state.value ?: return null
         if (matchOver.value || s.roundOver) return null
         if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
@@ -290,13 +500,24 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun startMatch() {
+        if (isNetworkedPlay) {
+            // Networked play: the host deals (seat 0 first, openingSeatIndex does not apply); a
+            // guest waits for the host's StateSync.
+            if (isHost) dealBoard(0)
+            return
+        }
+        dealBoard(if (openingSeatIndex in 0..1) openingSeatIndex else 0)
+    }
+
+    private fun dealBoard(openingSeat: Int) {
         val pits = MutableList(14) { 0 }
         for (i in player0Pits) pits[i] = 4
         for (i in player1Pits) pits[i] = 4
         // A new board starts a new undo history: undo never reaches back into the previous board.
         history.clear()
         hintPit.value = null
-        state.value = MancalaState(pits = pits, currentPlayerIndex = 0, lastAction = "Game started")
+        state.value = MancalaState(pits = pits, currentPlayerIndex = openingSeat, lastAction = "Game started")
+        commitAndBroadcast()
     }
 
     override fun pause() {}
@@ -329,14 +550,43 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      * running score and deals a fresh board within the same session. Reuses
      * [startMatch] itself rather than duplicating its setup, since "a new
      * game" and "the first game of the match" are the same operation.
-     * Mirrors TicTacToeGame.playAgain().
+     * Mirrors TicTacToeGame.playAgain(). Later boards open with seat 0 (see [openingSeatIndex]).
      */
     fun playAgain() {
         if (matchOver.value) return
-        startMatch()
+        if (isNetworkedPlay) {
+            if (state.value?.roundOver != true) return
+            // Either seat may ask; only the host deals.
+            if (!isHost) {
+                sendToHost(MancalaNetMessage.PlayAgain)
+                return
+            }
+        }
+        dealBoard(0)
     }
 
+    /**
+     * A local tap on pit [pitIndex] for seat [playerIndex]. Networked: only the local seat may sow;
+     * the host applies it, a guest just asks the host and waits for the resulting StateSync.
+     */
     fun sow(playerIndex: Int, pitIndex: Int) {
+        if (matchOver.value) return
+        if (isNetworkedPlay) {
+            val me = context.localPlayerIndex
+            if (playerIndex != me) return
+            if (!isHost) {
+                val s = state.value ?: return
+                if (s.roundOver || s.currentPlayerIndex != me) return
+                if (pitIndex !in player1Pits || s.pits[pitIndex] == 0) return
+                sendToHost(MancalaNetMessage.SowRequest(pit = pitIndex, baseVersion = lastAppliedRemoteVersion))
+                return
+            }
+        }
+        applySow(playerIndex, pitIndex)
+    }
+
+    /** The rules engine: validates and applies one sowing to [state] (and, on a networked host, broadcasts it). */
+    private fun applySow(playerIndex: Int, pitIndex: Int) {
         // Once the session has ended (leaveSession / abortMatch) a stray tap or an in-flight bot
         // turn must not mutate the board or tally another win into the already-reported scores.
         if (matchOver.value) return
@@ -351,7 +601,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
 
         // Undo step: the position just BEFORE a human's sowing (never a bot's), taken only once the
         // move is known to be legal. Against the CPU, popping it also removes the CPU's reply.
-        if (context.players.getOrNull(playerIndex)?.isBot == false) {
+        if (!isNetworkedPlay && context.players.getOrNull(playerIndex)?.isBot == false) {
             captureSnapshot()?.let { history.push(it) }
         }
         hintPit.value = null
@@ -434,6 +684,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
                 else -> draws.value += 1
             }
         }
+        commitAndBroadcast()
     }
 
     /**

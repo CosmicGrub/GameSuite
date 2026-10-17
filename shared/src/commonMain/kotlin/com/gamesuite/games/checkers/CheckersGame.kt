@@ -3,6 +3,7 @@ package com.gamesuite.games.checkers
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import com.gamesuite.transport.MultiplayerTransport
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -28,13 +29,23 @@ private data class CheckersSnapshot(
     val winnerPlayerId: String?,
     val scoreP1: Int,
     val scoreP2: Int,
-    val difficulty: String
+    val difficulty: String,
+    /** The seat that plays Light (side 1) and so opens each round. Absent in older saves, where
+     *  seat 1 always opened (seat i on side i), hence the default. */
+    val openingSeatIndex: Int = 1
 )
 
 @Serializable
 private data class CheckersSnapshotPlayer(val playerId: String, val isBot: Boolean)
 
 private val checkersSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/** Board side (0 = Dark, rows 0-2; 1 = Light, rows 5-7, moves first) held by [seat], given the
+ *  seat that plays Light ([opening]). With the legacy opening seat 1 this is the identity. */
+private fun checkersSideOfSeat(seat: Int, opening: Int): Int = if (seat == opening) 1 else 0
+
+/** Inverse of [checkersSideOfSeat]. */
+private fun checkersSeatOfSide(side: Int, opening: Int): Int = if (side == 1) opening else 1 - opening
 
 private fun checkersSnapshotCode(piece: CheckersPiece?): Int = when {
     piece == null -> 0
@@ -161,6 +172,37 @@ private data class Position(
     val forcedCol: Int = -1
 )
 
+/**
+ * What a guest's UI can learn about a half-built move without touching the engine: see
+ * [CheckersGame.previewChain]. [row]/[col] is where the moving piece stands after the hops so far,
+ * [hops] are those hops, [complete] is true once the turn would pass to the opponent (the move can be
+ * submitted), and [destinations] are the squares the piece may hop to next while not [complete].
+ */
+class CheckersChainPreview(
+    val row: Int,
+    val col: Int,
+    val hops: List<CheckersMove>,
+    val complete: Boolean,
+    val destinations: Set<Pair<Int, Int>>
+)
+
+/** Engine-internal result of replaying a chain of hops on a [Position]. */
+private class CheckersChainPlan(
+    val hops: List<CheckersMove>,
+    val finalPosition: Position,
+    val row: Int,
+    val col: Int,
+    val complete: Boolean,
+    val destinations: Set<Pair<Int, Int>>
+)
+
+/**
+ * NETWORKED PLAY (PlayMode.LOCAL_AD_HOC / PlayMode.ONLINE, two seats): host-authoritative. The host
+ * (seat 0, plays Light and so moves first) runs the only real engine and broadcasts a
+ * [CheckersNetMessage.StateSync] after every commit. The guest (seat 1, plays Dark) never mutates its
+ * board from a tap: it submits one whole move ([submitMove]) and applies only newer StateSyncs. See
+ * CheckersNetMessage.kt. A networked game is not resumable and has no Undo or Hint.
+ */
 class CheckersGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "checkers"
     override val displayName = "Checkers"
@@ -169,7 +211,9 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<CheckersState?>(null)
@@ -188,6 +232,24 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /**
+     * The roster seat (0 or 1) that plays Light (side 1) and therefore takes the first turn of every
+     * round: Light always moves first in this ruleset, so "who opens" is decided by which seat holds
+     * which colour. The other seat plays Dark. Default 1 keeps the historical mapping (seat i on
+     * side i); the Hub sets it from `LaunchOptions.firstMoverIndex` before [startMatch]. Persisted
+     * in the resume snapshot (a resumed game restores its own value). Values outside 0..1 clamp.
+     */
+    var openingSeatIndex: Int = 1
+        set(value) {
+            field = value.coerceIn(0, 1)
+        }
+
+    /** The board side ([CheckersPiece.owner]) that roster [seat] plays. */
+    fun sideOfSeat(seat: Int): Int = checkersSideOfSeat(seat, openingSeatIndex)
+
+    /** The roster seat that plays board [side]. */
+    fun seatOfSide(side: Int): Int = checkersSeatOfSide(side, openingSeatIndex)
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -198,6 +260,29 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** The hop the last [hint] suggested, shown on the board until the next move, undo or new round. */
     val hintMove = mutableStateOf<CheckersMove?>(null)
 
+    // --- Networked play bookkeeping ---------------------------------------------------------
+
+    /** True in PlayMode.LOCAL_AD_HOC / PlayMode.ONLINE (false before [init]). */
+    val isNetworked: Boolean
+        get() = ::context.isInitialized &&
+            (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
+
+    /** The device that owns the engine: seat 0 of a networked game. */
+    private val isNetworkHost: Boolean get() = isNetworked && context.localPlayerIndex == 0
+
+    /** A networked device that only renders the host's state and submits moves. */
+    val isNetworkGuest: Boolean get() = isNetworked && context.localPlayerIndex != 0
+
+    /** True once the other seat has left (transport onPlayerLeft); cleared if it comes back. */
+    val opponentLeft = mutableStateOf(false)
+
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+    private var listenersTransport: MultiplayerTransport? = null
+
+    /** The roster seat of the other player in a networked game. */
+    private fun remoteSeat(): Int = if (context.localPlayerIndex == 0) 1 else 0
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -205,6 +290,184 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         scoreP2.value = 0
         history.clear()
         hintMove.value = null
+        opponentLeft.value = false
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        if (isNetworked) {
+            // The host plays Light (side 1) and so moves first; the guest plays Dark.
+            openingSeatIndex = 0
+            if (listenersTransport !== context.transport) {
+                listenersTransport = context.transport
+                context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+                context.transport.onPlayerLeft { playerId -> handlePlayerLeft(playerId) }
+                // After a blip the transport recovered from: the guest asks again, exactly like at
+                // start-up; the host re-sends the current board (same version: a guest that already
+                // has it ignores it).
+                context.transport.onReconnected {
+                    if (isNetworkHost) publishState(remoteSeat()) else if (isNetworkGuest) sendNet(CheckersNetMessage.RequestState(), 0)
+                }
+            }
+            // Covers the start-up race where the host dealt before this listener was registered.
+            if (isNetworkGuest) sendNet(CheckersNetMessage.RequestState(), 0)
+        }
+    }
+
+    private fun sendNet(message: CheckersNetMessage, toSeat: Int) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val toId = context.players.getOrNull(toSeat)?.playerId ?: return
+        try {
+            context.transport.send(fromPlayerId = localId, toPlayerId = toId, payload = encodeCheckersNetMessage(message))
+        } catch (_: Exception) {
+            // A closed transport must not crash the match; the opponent's departure is reported separately.
+        }
+    }
+
+    /** Host only: sends the current position to [toSeat] at the CURRENT version (no increment). */
+    private fun publishState(toSeat: Int) {
+        if (!isNetworkHost) return
+        val s = state.value ?: return
+        val snap = captureSnapshot() ?: return
+        sendNet(
+            CheckersNetMessage.StateSync(stateVersion, snap, s.lastMove?.toWire(), s.lastTurnHops.map { it.toWire() }),
+            toSeat
+        )
+    }
+
+    /** Host only: a new authoritative position exists, so bump the version and tell the guest. */
+    private fun broadcastNewState() {
+        if (!isNetworkHost) return
+        stateVersion++
+        publishState(remoteSeat())
+    }
+
+    private fun handlePlayerLeft(playerId: String) {
+        if (!isNetworked) return
+        if (context.players.getOrNull(remoteSeat())?.playerId == playerId) opponentLeft.value = true
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        if (!isNetworked) return
+        val message = decodeCheckersNetMessage(payload) ?: return // malformed or foreign payload
+        val remoteId = context.players.getOrNull(remoteSeat())?.playerId
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other sender is a forgery.
+            is CheckersNetMessage.StateSync ->
+                if (isNetworkGuest && fromPlayerId == context.players.getOrNull(0)?.playerId) applyRemoteState(message)
+            is CheckersNetMessage.RequestState ->
+                if (isNetworkHost && fromPlayerId == remoteId) {
+                    opponentLeft.value = false
+                    publishState(remoteSeat())
+                }
+            is CheckersNetMessage.MoveRequest ->
+                if (isNetworkHost && fromPlayerId == remoteId) applyRemoteMove(message)
+            is CheckersNetMessage.PlayAgainRequest ->
+                if (isNetworkHost && fromPlayerId == remoteId && !matchOver.value && state.value?.gameOver == true) startMatch()
+        }
+    }
+
+    /** Guest: adopts the host's position if it is newer than the last one applied and well-formed. */
+    private fun applyRemoteState(message: CheckersNetMessage.StateSync) {
+        if (matchOver.value) return
+        // Delivery is reliable but not guaranteed in order: never rewind to an older board.
+        if (message.version <= lastAppliedRemoteVersion) return
+        val snap = decodeSnapshot(message.snapshot) ?: return
+        lastAppliedRemoteVersion = message.version
+        applySnapshot(snap)
+        opponentLeft.value = false
+        val last = message.lastMove?.toMoveOrNull() ?: return
+        val hops = message.hops.mapNotNull { it.toMoveOrNull() }
+            .takeIf { it.isNotEmpty() && it.size == message.hops.size } ?: listOf(last)
+        state.value = state.value?.copy(lastMove = last, lastTurnHops = hops)
+    }
+
+    /**
+     * Host: validates and applies one whole turn sent by the guest. Ignored unless it comes from the
+     * guest seat, it is that seat's turn, the base version is current, and the hops are exactly a
+     * complete legal turn for the engine (mandatory capture and multi-jump included).
+     */
+    private fun applyRemoteMove(request: CheckersNetMessage.MoveRequest) {
+        val s = state.value ?: return
+        if (matchOver.value || s.gameOver) return
+        if (s.currentPlayerIndex != remoteSeat()) return
+        if (request.baseVersion != stateVersion) return
+        if (request.from !in 0..63 || request.path.isEmpty() || request.path.size > MAX_CHAIN_HOPS) return
+        if (request.path.any { it !in 0..63 }) return
+        val plan = planChain(positionOf(s), request.from / 8, request.from % 8, request.path.map { it / 8 to it % 8 }) ?: return
+        if (!plan.complete) return
+        commit(plan.finalPosition, collapseHops(plan.hops), plan.hops)
+    }
+
+    /** The overall first-to-last move [commit] records for a compound turn; a single hop is itself. */
+    private fun collapseHops(hops: List<CheckersMove>): CheckersMove {
+        if (hops.size == 1) return hops[0]
+        val first = hops.first()
+        val last = hops.last()
+        return CheckersMove(first.fromRow, first.fromCol, last.toRow, last.toCol, isCapture = hops.any { it.isCapture })
+    }
+
+    /**
+     * Replays [landings] (one landing square per hop) for the piece on ([fromRow], [fromCol]) from
+     * [start]. Null if any hop is not a currently legal move (so mandatory capture is enforced) or if
+     * hops remain after the turn has passed.
+     */
+    private fun planChain(start: Position, fromRow: Int, fromCol: Int, landings: List<Pair<Int, Int>>): CheckersChainPlan? {
+        if (fromRow !in 0..7 || fromCol !in 0..7 || landings.size > MAX_CHAIN_HOPS) return null
+        var pos = start
+        var row = fromRow
+        var col = fromCol
+        val hops = mutableListOf<CheckersMove>()
+        for ((toRow, toCol) in landings) {
+            if (pos.sideToMove != start.sideToMove) return null
+            val move = generateMoves(pos).firstOrNull {
+                it.fromRow == row && it.fromCol == col && it.toRow == toRow && it.toCol == toCol
+            } ?: return null
+            hops += move
+            pos = applyMove(pos, move)
+            row = toRow
+            col = toCol
+        }
+        val complete = hops.isNotEmpty() && pos.sideToMove != start.sideToMove
+        val destinations = if (complete) {
+            emptySet()
+        } else {
+            generateMoves(pos).filter { it.fromRow == row && it.fromCol == col }.map { it.toRow to it.toCol }.toSet()
+        }
+        return CheckersChainPlan(hops, pos, row, col, complete, destinations)
+    }
+
+    /**
+     * Pure preview of a half-built move for the guest UI (it never changes engine state): replays
+     * [landings] for the piece on ([fromRow], [fromCol]) against the current position. Null if
+     * they are not a legal start of a turn right now.
+     */
+    fun previewChain(fromRow: Int, fromCol: Int, landings: List<Pair<Int, Int>>): CheckersChainPreview? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.gameOver) return null
+        val plan = planChain(positionOf(s), fromRow, fromCol, landings) ?: return null
+        return CheckersChainPreview(plan.row, plan.col, plan.hops, plan.complete, plan.destinations)
+    }
+
+    /**
+     * Guest only: sends one COMPLETE turn to the host (the engine is not changed; the host's next
+     * StateSync is what moves the piece). Returns false, sending nothing, when this is not the
+     * guest's turn or the hops are not a complete legal turn on the board as the guest sees it.
+     */
+    fun submitMove(fromRow: Int, fromCol: Int, landings: List<Pair<Int, Int>>): Boolean {
+        if (!isNetworkGuest) return false
+        val s = state.value ?: return false
+        if (matchOver.value || s.gameOver || opponentLeft.value) return false
+        if (s.currentPlayerIndex != context.localPlayerIndex) return false
+        val preview = previewChain(fromRow, fromCol, landings) ?: return false
+        if (!preview.complete) return false
+        sendNet(
+            CheckersNetMessage.MoveRequest(
+                baseVersion = lastAppliedRemoteVersion,
+                from = fromRow * 8 + fromCol,
+                path = landings.map { (r, c) -> r * 8 + c }
+            ),
+            0
+        )
+        return true
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -224,7 +487,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
                     winnerPlayerId = s.winnerPlayerId,
                     scoreP1 = scoreP1.value,
                     scoreP2 = scoreP2.value,
-                    difficulty = difficulty.name
+                    difficulty = difficulty.name,
+                    openingSeatIndex = openingSeatIndex
                 )
             )
         } catch (_: Exception) {
@@ -245,12 +509,15 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
                 code in 0..4 && (code == 0 || (i / 8 + i % 8) % 2 == 1)
             }
             val turnOk = snap.currentPlayerIndex in 0..1
+            val openingOk = snap.openingSeatIndex in 0..1
+            // The side the snapshot's to-move seat plays (only meaningful once turnOk && openingOk).
+            val sideToMove = if (turnOk && openingOk) checkersSideOfSeat(snap.currentPlayerIndex, snap.openingSeatIndex) else 0
             val forcedOk = if (snap.forcedRow == -1 && snap.forcedCol == -1) {
                 true
             } else {
                 !snap.gameOver && snap.forcedRow in 0..7 && snap.forcedCol in 0..7 &&
                     snap.cells[snap.forcedRow * 8 + snap.forcedCol].let { code ->
-                        code != 0 && (code - 1) / 2 == snap.currentPlayerIndex
+                        code != 0 && (code - 1) / 2 == sideToMove
                     } &&
                     // A pinned piece with no jump left would leave the round unplayable.
                     squareHasJump(snap.cells.map { checkersSnapshotPiece(it) }, snap.forcedRow, snap.forcedCol)
@@ -259,23 +526,25 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             val scoresOk = snap.scoreP1 >= 0 && snap.scoreP2 >= 0
             // The round-over flag and winner must agree with the position, otherwise a hand-edited
             // snapshot could leave a live board with nobody able to move (or a finished one playable).
-            val terminalOk = cellsOk && turnOk && forcedOk && run {
-                val winnerIdx = terminalWinner(
-                    Position(snap.cells.map { checkersSnapshotPiece(it) }, snap.currentPlayerIndex, snap.forcedRow, snap.forcedCol)
+            val terminalOk = cellsOk && turnOk && openingOk && forcedOk && run {
+                val winnerSide = terminalWinner(
+                    Position(snap.cells.map { checkersSnapshotPiece(it) }, sideToMove, snap.forcedRow, snap.forcedCol)
                 )
+                val winnerSeat = winnerSide?.let { checkersSeatOfSide(it, snap.openingSeatIndex) }
                 if (snap.gameOver) {
-                    winnerIdx != null && snap.winnerPlayerId == roster.getOrNull(winnerIdx)?.playerId
+                    winnerSeat != null && snap.winnerPlayerId == roster.getOrNull(winnerSeat)?.playerId
                 } else {
-                    winnerIdx == null && snap.winnerPlayerId == null
+                    winnerSeat == null && snap.winnerPlayerId == null
                 }
             }
-            if (rosterOk && cellsOk && turnOk && forcedOk && winnerOk && scoresOk && terminalOk) snap else null
+            if (rosterOk && cellsOk && turnOk && openingOk && forcedOk && winnerOk && scoresOk && terminalOk) snap else null
         } catch (_: Exception) {
             null
         }
     }
 
     private fun applySnapshot(snap: CheckersSnapshot) {
+        openingSeatIndex = snap.openingSeatIndex
         state.value = CheckersState(
             board = snap.cells.map { checkersSnapshotPiece(it) },
             currentPlayerIndex = snap.currentPlayerIndex,
@@ -303,6 +572,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (isNetworked) return false // a networked game's state lives with the host
         return try {
             val snap = decodeSnapshot(snapshot) ?: return false
             matchOver.value = false
@@ -317,7 +587,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
 
     // --- Undo -------------------------------------------------------------------------------
 
-    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value && !isNetworked
 
     /**
      * Takes back the last human turn: ONE step is a whole turn, so a multi-jump chain comes back as
@@ -327,7 +597,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      * and no clock, so there is nothing that must not be wound back.
      */
     override fun undo() {
-        if (matchOver.value) return
+        if (matchOver.value || isNetworked) return
         val previous = history.pop() ?: return
         val snap = decodeSnapshot(previous) ?: return
         applySnapshot(snap)
@@ -343,9 +613,10 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      */
     fun hint(): CheckersMove? {
         val s = state.value ?: return null
-        if (matchOver.value || s.gameOver) return null
+        if (matchOver.value || s.gameOver || isNetworked) return null
         if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
-        val move = pickGreedyMove(positionOf(s), s.currentPlayerIndex) ?: return null
+        val hintPos = positionOf(s)
+        val move = pickGreedyMove(hintPos, hintPos.sideToMove) ?: return null
         hintMove.value = move
         return move
     }
@@ -358,18 +629,20 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      * Standard 8x8 setup: 12 men each on the dark squares of the 3 rows
      * closest to each side, the middle 2 rows empty -- CheckersLogic.cpp's
      * `reset()`. Side 1 (the C++ "human" side) moves first, matching
-     * `reset()`'s `humanTurn = true` default exactly -- an arbitrary but
-     * verified starting condition, kept as-is rather than "fixed" to favor
-     * whichever seat a caller might expect to go first.
+     * `reset()`'s `humanTurn = true` default exactly. WHICH SEAT plays side 1 (and so opens)
+     * is [openingSeatIndex] (default 1, the historical seat-i-on-side-i mapping).
      */
     override fun startMatch() {
+        // Networked guest: the host deals; wait for its StateSync (or the reply to RequestState).
+        if (isNetworkGuest) return
         // A new round starts a new undo history: undo never reaches back into the previous round.
         history.clear()
         hintMove.value = null
         val cells = MutableList<CheckersPiece?>(64) { null }
         for (row in 0..2) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(0, PieceKind.MAN)
         for (row in 5..7) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(1, PieceKind.MAN)
-        state.value = CheckersState(board = cells, currentPlayerIndex = 1)
+        state.value = CheckersState(board = cells, currentPlayerIndex = seatOfSide(1))
+        broadcastNewState()
     }
 
     override fun pause() {}
@@ -383,6 +656,11 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** Mirrors MancalaGame.leaveSession() -- ends the whole session, reporting cumulative score. */
     fun leaveSession() {
         if (matchOver.value) return
+        // The opponent walked out mid-round: nobody lost, so this is an abort (nothing is recorded).
+        if (isNetworked && opponentLeft.value && state.value?.gameOver != true) {
+            abortMatch()
+            return
+        }
         val scores = mutableListOf<PlayerScore>()
         context.players.getOrNull(0)?.let {
             scores += PlayerScore(playerId = it.playerId, score = scoreP1.value, isWinner = scoreP1.value > scoreP2.value)
@@ -396,6 +674,12 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** Mirrors MancalaGame.playAgain() -- keeps the running score, deals a fresh board. */
     fun playAgain() {
         if (matchOver.value) return
+        if (isNetworked) {
+            // Either seat may ask; only the host deals, and only once the round is actually over.
+            if (state.value?.gameOver != true) return
+            if (isNetworkGuest) sendNet(CheckersNetMessage.PlayAgainRequest(), 0) else startMatch()
+            return
+        }
         startMatch()
     }
 
@@ -524,7 +808,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         return null
     }
 
-    private fun positionOf(s: CheckersState) = Position(s.board, s.currentPlayerIndex, s.forcedRow, s.forcedCol)
+    /** [CheckersState.currentPlayerIndex] is a roster SEAT; [Position.sideToMove] is a board side. */
+    private fun positionOf(s: CheckersState) = Position(s.board, sideOfSeat(s.currentPlayerIndex), s.forcedRow, s.forcedCol)
 
     /** [hops] defaults to just [move] itself -- correct as-is for [playMove]'s
      *  always-single-hop commits; [playBotTurn] passes its own full per-hop
@@ -532,10 +817,10 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      *  first->last summary, not one hop. See [CheckersState.lastTurnHops]. */
     private fun commit(pos: Position, move: CheckersMove, hops: List<CheckersMove> = listOf(move)) {
         hintMove.value = null
-        val winner = terminalWinner(pos)
+        val winner = terminalWinner(pos)?.let { seatOfSide(it) }
         state.value = CheckersState(
             board = pos.board,
-            currentPlayerIndex = pos.sideToMove,
+            currentPlayerIndex = seatOfSide(pos.sideToMove),
             forcedRow = pos.forcedRow,
             forcedCol = pos.forcedCol,
             lastMove = move,
@@ -547,6 +832,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             0 -> scoreP1.value += 1
             1 -> scoreP2.value += 1
         }
+        broadcastNewState()
     }
 
     // ---- Public queries (mirror CheckersLogic.h's isLegalMove/hasLegalMoveFrom/
@@ -578,13 +864,16 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         // matchOver: the whole session already ended (leaveSession/abortMatch). A tap that was
         // already in flight when the player left must not mutate the finished board.
         if (matchOver.value || s.gameOver || playerIndex != s.currentPlayerIndex) return
+        // Networked: only the host's own seat moves through here (the guest's turn arrives as a
+        // MoveRequest); a guest never changes its board from a tap.
+        if (isNetworked && (!isNetworkHost || playerIndex != context.localPlayerIndex)) return
         val pos = positionOf(s)
         val move = generateMoves(pos).firstOrNull {
             it.fromRow == fromRow && it.fromCol == fromCol && it.toRow == toRow && it.toCol == toCol
         } ?: return
         // Undo: remember the position before a human turn's FIRST hop only, so a whole multi-jump
         // chain (the hops after a forced continuation) is one undo step. Never for a bot seat.
-        if (!s.inForcedContinuation && context.players.getOrNull(playerIndex)?.isBot != true) {
+        if (!isNetworked && !s.inForcedContinuation && context.players.getOrNull(playerIndex)?.isBot != true) {
             captureSnapshot()?.let { history.push(it) }
         }
         commit(applyMove(pos, move), move)
@@ -606,8 +895,9 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         // matchOver: the screen's bot-turn effect sleeps before calling this, so the player can
         // leave (abort) during that delay -- the bot must not then move on the abandoned board.
         if (matchOver.value || s.gameOver) return
-        val botIndex = s.currentPlayerIndex
-        if (context.players.getOrNull(botIndex)?.isBot != true) return
+        val botSeat = s.currentPlayerIndex
+        if (context.players.getOrNull(botSeat)?.isBot != true) return
+        val botIndex = sideOfSeat(botSeat) // the board side the search plays for
 
         var pos = positionOf(s)
         var firstMove: CheckersMove? = null
@@ -733,6 +1023,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     }
 
     companion object {
+        /** More landings than a turn can ever have (12 pieces); bounds a hostile MoveRequest. */
+        private const val MAX_CHAIN_HOPS = 12
         private const val MAN_VALUE = 100
         private const val KING_VALUE = 175
         private const val ADVANCEMENT_WEIGHT = 4

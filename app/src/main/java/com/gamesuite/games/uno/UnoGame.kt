@@ -5,6 +5,7 @@ import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
@@ -32,7 +33,7 @@ import kotlinx.serialization.json.Json
  * the same logic as before this pass, just routed through commitState()
  * instead of a bare `state.value =` so a host's mutation also broadcasts.
  */
-class UnoGame : GameModule {
+class UnoGame : GameModule, ResumableGame {
     override val gameId = "uno"
     override val displayName = "UNO"
     override val category = GameCategory.CARD
@@ -115,6 +116,74 @@ class UnoGame : GameModule {
         }
     }
 
+    // ---- Resume (local modes only) ----
+
+    /** Null when there is nothing to save: no round dealt yet, the match is over, or a networked
+     *  mode (that state lives with the other players). Carries the draw pile ORDER so a resumed
+     *  game continues with exactly the cards that were coming. */
+    override fun snapshot(): String? {
+        val s = state.value ?: return null
+        if (s.matchOver) return null
+        if (context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT && context.activeMode != PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) return null
+        return try {
+            unoSnapshotJson.encodeToString(
+                UnoSnapshot.serializer(),
+                UnoSnapshot(
+                    roster = context.players.map { UnoSnapshotSeat(it.playerId, it.isBot) },
+                    state = s,
+                    drawPile = drawPile.toList(),
+                    rules = rules,
+                    difficulty = difficulty.name
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** All-or-nothing: every check runs before any field of this engine is touched. */
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            val snap = unoSnapshotJson.decodeFromString(UnoSnapshot.serializer(), snapshot)
+            if (!isUnoSnapshotValid(snap)) return false
+            rules = snap.rules
+            difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+            drawPile = snap.drawPile.toMutableList()
+            state.value = snap.state.copy(drawPileSize = drawPile.size)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun isUnoSnapshotValid(snap: UnoSnapshot): Boolean {
+        val roster = context.players
+        val st = snap.state
+        if (isNetworked) return false
+        if (st.matchOver) return false
+        if (snap.roster.size != roster.size || st.players.size != roster.size) return false
+        if (!roster.indices.all { snap.roster[it].playerId == roster[it].playerId && snap.roster[it].isBot == roster[it].isBot }) return false
+        if (!roster.indices.all { st.players[it].playerId == roster[it].playerId && st.players[it].isBot == roster[it].isBot }) return false
+        if (st.currentPlayerIndex !in st.players.indices) return false
+        if (st.direction != 1 && st.direction != -1) return false
+        if (st.discardPile.isEmpty()) return false
+        if (st.awaitingChallenge) {
+            val victim = st.challengeVictimIndex
+            val by = st.challengePlayedByIndex
+            if (victim == null || by == null || victim !in st.players.indices || by !in st.players.indices) return false
+        }
+        if (snap.rules.handSize !in UNO_MIN_HAND_SIZE..UNO_MAX_HAND_SIZE) return false
+        if (snap.rules.targetScore !in setOf(0, 200, 300, 500)) return false
+        // The saved teams must agree with the roster this launch built.
+        val teamsOk = roster.indices.all { st.players[it].teamId == (if (snap.rules.teamPlay) roster[it].teamId else -1) }
+        if (!teamsOk) return false
+        // Every card exactly once: unique ids, the whole 108-card deck accounted for.
+        val all = st.players.flatMap { it.hand } + st.discardPile + snap.drawPile
+        if (all.size != UnoDeck.standardDeck().size) return false
+        if (all.map { it.instanceId }.toSet().size != all.size) return false
+        return true
+    }
+
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
     }
@@ -137,13 +206,14 @@ class UnoGame : GameModule {
         val deck = UnoDeck.standardDeck().apply { shuffle() }
         drawPile = deck
 
+        val dealt = rules.dealtHandSize(context.players.size)
         val players = context.players.mapIndexed { index, info ->
             UnoPlayerState(
                 playerId = info.playerId,
                 displayName = info.displayName,
                 isBot = info.isBot,
                 teamId = if (rules.teamPlay) info.teamId else -1,
-                hand = drawFromPile(7)
+                hand = drawFromPile(dealt)
             )
         }
 
@@ -473,7 +543,30 @@ class UnoGame : GameModule {
             return
         }
 
-        val drawn = drawFromPile(1).firstOrNull()
+        // Draw-until-playable house rule: keep drawing until a playable card turns up (or nothing is
+        // left). Every card goes into the hand; the last one drawn is the one that decides the turn.
+        val alsoDrawn = mutableListOf<UnoCard>()
+        var drawn = drawFromPile(1).firstOrNull()
+        if (rules.drawUntilPlayable) {
+            while (drawn != null && !isLegalPlay(drawn, s)) {
+                alsoDrawn.add(drawn)
+                drawn = drawFromPile(1).firstOrNull()
+            }
+        }
+        if (drawn == null && alsoDrawn.isNotEmpty()) {
+            // Drew the whole pile without finding a play: keep what was drawn and pass the turn.
+            updatedPlayers[playerIndex] = player.copy(hand = player.hand + alsoDrawn, calledUno = false)
+            commitState(
+                s.copy(
+                    players = updatedPlayers,
+                    discardPile = currentDiscardPile(),
+                    currentPlayerIndex = advanceIndex(playerIndex, s.direction, s.players.size),
+                    drawPileSize = drawPile.size,
+                    lastAction = "${player.displayName} drew ${alsoDrawn.size} cards, none playable"
+                )
+            )
+            return
+        }
         if (drawn == null) {
             // Truly nothing left to draw -- the draw pile AND the discard pile (which would
             // otherwise reshuffle back in, see ensureDrawPile()) are both exhausted. An
@@ -494,7 +587,7 @@ class UnoGame : GameModule {
             )
             return
         }
-        val newHand = player.hand + drawn
+        val newHand = player.hand + alsoDrawn + drawn
         updatedPlayers[playerIndex] = player.copy(hand = newHand, calledUno = false)
 
         // Official UNO: playing a card you just drew is always the player's OPTION, never
@@ -515,7 +608,8 @@ class UnoGame : GameModule {
                 discardPile = currentDiscardPile(),
                 currentPlayerIndex = if (advanceTurn) advanceIndex(playerIndex, s.direction, s.players.size) else playerIndex,
                 drawPileSize = drawPile.size,
-                lastAction = "${player.displayName} drew a card"
+                lastAction = if (alsoDrawn.isEmpty()) "${player.displayName} drew a card"
+                    else "${player.displayName} drew ${alsoDrawn.size + 1} cards"
             ),
             awaitingDrawDecision = !advanceTurn
         )
@@ -852,8 +946,10 @@ class UnoGame : GameModule {
         return card.isWild || card.color == s.currentColor || card.rank == s.topCard.rank
     }
 
-    /** Official UNO plays to 500 cumulative points, not a single hand — see startNextRound(). */
-    private val matchTargetScore = 500
+    /** Cumulative score that ends the match (official UNO: 500); 0 means the first round decides it.
+     *  See startNextRound(). The screen reads this for its "First to N" text and the scoreboard. */
+    val targetScore: Int get() = rules.targetScore
+    private val matchTargetScore: Int get() = rules.targetScore
 
     private fun checkWinAfterPlay(playerIndex: Int, newHand: List<UnoCard>) {
         if (newHand.isNotEmpty()) return
@@ -884,7 +980,7 @@ class UnoGame : GameModule {
             newCumulative[winner.playerId] = (newCumulative[winner.playerId] ?: 0) + roundPoints
         }
 
-        val matchWon = newCumulative.values.any { it >= matchTargetScore }
+        val matchWon = matchTargetScore <= 0 || newCumulative.values.any { it >= matchTargetScore }
 
         commitState(
             s.copy(
@@ -902,7 +998,10 @@ class UnoGame : GameModule {
                 PlayerScore(
                     playerId = p.playerId,
                     score = newCumulative[p.playerId] ?: 0,
-                    isWinner = (newCumulative[p.playerId] ?: 0) >= matchTargetScore
+                    isWinner = if (matchTargetScore <= 0) {
+                        // One-round match: the round's winner (or the winning team) takes it.
+                        if (rules.teamPlay) p.teamId == winner.teamId else p.playerId == winner.playerId
+                    } else (newCumulative[p.playerId] ?: 0) >= matchTargetScore
                 )
             }
             endMatch(GameResult(scores = scores))
@@ -1003,3 +1102,18 @@ class UnoGame : GameModule {
         }
     }
 }
+
+private val unoSnapshotJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+@Serializable
+private data class UnoSnapshotSeat(val playerId: String, val isBot: Boolean)
+
+/** Everything needed to put a local UNO match back exactly as it was. */
+@Serializable
+private data class UnoSnapshot(
+    val roster: List<UnoSnapshotSeat>,
+    val state: UnoState,
+    val drawPile: List<UnoCard>,
+    val rules: UnoRules,
+    val difficulty: String
+)

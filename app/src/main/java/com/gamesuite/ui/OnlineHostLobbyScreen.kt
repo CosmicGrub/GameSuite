@@ -18,7 +18,10 @@ import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.core.PlayerNameStore
+import com.gamesuite.transport.LOBBY_FULL_MESSAGE
+import com.gamesuite.transport.LobbySeatLimits
 import com.gamesuite.transport.OnlineLobbyMessage
+import com.gamesuite.transport.seatOnlineGuests
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -40,7 +43,9 @@ fun OnlineHostLobbyScreen(
     gameRoute: String,
     gameDisplayName: String,
     onGameStarted: (route: String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    minPlayers: Int = 2,
+    maxPlayers: Int = 10
 ) {
     val transport = sessionManager.pendingOnlineTransport ?: run {
         // Defensive: got here without a transport (e.g. process death mid-lobby) — bounce back.
@@ -48,6 +53,7 @@ fun OnlineHostLobbyScreen(
         return
     }
 
+    val limits = remember(minPlayers, maxPlayers) { LobbySeatLimits.of(minPlayers, maxPlayers) }
     val context = LocalContext.current
     val nameStore = remember(context) { PlayerNameStore(context) }
     val hostPlayerId = remember { "p-" + UUID.randomUUID().toString() }
@@ -63,8 +69,23 @@ fun OnlineHostLobbyScreen(
             // captured this transport inside GameContext, its lifecycle belongs to the
             // active match, not this screen.
             if (sessionManager.activeContext.value?.transport !== transport) {
+                // Leaving the lobby: stop listening, close the room's socket, forget the dead transport.
+                transport.onRawMessageReceived { _, _ -> }
                 transport.disconnect()
+                if (sessionManager.pendingOnlineTransport === transport) sessionManager.pendingOnlineTransport = null
             }
+        }
+    }
+
+    // The relay seats up to 8 per room whatever the game is, so THIS host enforces the game's seat count: the
+    // first (maxPlayers - 1) guests in join order are seated, later ones are told the room is full and leave.
+    val seating = seatOnlineGuests(connectedPlayers, limits)
+    val seatedGuests = seating.seated
+    val turnedAway = remember { mutableSetOf<String>() }
+    LaunchedEffect(seating.overflow) {
+        seating.overflow.filter { turnedAway.add(it.playerId) }.forEach { extra ->
+            val rejected: OnlineLobbyMessage = OnlineLobbyMessage.Rejected(LOBBY_FULL_MESSAGE)
+            transport.sendRaw(extra.playerId, Json.encodeToString(rejected).toByteArray(Charsets.UTF_8))
         }
     }
 
@@ -98,25 +119,38 @@ fun OnlineHostLobbyScreen(
                 Text(roomCode ?: "", style = MaterialTheme.typography.displayMedium)
                 Spacer(Modifier.height(8.dp))
                 Text("Share this with other players", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    when {
+                        limits.isFull(seatedGuests.size) -> "Room is full (${limits.maxPlayers} players)."
+                        else -> limits.waitingMessage(seatedGuests.size)?.let { "$it..." }
+                            ?: "Ready to start. More players can still join."
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Spacer(Modifier.height(16.dp))
 
-                if (connectedPlayers.isEmpty()) {
+                if (seatedGuests.isEmpty()) {
                     Text("No one has joined yet.")
                 } else {
                     Text("Joined:")
-                    connectedPlayers.forEach { player -> Text("• ${player.displayName}") }
+                    seatedGuests.forEach { player -> Text("• ${player.displayName}") }
                 }
 
                 Spacer(Modifier.height(24.dp))
 
                 Button(
-                    enabled = connectedPlayers.isNotEmpty(),
+                    enabled = limits.canStart(seatedGuests.size),
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                     onClick = {
+                        // Host = seat 0 (localPlayerIndex 0); seated guests follow in join order. Anyone beyond
+                        // the game's seat count was already turned away and is not in the announced roster.
+                        val seated = seatOnlineGuests(connectedPlayers, limits).seated
+                        if (!limits.canStart(seated.size)) return@Button
                         val players = listOf(PlayerInfo(playerId = hostPlayerId, displayName = nameStore.lobbyName("Host"))) +
-                            connectedPlayers.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) }
+                            seated.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) }
 
-                        val startMessage: OnlineLobbyMessage = OnlineLobbyMessage.GameStart(gameRoute, players)
+                        val startMessage: OnlineLobbyMessage = OnlineLobbyMessage.GameStart(gameRoute, players, gameDisplayName)
                         transport.sendRaw(null, Json.encodeToString(startMessage).toByteArray(Charsets.UTF_8))
 
                         sessionManager.launchGame(
@@ -128,7 +162,7 @@ fun OnlineHostLobbyScreen(
                         onGameStarted(gameRoute)
                     }
                 ) {
-                    Text("Start Game (${1 + connectedPlayers.size} players)")
+                    Text("Start Game (${1 + seatedGuests.size} players)")
                 }
             }
         }

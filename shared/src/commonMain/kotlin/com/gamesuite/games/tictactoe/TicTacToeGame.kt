@@ -134,6 +134,15 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Alternates who opens each round, for fairness — reset to 1 at the start of a fresh session. */
     private var startingPlayer = 1
 
+    /**
+     * Roster seat (0 = Player 1 / X, 1 = Player 2 / O) that opens the FIRST round. Pre-set by the UI
+     * from the Hub's first-mover choice after [init] and before [startMatch], which consumes it.
+     * Later rounds alternate as before. Symbols stay tied to seats (seat 0 is always X), so a
+     * CPU-first game simply has the CPU (O) move first. A resumed game ignores it. Out-of-range
+     * values are treated as seat 0.
+     */
+    var firstOpenerIndex: Int = 0
+
     /** True for real networked play (LAN or online) -- see TicTacToeNetMessage.kt's own
      *  KDoc for the host-authoritative design this gates. False (the default) for
      *  SINGLE_DEVICE_PASS_AND_PLAY/SINGLE_PLAYER_VS_BOT, where every mutation below applies
@@ -154,6 +163,11 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Guest only: the last [TicTacToeNetMessage.StateSync.version] actually applied, so a
      *  stray out-of-order delivery can never move state backward. */
     private var lastAppliedStateVersion = -1
+
+    /** Networked play only: true once the other seat's player has left (the transport's
+     *  onPlayerLeft). Input and Play Again are inert from then on, and [leaveSession] ends the
+     *  match as an abort so the remaining player is never charged a loss. */
+    val opponentLeft = mutableStateOf(false)
 
     /** Snapshots taken just BEFORE each human move, newest last; popping one is Undo. Per round. */
     private val history = SnapshotHistory()
@@ -182,6 +196,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         matchOver.value = false
         stateVersion = 0
         lastAppliedStateVersion = -1
+        opponentLeft.value = false
 
         if (isNetworked) {
             context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
@@ -189,6 +204,18 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             // documents: this guest's listener above might register after the host has
             // already broadcast (or will broadcast before this guest is ready to receive).
             if (!isHost) sendToHost(TicTacToeNetMessage.RequestState)
+            // After a blip the transport recovered from: a guest asks again, the host
+            // proactively re-broadcasts (a guest whose own link never dropped would otherwise
+            // never think to ask).
+            context.transport.onReconnected {
+                if (isHost) {
+                    broadcastState()
+                } else {
+                    sendToHost(TicTacToeNetMessage.RequestState)
+                }
+            }
+            context.transport.onPlayerLeft { playerId -> handlePlayerLeft(playerId) }
+            context.transport.onPlayerJoined { playerId -> handlePlayerJoined(playerId) }
         }
     }
 
@@ -318,6 +345,13 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         started = true
         history.clear()
         hintMove.value = null
+        // The named seat opens round 1 (alternation in applyPlayAgain continues from it).
+        if (roundNumber.value == 1 && !roundOver.value && board.value.all { it == 0 }) {
+            // Networked: the host (X) always opens round 1; there is no first-mover choice.
+            startingPlayer = if (firstOpenerIndex == 1 && !isNetworked) 2 else 1
+            currentPlayer.value = startingPlayer
+            selectedSymbol.value = 1
+        }
         // Nothing extra needed for local pass-and-play; the bot's moves are
         // driven from the UI via playBotTurn() when it becomes its turn —
         // see TicTacToeScreen's LaunchedEffect, mirroring MancalaScreen.
@@ -360,6 +394,11 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      */
     fun leaveSession() {
         if (matchOver.value) return
+        // The other player vanished: nobody can be charged a win or a loss for that.
+        if (isNetworked && opponentLeft.value) {
+            endMatch(GameResult(wasAborted = true))
+            return
+        }
         val scores = mutableListOf<PlayerScore>()
         context.players.getOrNull(0)?.let {
             scores += PlayerScore(playerId = it.playerId, score = scoreP1.value, isWinner = scoreP1.value > scoreP2.value)
@@ -377,9 +416,13 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         // After the match has ended there is no next round; without this a networked guest
         // would still forward a PlayAgain intent to the host.
         if (matchOver.value) return
-        if (isNetworked && !isHost) {
-            sendToHost(TicTacToeIntentPayload.PlayAgain)
-            return
+        if (isNetworked) {
+            // Nothing to re-deal while the round is running, or with nobody left to play.
+            if (opponentLeft.value || !roundOver.value) return
+            if (!isHost) {
+                sendToHost(TicTacToeIntentPayload.PlayAgain)
+                return
+            }
         }
         applyPlayAgain()
     }
@@ -404,7 +447,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Host only: bundles the current visible state into a [TicTacToeNetMessage.StateSync]
      *  and broadcasts it -- called after every host-side mutation ([applyCellClicked],
      *  [applyPlayAgain]) and once from [startMatch]. */
-    private fun broadcastState() {
+    private fun broadcastState(toPlayerId: String? = null) {
         stateVersion++
         val snapshot = TicTacToeNetState(
             board = board.value.toList(),
@@ -418,7 +461,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             matchOver = matchOver.value,
             selectedSymbol = selectedSymbol.value
         )
-        sendMessage(TicTacToeNetMessage.StateSync(stateVersion, snapshot), toPlayerId = null)
+        sendMessage(TicTacToeNetMessage.StateSync(stateVersion, snapshot), toPlayerId = toPlayerId)
     }
 
     /** Guest only: replaces every visible field with the host's own values -- the guest
@@ -468,14 +511,20 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
                 // StateSync would only ever arrive here due to a bug or a malicious peer,
                 // never as part of this protocol's own intended flow.
                 if (isHost) return
+                // Game state is accepted only from the host seat (players[0]).
+                if (fromPlayerId != context.players.getOrNull(0)?.playerId) return
+                if (matchOver.value) return
                 if (message.version <= lastAppliedStateVersion) return
+                if (!isPlausibleNetState(message.state)) return
                 lastAppliedStateVersion = message.version
                 applyNetState(message.state)
             }
             is TicTacToeNetMessage.Intent -> {
                 if (!isHost) return // only the host ever applies a peer's intent
+                if (!started || matchOver.value || opponentLeft.value) return
                 val senderIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
                 if (senderIndex == -1) return // unknown sender -- ignore rather than trust a bare claimed identity
+                if (senderIndex == context.localPlayerIndex) return // the host's own seat never arrives over the wire
                 when (val intent = message.intent) {
                     is TicTacToeIntentPayload.CellClicked -> {
                         // Not this sender's actual turn -- ignore rather than trust the
@@ -485,13 +534,44 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
                         if (senderIndex != currentPlayer.value - 1) return
                         applyCellClicked(intent.index)
                     }
-                    TicTacToeIntentPayload.PlayAgain -> applyPlayAgain()
+                    TicTacToeIntentPayload.PlayAgain -> {
+                        // Either player may ask, but only once the round is over; a duplicate
+                        // (both tapped) arrives after the re-deal and is dropped here.
+                        if (!roundOver.value) return
+                        applyPlayAgain()
+                    }
                 }
             }
             TicTacToeNetMessage.RequestState -> {
-                if (isHost) broadcastState()
+                if (!isHost) return
+                val askerIndex = context.players.indexOfFirst { it.playerId == fromPlayerId }
+                if (askerIndex == -1 || askerIndex == context.localPlayerIndex) return
+                // Straight back to the asker, not a broadcast: no need to bump every device.
+                broadcastState(toPlayerId = fromPlayerId)
             }
         }
+    }
+
+    /** Sanity check on an inbound state so a corrupt message can't wedge the guest's board. */
+    private fun isPlausibleNetState(s: TicTacToeNetState): Boolean {
+        val line = s.winningLine
+        return s.board.size == 9 && s.board.all { it in 0..2 } &&
+            s.currentPlayer in 1..2 && s.selectedSymbol in 1..2 &&
+            s.scoreP1 >= 0 && s.scoreP2 >= 0 && s.draws >= 0 && s.roundNumber >= 1 &&
+            (line == null || (s.roundOver && line.size == 3 && line.all { it in 0..8 }))
+    }
+
+    private fun handlePlayerLeft(playerId: String) {
+        val index = context.players.indexOfFirst { it.playerId == playerId }
+        if (index == -1 || index == context.localPlayerIndex || matchOver.value) return
+        opponentLeft.value = true
+    }
+
+    private fun handlePlayerJoined(playerId: String) {
+        val index = context.players.indexOfFirst { it.playerId == playerId }
+        if (index == -1 || index == context.localPlayerIndex || matchOver.value) return
+        opponentLeft.value = false
+        if (isHost) broadcastState()
     }
 
     /**
@@ -513,9 +593,15 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         // Checked before the networked-guest forward below so a finished match never sends an
         // intent to the host (applyCellClicked has its own guard for the local/host path).
         if (matchOver.value) return
-        if (isNetworked && !isHost) {
-            sendToHost(TicTacToeIntentPayload.CellClicked(index))
-            return
+        if (isNetworked) {
+            if (opponentLeft.value) return
+            if (!isHost) {
+                sendToHost(TicTacToeIntentPayload.CellClicked(index))
+                return
+            }
+            // The host owns seat 0 (X) only: a tap on the guest's turn must not place the
+            // guest's mark. (Guest moves reach applyCellClicked via handleNetworkMessage.)
+            if (currentPlayer.value != 1) return
         }
         applyCellClicked(index)
     }
@@ -538,7 +624,10 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         // Standard: the cell records the mover's own fixed symbol. Wild: the
         // mover chose a symbol independently of who they are — see the
         // class KDoc's [wild] paragraph — so it comes from [selectedSymbol].
-        newBoard[index] = if (wild) selectedSymbol.value else currentPlayer.value
+        // Networked play is always the classic rules (seat 0 = X, seat 1 = O), whatever the
+        // variant flags say: the guest never learns them.
+        val classicOnly = isNetworked
+        newBoard[index] = if (wild && !classicOnly) selectedSymbol.value else currentPlayer.value
         board.value = newBoard
 
         val line = findWinningLine(newBoard)
@@ -550,7 +639,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             // cellClicked() returns before it ever flips to the other player.
             // Wild doesn't change any of this: it only changes which symbol
             // ends up in the cell, never who gets credit/blame for placing it.
-            val loserIsMover = misere
+            val loserIsMover = misere && !classicOnly
             val scorerIsP1 = if (loserIsMover) currentPlayer.value != 1 else currentPlayer.value == 1
             if (scorerIsP1) scoreP1.value += 1 else scoreP2.value += 1
             roundOver.value = true

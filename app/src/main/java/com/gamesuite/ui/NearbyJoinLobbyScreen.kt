@@ -15,10 +15,13 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.gamesuite.core.GameHubSpecs
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.NearbyLobbyMessage
+import com.gamesuite.transport.lobbyGameProblem
+import com.gamesuite.transport.lobbyRejectionText
 import com.gamesuite.transport.resolveForGuest
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -35,7 +38,10 @@ import java.util.UUID
 fun NearbyJoinLobbyScreen(
     sessionManager: GameSessionManager,
     onGameStarted: (route: String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** The game this guest opened the lobby for (its Hub). A host announcing a different or unplayable game is refused. */
+    gameId: String? = null,
+    gameDisplayName: String? = null
 ) {
     val context = LocalContext.current
     val transport = sessionManager.pendingNearbyTransport ?: run {
@@ -47,7 +53,16 @@ fun NearbyJoinLobbyScreen(
     val discoveredHosts by transport.discoveredHosts.collectAsState()
     var connectedHostEndpointId by remember { mutableStateOf<String?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    // Set (from the Nearby callback thread; a Compose state write is thread-safe) when the host turned us away
+    // (room full / already started) or announced a game we must not start into. Shown instead of the lobby.
+    var refusal by remember { mutableStateOf<String?>(null) }
     val guestName = remember(context) { PlayerNameStore(context).lobbyName("Guest (${Build.MODEL})") }
+    val title = gameDisplayName ?: gameId?.let { GameHubSpecs.byId(it)?.title }
+
+    // Disconnect on the main thread once refused, so the host stops counting us and nothing stays connected.
+    LaunchedEffect(refusal) {
+        if (refusal != null) transport.disconnect()
+    }
 
     DisposableEffect(transport) {
         transport.onConnected { endpointId, _ ->
@@ -61,11 +76,24 @@ fun NearbyJoinLobbyScreen(
             } catch (e: Exception) {
                 null
             }
+            if (message is NearbyLobbyMessage.Rejected) {
+                // Only the host we connected to can turn us away.
+                if (connectedHostEndpointId != null && endpointId == connectedHostEndpointId) {
+                    refusal = lobbyRejectionText(message.reason)
+                }
+            }
             if (message is NearbyLobbyMessage.GameStart) {
                 // Only the host we connected to may start us, and only with a roster that validly seats us;
                 // anything else is ignored rather than crashed on (resolveForGuest holds every rule).
                 val start = message.resolveForGuest(endpointId, connectedHostEndpointId, clientPlayerId)
                     ?: return@onRawMessageReceived
+                // A host playing a game we did not open, or one this build cannot play over a network: say so
+                // and leave instead of starting into it.
+                val problem = lobbyGameProblem(message.gameRoute, message.gameDisplayName, gameId)
+                if (problem != null) {
+                    refusal = problem
+                    return@onRawMessageReceived
+                }
                 transport.setPlayerIdMapping(start.hostEndpointToPlayerId)
                 transport.stopDiscovery()
                 sessionManager.launchGame(
@@ -80,7 +108,12 @@ fun NearbyJoinLobbyScreen(
         transport.startDiscovery(guestName)
         onDispose {
             if (sessionManager.activeContext.value?.transport !== transport) {
+                // Leaving the lobby: stop listening, then disconnect (stops discovery, drops the host
+                // endpoint) and forget the now-dead transport.
+                transport.onConnected { _, _ -> }
+                transport.onRawMessageReceived { _, _ -> }
                 transport.disconnect()
+                if (sessionManager.pendingNearbyTransport === transport) sessionManager.pendingNearbyTransport = null
             }
         }
     }
@@ -98,13 +131,24 @@ fun NearbyJoinLobbyScreen(
         verticalArrangement = Arrangement.Center
     ) {
         when {
-            connectedHostEndpointId != null -> {
-                Text("Connected!", style = MaterialTheme.typography.headlineSmall)
+            refusal != null -> {
+                Text("Can't join", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(8.dp))
-                Text("Waiting for the host to start the game...")
+                Text(refusal ?: "", color = MaterialTheme.colorScheme.error)
+            }
+            connectedHostEndpointId != null -> {
+                Text(
+                    if (title != null) "Joining $title" else "Connected!",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Connected. Waiting for the host to start the game...")
             }
             else -> {
-                Text("Nearby games", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    if (title != null) "Nearby $title games" else "Nearby games",
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 Spacer(Modifier.height(8.dp))
                 if (discoveredHosts.isEmpty()) {
                     Text("Searching...")
@@ -114,15 +158,18 @@ fun NearbyJoinLobbyScreen(
                     // Cancel below, rather than treating each as an unrelated stop.
                     Column(modifier = Modifier.focusGroup()) {
                         discoveredHosts.forEach { host ->
+                            // A host advertises "<Game title> (<device model>)": one hosting a different game is
+                            // listed but cannot be tapped, so a guest never joins a room it can't play.
+                            val sameGame = title == null || host.displayName.startsWith("$title (")
                             Button(
-                                enabled = !connecting,
+                                enabled = !connecting && sameGame,
                                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                                 onClick = {
                                     connecting = true
                                     transport.requestConnectionTo(host.endpointId)
                                 }
                             ) {
-                                Text(host.displayName)
+                                Text(if (sameGame) host.displayName else "${host.displayName} - different game")
                             }
                             Spacer(Modifier.height(8.dp))
                         }

@@ -52,12 +52,14 @@ import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.connectfour.ConnectFourGame
 import com.gamesuite.games.connectfour.ConnectFourState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalColorblindMode
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -147,6 +149,7 @@ fun ConnectFourScreen(
     val palette = connectFourPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
     val reducedMotion = LocalReducedMotion.current
     val colorblind = LocalColorblindMode.current
+    val gameSpeed = LocalGameSpeed.current
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
     val hintColumn by game.hintColumn
@@ -168,8 +171,9 @@ fun ConnectFourScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.init(ctx)
+        game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
@@ -187,27 +191,73 @@ fun ConnectFourScreen(
         val s = state ?: return@LaunchedEffect
         if (s.boardOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(800)
+            val thinkMs = gameSpeed.scale(800L)
+            if (thinkMs > 60L) delay(thinkMs)
             game.playBotTurn()
             sounds.playTap()
         }
     }
 
-    val s = state ?: return
+    // Networked (Nearby / Online): two seats, host = 0 (red), guest = 1 (yellow). The guest renders
+    // only the host's synced state; its taps become requests (see ConnectFourGame.dropDisc).
+    val networked = context?.let { it.activeMode == PlayMode.LOCAL_AD_HOC || it.activeMode == PlayMode.ONLINE } == true
+    val localIndex = context?.localPlayerIndex ?: 0
+    val opponentLeft by game.opponentLeft
+
+    val s = state ?: run {
+        if (networked) {
+            // Guest before the host's first StateSync (or a host that has not dealt yet). Still
+            // wrapped in the chrome so back works.
+            GameChrome(
+                helpTitle = "How to Play Connect Four",
+                helpText = "Take turns dropping discs. Connect four in a row to win.",
+                matchInProgress = false,
+                onLeave = { game.abortMatch() },
+                onAbort = { game.abortMatch() },
+                buttonFill = palette.background,
+                buttonContent = palette.textPrimary
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(palette.background).padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (opponentLeft) "Opponent disconnected" else "Waiting for the host…",
+                        color = palette.textPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
+            }
+        }
+        return
+    }
 
     val current = s.players[s.currentPlayerIndex]
-    val isMyTurn = !current.isBot
+    val isMyTurn = if (networked) {
+        s.currentPlayerIndex == localIndex && !s.boardOver && !opponentLeft
+    } else {
+        !current.isBot
+    }
     val vsBot = s.players.any { it.isBot }
     val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
     // Pass-and-play has two humans, so any win there is a human win; against the CPU only the
-    // human's is. A tie has no winner and never celebrates.
-    val humanWon = s.boardOver && winnerIndex >= 0 && !s.players[winnerIndex].isBot
+    // human's is; over the network only the local player's own win celebrates. A tie has no winner
+    // and never celebrates.
+    val humanWon = s.boardOver && winnerIndex >= 0 && !s.players[winnerIndex].isBot &&
+        (!networked || winnerIndex == localIndex)
+    val opponentName = s.players.getOrNull(1 - localIndex)?.displayName ?: "Opponent"
+    val myColourName = if (localIndex == 0) "Red" else "Yellow"
     val statusText = when {
-        s.boardOver -> resultTitle(s)
+        networked && opponentLeft -> "Opponent disconnected"
+        s.boardOver -> resultTitle(s, viewerIndex = if (networked) localIndex else null)
+        networked && isMyTurn -> "Your turn — tap a column"
+        networked -> "$opponentName's turn"
         current.isBot -> "${current.displayName} is thinking…"
         vsBot -> "Your turn — tap a column"
         else -> "${current.displayName}'s turn — tap a column"
     }
+    val infoLine = if (networked) "Playing against $opponentName · You are $myColourName" else null
 
     // Which single cell the latest drop filled, for the fall animation. Derived from the board
     // itself (previous vs current cells) so the engine's state shape stays untouched.
@@ -289,9 +339,10 @@ fun ConnectFourScreen(
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
         leaveKeepsProgress = finishedBoards == 0,
-        onUndo = { game.undo() },
+        // No Undo or Hint against a human opponent over the network.
+        onUndo = if (networked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = { game.hint() },
+        onHint = if (networked) null else ({ game.hint() }),
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -320,7 +371,9 @@ fun ConnectFourScreen(
                     statusText = statusText,
                     isMyTurn = isMyTurn,
                     palette = palette,
-                    colorblind = colorblind
+                    colorblind = colorblind,
+                    infoLine = infoLine,
+                    localIndex = if (networked) localIndex else null
                 )
             }
             val controlsRow: @Composable () -> Unit = {
@@ -350,7 +403,12 @@ fun ConnectFourScreen(
                         // Re-read the live state: the enabled flag a column was composed with can
                         // be a frame stale, and dropDisc itself does not know whose turn it is.
                         val live = game.state.value
-                        if (live != null && !live.boardOver && !live.players[live.currentPlayerIndex].isBot) {
+                        val mayDrop = if (networked) {
+                            live != null && !live.boardOver && !game.opponentLeft.value && live.currentPlayerIndex == localIndex
+                        } else {
+                            live != null && !live.boardOver && !live.players[live.currentPlayerIndex].isBot
+                        }
+                        if (live != null && mayDrop) {
                             game.dropDisc(col)
                             sounds.playTap()
                             haptics(HapticSignal.NORMAL_ACTION)
@@ -367,8 +425,23 @@ fun ConnectFourScreen(
                     palette = palette,
                     onPlayAgain = { game.playAgain() },
                     onBackToMenu = { game.leaveSession() },
+                    viewerIndex = if (networked) localIndex else null,
+                    canPlayAgain = !(networked && opponentLeft),
                     modifier = panelModifier
                 )
+            }
+
+            // Networked: no Undo / Hint; once the opponent has left there is only a way out.
+            val bottomControls: @Composable () -> Unit = {
+                if (!networked) {
+                    controlsRow()
+                } else if (opponentLeft) {
+                    OutlinedButton(
+                        onClick = { game.leaveSession() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) { Text("Leave game") }
+                }
             }
 
             if (sideBySide) {
@@ -385,7 +458,7 @@ fun ConnectFourScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         statusRow()
-                        if (!s.boardOver) controlsRow()
+                        if (!s.boardOver) bottomControls()
                         if (s.boardOver) resultPanel(Modifier.fillMaxWidth())
                     }
                 }
@@ -399,7 +472,7 @@ fun ConnectFourScreen(
                     boardSlot(Modifier.weight(1f).fillMaxWidth())
                     if (!s.boardOver) {
                         Spacer(Modifier.height(8.dp))
-                        controlsRow()
+                        bottomControls()
                     }
                     if (s.boardOver) {
                         Spacer(Modifier.height(12.dp))
@@ -493,8 +566,14 @@ private fun connectFourPalette(isDark: Boolean): ConnectFourPalette = if (!isDar
 
 /** "You win!" / "CPU wins!" / "It's a tie!". The engine's own lastAction ("You connects four...")
  *  is not grammatical for the local player, so the screen words the result itself. */
-private fun resultTitle(s: ConnectFourState): String {
-    val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId } ?: return "It's a tie!"
+private fun resultTitle(s: ConnectFourState, viewerIndex: Int? = null): String {
+    val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+    if (winnerIndex < 0) return "It's a tie!"
+    val winner = s.players[winnerIndex]
+    // Over the network the viewer is known: name the winner and say whether the viewer won.
+    if (viewerIndex != null) {
+        return if (winnerIndex == viewerIndex) "You win!" else "${winner.displayName} wins. You lost."
+    }
     return if (winner.displayName.equals("You", ignoreCase = true)) "You win!" else "${winner.displayName} wins!"
 }
 
@@ -526,7 +605,9 @@ private fun StatusRow(
     statusText: String,
     isMyTurn: Boolean,
     palette: ConnectFourPalette,
-    colorblind: Boolean
+    colorblind: Boolean,
+    infoLine: String? = null,
+    localIndex: Int? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -542,7 +623,7 @@ private fun StatusRow(
                 name = s.players[0].displayName,
                 wins = sessionWins[s.players[0].playerId] ?: 0,
                 isTurn = s.currentPlayerIndex == 0 && !s.boardOver,
-                isMyTurn = isMyTurn,
+                isMyTurn = if (localIndex == null) isMyTurn else localIndex == 0,
                 discColor = palette.player0Disc,
                 palette = palette,
                 colorblind = colorblind,
@@ -553,7 +634,7 @@ private fun StatusRow(
                 name = s.players[1].displayName,
                 wins = sessionWins[s.players[1].playerId] ?: 0,
                 isTurn = s.currentPlayerIndex == 1 && !s.boardOver,
-                isMyTurn = isMyTurn,
+                isMyTurn = if (localIndex == null) isMyTurn else localIndex == 1,
                 discColor = palette.player1Disc,
                 palette = palette,
                 colorblind = colorblind,
@@ -571,6 +652,14 @@ private fun StatusRow(
             textAlign = TextAlign.Center,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )
+        if (infoLine != null) {
+            Text(
+                infoLine,
+                color = palette.textPrimary.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
         if (!s.boardOver) {
             Text(
                 s.lastAction,
@@ -599,7 +688,7 @@ private fun PlayerChip(
         append(name)
         append(", $colour discs, ")
         append(if (wins == 1) "1 win" else "$wins wins")
-        if (isTurn) append(if (isMyTurn) ", to move" else ", thinking")
+        if (isTurn) append(if (isMyTurn) ", to move" else ", their turn")
     }
     Row(
         modifier = modifier
@@ -885,6 +974,8 @@ private fun ResultPanel(
     palette: ConnectFourPalette,
     onPlayAgain: () -> Unit,
     onBackToMenu: () -> Unit,
+    viewerIndex: Int? = null,
+    canPlayAgain: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -900,7 +991,7 @@ private fun ResultPanel(
         ) {
             // The same words the status line already announces, so no live region here.
             Text(
-                resultTitle(s),
+                resultTitle(s, viewerIndex),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -920,6 +1011,7 @@ private fun ResultPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onPlayAgain,
+                    enabled = canPlayAgain,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.boardFrame, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)

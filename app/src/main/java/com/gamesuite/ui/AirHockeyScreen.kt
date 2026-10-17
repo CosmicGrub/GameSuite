@@ -132,6 +132,18 @@ fun AirHockeyScreen(
     // matching game-logic side of this same mode check.
     val isPassAndPlay = context?.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
 
+    // Hub launch choice (if any) over the Settings default; read once per launch context.
+    val effectiveDifficulty = remember(context, settings.defaultCpuDifficulty) {
+        sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+    }
+    // Seat names from the launch roster (bottom = seat 0, top = seat 1).
+    val bottomName = context?.players?.getOrNull(0)?.displayName?.takeIf { it.isNotBlank() }
+    val topName = context?.players?.getOrNull(1)?.displayName?.takeIf { it.isNotBlank() }
+    val p1Name = bottomName ?: "Player 1"
+    val p2Name = topName ?: "Player 2"
+    val youName = bottomName ?: "You"
+    val cpuName = topName ?: "CPU"
+
     val prefsStore = remember { AirHockeyPrefsStore(androidContext) }
     val motionTier by prefsStore.motionTier.collectAsState(initial = AirHockeyMotionTier.STANDARD)
     val prefsScope = rememberCoroutineScope()
@@ -144,7 +156,7 @@ fun AirHockeyScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = effectiveDifficulty
         game.init(ctx)
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
         game.startMatch()
@@ -289,8 +301,8 @@ fun AirHockeyScreen(
         ) {
             Text(
                 if (isPassAndPlay) {
-                    if (state.winnerIsPlayer) "Player 1 wins! ${state.playerScore}-${state.cpuScore}" else "Player 2 wins! ${state.cpuScore}-${state.playerScore}"
-                } else if (state.winnerIsPlayer) "You win! ${state.playerScore}-${state.cpuScore}" else "CPU wins ${state.cpuScore}-${state.playerScore}",
+                    if (state.winnerIsPlayer) "$p1Name wins! ${state.playerScore}-${state.cpuScore}" else "$p2Name wins! ${state.cpuScore}-${state.playerScore}"
+                } else if (state.winnerIsPlayer) "You win! ${state.playerScore}-${state.cpuScore}" else "$cpuName wins ${state.cpuScore}-${state.playerScore}",
                 style = MaterialTheme.typography.headlineSmall
             )
             Spacer(Modifier.height(16.dp))
@@ -337,7 +349,7 @@ fun AirHockeyScreen(
         helpText = "Drag your finger on the table to move your paddle; it follows your finger " +
             "within your half. Hit the puck into the yellow goal mouth at the far end to score.\n\n" +
             "First to ${game.matchTarget} goals wins. Against the CPU you play the bottom half " +
-            "(difficulty comes from Settings). In pass and play, Player 1 drags the bottom half " +
+            "(difficulty comes from the game setup or Settings). In pass and play, Player 1 drags the bottom half " +
             "and Player 2 drags the top half at the same time.\n\n" +
             "Opening this menu freezes the puck. Leaving mid-match doesn't count as a win or a loss.",
         matchInProgress = !state.matchOver,
@@ -369,22 +381,22 @@ fun AirHockeyScreen(
               Column(modifier = Modifier.padding(end = GameChromeEndInset)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isPassAndPlay) {
-                        Text("Player 1: ", style = MaterialTheme.typography.titleMedium)
+                        Text("$p1Name: ", style = MaterialTheme.typography.titleMedium)
                         ScorePunch(state.playerScore, MaterialTheme.typography.titleMedium, enhanced)
                         Text(" — ", style = MaterialTheme.typography.titleMedium)
                         ScorePunch(state.cpuScore, MaterialTheme.typography.titleMedium, enhanced)
-                        Text(" : Player 2 (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
+                        Text(" : $p2Name (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
                     } else {
-                        Text("You ", style = MaterialTheme.typography.titleMedium)
+                        Text("$youName ", style = MaterialTheme.typography.titleMedium)
                         ScorePunch(state.playerScore, MaterialTheme.typography.titleMedium, enhanced)
                         Text(" — ", style = MaterialTheme.typography.titleMedium)
                         ScorePunch(state.cpuScore, MaterialTheme.typography.titleMedium, enhanced)
-                        Text(" CPU (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
+                        Text(" $cpuName (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
                     }
                 }
                 if (!isPassAndPlay) {
                     Text(
-                        "CPU difficulty: ${settings.defaultCpuDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        "CPU difficulty: ${effectiveDifficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -627,7 +639,7 @@ fun AirHockeyScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (isPassAndPlay) {
-                        "Player 1: drag the bottom half — Player 2: drag the top half"
+                        "$p1Name: drag the bottom half — $p2Name: drag the top half"
                     } else {
                         "Drag in the bottom half to move your paddle"
                     },

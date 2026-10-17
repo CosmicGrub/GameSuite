@@ -1,5 +1,8 @@
 package com.gamesuite.transport
 
+import com.gamesuite.core.GameHubSpec
+import com.gamesuite.core.GameHubSpecs
+import com.gamesuite.core.HubModeKind
 import com.gamesuite.core.PlayerInfo
 import kotlinx.serialization.Serializable
 
@@ -47,7 +50,52 @@ sealed class NearbyLobbyMessage {
         val gameRoute: String,
         val players: List<PlayerInfo>,
         val yourPlayerId: String? = null,
+        /** The game's display name ("Chess"), for the guest's "Joining Chess" text; cosmetic only. */
+        val gameDisplayName: String? = null,
     ) : NearbyLobbyMessage()
+
+    /**
+     * Host -> one guest: the host will not seat this guest (room full, or the game already started).
+     * [reason] is text for the guest to show. The guest leaves the lobby; it carries no identity.
+     */
+    @Serializable
+    data class Rejected(val reason: String) : NearbyLobbyMessage()
+}
+
+/** The text of a [NearbyLobbyMessage.Rejected] / [OnlineLobbyMessage.Rejected] made safe to show: no control chars, capped. */
+fun lobbyRejectionText(raw: String): String =
+    raw.filterNot { it.isISOControl() }.trim().take(120).ifBlank { "The host did not accept you." }
+
+/** The Hub spec whose Nearby/Online mode plays [gameRoute], or null when this build cannot play it over a network. */
+private fun networkedSpecForRoute(gameRoute: String): GameHubSpec? =
+    GameHubSpecs.all.firstOrNull { spec ->
+        spec.modes.any { (it.kind == HubModeKind.NEARBY || it.kind == HubModeKind.ONLINE) && it.route == gameRoute }
+    }
+
+/** The NavHost route of [gameId]'s lobby mode (what a host announces as `gameRoute`), or [gameId] itself. */
+fun lobbyRouteFor(gameId: String): String =
+    GameHubSpecs.byId(gameId)?.modes?.firstOrNull { it.kind == HubModeKind.NEARBY || it.kind == HubModeKind.ONLINE }?.route
+        ?: GameHubSpecs.byId(gameId)?.modes?.firstOrNull()?.route
+        ?: gameId
+
+/**
+ * Why a guest must NOT start into a host's announced game, or null when it may. [expectedGameId] is the game the
+ * guest opened the lobby for (its Hub); a room playing something else is refused with a message naming both, and a
+ * route this build has no networked mode for (the host runs a newer or different build) is refused as unplayable.
+ * [announcedName] is host-written text, used only (cleaned) when the route is unknown.
+ */
+fun lobbyGameProblem(gameRoute: String, announcedName: String?, expectedGameId: String?): String? {
+    val spec = networkedSpecForRoute(gameRoute)
+    if (spec == null) {
+        val cleaned = (announcedName ?: "").filterNot { it.isISOControl() }.trim().take(40)
+        val name = if (cleaned.isEmpty()) "a game" else cleaned
+        return "This room is playing $name, which this version of GameSuite can't play over a network."
+    }
+    if (expectedGameId != null && spec.gameId != expectedGameId) {
+        val expected = GameHubSpecs.byId(expectedGameId)?.title ?: expectedGameId
+        return "This room is playing ${spec.title}, not $expected."
+    }
+    return null
 }
 
 /**

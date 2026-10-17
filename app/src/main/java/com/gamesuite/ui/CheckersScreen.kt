@@ -78,6 +78,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalEnhancedAnimations
+import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
@@ -244,6 +245,11 @@ fun CheckersScreen(
     val maximum = effectiveTier == CheckersMotionTier.MAXIMUM
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // Settings > Game speed: scales the bot's think delay and the move/round-end animation times.
+    val gameSpeed = LocalGameSpeed.current
+    val moveDurationMs = gameSpeed.scale(MOVE_DURATION_MS.toLong()).toInt().coerceAtLeast(1)
+    val hitStopMs = if (HIT_STOP_MS > 60L) gameSpeed.scale(HIT_STOP_MS) else HIT_STOP_MS
+    val roundEndMs = gameSpeed.scale(ROUND_END_TRANSITION_MS.toLong()).toInt().coerceAtLeast(1)
 
     // Audio infra wiring (audio pass): ambient music respects BOTH the
     // ambient-music setting AND the master sound toggle, same AND pattern
@@ -266,7 +272,10 @@ fun CheckersScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.difficulty = settings.defaultCpuDifficulty
+        // Per-launch Hub options (a Resume overrides both from its snapshot, inside tryResume).
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        // The seat that opens plays Light (Light always moves first); the roster order is unchanged.
+        game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -284,7 +293,7 @@ fun CheckersScreen(
         val ctx = context ?: return@LaunchedEffect
         if (s.gameOver || game.matchOver.value) return@LaunchedEffect
         if (ctx.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(700)
+            delay(gameSpeed.scale(700L))
             // The player may have left (abort) during the delay.
             if (game.matchOver.value) return@LaunchedEffect
             game.playBotTurn()
@@ -302,12 +311,26 @@ fun CheckersScreen(
     val ctx = context ?: contextMemory.last ?: return
 
     val hasBot = ctx.players.any { it.isBot }
-    val humanSide = ctx.players.indexOfFirst { !it.isBot }.coerceAtLeast(0)
-    // The engine seats side 0 (Dark) on rows 0-2, the TOP of the grid. Against the CPU, "You" is
-    // side 0, so rotate the drawing 180 degrees to put the human at the bottom. A 180 turn (not
-    // a row mirror) keeps dark squares on the same logical squares and puts a dark corner square
-    // at the human's left, as on a real board. Pass-and-play keeps the engine's own orientation.
-    val rotated = hasBot && humanSide == 0
+    // Nearby / Online: two devices, host = seat 0 (Light, moves first), guest = seat 1 (Dark). Each
+    // device sees its OWN seat at the bottom; the guest's board is therefore drawn rotated.
+    val networked = game.isNetworked
+    val isGuest = game.isNetworkGuest
+    val opponentLeft = game.opponentLeft.value
+    val humanSeat = if (networked) ctx.localPlayerIndex.coerceIn(0, 1) else ctx.players.indexOfFirst { !it.isBot }.coerceAtLeast(0)
+    // Seat shown at the bottom: the human against the CPU; in pass and play, always Player 1
+    // (seat 0), so the board never spins between turns -- the two players sit on the same side of
+    // the device and hand it over.
+    val bottomSeat = if (hasBot || networked) humanSeat else 0
+    val humanSide = game.sideOfSeat(humanSeat)
+    // The engine puts side 0 (Dark) on rows 0-2, the TOP of the grid, and side 1 (Light, which opens)
+    // on rows 5-7. Which SEAT holds which side is chosen at launch (CheckersGame.openingSeatIndex),
+    // so draw the board rotated 180 degrees whenever the bottom seat holds Dark. A 180 turn (not a
+    // row mirror) keeps dark squares on the same logical squares and puts a dark corner square at the
+    // bottom player's left, as on a real board.
+    val rotated = game.sideOfSeat(bottomSeat) == 0
+    val currentSide = game.sideOfSeat(s.currentPlayerIndex)
+    fun seatName(seat: Int): String = ctx.players.getOrNull(seat)?.displayName?.takeIf { it.isNotBlank() }
+        ?: if (seat == 0) "Player 1" else "Player 2"
     val matchEnded = game.matchOver.value
     val winnerPlayer = ctx.players.firstOrNull { it.playerId == s.winnerPlayerId }
     val humanWon = s.gameOver && winnerPlayer != null && !winnerPlayer.isBot
@@ -321,7 +344,11 @@ fun CheckersScreen(
     // keeps rendering in the meantime (with taps disabled -- see onSquareTapped).
     var showResultsScreen by remember { mutableStateOf(false) }
     val roundEndProgress = remember { Animatable(0f) }
-    val winnerSide = remember(s.winnerPlayerId) { ctx.players.indexOfFirst { it.playerId == s.winnerPlayerId }.takeIf { it >= 0 } }
+    // The BOARD SIDE (piece owner) that won, for the winner-piece bounce; seats and sides differ
+    // whenever the CPU opens.
+    val winnerSide = remember(s.winnerPlayerId) {
+        ctx.players.indexOfFirst { it.playerId == s.winnerPlayerId }.takeIf { it >= 0 }?.let { game.sideOfSeat(it) }
+    }
     LaunchedEffect(s.gameOver) {
         if (s.gameOver) {
             // Celebration (chime + SUCCESS haptic, and the winner-piece bounce below) is the
@@ -337,7 +364,7 @@ fun CheckersScreen(
                 roundEndProgress.snapTo(1f)
             } else {
                 roundEndProgress.snapTo(0f)
-                roundEndProgress.animateTo(1f, animationSpec = tween(ROUND_END_TRANSITION_MS))
+                roundEndProgress.animateTo(1f, animationSpec = tween(roundEndMs))
             }
             showResultsScreen = true
         } else {
@@ -346,7 +373,24 @@ fun CheckersScreen(
         }
     }
 
-    val isHumanTurn = !s.gameOver && !matchEnded && ctx.players.getOrNull(s.currentPlayerIndex)?.isBot != true
+    // Networked: it is "my" turn only on my own seat (the opponent's turn is a human too, but not on
+    // this device), and never once the opponent has left.
+    val isHumanTurn = !s.gameOver && !matchEnded && !opponentLeft &&
+        ctx.players.getOrNull(s.currentPlayerIndex)?.isBot != true &&
+        (!networked || s.currentPlayerIndex == humanSeat)
+
+    // Guest only: the landing squares of the multi-jump being built (the engine is NOT touched until
+    // the chain is complete, then ONE move is sent), and a short "sent, waiting for the host" latch.
+    var chain by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
+    var pendingSend by remember { mutableStateOf(false) }
+    LaunchedEffect(s) { pendingSend = false }
+    LaunchedEffect(pendingSend) {
+        if (pendingSend) {
+            // A rejected move never produces a new state: snap back so the player can try again.
+            delay(3000L)
+            pendingSend = false
+        }
+    }
 
     // User-picked source square. Overridden by the forced-continuation square
     // whenever one is active (that piece MUST jump again -- the player can't
@@ -358,19 +402,30 @@ fun CheckersScreen(
     LaunchedEffect(s.currentPlayerIndex, s.gameOver, s.lastMove == null) {
         userSelected = null
         notice = null
+        chain = emptyList()
     }
     val selected = if (s.inForcedContinuation) s.forcedRow to s.forcedCol else userSelected
 
-    val legalDestinations = selected?.let { (r, c) -> game.legalDestinationsFrom(r, c) } ?: emptySet()
+    val legalDestinations = if (isGuest) {
+        // The guest's next hop comes from a pure preview of the chain built so far.
+        val picked = userSelected
+        if (picked != null && isHumanTurn) {
+            game.previewChain(picked.first, picked.second, chain)?.destinations ?: emptySet<Pair<Int, Int>>()
+        } else {
+            emptySet<Pair<Int, Int>>()
+        }
+    } else {
+        selected?.let { (r, c) -> game.legalDestinationsFrom(r, c) } ?: emptySet<Pair<Int, Int>>()
+    }
 
     // Squares (row * 8 + col) of the current player's pieces that have at least one legal move
     // right now -- computed once per state instead of per piece per recomposition.
-    val movableSquares = remember(s, isHumanTurn) {
+    val movableSquares = remember(s, isHumanTurn, currentSide) {
         if (!isHumanTurn) {
             emptySet<Int>()
         } else {
             (0 until 64).filter { sq ->
-                s.board[sq]?.owner == s.currentPlayerIndex && game.hasLegalMoveFrom(sq / 8, sq % 8)
+                s.board[sq]?.owner == currentSide && game.hasLegalMoveFrom(sq / 8, sq % 8)
             }.toSet()
         }
     }
@@ -388,6 +443,46 @@ fun CheckersScreen(
 
     fun onSquareTapped(row: Int, col: Int) {
         if (!isHumanTurn) return
+        if (isGuest) {
+            // The guest never plays on its own engine. It builds the whole turn (a multi-jump is
+            // several landings) locally and, once the chain is complete, sends ONE move to the host.
+            if (pendingSend) return
+            val origin = userSelected
+            if (origin != null && (row to col) in legalDestinations) {
+                val newChain = chain + (row to col)
+                val preview = game.previewChain(origin.first, origin.second, newChain)
+                if (preview != null && preview.complete) {
+                    val sent = game.submitMove(origin.first, origin.second, newChain)
+                    chain = emptyList()
+                    userSelected = null
+                    if (sent) {
+                        sounds.playTap()
+                        haptics(HapticSignal.NORMAL_ACTION)
+                        notice = null
+                        pendingSend = true
+                    } else {
+                        rejectTap("That move could not be sent.")
+                    }
+                } else {
+                    chain = newChain
+                    notice = null
+                    playSfx(SfxKind.LIGHT_TICK)
+                    haptics(HapticSignal.LIGHT_TICK)
+                }
+                return
+            }
+            if (origin != null && chain.isNotEmpty()) {
+                // Mid-jump the piece must keep going; tapping it again cancels the whole attempt.
+                if ((row to col) == origin) {
+                    chain = emptyList()
+                    userSelected = null
+                    notice = null
+                } else {
+                    rejectTap("Keep jumping with the highlighted piece.")
+                }
+                return
+            }
+        }
         if (selected != null && (row to col) in legalDestinations) {
             val fromKind = s.pieceAt(selected.first, selected.second)?.kind
             game.playMove(s.currentPlayerIndex, selected.first, selected.second, row, col)
@@ -410,7 +505,7 @@ fun CheckersScreen(
             userSelected = null
             return
         }
-        val tappedOwn = s.pieceAt(row, col)?.owner == s.currentPlayerIndex
+        val tappedOwn = s.pieceAt(row, col)?.owner == currentSide
         if (s.inForcedContinuation) {
             // must play the forced jump, can't pick a different square
             if (tappedOwn && (row to col) != selected) rejectTap("Keep jumping with the highlighted piece.")
@@ -462,14 +557,14 @@ fun CheckersScreen(
         var from = 0f
         for (mid in captureMidpoints) {
             if (mid > from) {
-                moveProgress.animateTo(mid, animationSpec = tween(((mid - from) * MOVE_DURATION_MS).roundToInt().coerceAtLeast(1)))
+                moveProgress.animateTo(mid, animationSpec = tween(((mid - from) * moveDurationMs).roundToInt().coerceAtLeast(1)))
             }
             launch { cameraShake.trigger(durationMs = CAMERA_SHAKE_DECAY_MS, easing = FastOutSlowInEasing) }
-            delay(HIT_STOP_MS)
+            delay(hitStopMs)
             from = mid
         }
         if (from < 1f) {
-            moveProgress.animateTo(1f, animationSpec = tween(((1f - from) * MOVE_DURATION_MS).roundToInt().coerceAtLeast(1)))
+            moveProgress.animateTo(1f, animationSpec = tween(((1f - from) * moveDurationMs).roundToInt().coerceAtLeast(1)))
         }
     }
     var previousIds by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
@@ -484,16 +579,24 @@ fun CheckersScreen(
     val capturedGhosts = derived.ghosts
 
     val statusText = when {
+        networked && opponentLeft -> "Opponent disconnected"
         s.gameOver -> "Game over"
+        networked && pendingSend -> "Move sent, waiting for ${seatName(1 - humanSeat)}"
+        networked && !isHumanTurn -> "${seatName(1 - humanSeat)}'s turn"
         !isHumanTurn -> "Opponent's turn"
+        networked && chain.isNotEmpty() -> "Keep jumping: tap the next square"
         s.inForcedContinuation -> "Capture again with the same piece"
-        hasBot -> "Your turn"
-        else -> "${sideName(s.currentPlayerIndex)}'s turn"
+        hasBot || networked -> "Your turn"
+        else -> "${seatName(s.currentPlayerIndex)}'s turn (${sideName(currentSide)})"
     }
-    val hintText = if (hasBot) {
+    val hintText = if (networked) {
+        "You play ${sideName(humanSide)} against ${seatName(1 - humanSeat)}. Tap a piece, then a highlighted square."
+    } else if (hasBot) {
         "You play ${sideName(humanSide)}. Tap a piece, then a highlighted square."
     } else {
-        "Tap a piece, then a highlighted square."
+        "${seatName(bottomSeat)} plays ${sideName(game.sideOfSeat(bottomSeat))} at the bottom, " +
+            "${seatName(1 - bottomSeat)} plays ${sideName(game.sideOfSeat(1 - bottomSeat))}. " +
+            "Tap a piece, then a highlighted square."
     }
 
     // Undo / Hint. Undo also drops any half-made selection; the engine clears the hint itself on the
@@ -582,13 +685,16 @@ fun CheckersScreen(
                 stacked = !reserveCorner,
                 modifier = Modifier.widthIn(max = 480.dp)
             )
-            Spacer(Modifier.height(8.dp))
-            CheckersControlsRow(
-                canUndo = game.canUndo,
-                canHint = isHumanTurn,
-                onUndo = doUndo,
-                onHint = doHint
-            )
+            // Undo and Hint are off in a networked game (the opponent's moves cannot be taken back).
+            if (!networked) {
+                Spacer(Modifier.height(8.dp))
+                CheckersControlsRow(
+                    canUndo = game.canUndo,
+                    canHint = isHumanTurn,
+                    onUndo = doUndo,
+                    onHint = doHint
+                )
+            }
         }
     }
 
@@ -687,8 +793,15 @@ fun CheckersScreen(
                                         drawImage(image = tile, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()))
                                     }
                                     .then(
-                                        if (isSelected || isDestination) {
-                                            Modifier.border(3.dp, if (isSelected) Color(0xFFFFC107) else Color(0xFF8BC34A))
+                                        if (isSelected || isDestination || (isGuest && (row to col) in chain)) {
+                                            Modifier.border(
+                                                3.dp,
+                                                when {
+                                                    isSelected -> Color(0xFFFFC107)
+                                                    isDestination -> Color(0xFF8BC34A)
+                                                    else -> Color(0xFF29B6F6) // a landing already chosen in this jump
+                                                }
+                                            )
                                         } else Modifier
                                     )
                                     // Light squares never hold a piece and an occupied dark square is
@@ -757,7 +870,7 @@ fun CheckersScreen(
                             // Only the current human player's own pieces are buttons (and not
                             // while a forced jump pins the choice); everything else is described
                             // but not offered as an action.
-                            val pieceActionable = isHumanTurn && !s.inForcedContinuation && piece.owner == s.currentPlayerIndex
+                            val pieceActionable = isHumanTurn && !s.inForcedContinuation && piece.owner == currentSide
                             val pieceState = when {
                                 isSelectedPiece && s.inForcedContinuation -> "Selected, must jump again"
                                 isSelectedPiece -> "Selected"
@@ -834,7 +947,12 @@ fun CheckersScreen(
     val finishedRounds = game.scoreP1.value + game.scoreP2.value
     val helpText = (
         "Tap one of your pieces, then a highlighted square. " +
-            (if (hasBot) "You play Dark, at the bottom; the CPU plays Light and moves first." else "Light moves first.") +
+            (if (hasBot) {
+                "You play ${sideName(humanSide)}, at the bottom; the CPU plays ${sideName(1 - humanSide)}. " +
+                    (if (humanSide == 1) "You move first." else "The CPU moves first.") + " (Light always moves first.)"
+            } else {
+                "Light moves first. ${seatName(bottomSeat)} sits at the bottom; pass the device after each move."
+            }) +
             " Pieces step one square diagonally forward, and a piece that reaches the far row becomes " +
             "a king, which can step and jump diagonally backward too.\n\n" +
             "Jumping is mandatory: if any of your pieces can jump an opponent's piece, you must make a jump, " +
@@ -854,9 +972,9 @@ fun CheckersScreen(
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
         leaveKeepsProgress = finishedRounds == 0,
-        onUndo = doUndo,
+        onUndo = if (networked) null else doUndo,
         canUndo = game.canUndo,
-        onHint = doHint,
+        onHint = if (networked) null else doHint,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -885,15 +1003,32 @@ fun CheckersScreen(
             val p2Name = ctx.players.getOrNull(1)?.displayName ?: "Player 2"
             val scoreP1 by game.scoreP1
             val scoreP2 by game.scoreP2
+            val winnerSeat = ctx.players.indexOfFirst { it.playerId == s.winnerPlayerId }
             val resultTitle = when {
                 winnerPlayer == null -> "It's a tie!"
-                winnerPlayer.displayName == "You" -> "You win!"
-                else -> "${winnerPlayer.displayName} wins!"
+                networked && winnerSeat == humanSeat -> "You win!"
+                networked -> "${seatName(winnerSeat)} wins!"
+                hasBot && !winnerPlayer.isBot -> "You win!"
+                else -> "${seatName(winnerSeat)} wins!"
             }
+            val sessionLine = "$p1Name: $scoreP1 · $p2Name: $scoreP2"
+            val resultLine = when {
+                networked && opponentLeft -> "Opponent disconnected\n$sessionLine"
+                networked && winnerPlayer != null ->
+                    (if (winnerSeat == humanSeat) "You won this round" else "You lost this round") +
+                        " against ${seatName(1 - humanSeat)} (you played ${sideName(humanSide)})\n$sessionLine"
+                else -> sessionLine
+            }
+            var playAgainAsked by remember { mutableStateOf(false) }
             CheckersResultPanel(
                 title = resultTitle,
-                scoreLine = "$p1Name: $scoreP1 · $p2Name: $scoreP2",
-                onPlayAgain = game::playAgain,
+                scoreLine = resultLine,
+                playAgainLabel = if (playAgainAsked) "Waiting for the host..." else "Play Again",
+                canPlayAgain = !(networked && (opponentLeft || playAgainAsked)),
+                onPlayAgain = {
+                    if (isGuest) playAgainAsked = true
+                    game.playAgain()
+                },
                 onBackToMenu = game::leaveSession
             )
         } else {
@@ -1005,7 +1140,14 @@ private fun CheckersHintMarker(label: String, displayRow: Int, displayCol: Int, 
 /** The round-over panel: title, running session score, Play Again / Back to Menu. Rendered
  *  inside [GameChrome], so the corner menu and back handling stay available. */
 @Composable
-private fun CheckersResultPanel(title: String, scoreLine: String, onPlayAgain: () -> Unit, onBackToMenu: () -> Unit) {
+private fun CheckersResultPanel(
+    title: String,
+    scoreLine: String,
+    onPlayAgain: () -> Unit,
+    onBackToMenu: () -> Unit,
+    playAgainLabel: String = "Play Again",
+    canPlayAgain: Boolean = true
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1023,8 +1165,9 @@ private fun CheckersResultPanel(title: String, scoreLine: String, onPlayAgain: (
         // In-screen game control buttons (§4c) — hover cursor only, additive.
         Button(
             onClick = onPlayAgain,
+            enabled = canPlayAgain,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Play Again") }
+        ) { Text(playAgainLabel) }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
             onClick = onBackToMenu,

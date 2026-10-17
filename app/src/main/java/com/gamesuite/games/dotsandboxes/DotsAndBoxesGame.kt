@@ -3,7 +3,10 @@ package com.gamesuite.games.dotsandboxes
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import com.gamesuite.transport.MultiplayerTransport
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
@@ -128,7 +131,9 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 2
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<DotsAndBoxesState?>(null)
@@ -142,6 +147,14 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /**
+     * The roster seat that draws the FIRST line of the FIRST board (Game Hub's first-mover option).
+     * Set by the screen before [init]; [init] seeds the next-opener field from it, so the usual
+     * alternation carries on from there. A resumed game ignores it: [restore] overwrites the
+     * next-opener field from the snapshot.
+     */
+    var firstOpenerIndex: Int = 0
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -160,14 +173,157 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     /** The edge the last [hint] suggested, shown until the next edge, undo or new board. */
     val hintEdge = mutableStateOf<DotsAndBoxesHintEdge?>(null)
 
+    // ---- Networked play bookkeeping (LOCAL_AD_HOC / ONLINE, two seats: host = 0, guest = 1) ----
+
+    /** True in the two networked modes. Safe to read before [init] (false). */
+    val isNetworkedMode: Boolean
+        get() = ::context.isInitialized &&
+            (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
+
+    /** True on the device that owns the engine (seat 0). Meaningful only when [isNetworkedMode]. */
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+
+    /** This device's seat in a networked match (0 host, 1 guest); -1 outside one. */
+    val localSeat: Int get() = if (isNetworkedMode) context.localPlayerIndex else -1
+
+    /** Set when the other seat's transport reported a departure; input is frozen and the UI offers the way out. */
+    val opponentLeft = mutableStateOf(false)
+
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+    private var listenersOn: MultiplayerTransport? = null
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
+        opponentLeft.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
-        nextStartingPlayerIndex = 0
+        nextStartingPlayerIndex = if (context.players.isEmpty()) 0 else firstOpenerIndex.coerceIn(0, context.players.size - 1)
         history.clear()
         hintEdge.value = null
+        lastAppliedRemoteVersion = 0
+        if (isNetworkedMode && listenersOn !== context.transport) {
+            listenersOn = context.transport
+            context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+            // After a blip the transport recovered from: a guest may have missed broadcasts, so it
+            // asks again; the host proactively re-broadcasts (a guest's own link may have stayed up).
+            context.transport.onReconnected {
+                if (isHost) {
+                    state.value?.let { broadcastState(toPlayerId = null) }
+                } else {
+                    sendToHost(DotsAndBoxesNetMessage.RequestState)
+                }
+            }
+            context.transport.onPlayerLeft { playerId -> handlePlayerLeft(playerId) }
+            // Covers the startup race where the host dealt before this listener existed.
+            if (!isHost) sendToHost(DotsAndBoxesNetMessage.RequestState)
+        }
+    }
+
+    private fun handlePlayerLeft(playerId: String) {
+        if (!isNetworkedMode) return
+        val otherSeat = if (isHost) 1 else 0
+        if (context.players.getOrNull(otherSeat)?.playerId != playerId) return
+        opponentLeft.value = true
+        // Local only: no result is reported, so nothing is recorded as a loss. The UI offers the way out.
+        state.value?.let { state.value = it.copy(lastAction = "Opponent disconnected") }
+    }
+
+    private fun sendToHost(message: DotsAndBoxesNetMessage) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        val hostId = context.players.getOrNull(0)?.playerId ?: return
+        context.transport.send(localId, hostId, encodeNet(message))
+    }
+
+    private fun encodeNet(message: DotsAndBoxesNetMessage): ByteArray =
+        Json.encodeToString<DotsAndBoxesNetMessage>(message).toByteArray(Charsets.UTF_8)
+
+    /** Host only: sends the authoritative state (to one seat, or to every guest) at the CURRENT [stateVersion]. */
+    private fun broadcastState(toPlayerId: String?) {
+        if (!isNetworkedMode || !isHost) return
+        val text = captureSnapshot() ?: return
+        val payload = encodeNet(DotsAndBoxesNetMessage.StateSync(stateVersion, text))
+        val hostId = context.players[0].playerId
+        if (toPlayerId != null) {
+            context.transport.send(hostId, toPlayerId, payload)
+        } else {
+            context.players.forEach { if (it.playerId != hostId) context.transport.send(hostId, it.playerId, payload) }
+        }
+    }
+
+    /** Host only: a state change just happened; bump the version and tell the guest. */
+    private fun commitAndBroadcast() {
+        if (!isNetworkedMode || !isHost) return
+        stateVersion++
+        broadcastState(toPlayerId = null)
+    }
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        if (!isNetworkedMode) return
+        val message = try {
+            Json.decodeFromString<DotsAndBoxesNetMessage>(String(payload, Charsets.UTF_8))
+        } catch (_: Exception) {
+            return // malformed or foreign payload
+        }
+        val hostId = context.players.getOrNull(0)?.playerId
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other sender is a forgery.
+            is DotsAndBoxesNetMessage.StateSync ->
+                if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.snapshot)
+            is DotsAndBoxesNetMessage.RequestState ->
+                if (isHost && context.players.drop(1).any { it.playerId == fromPlayerId }) {
+                    if (state.value != null) broadcastState(toPlayerId = fromPlayerId)
+                }
+            is DotsAndBoxesNetMessage.DrawEdge ->
+                if (isHost) applyGuestEdge(fromPlayerId, message)
+            is DotsAndBoxesNetMessage.PlayAgain ->
+                if (isHost && context.players.drop(1).any { it.playerId == fromPlayerId }) hostPlayAgain()
+        }
+    }
+
+    /** Host: a guest's tap. Every check here must pass or the request is dropped silently (no broadcast). */
+    private fun applyGuestEdge(fromPlayerId: String, request: DotsAndBoxesNetMessage.DrawEdge) {
+        val s = state.value ?: return
+        if (matchOver.value || s.boardOver || opponentLeft.value) return
+        val seat = context.players.indexOfFirst { it.playerId == fromPlayerId }
+        if (seat <= 0 || seat != s.currentPlayerIndex) return // unknown sender, the host itself, or not their turn
+        if (!isValidEdge(request.horizontal, request.row, request.col, s.boxRows, s.boxCols)) return
+        if (isEdgeDrawn(s, request.horizontal, request.row, request.col)) return
+        drawEdge(request.horizontal, request.row, request.col)
+    }
+
+    /** Guest: adopt the host's snapshot if it is newer than anything applied so far. */
+    private fun applyRemoteState(version: Int, text: String) {
+        if (version <= lastAppliedRemoteVersion) return
+        val snap = decodeSnapshot(text) ?: return
+        lastAppliedRemoteVersion = version
+        val before = state.value
+        applySnapshot(snap)
+        val after = state.value ?: return
+        // applySnapshot clears the one-shot claim event; rebuild it from the difference so the
+        // guest still gets the claim cue, and restart the counter on a fresh board.
+        val freshBoard = before == null || drawnEdgeCount(after) < drawnEdgeCount(before)
+        if (freshBoard) {
+            eventSeq = 0L
+            return
+        }
+        val newBoxes = after.boxOwner.indices.filter { after.boxOwner[it] != null && before!!.boxOwner[it] == null }
+        if (newBoxes.isNotEmpty()) {
+            eventSeq++
+            state.value = after.copy(
+                lastBoxCompleted = DotsAndBoxesBoxCompletedEvent(eventSeq, newBoxes, after.boxOwner[newBoxes.first()] ?: 0)
+            )
+        }
+    }
+
+    private fun drawnEdgeCount(s: DotsAndBoxesState): Int = s.horizontalEdges.count { it } + s.verticalEdges.count { it }
+
+    /** Host: re-deal only while the current board is over, so a duplicate request cannot wipe a board in play. */
+    private fun hostPlayAgain() {
+        val s = state.value ?: return
+        if (matchOver.value || opponentLeft.value || !s.boardOver) return
+        startMatch()
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -259,6 +415,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (isNetworkedMode) return false // a networked board lives with the host, never on disk
         return try {
             val snap = decodeSnapshot(snapshot) ?: return false
             matchOver.value = false
@@ -272,7 +429,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
 
     // --- Undo -------------------------------------------------------------------------------
 
-    override val canUndo: Boolean get() = history.depth > 0 && !matchOver.value
+    override val canUndo: Boolean get() = !isNetworkedMode && history.depth > 0 && !matchOver.value
 
     /**
      * Takes back the last human edge. Because completing a box keeps the turn, one step is exactly
@@ -281,7 +438,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * re-opens the board and takes its win off the session tally. Nothing here only counts upward.
      */
     override fun undo() {
-        if (matchOver.value) return
+        if (matchOver.value || isNetworkedMode) return
         val previous = history.pop() ?: return
         val snap = decodeSnapshot(previous) ?: return
         applySnapshot(snap)
@@ -297,6 +454,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * human's turn or the board is over. Dots and Boxes keeps no records, so a hint costs nothing.
      */
     fun hint(): DotsAndBoxesHintEdge? {
+        if (isNetworkedMode) return null
         val s = state.value ?: return null
         if (matchOver.value || s.boardOver) return null
         if (s.players[s.currentPlayerIndex].isBot) return null
@@ -318,6 +476,8 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun startMatch() {
+        // A guest never deals: it waits for the host's StateSync (it already asked in init).
+        if (isNetworkedMode && !isHost) return
         val players = context.players.map { DotsAndBoxesPlayerState(it.playerId, it.displayName, it.isBot) }
         val totalH = (BOX_ROWS + 1) * BOX_COLS
         val totalV = BOX_ROWS * (BOX_COLS + 1)
@@ -344,6 +504,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
             lastAction = "Game started"
         )
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % players.size
+        commitAndBroadcast()
     }
 
     override fun pause() {}
@@ -382,6 +543,12 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      */
     fun playAgain() {
         if (matchOver.value) return
+        if (isNetworkedMode) {
+            // Either seat may ask; only the host deals, and only once the board is over.
+            if (opponentLeft.value || state.value?.boardOver != true) return
+            if (isHost) hostPlayAgain() else sendToHost(DotsAndBoxesNetMessage.PlayAgain)
+            return
+        }
         startMatch()
     }
 
@@ -398,6 +565,14 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || s.boardOver) return
         if (!isValidEdge(isHorizontal, row, col, s.boxRows, s.boxCols)) return
         if (isEdgeDrawn(s, isHorizontal, row, col)) return
+        if (isNetworkedMode) {
+            // Only on this seat's own turn (which repeats after a claim). The host applies it
+            // itself; a guest only asks the host and waits for the broadcast: it never mutates.
+            if (opponentLeft.value || s.currentPlayerIndex != context.localPlayerIndex) return
+            if (isHost) drawEdge(isHorizontal, row, col)
+            else sendToHost(DotsAndBoxesNetMessage.DrawEdge(isHorizontal, row, col))
+            return
+        }
         if (!s.players[s.currentPlayerIndex].isBot) captureSnapshot()?.let { history.push(it) }
         drawEdge(isHorizontal, row, col)
     }
@@ -494,6 +669,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
                 else -> "${mover.displayName} drew a line"
             }
         )
+        commitAndBroadcast()
     }
 
     /**

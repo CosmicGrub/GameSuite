@@ -89,6 +89,11 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalColorblindMode
+import com.gamesuite.settings.LocalGameSpeed
+import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.GameSpeedMenuItem
+import com.gamesuite.games.uno.unoExtrasHaveRules
+import com.gamesuite.games.uno.unoRulesFromExtras
 import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.games.uno.UnoCard
@@ -142,6 +147,10 @@ fun UnoScreen(
     rememberAmbientMusic(profile = MusicProfiles.UNO, enabled = musicEnabled)
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val reducedMotion = LocalReducedMotion.current
+    // Game speed (Settings, and the corner menu below): multiplies the bot "think" pause and the
+    // dramatic beat delays. Read through rememberUpdatedState so a change made mid-game reaches
+    // effects that are already running, not only the next one launched.
+    val currentSpeed by rememberUpdatedState(LocalGameSpeed.current)
     // Settings -> Display -> "3D card mode" (see settings/LocalCard3DMode.kt)
     // — reduced motion always wins, per that flag's own KDoc: a perspective
     // flip/toss is still motion, so this is the one gate every 3D-mode call
@@ -158,14 +167,24 @@ fun UnoScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.init(ctx)
-        game.rules = initialRules
+        // Rules: the Hub's per-launch choices (launchOptions.extras) when it sent any, otherwise the
+        // route's initialRules exactly as before. Networked UNO keeps classic rules (the guests
+        // never learn the host's house rules), so extras are ignored there. Team play follows the
+        // roster: any seat with a team id means a team game, whichever route got us here.
+        val extras = sessionManager.launchOptions.extras
+        val networked = ctx.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC ||
+            ctx.activeMode == com.gamesuite.core.PlayMode.ONLINE
+        val baseRules = if (!networked && unoExtrasHaveRules(extras)) unoRulesFromExtras(extras, initialRules) else initialRules
+        game.rules = if (ctx.players.any { it.teamId >= 0 }) baseRules.copy(teamPlay = true) else baseRules
         // UNO's bot was the one CPU opponent in the suite that ignored this setting — see
         // UnoBot.kt's difficulty ladder and the audited "Default CPU difficulty" finding.
-        game.difficulty = settings.defaultCpuDifficulty
+        game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
         }
-        game.startMatch()
+        // A resumed local game keeps its saved rules/difficulty/draw pile (restore overwrites the
+        // values set above); a fresh start deals as usual.
+        if (!sessionManager.tryResume(game)) game.startMatch()
         // Layered instead of a single play() call -- CardSounds' public API in
         // this bundle is zero-arg (no rate/volume passthrough reachable from
         // here), so this is the in-scope approximation of "not the same clip
@@ -188,7 +207,9 @@ fun UnoScreen(
         if (s.matchOver || s.roundOver) return@LaunchedEffect
         val current = s.players.getOrNull(s.currentPlayerIndex) ?: return@LaunchedEffect
         if (current.isBot || (s.awaitingChallenge && s.challengeVictimIndex?.let { s.players[it].isBot } == true)) {
-            delay(botThinkDelayMs(current.hand, s, game.rules, current.playerId))
+            // The think pause scales with the game speed, and never drops below a beat after the
+            // previous player's action (a human's play must be seen before a bot answers it).
+            delay(maxOf(currentSpeed.scale(botThinkDelayMs(current.hand, s, game.rules, current.playerId)), currentSpeed.scale(450L)))
             game.playBotTurn(chainDrawnPlay = false)
         }
     }
@@ -204,21 +225,37 @@ fun UnoScreen(
     }
 
     if (s.matchOver) {
-        UnoBackground { MatchOverContent(state = s, onDone = onMatchEnded, enhanced = enhanced) }
+        UnoBackground { MatchOverContent(state = s, onDone = onMatchEnded, enhanced = enhanced, targetScore = game.targetScore) }
         return
     }
 
     if (s.roundOver) {
-        UnoBackground { RoundOverContent(state = s, onNextRound = { game.startNextRound() }, enhanced = enhanced) }
+        UnoBackground { RoundOverContent(state = s, onNextRound = { game.startNextRound() }, enhanced = enhanced, targetScore = game.targetScore) }
         return
     }
 
-    val myIndex = humanIndex(s, activeContext)
-    val myTurn = s.currentPlayerIndex == myIndex && !s.awaitingColorChoice && !s.awaitingChallenge
+    // Hotseat (SINGLE_DEVICE_PASS_AND_PLAY with 2+ people): the device is handed from person to
+    // person, so a person's hand stays behind a curtain until they tap it. The curtain exists only
+    // for HUMAN seats; a CPU's turn never raises it. revealedSeat is the person whose hand is
+    // currently allowed on screen (reset every round).
+    val isHotseat = activeContext.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY &&
+        s.players.count { !it.isBot } > 1
+    var revealedSeat by remember(s.roundNumber) { mutableStateOf<Int?>(null) }
+    val currentIsHuman = s.players.getOrNull(s.currentPlayerIndex)?.isBot == false
+    val handHidden = isHotseat && currentIsHuman && revealedSeat != s.currentPlayerIndex
+    // On a CPU's turn in hotseat the screen stays on the person who last held the device (their hand
+    // is already revealed), not on whoever happens to be the first person at the table.
+    val myIndex = if (isHotseat && !currentIsHuman) {
+        revealedSeat?.takeIf { it in s.players.indices } ?: humanIndex(s, activeContext)
+    } else humanIndex(s, activeContext)
+    val myTurn = s.currentPlayerIndex == myIndex && !s.awaitingColorChoice && !s.awaitingChallenge && !handHidden
     // Whether a draw would actually do anything: not once you've just drawn a playable card (the turn stays
     // with you, and the engine refuses a second draw until you play it or keep it).
     val canDraw = myTurn && !s.awaitingDrawDecision
     val myHand = s.players.getOrNull(myIndex)?.hand ?: emptyList()
+    // Hotseat: no hand is drawn (or exposed to accessibility services) while the curtain is up, nor on a
+    // CPU's turn before any person has taken the device this round.
+    val handCovered = handHidden || (isHotseat && revealedSeat == null)
 
     // The user's card-size preference (Settings → Card size), already mapped to
     // a device-aware multiplier — see CardScale.kt. FannedHand reads this same
@@ -303,10 +340,10 @@ fun UnoScreen(
     LaunchedEffect(challengeReveal) {
         val snapshot = challengeReveal ?: return@LaunchedEffect
         showChallengeHand = false
-        delay(650) // "CHALLENGE!" alone first, same beat as the reference
+        delay(currentSpeed.scale(650L)) // "CHALLENGE!" alone first, same beat as the reference
         showChallengeHand = true
         sounds.playTap() // the reveal's own resolution beat -- distinct single tap vs. the declaration's layeredChime above
-        delay(1300) // then the accused hand lays face-up before resolving for real
+        delay(currentSpeed.scale(1300L)) // then the accused hand lays face-up before resolving for real
         game.resolveChallenge(accept = false)
         challengeReveal = null
         showChallengeHand = false
@@ -315,7 +352,7 @@ fun UnoScreen(
     var showUnoCallout by remember { mutableStateOf(false) }
     LaunchedEffect(showUnoCallout) {
         if (showUnoCallout) {
-            delay(1100)
+            delay(currentSpeed.scale(1100L))
             showUnoCallout = false
         }
     }
@@ -557,7 +594,7 @@ fun UnoScreen(
     }
     LaunchedEffect(actionFlash) {
         if (actionFlash != null) {
-            delay(850)
+            delay(currentSpeed.scale(850L))
             actionFlash = null
         }
     }
@@ -634,7 +671,7 @@ fun UnoScreen(
                     }
                 }
             }
-            delay(300)
+            delay(currentSpeed.scale(300L))
         }
         for (round in 1..(s.players.maxOfOrNull { it.hand.size } ?: 0)) {
             delay(55)
@@ -1014,7 +1051,7 @@ fun UnoScreen(
                                 ) {
                                     Button(
                                         onClick = {
-                                            game.drawCard(myIndex)
+                                            if (!handHidden) game.drawCard(myIndex)
                                             // Same rule as tapping the pile: no draw sound or buzz unless a draw can happen.
                                             if (canDraw) {
                                                 sounds.playDraw()
@@ -1029,7 +1066,7 @@ fun UnoScreen(
                                         Text(if (s.pendingDraw > 0) "Draw ${s.pendingDraw}" else "Draw", fontWeight = FontWeight.Bold)
                                     }
                                 }
-                                if (myHand.size == 1) {
+                                if (myHand.size == 1 && !handCovered) {
                                     Button(
                                         onClick = {
                                             game.callUno(myIndex)
@@ -1062,7 +1099,7 @@ fun UnoScreen(
                         // let the human (or a spectator) catch on their own behalf. The window check mirrors the
                         // engine's own catch-window rule (see UnoPlayerState.catchWindowClosesAfterPlayerIndex) so
                         // the button disappears the instant it would stop doing anything.
-                        if (myIndex in s.players.indices) {
+                        if (myIndex in s.players.indices && !handCovered) {
                             opponents.forEachIndexed { k, index ->
                                 val p = s.players[index]
                                 if (index != myIndex && p.hand.size == 1 && !p.calledUno &&
@@ -1117,8 +1154,12 @@ fun UnoScreen(
             // pane must stay wrap-height (a fill-height root here would starve the table above it).
             val foldState = LocalFoldState.current
             val splitPane = foldState.isBookPosture || foldState.isTabletopPosture
+            // In landscape the hand pane sits at the top right, exactly where the corner menu button is
+            // drawn: keep the hand clear of it.
+            val landscapeHand = LocalConfiguration.current.screenWidthDp > LocalConfiguration.current.screenHeightDp
             BoxWithConstraints(
                 modifier = (if (splitPane) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    .then(if (landscapeHand && !splitPane) Modifier.padding(top = com.gamesuite.uikit.GameChromeEndInset) else Modifier)
                     // The drawn-card flight's actual landing target -- tracked on this whole pane
                     // rather than any one card slot, since the exact fan position of a not-yet-added
                     // card can't be known in advance.
@@ -1176,7 +1217,7 @@ fun UnoScreen(
                     Spacer(Modifier.height(16.dp))
 
                     FannedHand(
-                        items = myHand,
+                        items = if (handCovered) emptyList() else myHand,
                         idOf = { it.instanceId },
                         visualOf = { unoCardToVisual(it, colorblindMode = colorblindMode) },
                         enabled = myTurn,
@@ -1234,7 +1275,7 @@ fun UnoScreen(
         }
     )
 
-    if (s.awaitingColorChoice && s.currentPlayerIndex == myIndex) {
+    if (s.awaitingColorChoice && s.currentPlayerIndex == myIndex && !handHidden) {
         ColorPickerDialog(onColorChosen = { game.chooseColor(it) })
     }
 
@@ -1244,7 +1285,7 @@ fun UnoScreen(
     // — the LaunchedEffect above plays the CHALLENGE!/hand-reveal beat first,
     // then calls resolveChallenge() for real. Accept has no equivalent
     // fanfare in the reference, so it still resolves instantly.
-    if (s.awaitingChallenge && s.challengeVictimIndex == myIndex && challengeReveal == null) {
+    if (s.awaitingChallenge && s.challengeVictimIndex == myIndex && challengeReveal == null && !handHidden) {
         val playedByIndex = s.challengePlayedByIndex
         val playedBy = playedByIndex?.let { s.players.getOrNull(it) }
         ChallengeDialog(
@@ -1302,6 +1343,35 @@ fun UnoScreen(
     actionFlash?.let { rank ->
         ActionCardFlashOverlay(rank = rank)
     }
+
+    if (handHidden) {
+        UnoHandOverCurtain(
+            name = s.players.getOrNull(s.currentPlayerIndex)?.displayName ?: "the next player",
+            onShow = { revealedSeat = s.currentPlayerIndex }
+        )
+    }
+
+    // The corner menu (How to Play, Game speed, Back to Menu with a leave confirmation). Its content
+    // is empty on purpose: the table above is already drawn, this only adds the button and back
+    // handling on top. Leaving parks a local game for Resume (the shell saves before the abort).
+    GameChrome(
+        helpTitle = "How to Play UNO",
+        helpText = "Play a card that matches the top card by color or by number/symbol, or a Wild. " +
+            "Can't play? Draw a card" + (if (game.rules.drawUntilPlayable) " (and keep drawing until one fits)" else "") + ". " +
+            "Skip, Reverse, +2 and Wild +4 do what they say. Say UNO when you are down to one card, " +
+            "or someone may catch you and make you draw two.\n\n" +
+            "The first player to empty their hand wins the round and scores the cards left in the others' hands" +
+            (if (game.targetScore <= 0) ". One round decides the match." else "; first to ${game.targetScore} wins the match."),
+        matchInProgress = true,
+        onLeave = game::abortMatch,
+        onAbort = game::abortMatch,
+        buttonFill = Color(0xFF1B1433),
+        buttonContent = Color.White,
+        leaveTitle = "Leave this game?",
+        extraItems = { _ ->
+            GameSpeedMenuItem(current = settings.gameSpeed, onChange = settingsViewModel::setGameSpeed)
+        }
+    ) {}
     }
 }
 
@@ -1471,7 +1541,7 @@ private fun ChallengeDialog(playedByName: String, onAccept: () -> Unit, onChalle
 }
 
 @Composable
-private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRound: () -> Unit, enhanced: Boolean = false) {
+private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRound: () -> Unit, enhanced: Boolean = false, targetScore: Int = 500) {
     // Confirmed real gap: a round win got the confetti/ConfettiOverlay visual
     // beat and (for a match win specifically) a CELEBRATION haptic from the
     // caller, but literally no sound at all -- SUCCESS_CHIME is exactly the
@@ -1485,11 +1555,11 @@ private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRoun
         UnoPanel(modifier = Modifier.widthIn(min = 300.dp, max = 460.dp)) {
             PanelTitle(winnerLabel(state, "wins round ${state.roundNumber}"))
             Spacer(Modifier.height(4.dp))
-            Text("First to 500", color = Color.White.copy(alpha = 0.65f), style = MaterialTheme.typography.labelMedium)
+            Text(if (targetScore <= 0) "One round" else "First to $targetScore", color = Color.White.copy(alpha = 0.65f), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(14.dp))
             // Up to ten rows: on a short window (Fold cover, landscape) it scrolls instead of pushing the
             // button off the bottom of the screen.
-            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state) }
+            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state, targetScore) }
             Spacer(Modifier.height(18.dp))
             Button(
                 onClick = onNextRound,
@@ -1501,7 +1571,7 @@ private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRoun
 }
 
 @Composable
-private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: () -> Unit, enhanced: Boolean = false) {
+private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: () -> Unit, enhanced: Boolean = false, targetScore: Int = 500) {
     // Same currently-silent-win gap as RoundOverContent above -- the match
     // win already gets a CELEBRATION haptic (see UnoScreen's own
     // LaunchedEffect(s.matchOver)) but no sound of any kind accompanies it.
@@ -1532,7 +1602,7 @@ private fun MatchOverContent(state: com.gamesuite.games.uno.UnoState, onDone: ()
             Spacer(Modifier.height(6.dp))
             PanelTitle(winnerLabel(state, "wins the match!"))
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state) }
+            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state, targetScore) }
             Spacer(Modifier.height(18.dp))
             Button(
                 onClick = onDone,
@@ -1575,10 +1645,12 @@ private fun UnoScoreboard(state: com.gamesuite.games.uno.UnoState, targetScore: 
         .sortedByDescending { it.score }
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
+    // A one-round match (targetScore 0) has no target to fill toward: bars are relative to the leader.
+    val barTarget = (if (targetScore <= 0) (rows.maxOfOrNull { it.score } ?: 1) else targetScore).coerceAtLeast(1).toFloat()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         rows.forEachIndexed { rank, r ->
             val fill by animateFloatAsState(
-                targetValue = if (shown) (r.score / targetScore.toFloat()).coerceIn(0f, 1f) else 0f,
+                targetValue = if (shown) (r.score / barTarget).coerceIn(0f, 1f) else 0f,
                 animationSpec = tween(900, delayMillis = 140 * rank),
                 label = "scoreBar"
             )
@@ -2169,6 +2241,36 @@ private fun UnoCalloutOverlay() {
             fontSize = 48.sp,
             modifier = Modifier.rotate(-6f)
         )
+    }
+}
+
+/** Hotseat hand-over cover: hides everything (so the previous person's hand cannot be read) until
+ *  the next person taps. Opaque and swallows touches. Only ever shown for a human seat's turn. */
+@Composable
+private fun UnoHandOverCurtain(name: String, onShow: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF120C24))
+            .clickable(enabled = true, indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {}
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            Text(
+                "Pass the device to $name",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = onShow,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 52.dp)
+            ) { Text("Show my hand", fontWeight = FontWeight.Bold) }
+        }
     }
 }
 

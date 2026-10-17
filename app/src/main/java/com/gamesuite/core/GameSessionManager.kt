@@ -135,9 +135,42 @@ class GameSessionManager : ViewModel() {
                 savedAtMillis = System.currentTimeMillis(),
                 savedAtEpochDay = java.time.LocalDate.now().toEpochDay(),
                 snapshot = snapshot,
-                navRoute = route
+                navRoute = route,
+                launch = SavedLaunch(
+                    mode = ctx.activeMode.name,
+                    seats = ctx.players.map { SavedSeat(it.playerId, it.displayName, it.isBot, it.teamId) },
+                    localPlayerIndex = ctx.localPlayerIndex,
+                    cpuDifficulty = launchOptions.cpuDifficulty?.name,
+                    firstMoverIndex = launchOptions.firstMoverIndex,
+                    extras = launchOptions.extras
+                ),
+                summary = ctx.players.joinToString(" vs ") { it.displayName }
             )
         )
+    }
+
+    /**
+     * Resumes [saved] by re-creating the launch it was saved under, then arming [pendingResume] so
+     * the game screen's [tryResume] restores the snapshot. The caller navigates to
+     * [SavedGame.navRoute] afterwards. Returns false for a save with no recorded launch (written
+     * before the Hub): the caller should offer a fresh game instead.
+     */
+    fun resumeSavedGame(saved: SavedGame): Boolean {
+        val launch = saved.launch ?: return false
+        val mode = runCatching { PlayMode.valueOf(launch.mode) }.getOrNull() ?: return false
+        if (launch.seats.isEmpty()) return false
+        launchGame(
+            mode = mode,
+            players = launch.seats.map { PlayerInfo(it.id, it.name, it.isBot, it.teamId) },
+            localPlayerIndex = launch.localPlayerIndex.coerceIn(0, launch.seats.lastIndex),
+            options = LaunchOptions(
+                cpuDifficulty = launch.cpuDifficulty?.let { n -> com.gamesuite.settings.CpuDifficulty.values().firstOrNull { it.name == n } },
+                firstMoverIndex = launch.firstMoverIndex,
+                extras = launch.extras
+            )
+        )
+        pendingResume = saved
+        return true
     }
 
     /**
@@ -170,9 +203,15 @@ class GameSessionManager : ViewModel() {
      * The caller (a NavHost composable) is responsible for actually
      * navigating to that game's screen once this context is set.
      */
-    fun launchGame(mode: PlayMode, players: List<PlayerInfo>, localPlayerIndex: Int) {
+    fun launchGame(
+        mode: PlayMode,
+        players: List<PlayerInfo>,
+        localPlayerIndex: Int,
+        options: LaunchOptions = LaunchOptions()
+    ) {
         val transport = createTransport(mode)
         transport.connect()
+        launchOptions = options
         _activeContext.value = GameContext(
             activeMode = mode,
             players = players,
@@ -190,6 +229,7 @@ class GameSessionManager : ViewModel() {
      * created fresh at launch time.
      */
     fun launchGame(mode: PlayMode, players: List<PlayerInfo>, localPlayerIndex: Int, transport: MultiplayerTransport) {
+        launchOptions = LaunchOptions()
         _activeContext.value = GameContext(
             activeMode = mode,
             players = players,
@@ -197,6 +237,18 @@ class GameSessionManager : ViewModel() {
             transport = transport
         )
     }
+
+    /**
+     * Per-launch choices from the Match Setup dialog (CPU difficulty override, who moves first).
+     * Reset to the defaults by every [launchGame], so one game's setup never leaks into the next.
+     * A game screen reads it once when it starts.
+     */
+    var launchOptions: LaunchOptions = LaunchOptions()
+        private set
+
+    /** The CPU difficulty for this launch: the Match Setup choice if there is one, else [default] (the app setting). */
+    fun cpuDifficultyFor(default: com.gamesuite.settings.CpuDifficulty): com.gamesuite.settings.CpuDifficulty =
+        launchOptions.cpuDifficulty ?: default
 
     /** Called by the active game's screen when it's finished, or on a "quit" action. */
     fun endActiveGame(result: GameResult) {
