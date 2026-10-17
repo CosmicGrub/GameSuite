@@ -4,10 +4,18 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlin.math.abs
 import kotlin.random.Random
 
 /** UNDETERMINED -> FILLED -> MARKED_EMPTY -> UNDETERMINED on tap — the standard three-state Nonogram cell cycle. [MARKED_EMPTY] is purely a player memory aid (an "X" mark); it's never scored differently from [UNDETERMINED] — only whether a cell is [FILLED] matters for mistakes/winning. */
 enum class NonogramCellState { UNDETERMINED, FILLED, MARKED_EMPTY }
+
+/**
+ * The mark a finger paints: [FILL] paints solid squares ([NonogramCellState.FILLED]), [CROSS] paints
+ * X notes ([NonogramCellState.MARKED_EMPTY]). Chosen by the screen's Fill/Cross toggle and handed to
+ * [NonogramGame.beginStroke] / [NonogramGame.toggleCell].
+ */
+enum class NonogramTool { FILL, CROSS }
 
 /**
  * [solution] is the one true size*size filled/empty grid (row-major) this
@@ -62,6 +70,16 @@ data class NonogramState(
  * unlike those. Same reasoning Minesweeper/Sudoku already applied when they
  * chose time-only over Lights Out's own two-metric shape.
  *
+ * PAINTING: the screen drives the board through a Fill/Cross tool and strokes, not through the
+ * three-state [tapCell] cycle (still here, and still pinned by its tests). [beginStroke] marks the
+ * cell under the finger and decides the stroke's meaning from it: starting on a cell that already
+ * holds the tool's mark makes the whole stroke an ERASE of that mark, anything else makes it a PAINT
+ * (the start cell takes the mark; later cells only change if they are still UNDETERMINED, so a drag
+ * never overwrites the player's other marks). [dragStrokeTo] locks the stroke to the start cell's
+ * row or column on its first move and walks cell by cell, so a fast drag cannot skip squares.
+ * [undo] takes back one stroke (or one tap); the [NonogramState.mistakes] total never decrements,
+ * undone or not, same "running total" rule as before. [restartPuzzle] clears the current board.
+ *
  * DELIBERATE SCOPE CUTS (honest MVP, same spirit as every other game's own
  * documented cuts):
  *   - No hint/solver — a real Nonogram hint needs the same line-deduction
@@ -108,6 +126,28 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
     /** Total time spent paused during the CURRENT board, subtracted out in [freezeTimer] — see [pause]/[resume]'s KDoc. */
     private var totalPausedMillis: Long = 0L
 
+    /**
+     * Undo history for the CURRENT board: each entry is the cell grid as it was just BEFORE one stroke
+     * (or one [tapCell]) first changed it. Grids are never mutated after they are published to
+     * [state], so entries can share the list instance.
+     */
+    private val undoStack = mutableListOf<List<NonogramCellState>>()
+
+    /** How many strokes [undo] can take back right now; 0 means there is nothing to undo. */
+    val undoDepth = mutableStateOf(0)
+
+    // The stroke currently under the player's finger (see [beginStroke]); strokeTool == null means none.
+    private var strokeTool: NonogramTool? = null
+    private var strokeErases = false
+    private var strokeChangedSomething = false
+    private var strokeAxis = StrokeAxis.NONE
+    private var strokeStartRow = 0
+    private var strokeStartCol = 0
+    private var strokeLastRow = 0
+    private var strokeLastCol = 0
+
+    private enum class StrokeAxis { NONE, HORIZONTAL, VERTICAL }
+
     /** Board size (N of NxN) per tier. */
     private val difficultySize: Map<CpuDifficulty, Int> = mapOf(
         CpuDifficulty.EASY to 5,
@@ -136,6 +176,7 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         finishedElapsedMillis.value = null
         pausedAtElapsedRealtime = null
         totalPausedMillis = 0L
+        clearStrokeAndHistory()
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true -- see the
         // MinesweeperGame/SudokuGame/LightsOutGame/DotsAndBoxesGame/
@@ -182,6 +223,19 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         }
     }
 
+    /**
+     * Live elapsed time for the current board, or null before the first mark. It does not advance
+     * while the engine is paused (app backgrounded) and, once the board is solved, is exactly
+     * [finishedElapsedMillis]. Read-only; never mutates the timer. A screen's clock reads this so
+     * the number on screen and the recorded best time agree.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -193,24 +247,180 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
      * won, or the whole session has already ended via [leaveSession]/
      * [endMatch] (found missing from a sibling game's own first pass by
      * adversarial review — see ColorFloodGame.pick()'s KDoc for the full
-     * story — built in here from the start).
+     * story — built in here from the start). Each tap is its own [undo] step.
      */
     fun tapCell(index: Int) {
         val s = state.value ?: return
         if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
 
-        if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
-
         val next = when (s.cells[index]) {
             NonogramCellState.UNDETERMINED -> NonogramCellState.FILLED
             NonogramCellState.FILLED -> NonogramCellState.MARKED_EMPTY
             NonogramCellState.MARKED_EMPTY -> NonogramCellState.UNDETERMINED
         }
+        applyCell(s, index, next, newUndoEntry = true)
+    }
+
+    /**
+     * Starts a stroke at [index] with [tool] and marks that cell. The stroke is an ERASE if the cell
+     * already holds [tool]'s mark (it, and later cells holding that same mark, go back to
+     * UNDETERMINED); otherwise it is a PAINT (this cell takes the mark whatever it held, later cells
+     * take it only while UNDETERMINED). Returns true iff the board changed. No-op (false) if
+     * [index] is out of range, the board is solved, or the session has ended. Follow with
+     * [dragStrokeTo] for each move and [endStroke] when the finger lifts; everything in one stroke
+     * is one [undo] step.
+     */
+    fun beginStroke(index: Int, tool: NonogramTool): Boolean {
+        val s = state.value ?: return false
+        if (matchOver.value || s.isOver) return false
+        if (index !in s.cells.indices) return false
+
+        strokeTool = tool
+        strokeErases = s.cells[index] == markFor(tool)
+        strokeChangedSomething = false
+        strokeAxis = StrokeAxis.NONE
+        strokeStartRow = index / s.size
+        strokeStartCol = index % s.size
+        strokeLastRow = strokeStartRow
+        strokeLastCol = strokeStartCol
+        return paintStrokeCell(index, isStart = true)
+    }
+
+    /**
+     * Extends the stroke begun by [beginStroke] to the cell at ([row], [col]) (clamped onto the
+     * board, so a finger dragged past the edge keeps painting the edge cell). The first move that
+     * leaves the start cell locks the stroke to the start cell's row or column, whichever the finger
+     * went further along (a tie goes to the row); from then on only that line is painted, and every
+     * cell between the last painted one and the new one is visited so a fast drag skips nothing.
+     * Returns true iff the board changed. No-op (false) with no stroke open, once the board is
+     * solved (including mid-drag), or after the session ended.
+     */
+    fun dragStrokeTo(row: Int, col: Int): Boolean {
+        if (strokeTool == null) return false
+        val s = state.value ?: return false
+        if (matchOver.value || s.isOver) return false
+
+        val n = s.size
+        val r = row.coerceIn(0, n - 1)
+        val c = col.coerceIn(0, n - 1)
+        if (strokeAxis == StrokeAxis.NONE) {
+            if (r == strokeStartRow && c == strokeStartCol) return false
+            strokeAxis = if (abs(c - strokeStartCol) >= abs(r - strokeStartRow)) StrokeAxis.HORIZONTAL else StrokeAxis.VERTICAL
+        }
+        val targetRow = if (strokeAxis == StrokeAxis.HORIZONTAL) strokeStartRow else r
+        val targetCol = if (strokeAxis == StrokeAxis.HORIZONTAL) c else strokeStartCol
+
+        var changed = false
+        while (strokeLastRow != targetRow || strokeLastCol != targetCol) {
+            strokeLastRow += stepToward(strokeLastRow, targetRow)
+            strokeLastCol += stepToward(strokeLastCol, targetCol)
+            if (paintStrokeCell(strokeLastRow * n + strokeLastCol, isStart = false)) changed = true
+            // A cell painted mid-drag can finish the puzzle; nothing after that may change the board.
+            if (state.value?.isOver == true) break
+        }
+        return changed
+    }
+
+    /** Closes the stroke begun by [beginStroke]. Safe to call with no stroke open, and more than once. */
+    fun endStroke() {
+        strokeTool = null
+    }
+
+    /** One tap with [tool]: [beginStroke] immediately followed by [endStroke]. Returns true iff the board changed. */
+    fun toggleCell(index: Int, tool: NonogramTool): Boolean {
+        val changed = beginStroke(index, tool)
+        endStroke()
+        return changed
+    }
+
+    /**
+     * Takes back the most recent stroke (or [tapCell]) by restoring the cell grid it started from.
+     * [NonogramState.mistakes] is NOT rolled back (it is a running total of wrong fills placed), and
+     * neither is the stopwatch. Returns false, changing nothing, if there is nothing to undo, the
+     * board is solved, or the session has ended.
+     */
+    fun undo(): Boolean {
+        val s = state.value ?: return false
+        if (matchOver.value || s.isOver) return false
+        if (undoStack.isEmpty()) return false
+
+        val previous = undoStack.removeAt(undoStack.lastIndex)
+        undoDepth.value = undoStack.size
+        strokeTool = null
+        state.value = s.copy(cells = previous)
+        return true
+    }
+
+    /**
+     * Clears the current board back to all-UNDETERMINED without generating a new puzzle: marks,
+     * undo history, the mistake count and the stopwatch all reset, as for a fresh board. No-op once
+     * the board is solved (a solve already counted) or the session has ended.
+     */
+    fun restartPuzzle() {
+        val s = state.value ?: return
+        if (matchOver.value || s.isOver) return
+
+        timerStartElapsedRealtime.value = null
+        finishedElapsedMillis.value = null
+        pausedAtElapsedRealtime = null
+        totalPausedMillis = 0L
+        clearStrokeAndHistory()
+        state.value = s.copy(cells = List(s.size * s.size) { NonogramCellState.UNDETERMINED }, mistakes = 0, won = false)
+    }
+
+    private fun markFor(tool: NonogramTool): NonogramCellState =
+        if (tool == NonogramTool.FILL) NonogramCellState.FILLED else NonogramCellState.MARKED_EMPTY
+
+    private fun stepToward(from: Int, to: Int): Int = if (to > from) 1 else if (to < from) -1 else 0
+
+    private fun clearStrokeAndHistory() {
+        undoStack.clear()
+        undoDepth.value = 0
+        strokeTool = null
+        strokeChangedSomething = false
+    }
+
+    /** Applies the open stroke's meaning to one cell (see [beginStroke]); true iff the cell changed. */
+    private fun paintStrokeCell(index: Int, isStart: Boolean): Boolean {
+        val tool = strokeTool ?: return false
+        val s = state.value ?: return false
+        if (matchOver.value || s.isOver) return false
+        if (index !in s.cells.indices) return false
+
+        val mark = markFor(tool)
+        val current = s.cells[index]
+        val next = when {
+            strokeErases -> if (current == mark) NonogramCellState.UNDETERMINED else return false
+            current == mark -> return false
+            current == NonogramCellState.UNDETERMINED || isStart -> mark
+            else -> return false
+        }
+        // The first change of a stroke opens its undo entry; later cells of the same stroke share it.
+        applyCell(s, index, next, newUndoEntry = !strokeChangedSomething)
+        strokeChangedSomething = true
+        return true
+    }
+
+    /**
+     * The one place a cell actually changes: starts the stopwatch on the first mark, records the undo
+     * entry when [newUndoEntry], counts a mistake when a cell that is NOT in the solution newly
+     * becomes FILLED, and detects the win (which freezes the timer and bumps [puzzlesSolved]).
+     */
+    private fun applyCell(s: NonogramState, index: Int, next: NonogramCellState, newUndoEntry: Boolean) {
+        if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
+        if (newUndoEntry) {
+            undoStack.add(s.cells)
+            if (undoStack.size > MAX_UNDO_STEPS) undoStack.removeAt(0)
+            undoDepth.value = undoStack.size
+        }
+
         val cells = s.cells.toMutableList()
         cells[index] = next
 
-        val mistakes = if (next == NonogramCellState.FILLED && !s.solution[index]) s.mistakes + 1 else s.mistakes
+        val newlyFilledWrong = next == NonogramCellState.FILLED &&
+            s.cells[index] != NonogramCellState.FILLED && !s.solution[index]
+        val mistakes = if (newlyFilledWrong) s.mistakes + 1 else s.mistakes
         val won = cells.indices.all { (cells[it] == NonogramCellState.FILLED) == s.solution[it] }
 
         state.value = s.copy(cells = cells, mistakes = mistakes, won = won)
@@ -519,5 +729,8 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         const val SOLVE_CALL_BUDGET = 200_000
         const val INCONCLUSIVE = -1
         const val FILL_PROBABILITY = 0.45f
+
+        /** Undo history cap per board; a 15x15 board has 225 cells, so this is far beyond any real session's need. */
+        const val MAX_UNDO_STEPS = 500
     }
 }

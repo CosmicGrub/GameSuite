@@ -205,10 +205,10 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
         onMatchEnd?.invoke(result)
     }
 
-    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Any cell is selectable (including givens) purely for highlighting — only edits are blocked on a given. Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every other invalid state gets here — found missing by adversarial review before this ever shipped. */
+    /** Selects [index] as the target of the next setValue/clearValue/toggleNote call. Any cell is selectable (including givens) purely for highlighting — only edits are blocked on a given. Out-of-range indices are ignored rather than stored, same guarded-no-op treatment every other invalid state gets here — found missing by adversarial review before this ever shipped. Also a no-op once the whole session has ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). */
     fun selectCell(index: Int) {
         val s = state.value ?: return
-        if (s.isOver) return
+        if (matchOver.value || s.isOver) return
         if (index !in s.cells.indices) return
         state.value = s.copy(selectedIndex = index)
     }
@@ -230,13 +230,17 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * most real Sudoku apps track mistakes (a session stat), not a
      * strict/enforced limit — see this class's own KDoc on why there's no
      * game-over here.
+     *
+     * Returns true if the entry was applied (a wrong digit still counts as applied) and false
+     * if it was one of the no-ops above, so the screen can tell a real placement from a tap
+     * that did nothing and say so instead of playing the placement feedback anyway.
      */
-    fun setValue(value: Int) {
-        val s = state.value ?: return
-        val index = s.selectedIndex ?: return
-        if (matchOver.value || s.isOver) return
+    fun setValue(value: Int): Boolean {
+        val s = state.value ?: return false
+        val index = s.selectedIndex ?: return false
+        if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
-        if (cell.isGiven) return
+        if (cell.isGiven) return false
 
         if (timerStartElapsedRealtime.value == null) timerStartElapsedRealtime.value = nowMillis()
 
@@ -257,35 +261,52 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
             puzzlesSolved.value += 1
             freezeTimer()
         }
+        return true
     }
 
-    /** Clears the selected cell's value only (notes are untouched). No-op on a given cell, an already-empty cell, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). */
-    fun clearValue() {
-        val s = state.value ?: return
-        val index = s.selectedIndex ?: return
-        if (matchOver.value || s.isOver) return
+    /** Clears the selected cell's value only (notes are untouched). No-op on a given cell, an already-empty cell, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). Returns true only if a value was actually erased. */
+    fun clearValue(): Boolean {
+        val s = state.value ?: return false
+        val index = s.selectedIndex ?: return false
+        if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
-        if (cell.isGiven || cell.value == null) return
+        if (cell.isGiven || cell.value == null) return false
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(value = null)
         state.value = s.copy(cells = cells)
+        return true
     }
 
-    /** Toggles a pencil mark on the selected cell. No-op on a given cell, a cell that already holds a value, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). */
-    fun toggleNote(value: Int) {
-        val s = state.value ?: return
-        val index = s.selectedIndex ?: return
-        if (matchOver.value || s.isOver) return
+    /** Toggles a pencil mark on the selected cell. No-op on a given cell, a cell that already holds a value, an already-won board, or once the whole session has already ended via [leaveSession]/[endMatch] (see [setValue]'s KDoc for why). Returns true only if a mark was actually toggled. */
+    fun toggleNote(value: Int): Boolean {
+        val s = state.value ?: return false
+        val index = s.selectedIndex ?: return false
+        if (matchOver.value || s.isOver) return false
         val cell = s.cells[index]
-        if (cell.isGiven || cell.value != null) return
+        if (cell.isGiven || cell.value != null) return false
         val cells = s.cells.toMutableList()
         cells[index] = cell.copy(notes = if (value in cell.notes) cell.notes - value else cell.notes + value)
         state.value = s.copy(cells = cells)
+        return true
     }
 
     private fun freezeTimer() {
         val start = timerStartElapsedRealtime.value ?: nowMillis()
         finishedElapsedMillis.value = (nowMillis() - start) - totalPausedMillis
+    }
+
+    /**
+     * Pause-aware live reading of the current board's stopwatch, for the on-screen clock: null
+     * before the first digit is placed, frozen at the pause instant while [pause]d (so
+     * backgrounding never makes the display tick ahead and then jump back at the solve), and
+     * exactly [finishedElapsedMillis] once the board is won (so the clock ends on the very
+     * number that gets recorded). Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
     }
 
     /** Called from the finished-board panel's "New Puzzle" button — keeps the running tally. */

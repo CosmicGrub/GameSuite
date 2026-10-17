@@ -22,6 +22,13 @@ data class MinesweeperCell(
  * [MinesweeperGame.matchOver], which only flips once the whole session
  * ends, same split every other solo-puzzle game here (Hangman, Sliding
  * Puzzle) uses between a round's outcome and the session's.
+ *
+ * [explodedIndex] is the row-major index of the mine the player revealed to
+ * lose (null on every board that has not been lost), so a lost board can
+ * single out the mine that ended it from the other mines it reveals. On a
+ * lost board a FLAGGED cell that is a mine keeps its flag (a correct flag
+ * stays visible) and a FLAGGED cell that is not a mine is a wrong flag the
+ * screen can mark; every unflagged mine is REVEALED.
  */
 data class MinesweeperState(
     val rows: Int,
@@ -30,7 +37,8 @@ data class MinesweeperState(
     val mineCount: Int,
     val flagCount: Int = 0,
     val exploded: Boolean = false,
-    val won: Boolean = false
+    val won: Boolean = false,
+    val explodedIndex: Int? = null
 ) {
     val isOver: Boolean get() = exploded || won
 }
@@ -38,9 +46,9 @@ data class MinesweeperState(
 /**
  * Classic Minesweeper. Reveal a cell; a 0 auto-floods its neighbors, a
  * number tells you how many of its 8 neighbors are mines, a mine ends the
- * board. Flag a suspected mine instead of revealing it (this app has no
- * long-press/right-click input model, so the screen offers an explicit
- * "flag mode" toggle instead — see MinesweeperScreen).
+ * board. Flag a suspected mine instead of revealing it (the screen offers a
+ * Reveal/Flag mode toggle, and press-and-hold flags in either mode — see
+ * MinesweeperScreen).
  *
  * FIRST-CLICK SAFETY: mines are NOT placed at [startMatch] — [minesPlaced]
  * stays false until the player's first [revealCell] call, which places
@@ -53,9 +61,12 @@ data class MinesweeperState(
  * Same solo-puzzle session pattern as SlidingPuzzleGame/HangmanGame: a
  * module-level [matchOver] distinct from the per-board [MinesweeperState.isOver];
  * finishing a board (won OR lost) does not end the match, just bumps
- * [puzzlesSolved] on a win; [playAgain] deals a fresh board keeping the
- * tally; [leaveSession] builds the [GameResult] from the tally and ends
- * the match.
+ * [puzzlesSolved] on a win or [puzzlesFailed] on a loss; [playAgain] deals a
+ * fresh board keeping the tally; [leaveSession] builds the [GameResult] from
+ * the tally and ends the match. Solved plus failed is the number of FINISHED
+ * boards, which the screen reads to decide whether leaving mid-board may be a
+ * pure abort (nothing finished yet) or must go through [leaveSession] so the
+ * finished boards still count.
  *
  * Difficulty (there's no bot here either, so exactly as in Sliding Puzzle
  * the lever has to be the puzzle itself) scales board size and mine density:
@@ -99,6 +110,16 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
     val state = mutableStateOf<MinesweeperState?>(null)
     val puzzlesSolved = mutableStateOf(0)
 
+    /** Boards lost to a mine this session; with [puzzlesSolved] this is the finished-board count. See the class KDoc. */
+    val puzzlesFailed = mutableStateOf(0)
+
+    /**
+     * Counts every fresh board dealt (bumped by each [startMatch], never reset, never lowered). The
+     * screen keys its per-board state on this rather than on the board's contents: two boards of the
+     * same tier have the same shape, and re-dealing the same daily seed gives an identical layout.
+     */
+    val boardNumber = mutableStateOf(0)
+
     /** True only once the whole session ends (user leaves via "Back to Menu"), not per-board. */
     val matchOver = mutableStateOf(false)
 
@@ -111,7 +132,8 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
      * real move, not on board generation" idiom as SlidingPuzzleGame's own
      * `timerStartElapsedRealtime`, and for the same reason (sitting and staring at a fresh
      * board shouldn't count against the clock). The screen derives its live "elapsed time"
-     * display from this rather than this class ticking a timer itself.
+     * display from [activeElapsedMillis] (which subtracts paused intervals) rather than this
+     * class ticking a timer itself.
      */
     val timerStartElapsedRealtime = mutableStateOf<Long?>(null)
 
@@ -141,6 +163,7 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
     override fun init(context: GameContext) {
         this.context = context
         puzzlesSolved.value = 0
+        puzzlesFailed.value = 0
         matchOver.value = false
     }
 
@@ -163,6 +186,7 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         // board's endMatch() left matchOver stuck true (see the class KDoc's
         // note on this fix) -- found by adversarial review, see that note.
         matchOver.value = false
+        boardNumber.value += 1
         state.value = MinesweeperState(
             rows = rows,
             cols = cols,
@@ -205,6 +229,21 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         }
     }
 
+    /**
+     * The stopwatch reading a live clock should show right now, in the SAME terms
+     * [finishedElapsedMillis] is computed in: wall time since the first reveal minus every paused
+     * interval, including a pause that is still running (so the display freezes while the app is
+     * backgrounded instead of ticking on and then snapping back when the board ends). Null before
+     * the first reveal. Once the board is won or lost it is just [finishedElapsedMillis].
+     * Read-only; never mutates the timer.
+     */
+    fun activeElapsedMillis(): Long? {
+        val start = timerStartElapsedRealtime.value ?: return null
+        finishedElapsedMillis.value?.let { return it }
+        val upTo = pausedAtElapsedRealtime ?: nowMillis()
+        return (upTo - start - totalPausedMillis).coerceAtLeast(0L)
+    }
+
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
@@ -243,10 +282,17 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         }
 
         if (working.cells[index].isMine) {
-            // Loss: reveal every mine so the board explains itself. Everything
-            // else (flags included) is left exactly as the player last saw it.
-            val revealedMines = working.cells.map { if (it.isMine) it.copy(state = CellState.REVEALED) else it }
-            state.value = working.copy(cells = revealedMines, exploded = true)
+            // Loss: reveal every unflagged mine so the board explains itself. Everything
+            // else is left exactly as the player last saw it, and that includes flags: a
+            // flagged mine keeps its (correct) flag, a flagged safe cell stays flagged so
+            // the screen can mark it as a wrong flag, and flagCount keeps agreeing with the
+            // flags on the board. [index] is always HIDDEN here (guarded above), so the mine
+            // the player hit is among the revealed ones.
+            val revealedMines = working.cells.map {
+                if (it.isMine && it.state != CellState.FLAGGED) it.copy(state = CellState.REVEALED) else it
+            }
+            state.value = working.copy(cells = revealedMines, exploded = true, explodedIndex = index)
+            puzzlesFailed.value += 1
             freezeTimer()
             return
         }
