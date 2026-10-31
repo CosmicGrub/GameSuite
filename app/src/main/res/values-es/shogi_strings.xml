@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hub_shogi">Shogi</string>
+    <string name="hub_mini_shogi">Mini Shogi</string>
+    <string name="hub_japanese_chess_captured_pieces_join_your_side">Ajedrez japonés: las piezas capturadas pasan a tu bando.</string>
+    <string name="hub_shogi_on_a_small_5x5_board_quick_sharp_games">Shogi en un tablero pequeño de 5x5: partidas rápidas y agudas.</string>
+    <string name="hub_piece_style">Estilo de piezas</string>
+    <string name="hub_kanji_is_the_traditional_look_symbols_draws_arro_a4a945">Kanji es el aspecto tradicional. Símbolos dibuja flechas que muestran cómo se mueve cada pieza, así que no hace falta leer kanji.</string>
+    <string name="hub_kanji">Kanji</string>
+    <string name="hub_traditional_characters">Caracteres tradicionales.</string>
+    <string name="hub_symbols">Símbolos</string>
+    <string name="hub_arrows_and_letters">Flechas y letras.</string>
+
+    <string name="tip_shogi_1">Toca una pieza y luego una casilla marcada. Los puntos son movimientos; las esquinas son capturas.</string>
+    <string name="tip_shogi_2">Las piezas que capturas van a tu mano. Toca una de tu mano y luego una casilla vacía para soltarla como tuya.</string>
+    <string name="tip_shogi_3">Al llegar a las tres últimas filas puedes promocionar. Atrapa al rey rival para ganar.</string>
+    <string name="tip_mini_shogi_1">Toca una pieza y luego una casilla marcada. Los puntos son movimientos; las esquinas son capturas.</string>
+    <string name="tip_mini_shogi_2">Las piezas que capturas van a tu mano. Toca una de tu mano y luego una casilla vacía para soltarla como tuya.</string>
+    <string name="tip_mini_shogi_3">Llega a la última fila para promocionar. Atrapa al rey rival para ganar.</string>
+
+    <string name="shogi_help_title">Cómo jugar al Shogi</string>
+    <string name="shogi_mini_help_title">Cómo jugar al Mini Shogi</string>
+    <string name="shogi_help_text">El shogi es el ajedrez japonés en un tablero de 9x9. Sente (el primer jugador) se sienta abajo y mueve primero. Cada pieza se mueve a su manera; cambia el estilo a Símbolos para ver flechas de cada pieza.\n\nLas piezas capturadas se guardan en tu mano. En tu turno puedes, en lugar de mover, soltar una pieza de tu mano en cualquier casilla vacía y pasa a ser tuya. Hay límites: no dos peones sin promocionar tuyos en una misma columna (nifu), ninguna pieza donde no pueda moverse nunca, y ningún peón soltado que dé jaque mate.\n\nCuando una pieza entra, se mueve dentro o sale de las tres últimas filas puede promocionar; peones, lanzas y caballos deben promocionar si no pudieran moverse más. El plata, el caballo, la lanza y el peón promocionados se mueven como un oro; el alfil se convierte en caballo (horse) y la torre en dragón.\n\nAtrapa al rey rival (jaque mate) para ganar. Repetir cuatro veces la misma posición es tablas, salvo que un bando diera jaque perpetuo, que pierde. Si ambos reyes llegan al campo rival, puedes declarar la victoria en tu turno con suficientes piezas (28 puntos Sente, 27 Gote; torres y alfiles valen 5, el resto 1).</string>
+    <string name="shogi_mini_help_text">El Mini Shogi es shogi en un tablero de 5x5 con torre, alfil, oro, plata, rey y peón por bando. Sente (el primer jugador) se sienta abajo y mueve primero.\n\nLas piezas capturadas se guardan en tu mano. En tu turno puedes, en lugar de mover, soltar una pieza de tu mano en cualquier casilla vacía y pasa a ser tuya. No puedes soltar un peón en una columna donde ya tengas uno (nifu), ni donde no pueda moverse, ni uno que dé jaque mate.\n\nAl llegar a la última fila una pieza puede promocionar (el peón debe). El peón y el plata promocionados se mueven como un oro; el alfil se convierte en caballo (horse) y la torre en dragón.\n\nAtrapa al rey rival (jaque mate) para ganar. Cuatro repeticiones de una posición son tablas, salvo que un bando diera jaque continuo, que pierde.</string>
+    <string name="shogi_leave_title">¿Salir de la partida?</string>
+    <string name="shogi_leave_body">La partida sigue en curso. Salir ahora no cuenta como victoria ni derrota.</string>
+    <string name="shogi_leave_body_keeps">La partida sigue en curso y no contará, pero las partidas que ya terminaste se conservan en tu registro.</string>
+    <string name="shogi_waiting_host">Esperando a que el anfitrión prepare el tablero.</string>
+    <string name="shogi_thinking">El ordenador está pensando…</string>
+    <string name="shogi_undo">Deshacer</string>
+    <string name="shogi_hint">Pista</string>
+    <string name="shogi_style_kanji">Kanji</string>
+    <string name="shogi_style_symbols">Símbolos</string>
+    <string name="shogi_style_toggle_desc">Estilo de piezas: %1$s</string>
+    <string name="shogi_declare_impasse">Declarar victoria (impasse)</string>
+    <string name="shogi_play_again">Jugar de nuevo</string>
+    <string name="shogi_back_menu">Volver al menú</string>
+    <string name="shogi_sente">Sente</string>
+    <string name="shogi_gote">Gote</string>
+    <string name="shogi_turn">Mueve %1$s (%2$s)</string>
+    <string name="shogi_your_turn">Tu turno</string>
+    <string name="shogi_waiting_for">Esperando a %1$s</string>
+    <string name="shogi_vs_you_play">contra %1$s · tú eres %2$s</string>
+    <string name="shogi_check">¡Jaque!</string>
+    <string name="shogi_opponent_left">El oponente se desconectó</string>
+    <string name="shogi_hand_of">Mano de %1$s</string>
+    <string name="shogi_hand_empty">Sin piezas en la mano</string>
+    <string name="shogi_hand_piece_desc">%1$s, %2$d en la mano</string>
+    <string name="shogi_tap_label">Seleccionar casilla</string>
+    <string name="shogi_square">fila %1$d, columna %2$d</string>
+    <string name="shogi_cell_empty">Vacía, %1$s</string>
+    <string name="shogi_cell_piece">%1$s %2$s, %3$s</string>
+    <string name="shogi_cell_selected">, seleccionada</string>
+    <string name="shogi_cell_legal">, movimiento legal</string>
+    <string name="shogi_cell_capture">, puede capturar</string>
+    <string name="shogi_cell_hint">, movimiento sugerido</string>
+
+    <string name="shogi_piece_pawn">Peón</string>
+    <string name="shogi_piece_lance">Lanza</string>
+    <string name="shogi_piece_knight">Caballo</string>
+    <string name="shogi_piece_silver">General de plata</string>
+    <string name="shogi_piece_gold">General de oro</string>
+    <string name="shogi_piece_bishop">Alfil</string>
+    <string name="shogi_piece_rook">Torre</string>
+    <string name="shogi_piece_king">Rey</string>
+    <string name="shogi_piece_tokin">Peón promocionado</string>
+    <string name="shogi_piece_pro_lance">Lanza promocionada</string>
+    <string name="shogi_piece_pro_knight">Caballo promocionado</string>
+    <string name="shogi_piece_pro_silver">Plata promocionada</string>
+    <string name="shogi_piece_horse">Horse (alfil promocionado)</string>
+    <string name="shogi_piece_dragon">Dragón (torre promocionada)</string>
+
+    <string name="shogi_ann_start">Nueva partida. Primer movimiento: %1$s.</string>
+    <string name="shogi_ann_move">%1$s movió %2$s de %3$s a %4$s.</string>
+    <string name="shogi_ann_drop">%1$s soltó %2$s en %3$s.</string>
+    <string name="shogi_ann_capture">Capturó %1$s.</string>
+    <string name="shogi_ann_check">Jaque.</string>
+
+    <string name="shogi_why_notyours">Esa pieza no es tuya, o no es tu turno.</string>
+    <string name="shogi_why_nomoves">Esa pieza no tiene movimientos legales ahora.</string>
+    <string name="shogi_why_nodrop">Esa pieza no se puede soltar en ningún sitio ahora.</string>
+    <string name="shogi_why_cannot">Esa pieza no puede moverse ahí.</string>
+    <string name="shogi_why_incheck">Tu rey está en jaque. Captura al atacante, bloquéalo o mueve el rey.</string>
+    <string name="shogi_why_exposes">Ese movimiento dejaría a tu rey en jaque.</string>
+    <string name="shogi_why_occupied">Esa casilla está ocupada.</string>
+    <string name="shogi_why_nifu">Nifu: ya tienes un peón sin promocionar en esa columna.</string>
+    <string name="shogi_why_dead">Una pieza soltada ahí no podría moverse nunca.</string>
+    <string name="shogi_why_uchifuzume">No permitido: soltar un peón para dar jaque mate.</string>
+    <string name="shogi_why_drop_check">Soltar ahí dejaría a tu rey en jaque.</string>
+    <string name="shogi_why_nohand">No tienes esa pieza en la mano.</string>
+
+    <string name="shogi_promote_prompt">¿Promocionar %1$s?</string>
+    <string name="shogi_promote_yes">Promocionar</string>
+    <string name="shogi_promote_no">No promocionar</string>
+
+    <string name="shogi_result_win">¡Gana %1$s!</string>
+    <string name="shogi_result_draw">Hay tablas.</string>
+    <string name="shogi_reason_checkmate">Jaque mate.</string>
+    <string name="shogi_reason_repetition">La misma posición se repitió cuatro veces.</string>
+    <string name="shogi_reason_perpetual">El jaque perpetuo no está permitido: el bando que lo da pierde.</string>
+    <string name="shogi_reason_impasse">Victoria por declarar impasse (ambos reyes en el campo rival).</string>
+    <string name="shogi_reason_limit">Se alcanzó el límite de jugadas.</string>
+    <string name="shogi_you_won">¡Has ganado!</string>
+    <string name="shogi_you_lost">Has perdido.</string>
+    <string name="shogi_session">Sesión: %1$s</string>
+    <string name="shogi_session_draws">Tablas %1$d</string>
+
+    <string name="shogi_coach_title">¿Nuevo en el shogi?</string>
+    <string name="shogi_coach_body">Toca una pieza para ver adónde puede ir: los puntos son movimientos y las esquinas son capturas. Las piezas que capturas pasan a tu mano y puedes soltarlas en el tablero como tuyas. Usa el estilo Símbolos para ver cómo se mueve cada pieza.</string>
+    <string name="shogi_mini_coach_body">Toca una pieza para ver adónde puede ir: los puntos son movimientos y las esquinas son capturas. Las piezas que capturas pasan a tu mano y puedes soltarlas en el tablero como tuyas. El Mini Shogi es una versión rápida de 5x5.</string>
+    <string name="shogi_coach_trivia">¿Sabías que? El shogi es el único gran juego de ajedrez en el que las piezas capturadas vuelven a jugar, por eso casi nunca hay tablas por falta de material.</string>
+    <string name="shogi_coach_gotit">Entendido</string>
+</resources>

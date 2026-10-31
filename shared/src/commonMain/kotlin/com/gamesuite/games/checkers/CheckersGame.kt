@@ -32,7 +32,15 @@ private data class CheckersSnapshot(
     val difficulty: String,
     /** The seat that plays Light (side 1) and so opens each round. Absent in older saves, where
      *  seat 1 always opened (seat i on side i), hence the default. */
-    val openingSeatIndex: Int = 1
+    val openingSeatIndex: Int = 1,
+    /** Plies since the last capture or man move (the 40-move no-progress draw). Absent in older saves. */
+    val noProgressMoves: Int = 0,
+    /** Position keys since the last capture or man move, newest last (the repetition draw). Absent in older saves. */
+    val positionKeys: List<String> = emptyList(),
+    /** [CheckersDrawReason] name when the round ended in a draw, else null. Absent in older saves. */
+    val drawReason: String? = null,
+    /** The Hub's "Mandatory capture" option. Absent in older saves, which always had it on. */
+    val mandatoryCapture: Boolean = true
 )
 
 @Serializable
@@ -83,6 +91,15 @@ private fun checkersSnapshotPiece(code: Int): CheckersPiece? = when (code) {
  * entry points the same way `playHuman`/`playAi` were in the source.
  */
 enum class PieceKind { MAN, KING }
+
+/** Why a round ended with no winner. */
+enum class CheckersDrawReason { NO_PROGRESS, REPETITION }
+
+/** Plies (each side's turn is one) without a capture or a man move after which the round is drawn. */
+const val CHECKERS_NO_PROGRESS_LIMIT = 40
+
+/** Times the same position (same side to move) may occur before the round is drawn. */
+const val CHECKERS_REPETITION_LIMIT = 3
 
 data class CheckersPiece(val owner: Int, val kind: PieceKind)
 
@@ -150,7 +167,13 @@ data class CheckersState(
     val lastMove: CheckersMove? = null,
     val lastTurnHops: List<CheckersMove> = emptyList(),
     val gameOver: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    /** Why the round ended without a winner; null while it is live or when someone won. */
+    val drawReason: CheckersDrawReason? = null,
+    /** Plies (each side's turn counts one) since the last capture or man move. */
+    val noProgressMoves: Int = 0,
+    /** Position keys since the last capture or man move, newest last: the repetition record. */
+    val positionKeys: List<String> = emptyList()
 ) {
     val inForcedContinuation: Boolean get() = forcedRow >= 0
     fun pieceAt(row: Int, col: Int): CheckersPiece? = board[row * 8 + col]
@@ -165,11 +188,49 @@ data class CheckersState(
  * MancalaGame.kt's own KDoc explains for its private `SowResult`/board-copy
  * helpers.
  */
-private data class Position(
+internal data class Position(
     val board: List<CheckersPiece?>,
     val sideToMove: Int,
     val forcedRow: Int = -1,
-    val forcedCol: Int = -1
+    val forcedCol: Int = -1,
+    /** False when the "Mandatory capture" option is off: captures are then just another legal move. */
+    val mandatoryCapture: Boolean = true
+)
+
+/** Cheap position key for the repetition rule: 64 cell codes plus the side to move. */
+private fun checkersPositionKey(board: List<CheckersPiece?>, sideToMove: Int): String {
+    val sb = StringBuilder(65)
+    for (piece in board) sb.append(('0' + checkersSnapshotCode(piece)))
+    sb.append(('0' + sideToMove))
+    return sb.toString()
+}
+
+/**
+ * A bot (or hint) search captured on the calling thread, to be run anywhere: [compute] and
+ * [computeHint] only read the immutable data copied here, so they are safe on a background
+ * dispatcher. Hand the result back to [CheckersGame.applyBotPlan] / [CheckersGame.applyHint] on the
+ * main thread, which re-checks that the position is still the one searched.
+ */
+class CheckersBotJob internal constructor(
+    internal val baseState: CheckersState,
+    internal val position: Position,
+    internal val side: Int,
+    internal val difficulty: CpuDifficulty,
+    private val game: CheckersGame
+) {
+    /** The bot's whole turn (every hop of a multi-jump), or null when it has no move. */
+    fun compute(): CheckersBotPlan? = game.searchBotTurn(this)
+
+    /** The hop the MEDIUM bot would choose (the Hint button). */
+    fun computeHint(): CheckersMove? = game.searchHint(this)
+}
+
+/** The result of [CheckersBotJob.compute]: the final position plus the hops that led there. */
+class CheckersBotPlan internal constructor(
+    internal val baseState: CheckersState,
+    internal val finalPosition: Position,
+    internal val summary: CheckersMove,
+    internal val hops: List<CheckersMove>
 )
 
 /**
@@ -219,9 +280,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     val state = mutableStateOf<CheckersState?>(null)
 
     /** Running session score across rounds -- mirrors MancalaGame's scoreP1/scoreP2.
-     *  No `draws` field: unlike Mancala, the ported ruleset has no draw outcome at all
-     *  (see [terminalWinner] -- a side either has a move or it has lost), matching the
-     *  C++ `CheckersResult` enum, which only ever reports IN_PROGRESS/HUMAN_WINS/AI_WINS. */
+     *  No `draws` field: a drawn round (no progress in 40 plies, or a threefold repetition; see
+     *  [CheckersDrawReason]) ends with no winner and adds to neither score. */
     val scoreP1 = mutableStateOf(0)
     val scoreP2 = mutableStateOf(0)
 
@@ -243,6 +303,14 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         set(value) {
             field = value.coerceIn(0, 1)
         }
+
+    /**
+     * The Hub's "Mandatory capture" option (default on, the American rule). When off, a capture is
+     * just another legal move, but a multi-jump already started must still continue. Set before
+     * [startMatch]; saved in the resume snapshot and the network state, so a restored or guest board
+     * plays by the same rule.
+     */
+    var mandatoryCapture: Boolean = true
 
     /** The board side ([CheckersPiece.owner]) that roster [seat] plays. */
     fun sideOfSeat(seat: Int): Int = checkersSideOfSeat(seat, openingSeatIndex)
@@ -488,7 +556,11 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
                     scoreP1 = scoreP1.value,
                     scoreP2 = scoreP2.value,
                     difficulty = difficulty.name,
-                    openingSeatIndex = openingSeatIndex
+                    openingSeatIndex = openingSeatIndex,
+                    noProgressMoves = s.noProgressMoves,
+                    positionKeys = s.positionKeys,
+                    drawReason = s.drawReason?.name,
+                    mandatoryCapture = mandatoryCapture
                 )
             )
         } catch (_: Exception) {
@@ -528,16 +600,36 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             // snapshot could leave a live board with nobody able to move (or a finished one playable).
             val terminalOk = cellsOk && turnOk && openingOk && forcedOk && run {
                 val winnerSide = terminalWinner(
-                    Position(snap.cells.map { checkersSnapshotPiece(it) }, sideToMove, snap.forcedRow, snap.forcedCol)
+                    Position(
+                        snap.cells.map { checkersSnapshotPiece(it) }, sideToMove, snap.forcedRow, snap.forcedCol,
+                        snap.mandatoryCapture
+                    )
                 )
                 val winnerSeat = winnerSide?.let { checkersSeatOfSide(it, snap.openingSeatIndex) }
-                if (snap.gameOver) {
+                if (snap.gameOver && snap.drawReason != null) {
+                    // A drawn round: nobody won, and the position itself is not a loss for the side to move.
+                    winnerSeat == null && snap.winnerPlayerId == null
+                } else if (snap.gameOver) {
                     winnerSeat != null && snap.winnerPlayerId == roster.getOrNull(winnerSeat)?.playerId
                 } else {
                     winnerSeat == null && snap.winnerPlayerId == null
                 }
             }
-            if (rosterOk && cellsOk && turnOk && openingOk && forcedOk && winnerOk && scoresOk && terminalOk) snap else null
+            val drawOk = if (snap.drawReason == null) {
+                true
+            } else {
+                snap.gameOver && when (snap.drawReason) {
+                    CheckersDrawReason.NO_PROGRESS.name -> snap.noProgressMoves >= CHECKERS_NO_PROGRESS_LIMIT
+                    CheckersDrawReason.REPETITION.name ->
+                        snap.positionKeys.isNotEmpty() &&
+                            snap.positionKeys.count { it == snap.positionKeys.last() } >= CHECKERS_REPETITION_LIMIT
+                    else -> false
+                }
+            }
+            val counterOk = snap.noProgressMoves in 0..CHECKERS_NO_PROGRESS_LIMIT * 4 &&
+                snap.positionKeys.size <= CHECKERS_NO_PROGRESS_LIMIT * 4 + 1 &&
+                snap.positionKeys.all { it.length == 65 }
+            if (rosterOk && cellsOk && turnOk && openingOk && forcedOk && winnerOk && scoresOk && terminalOk && drawOk && counterOk) snap else null
         } catch (_: Exception) {
             null
         }
@@ -545,6 +637,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
 
     private fun applySnapshot(snap: CheckersSnapshot) {
         openingSeatIndex = snap.openingSeatIndex
+        mandatoryCapture = snap.mandatoryCapture
         state.value = CheckersState(
             board = snap.cells.map { checkersSnapshotPiece(it) },
             currentPlayerIndex = snap.currentPlayerIndex,
@@ -553,7 +646,10 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             lastMove = null,
             lastTurnHops = emptyList(),
             gameOver = snap.gameOver,
-            winnerPlayerId = snap.winnerPlayerId
+            winnerPlayerId = snap.winnerPlayerId,
+            drawReason = CheckersDrawReason.entries.firstOrNull { it.name == snap.drawReason },
+            noProgressMoves = snap.noProgressMoves,
+            positionKeys = snap.positionKeys
         )
         scoreP1.value = snap.scoreP1
         scoreP2.value = snap.scoreP2
@@ -612,14 +708,34 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      * it; null when it is not a human's turn or the round is over. Checkers keeps no records.
      */
     fun hint(): CheckersMove? {
+        val job = beginHint() ?: return null
+        return applyHint(job, job.computeHint())
+    }
+
+    /**
+     * Off-thread hint, step 1 (main thread): the search to run, or null when no hint applies (not a
+     * human's turn, round over, networked). Run [CheckersBotJob.computeHint] on a background
+     * dispatcher, then pass the result to [applyHint].
+     */
+    fun beginHint(): CheckersBotJob? {
         val s = state.value ?: return null
         if (matchOver.value || s.gameOver || isNetworked) return null
         if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
-        val hintPos = positionOf(s)
-        val move = pickGreedyMove(hintPos, hintPos.sideToMove) ?: return null
+        val pos = positionOf(s)
+        return CheckersBotJob(s, pos, pos.sideToMove, difficulty, this)
+    }
+
+    /**
+     * Off-thread hint, step 2 (main thread): shows [move] unless the position changed since
+     * [beginHint] (a move, undo, restart or leaving). Returns the move when it was shown.
+     */
+    fun applyHint(job: CheckersBotJob, move: CheckersMove?): CheckersMove? {
+        if (move == null || matchOver.value || state.value !== job.baseState) return null
         hintMove.value = move
         return move
     }
+
+    internal fun searchHint(job: CheckersBotJob): CheckersMove? = pickGreedyMove(job.position, job.side)
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
@@ -641,7 +757,11 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         val cells = MutableList<CheckersPiece?>(64) { null }
         for (row in 0..2) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(0, PieceKind.MAN)
         for (row in 5..7) for (col in 0..7) if ((row + col) % 2 == 1) cells[row * 8 + col] = CheckersPiece(1, PieceKind.MAN)
-        state.value = CheckersState(board = cells, currentPlayerIndex = seatOfSide(1))
+        state.value = CheckersState(
+            board = cells,
+            currentPlayerIndex = seatOfSide(1),
+            positionKeys = listOf(checkersPositionKey(cells, 1))
+        )
         broadcastNewState()
     }
 
@@ -761,7 +881,14 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         val moves = mutableListOf<CheckersMove>()
         for (row in 0..7) for (col in 0..7) {
             if (pos.board[idx(row, col)]?.owner != pos.sideToMove) continue
-            moves += if (anyCapture) jumpsFromSquare(pos.board, row, col) else simpleMovesFromSquare(pos.board, row, col)
+            if (anyCapture && pos.mandatoryCapture) {
+                moves += jumpsFromSquare(pos.board, row, col)
+            } else {
+                // Optional capture: the jumps are offered next to the plain steps. (With nothing
+                // to capture, jumpsFromSquare is empty, so this is the plain-step list.)
+                moves += jumpsFromSquare(pos.board, row, col)
+                moves += simpleMovesFromSquare(pos.board, row, col)
+            }
         }
         return moves
     }
@@ -809,7 +936,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     }
 
     /** [CheckersState.currentPlayerIndex] is a roster SEAT; [Position.sideToMove] is a board side. */
-    private fun positionOf(s: CheckersState) = Position(s.board, sideOfSeat(s.currentPlayerIndex), s.forcedRow, s.forcedCol)
+    private fun positionOf(s: CheckersState) =
+        Position(s.board, sideOfSeat(s.currentPlayerIndex), s.forcedRow, s.forcedCol, mandatoryCapture)
 
     /** [hops] defaults to just [move] itself -- correct as-is for [playMove]'s
      *  always-single-hop commits; [playBotTurn] passes its own full per-hop
@@ -818,6 +946,26 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     private fun commit(pos: Position, move: CheckersMove, hops: List<CheckersMove> = listOf(move)) {
         hintMove.value = null
         val winner = terminalWinner(pos)?.let { seatOfSide(it) }
+        // Draw bookkeeping. A capture or a man move is irreversible: it restarts both the 40-ply
+        // counter and the repetition record. Anything else (a king sliding) adds a ply and the
+        // new position's key. The mover is read from the board BEFORE this commit.
+        val previous = state.value
+        val first = hops.firstOrNull() ?: move
+        val moverWasMan = previous?.pieceAt(first.fromRow, first.fromCol)?.kind == PieceKind.MAN
+        val progress = moverWasMan || hops.any { it.isCapture } || move.isCapture
+        val turnPassed = pos.forcedRow < 0
+        val noProgress = if (progress) 0 else (previous?.noProgressMoves ?: 0) + 1
+        val key = checkersPositionKey(pos.board, pos.sideToMove)
+        val keys = when {
+            progress -> if (turnPassed) listOf(key) else emptyList()
+            else -> (previous?.positionKeys ?: emptyList()) + key
+        }
+        val drawReason = when {
+            winner != null || !turnPassed -> null
+            noProgress >= CHECKERS_NO_PROGRESS_LIMIT -> CheckersDrawReason.NO_PROGRESS
+            keys.count { it == key } >= CHECKERS_REPETITION_LIMIT -> CheckersDrawReason.REPETITION
+            else -> null
+        }
         state.value = CheckersState(
             board = pos.board,
             currentPlayerIndex = seatOfSide(pos.sideToMove),
@@ -825,8 +973,11 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             forcedCol = pos.forcedCol,
             lastMove = move,
             lastTurnHops = hops,
-            gameOver = winner != null,
-            winnerPlayerId = winner?.let { context.players.getOrNull(it)?.playerId }
+            gameOver = winner != null || drawReason != null,
+            winnerPlayerId = winner?.let { context.players.getOrNull(it)?.playerId },
+            drawReason = drawReason,
+            noProgressMoves = noProgress,
+            positionKeys = keys
         )
         when (winner) {
             0 -> scoreP1.value += 1
@@ -891,15 +1042,42 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      * `playAi()`'s own early-return.
      */
     fun playBotTurn() {
-        val s = state.value ?: return
+        val job = beginBotTurn() ?: return
+        applyBotPlan(job.compute())
+    }
+
+    /**
+     * Off-thread bot turn, step 1 (main thread): the search to run, or null when it is not a live
+     * bot turn. Run [CheckersBotJob.compute] on a background dispatcher (the HARD search is deep),
+     * then pass the plan to [applyBotPlan] back on the main thread.
+     */
+    fun beginBotTurn(): CheckersBotJob? {
+        val s = state.value ?: return null
         // matchOver: the screen's bot-turn effect sleeps before calling this, so the player can
         // leave (abort) during that delay -- the bot must not then move on the abandoned board.
-        if (matchOver.value || s.gameOver) return
+        if (matchOver.value || s.gameOver) return null
         val botSeat = s.currentPlayerIndex
-        if (context.players.getOrNull(botSeat)?.isBot != true) return
-        val botIndex = sideOfSeat(botSeat) // the board side the search plays for
+        if (context.players.getOrNull(botSeat)?.isBot != true) return null
+        return CheckersBotJob(s, positionOf(s), sideOfSeat(botSeat), difficulty, this)
+    }
 
-        var pos = positionOf(s)
+    /**
+     * Off-thread bot turn, step 2 (main thread): commits [plan] unless the position moved on since
+     * [beginBotTurn] (undo, restart, leaving, a network state) -- the state object is replaced on
+     * every change, so identity is the check. Returns whether the plan was applied.
+     */
+    fun applyBotPlan(plan: CheckersBotPlan?): Boolean {
+        if (plan == null || matchOver.value || state.value !== plan.baseState) return false
+        commit(plan.finalPosition, plan.summary, plan.hops)
+        return true
+    }
+
+    /** Pure: safe on any thread (reads only the job's immutable copy). */
+    internal fun searchBotTurn(job: CheckersBotJob): CheckersBotPlan? {
+        val botIndex = job.side // the board side the search plays for
+        val searchDifficulty = job.difficulty
+
+        var pos = job.position
         var firstMove: CheckersMove? = null
         var lastMove: CheckersMove? = null
         var anyCapture = false
@@ -909,7 +1087,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         val hops = mutableListOf<CheckersMove>()
 
         while (pos.sideToMove == botIndex && terminalWinner(pos) == null) {
-            val move = when (difficulty) {
+            val move = when (searchDifficulty) {
                 CpuDifficulty.EASY -> pickRandomMove(pos)
                 CpuDifficulty.MEDIUM -> pickGreedyMove(pos, botIndex)
                 CpuDifficulty.HARD -> pickMinimaxMove(pos, botIndex)
@@ -921,9 +1099,12 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             pos = applyMove(pos, move)
         }
 
-        val first = firstMove ?: return
+        val first = firstMove ?: return null
         val last = lastMove!!
-        commit(pos, CheckersMove(first.fromRow, first.fromCol, last.toRow, last.toCol, isCapture = anyCapture), hops)
+        return CheckersBotPlan(
+            job.baseState, pos,
+            CheckersMove(first.fromRow, first.fromCol, last.toRow, last.toCol, isCapture = anyCapture), hops
+        )
     }
 
     // ---- EASY: a genuinely weak/mostly-random legal move -- still obeys mandatory

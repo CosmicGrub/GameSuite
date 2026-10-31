@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach cards for President and Sevens (own file; move into coach_strings.xml when integrating, GameCoachTest reads only that one) -->
+    <string name="coach_president_s1">The whole deck is dealt out. Your goal is to be the first to get rid of every card in your hand.</string>
+    <string name="coach_president_s2">Lead any set of cards of one rank. Everyone after you must beat it with the same number of cards of a higher rank, or pass.</string>
+    <string name="coach_president_s3">The 3 is lowest and the 2 is highest. A 2 wins the trick at once, and four of a kind starts a revolution that flips the order.</string>
+    <string name="coach_president_s4">The first player out becomes President, the last becomes Scum. Next round the Scum hands over its best cards.</string>
+    <string name="coach_president_s5">Finishing earlier earns more points. The most points after the last round wins the session.</string>
+    <string name="coach_president_fact">The revolution rule comes from the Japanese version of this game, Daifugo, whose name means Grand Millionaire.</string>
+    <string name="coach_sevens_s1">The whole deck is dealt out. Your goal is to be the first to play every card in your hand.</string>
+    <string name="coach_sevens_s2">Whoever holds the 7 of diamonds opens with it. Any other 7 can then start a new row for its suit.</string>
+    <string name="coach_sevens_s3">Build each row outwards from its 7: play the card one higher or one lower, from the Ace up to the King.</string>
+    <string name="coach_sevens_s4">If you can play, you must. If nothing fits, you pass. With the pass penalty on, every pass adds 5 points.</string>
+    <string name="coach_sevens_s5">The first hand to empty wins. Everyone else scores the points left in their hand, from 1 for the Ace to 13 for the King.</string>
+    <string name="coach_sevens_fact">Sevens is also called Fan Tan, Parliament or Domino, because its rows of cards growing from the middle look like a game of dominoes.</string>
+</resources>

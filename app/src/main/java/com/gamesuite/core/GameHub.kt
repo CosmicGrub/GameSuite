@@ -282,9 +282,8 @@ fun buildHubLaunch(
         HubKeys.FIRST_RANDOM -> random.nextInt(seats.coerceAtLeast(1))
         else -> 0
     }
-    val difficulty = c.string(HubKeys.DIFFICULTY, HubKeys.DIFFICULTY_DEFAULT).let { id ->
-        CpuDifficulty.values().firstOrNull { it.name == id }
-    }
+    // Choice ids are the upper-case level names ("EASY".."HARD"); "default" (or anything else) is no override.
+    val level: CpuLevel? = CpuLevel.fromId(c.string(HubKeys.DIFFICULTY, HubKeys.DIFFICULTY_DEFAULT).lowercase())
     // A hidden option (visibleWhen false) may still hold a stale value; it must not reach the game.
     val hiddenKeys = mode.options.filter { it.visibleWhen?.invoke(c) == false }.map { it.key }.toSet()
     val extras = c.asMap().filterKeys { it !in HubKeys.standard && it !in hiddenKeys }
@@ -294,11 +293,9 @@ fun buildHubLaunch(
             mode = if (humans > 1) PlayMode.SINGLE_DEVICE_PASS_AND_PLAY else PlayMode.SINGLE_PLAYER_VS_BOT,
             players = players,
             localPlayerIndex = 0,
-            options = LaunchOptions(
-                cpuDifficulty = if (cpuSeats > 0) difficulty else null,
-                firstMoverIndex = firstMoverIndex,
-                extras = extras
-            )
+            options = LaunchOptions(firstMoverIndex = firstMoverIndex, extras = extras).let { base ->
+                if (cpuSeats > 0 && level != null) level.applyTo(base) else base
+            }
         ),
         route = mode.routeFor(c)
     )
@@ -313,6 +310,8 @@ object HubOptions {
             HubChoice(HubKeys.DIFFICULTY_DEFAULT, "Settings default", "Uses Settings > Default CPU difficulty."),
             HubChoice("EASY", "Easy"),
             HubChoice("MEDIUM", "Medium"),
+            // No "Expert" choice: CpuLevel.EXPERT exists in the model, but no engine reads isExpert yet,
+            // so offering it would be identical to Hard. Add it back when an engine searches deeper.
             HubChoice("HARD", "Hard")
         ),
         default = HubKeys.DIFFICULTY_DEFAULT

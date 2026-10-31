@@ -35,5 +35,15 @@ data class GameStats(
      * existed decodes as "not dismissed", per this file's own note on
      * kotlinx.serialization defaulting missing fields — no migration needed.
      */
-    val dismissedFromContinue: Boolean = false
+    val dismissedFromContinue: Boolean = false,
+    /** Current run of consecutive wins in this game (a loss resets it, a draw leaves it). Older blobs decode as 0. */
+    val winStreak: Int = 0,
+    /** Longest [winStreak] ever reached in this game. */
+    val bestWinStreak: Int = 0,
+    /** Wins against a CPU on Hard difficulty. */
+    val winsOnHard: Int = 0,
+    /** Wins in an online match. */
+    val onlineWins: Int = 0,
+    /** Daily puzzles won / solved. */
+    val dailiesSolved: Int = 0
 )

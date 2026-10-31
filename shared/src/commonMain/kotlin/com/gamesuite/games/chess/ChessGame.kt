@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.time.TimeSource
 
 // ---------------------------------------------------------------------------
 // Port of Z:\GameSuite\esp32-tictactoe\TicTacToeESP32\ChessLogic.h/.cpp -- that
@@ -34,13 +35,12 @@ import kotlinx.serialization.json.Json
 // sides' bots kept independently re-choosing as best would just repeat indefinitely,
 // never resolving to a result at all).
 //
-// NOT IMPLEMENTED (deliberately, matching the C++ engine's own documented
-// scope): the 50-move rule and insufficient-material draws (K vs K, K+minor
-// vs K, etc.) are still out of scope. A bare-kings-style endgame with no
-// repeated position will still sit at IN_PROGRESS forever -- a known,
-// carried-over gap, not something silently added or silently dropped in
-// the port. (Threefold repetition, formerly listed here too, is now
-// implemented -- see above.)
+// AUTOMATIC DRAWS (added after the port): besides stalemate and threefold repetition, the
+// fifty-move rule ([ChessState.halfmoveClock] reaches 100 half-moves with no pawn move or
+// capture -> [ChessResult.DRAW_FIFTY_MOVE]) and insufficient material ([hasInsufficientMaterial]:
+// K v K, K+minor v K, K+B v K+B with same-colour bishops -> [ChessResult.DRAW_INSUFFICIENT_MATERIAL])
+// end the round automatically. A mate delivered on the very move that would trigger one of
+// them still wins. Local modes may also play with a chess clock ([ChessClockSpec]).
 //
 // Promotion always auto-promotes to a queen -- there is no underpromotion
 // path, matching the C++ engine's reasoning: a two-tap "pick up piece, put it
@@ -111,7 +111,13 @@ data class Piece(val type: PieceType, val color: PieceColor)
  *  it doesn't reintroduce any of the Android/DataStore/coroutines coupling this file's own
  *  top comment describes removing. */
 @Serializable
-enum class ChessResult { IN_PROGRESS, WHITE_WINS, BLACK_WINS, DRAW_STALEMATE, DRAW_REPETITION }
+enum class ChessResult {
+    IN_PROGRESS, WHITE_WINS, BLACK_WINS, DRAW_STALEMATE, DRAW_REPETITION,
+    /** 100 half-moves (50 full moves) without a pawn move or capture. */
+    DRAW_FIFTY_MOVE,
+    /** Neither side can possibly deliver mate (see [hasInsufficientMaterial]); also a flag fall against a side with no mating material. */
+    DRAW_INSUFFICIENT_MATERIAL
+}
 
 /**
  * Immutable snapshot of a chess match, replaced wholesale via `.copy(...)`-
@@ -142,11 +148,26 @@ data class ChessState(
     /** True when [sideToMove] is currently in check. Purely informational (for the
      *  screen's check highlight) -- legality is already fully enforced elsewhere. */
     val inCheck: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    /** Half-moves since the last pawn move or capture; the fifty-move rule draws at 100. */
+    val halfmoveClock: Int = 0,
+    /** True when the round ended because a player's clock ran out (a win on time, or a draw because the opponent could not mate). */
+    val timeout: Boolean = false
 )
 
 /** A suggested move for the human to play: the [from] and [to] squares (0..63, a1 = 0). */
 data class ChessHint(val from: Int, val to: Int)
+
+/**
+ * The position a bot must move in, taken by [ChessGame.botRequest]. Opaque to callers: pass it to
+ * [ChessGame.searchBotMove] (any thread) and then [ChessGame.applyBotMove] (main thread), which
+ * refuses the move if the game has moved on from this exact position.
+ */
+class ChessBotRequest internal constructor(
+    internal val position: ChessState,
+    internal val seat: Int,
+    internal val difficulty: CpuDifficulty
+)
 
 /**
  * Everything needed to put a chess session back exactly as it was. One shape serves both Resume
@@ -163,7 +184,14 @@ private data class ChessSnapshot(
     val players: List<ChessSnapshotPlayer>,
     val difficulty: String,
     /** Which roster seat (0 or 1) plays White. Defaulted so saves written before it existed restore as seat 0. */
-    val whiteSeat: Int = 0
+    val whiteSeat: Int = 0,
+    /** The chess clock's id (e.g. "5+0"), or null for an untimed game. Defaulted for older saves. */
+    val clockId: String? = null,
+    /** ACTIVE remaining milliseconds per side (never absolute times), meaningful only with [clockId]. */
+    val whiteMs: Long = 0L,
+    val blackMs: Long = 0L,
+    /** The round ended on time. Defaulted for older saves. */
+    val timeout: Boolean = false
 )
 
 @Serializable
@@ -176,6 +204,97 @@ private val chessSnapshotJson = Json { ignoreUnknownKeys = true }
  *  option); use [ChessGame.seatForColor] / [ChessGame.colorForSeat] for the live mapping. This
  *  free function stays for networked play and callers that always use the default. */
 fun playerIndexForColor(color: PieceColor): Int = if (color == PieceColor.WHITE) 0 else 1
+
+// ---- Chess clock ---------------------------------------------------------------------------
+
+/** A time control: [minutes] on each side's clock plus [incrementSeconds] added after every move. */
+data class ChessClockSpec(val minutes: Int, val incrementSeconds: Int) {
+    val initialMs: Long get() = minutes * 60_000L
+    val incrementMs: Long get() = incrementSeconds * 1_000L
+
+    /** The id this spec parses from, e.g. "5+0" or "15+10". */
+    val id: String get() = "$minutes+$incrementSeconds"
+}
+
+/**
+ * Parses a Hub clock choice id: "<minutes>+<incrementSeconds>" such as "3+0", "10+0" or "15+10".
+ * Null for "none", blank, null or anything malformed (zero or negative minutes, a negative
+ * increment, junk), meaning an untimed game.
+ */
+fun parseChessClock(id: String?): ChessClockSpec? {
+    if (id == null) return null
+    val parts = id.trim().split('+')
+    if (parts.size != 2) return null
+    val minutes = parts[0].trim().toIntOrNull() ?: return null
+    val increment = parts[1].trim().toIntOrNull() ?: return null
+    if (minutes < 1 || minutes > 600 || increment < 0 || increment > 600) return null
+    return ChessClockSpec(minutes, increment)
+}
+
+private val chessTimeOrigin = TimeSource.Monotonic.markNow()
+
+/** The default monotonic millisecond source of [ChessGame]'s clock (not wall-clock time). */
+fun chessMonotonicMs(): Long = chessTimeOrigin.elapsedNow().inWholeMilliseconds
+
+/** "m:ss", or "s.t" (tenths) under ten seconds, for a remaining time in milliseconds. */
+fun formatChessClock(remainingMs: Long): String {
+    val ms = remainingMs.coerceAtLeast(0L)
+    if (ms < 10_000L) {
+        val tenths = ms / 100
+        return "${tenths / 10}.${tenths % 10}"
+    }
+    val totalSeconds = ms / 1000
+    val seconds = totalSeconds % 60
+    return "${totalSeconds / 60}:${if (seconds < 10) "0" else ""}$seconds"
+}
+
+// ---- Insufficient material -----------------------------------------------------------------
+
+/**
+ * True when neither side can ever deliver mate, so the game is drawn automatically: bare kings,
+ * king and one minor piece against a bare king, and king and bishop against king and bishop
+ * (any number of bishops, no knights) when every bishop stands on the same square colour.
+ * Any pawn, rook or queen on the board means mate is still possible.
+ */
+fun hasInsufficientMaterial(board: List<Piece?>): Boolean {
+    var knights = 0
+    var bishops = 0
+    var lightBishops = 0
+    var darkBishops = 0
+    for (sq in board.indices) {
+        val p = board[sq] ?: continue
+        when (p.type) {
+            PieceType.PAWN, PieceType.ROOK, PieceType.QUEEN -> return false
+            PieceType.KNIGHT -> knights++
+            PieceType.BISHOP -> {
+                bishops++
+                if ((sqRow(sq) + sqCol(sq)) % 2 == 0) darkBishops++ else lightBishops++
+            }
+            PieceType.KING -> {}
+        }
+    }
+    if (knights + bishops <= 1) return true // K v K, K+minor v K
+    if (knights == 0 && (lightBishops == 0 || darkBishops == 0)) return true // bishops all on one colour
+    return false
+}
+
+/**
+ * True when [color] has enough material to possibly give mate: a pawn, rook or queen, or two
+ * or more minor pieces. Used on a flag fall: running out of time loses unless the opponent
+ * could never have mated, in which case the game is a draw.
+ */
+fun hasMatingMaterial(board: List<Piece?>, color: PieceColor): Boolean {
+    var minors = 0
+    for (p in board) {
+        if (p == null || p.color != color) continue
+        when (p.type) {
+            PieceType.PAWN, PieceType.ROOK, PieceType.QUEEN -> return true
+            PieceType.KNIGHT, PieceType.BISHOP -> minors++
+            PieceType.KING -> {}
+        }
+    }
+    return minors >= 2
+}
 
 // ---- Internal move representation & pure rules engine -------------------
 // Deliberately never exposed publicly, same spirit as ChessLogic.h's private
@@ -713,7 +832,10 @@ fun materialAdvantageForWhite(board: List<Piece?>): Int {
  * state), mutated only by replacing [state] wholesale via a freshly built
  * [ChessState] -- matching MancalaGame/TicTacToeGame exactly.
  */
-class ChessGame : GameModule, ResumableGame, UndoableGame {
+class ChessGame(
+    /** Monotonic millisecond source for the chess clock; injected by tests so time is deterministic. */
+    private val nowMs: () -> Long = { chessMonotonicMs() }
+) : GameModule, ResumableGame, UndoableGame {
     override val gameId = "chess"
     override val displayName = "Chess"
     override val category = GameCategory.BOARD
@@ -776,6 +898,25 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      *  [recordPositionAndCheckRepetition]. */
     private val positionHistory = mutableMapOf<String, Int>()
 
+    // --- Chess clock (local modes only) -----------------------------------------------------
+    // The engine owns the clock. Each side's remaining time is stored as a plain number of
+    // milliseconds that is NOT counting down; the side to move additionally has
+    // `nowMs() - clockRunningSince` elapsed, which [remainingMs] subtracts on read. So nothing
+    // here is an absolute time: a saved game stores [remainingMs], and a restore simply starts a
+    // new running stamp. The CPU's thinking time counts because its clock runs while it thinks.
+
+    /** The time control of this game, or null for an untimed game. Set it with [configureClock]. */
+    val clockSpec = mutableStateOf<ChessClockSpec?>(null)
+
+    private var whiteClockMs = 0L
+    private var blackClockMs = 0L
+
+    /** [nowMs] reading at which the side to move's clock last started running, or null while stopped. */
+    private var clockRunningSince: Long? = null
+
+    /** True between [pause] and [resume]: the clock must not run. */
+    private var clockHeld = false
+
     /** Snapshots taken just BEFORE each human move (newest last); popping one is Undo. Per round:
      *  [startMatch] clears it, so undo never reaches back into the previous game. */
     private val history = SnapshotHistory()
@@ -829,6 +970,9 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         stateVersion = 0
         lastAppliedStateVersion = -1
         opponentLeft.value = false
+        clockRunningSince = null
+        clockHeld = false
+        if (isNetworked) clockSpec.value = null
 
         if (isNetworked) {
             context.transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
@@ -896,12 +1040,17 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
                     scoreP1 = scoreP1.value,
                     scoreP2 = scoreP2.value,
                     draws = draws.value,
-                    matchOver = false
+                    matchOver = false,
+                    halfmoveClock = s.halfmoveClock
                 ),
                 positionHistory = positionHistory.toMap(),
                 players = context.players.map { ChessSnapshotPlayer(it.playerId, it.isBot) },
                 difficulty = difficulty.name,
-                whiteSeat = whiteSeatIndex
+                whiteSeat = whiteSeatIndex,
+                clockId = clockSpec.value?.id,
+                whiteMs = if (clockSpec.value != null) remainingMs(PieceColor.WHITE) else 0L,
+                blackMs = if (clockSpec.value != null) remainingMs(PieceColor.BLACK) else 0L,
+                timeout = s.timeout
             )
         )
     }
@@ -927,11 +1076,14 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             net.roundOver == (net.result != ChessResult.IN_PROGRESS) &&
             net.scoreP1 >= 0 && net.scoreP2 >= 0 && net.draws >= 0 &&
             snap.positionHistory.size <= 20_000 &&
-            snap.positionHistory.values.all { it in 1..3 }
+            snap.positionHistory.values.all { it in 1..3 } &&
+            net.halfmoveClock in 0..150 &&
+            (snap.clockId == null || (parseChessClock(snap.clockId) != null && snap.whiteMs >= 0L && snap.blackMs >= 0L)) &&
+            (!snap.timeout || net.roundOver)
         return if (valid) snap else null
     }
 
-    private fun applySnapshot(snap: ChessSnapshot, restoreDifficulty: Boolean) {
+    private fun applySnapshot(snap: ChessSnapshot, restoreDifficulty: Boolean, restoreClock: Boolean = false) {
         val n = snap.position
         positionHistory.clear()
         positionHistory.putAll(snap.positionHistory)
@@ -953,8 +1105,21 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             roundOver = n.roundOver,
             result = n.result,
             inCheck = n.inCheck,
-            winnerPlayerId = n.winnerPlayerId
+            winnerPlayerId = n.winnerPlayerId,
+            halfmoveClock = n.halfmoveClock,
+            timeout = snap.timeout
         )
+        if (restoreClock) {
+            // A resume: the saved ACTIVE remaining times become the stored times and a fresh
+            // running stamp is taken now (never an absolute time from the old process).
+            clockHeld = false
+            clockRunningSince = null
+            val spec = parseChessClock(snap.clockId)
+            clockSpec.value = spec
+            whiteClockMs = if (spec != null) snap.whiteMs else 0L
+            blackClockMs = if (spec != null) snap.blackMs else 0L
+            startClockRunning()
+        }
     }
 
     private val isLocalMode: Boolean
@@ -977,7 +1142,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             if (!this::context.isInitialized || !isLocalMode) return false
             val snap = decodeSnapshot(snapshot) ?: return false
             matchOver.value = false
-            applySnapshot(snap, restoreDifficulty = true)
+            applySnapshot(snap, restoreDifficulty = true, restoreClock = true)
             history.clear()
             true
         } catch (_: Exception) {
@@ -999,7 +1164,11 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || !this::context.isInitialized || !isLocalMode) return
         val previous = history.pop() ?: return
         val snap = decodeSnapshot(previous) ?: return
+        // Undo does not refund clock time: what the side to move has used so far is kept, and
+        // the clock then runs for whoever has the move after the take-back.
+        state.value?.let { settleClock(it.sideToMove) }
         applySnapshot(snap, restoreDifficulty = false)
+        startClockRunning()
     }
 
     // --- Hint -------------------------------------------------------------------------------
@@ -1051,6 +1220,13 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             lastFrom = null, lastTo = null,
             lastAction = "Game started"
         )
+        // A fresh clock for the new round: both sides get the full time control; White's clock
+        // starts at once.
+        val spec = clockSpec.value
+        whiteClockMs = spec?.initialMs ?: 0L
+        blackClockMs = spec?.initialMs ?: 0L
+        clockRunningSince = null
+        startClockRunning()
         // Networked: covers both the very first real-game-start broadcast AND, since
         // playAgain() below delegates straight to startMatch(), the play-again broadcast
         // too -- one call site rather than TicTacToeGame.kt's two, since Chess's own
@@ -1058,8 +1234,117 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         if (isNetworked && isHost) broadcastState()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /** Stops the chess clock (the time used so far is kept). Idempotent; a no-op without a clock. */
+    override fun pause() {
+        clockHeld = true
+        state.value?.let { settleClock(it.sideToMove) }
+        clockRunningSince = null
+    }
+
+    /** Restarts the chess clock for the side to move after [pause]. A no-op without a clock or once the round is over. */
+    override fun resume() {
+        clockHeld = false
+        if (clockRunningSince == null) startClockRunning()
+    }
+
+    /**
+     * Chooses the time control for the NEXT [startMatch] (or a later restore, which brings its own).
+     * Local modes only: in networked play, or before [init], it is ignored and the game stays untimed.
+     * Call it before [startMatch].
+     */
+    fun configureClock(spec: ChessClockSpec?) {
+        clockSpec.value = if (this::context.isInitialized && isLocalMode) spec else null
+    }
+
+    /**
+     * Milliseconds left on [color]'s clock right now, including the time the running clock has
+     * already used. 0 for an untimed game.
+     */
+    fun remainingMs(color: PieceColor): Long {
+        if (clockSpec.value == null) return 0L
+        val stored = if (color == PieceColor.WHITE) whiteClockMs else blackClockMs
+        val since = clockRunningSince
+        val s = state.value
+        val used = if (since != null && s != null && s.sideToMove == color) (nowMs() - since).coerceAtLeast(0L) else 0L
+        return (stored - used).coerceAtLeast(0L)
+    }
+
+    /** True while a clock is counting down (a timed game, not paused, round still on). */
+    val isClockRunning: Boolean get() = clockRunningSince != null
+
+    /**
+     * Checks the running clock: when the side to move has run out of time the round ends on time
+     * (a loss for that side, or a draw if the opponent has no mating material) and this returns
+     * true. The screen calls it a few times a second; tests call it after advancing their clock.
+     */
+    fun tickClock(): Boolean {
+        if (clockSpec.value == null || clockRunningSince == null) return false
+        val s = state.value ?: return false
+        if (s.roundOver || matchOver.value) return false
+        if (remainingMs(s.sideToMove) > 0L) return false
+        endOnTime(s)
+        return true
+    }
+
+    private fun clockShouldRun(): Boolean =
+        clockSpec.value != null && !clockHeld && !matchOver.value && state.value?.roundOver == false
+
+    private fun startClockRunning() {
+        clockRunningSince = if (clockShouldRun()) nowMs() else null
+    }
+
+    /** Adds the time the running clock has used to [side]'s stored time and stops the running stamp. */
+    private fun settleClock(side: PieceColor) {
+        val since = clockRunningSince ?: return
+        val used = (nowMs() - since).coerceAtLeast(0L)
+        if (side == PieceColor.WHITE) whiteClockMs = (whiteClockMs - used).coerceAtLeast(0L)
+        else blackClockMs = (blackClockMs - used).coerceAtLeast(0L)
+        clockRunningSince = null
+    }
+
+    /** Ends the round because the side to move in [s] ran out of time. */
+    private fun endOnTime(s: ChessState) {
+        val loser = s.sideToMove
+        val winner = opponent(loser)
+        settleClock(loser)
+        if (loser == PieceColor.WHITE) whiteClockMs = 0L else blackClockMs = 0L
+        val loserName = context.players.getOrNull(seatForColor(loser))?.displayName ?: "Player"
+        val result = when {
+            !hasMatingMaterial(s.board, winner) -> ChessResult.DRAW_INSUFFICIENT_MATERIAL
+            winner == PieceColor.WHITE -> ChessResult.WHITE_WINS
+            else -> ChessResult.BLACK_WINS
+        }
+        val winnerPlayerId = when (result) {
+            ChessResult.WHITE_WINS, ChessResult.BLACK_WINS -> context.players.getOrNull(seatForColor(winner))?.playerId
+            else -> null
+        }
+        val lastAction = if (result == ChessResult.DRAW_INSUFFICIENT_MATERIAL) {
+            "$loserName ran out of time -- draw, the opponent cannot checkmate"
+        } else {
+            "$loserName ran out of time"
+        }
+        hintMove.value = null
+        state.value = s.copy(
+            lastAction = lastAction,
+            roundOver = true,
+            result = result,
+            winnerPlayerId = winnerPlayerId,
+            timeout = true
+        )
+        tallyResult(result)
+        clockRunningSince = null
+    }
+
+    /** Adds a finished round to the session tally. */
+    private fun tallyResult(result: ChessResult) {
+        when (result) {
+            ChessResult.WHITE_WINS -> if (seatForColor(PieceColor.WHITE) == 0) scoreP1.value += 1 else scoreP2.value += 1
+            ChessResult.BLACK_WINS -> if (seatForColor(PieceColor.BLACK) == 0) scoreP1.value += 1 else scoreP2.value += 1
+            ChessResult.DRAW_STALEMATE, ChessResult.DRAW_REPETITION,
+            ChessResult.DRAW_FIFTY_MOVE, ChessResult.DRAW_INSUFFICIENT_MATERIAL -> draws.value += 1
+            ChessResult.IN_PROGRESS -> {}
+        }
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -1149,6 +1434,11 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         if (s.roundOver || matchOver.value) return
         if (isNetworked && opponentLeft.value) return
         if (playerIndex != seatForColor(s.sideToMove)) return
+        // A move attempted after the mover's clock has run out is not played: it is a flag fall.
+        if (clockRunningSince != null && remainingMs(s.sideToMove) <= 0L) {
+            endOnTime(s)
+            return
+        }
         val pos = positionOf(s)
         val move = generateLegalMoves(pos, s.sideToMove).firstOrNull { it.from == from && it.to == to } ?: return
         // Undo step: written down only now that the move is known to be legal (a rejected tap
@@ -1168,17 +1458,48 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
      * ([minimaxBestMove]). No-op if it isn't actually a bot's turn right now.
      */
     fun playBotTurn() {
-        val s = state.value ?: return
-        if (s.roundOver || matchOver.value) return
-        val botPlayerIndex = seatForColor(s.sideToMove)
-        if (context.players.getOrNull(botPlayerIndex)?.isBot != true) return
+        val request = botRequest() ?: return
+        val move = searchBotMove(request) ?: return
+        applyBotMove(request, move)
+    }
 
+    /**
+     * Step 1 of a bot turn that does NOT block the caller's thread (the screen uses these three
+     * instead of [playBotTurn]): captures the position the bot must move in and the difficulty to
+     * use, or null when it is not a bot's turn. Cheap; call it on the main thread.
+     */
+    fun botRequest(): ChessBotRequest? {
+        val s = state.value ?: return null
+        if (s.roundOver || matchOver.value) return null
+        val botPlayerIndex = seatForColor(s.sideToMove)
+        if (context.players.getOrNull(botPlayerIndex)?.isBot != true) return null
+        return ChessBotRequest(s, botPlayerIndex, difficulty)
+    }
+
+    /**
+     * Step 2: the actual move search. Pure over the [request]'s immutable position, touches no
+     * engine or Compose state, so it is safe to run on a background dispatcher. Null when the
+     * bot has no legal move.
+     */
+    fun searchBotMove(request: ChessBotRequest): ChessHint? {
+        val s = request.position
         val pos = positionOf(s)
-        val move = when (difficulty) {
+        val move = when (request.difficulty) {
             CpuDifficulty.EASY -> generateLegalMoves(pos, s.sideToMove).randomOrNull()
             CpuDifficulty.MEDIUM -> onePlyGreedyMove(pos, s.sideToMove)
             CpuDifficulty.HARD -> minimaxBestMove(pos, s.sideToMove, HARD_SEARCH_DEPTH)
-        } ?: return
+        } ?: return null
+        return ChessHint(move.from, move.to)
+    }
+
+    /**
+     * Step 3 (main thread): plays [move] for the bot, but only if the game is still exactly the
+     * position [request] was taken in (no move, undo, restart or restore in between, and the
+     * session is still on). Returns true when the move was applied.
+     */
+    fun applyBotMove(request: ChessBotRequest, move: ChessHint): Boolean {
+        if (state.value !== request.position || matchOver.value) return false
+        val botPlayerIndex = request.seat
         // Routes through the public, network-aware playMove() rather than calling
         // applyPlayedMove directly (the real bug this fixes): a non-host device with a bot on
         // its OWN local seat must have that bot's chosen move sent to the host as a real
@@ -1198,6 +1519,7 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         // before ever applying it -- but it would be redundant, wasted computation, so callers
         // (see the LAN multiplayer test harness) should still gate on local ownership.
         playMove(botPlayerIndex, move.from, move.to)
+        return true
     }
 
     /**
@@ -1325,10 +1647,17 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         // first time that exact mate arose), so this is only checked/recorded when the status
         // check above didn't already end things. See this file's top comment and
         // recordPositionAndCheckRepetition's own KDoc.
-        val result = if (statusResult == ChessResult.IN_PROGRESS && recordPositionAndCheckRepetition(newPos, newSide)) {
-            ChessResult.DRAW_REPETITION
-        } else {
-            statusResult
+        // Fifty-move counter: any pawn move or capture resets it, every other half-move adds one.
+        val newHalfmoveClock =
+            if (pos.board[move.from]?.type == PieceType.PAWN || capturedType != null) 0 else s.halfmoveClock + 1
+        // Order matters: a mate or stalemate this move delivers always stands; then the automatic
+        // draws that need no history (insufficient material, fifty moves), then repetition.
+        val result = when {
+            statusResult != ChessResult.IN_PROGRESS -> statusResult
+            hasInsufficientMaterial(newPos.board) -> ChessResult.DRAW_INSUFFICIENT_MATERIAL
+            newHalfmoveClock >= FIFTY_MOVE_HALFMOVES -> ChessResult.DRAW_FIFTY_MOVE
+            recordPositionAndCheckRepetition(newPos, newSide) -> ChessResult.DRAW_REPETITION
+            else -> ChessResult.IN_PROGRESS
         }
         val winnerPlayerId = when (result) {
             ChessResult.WHITE_WINS -> context.players.getOrNull(seatForColor(PieceColor.WHITE))?.playerId
@@ -1344,10 +1673,18 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             result == ChessResult.WHITE_WINS || result == ChessResult.BLACK_WINS -> " -- checkmate!"
             result == ChessResult.DRAW_STALEMATE -> " -- stalemate, draw!"
             result == ChessResult.DRAW_REPETITION -> " -- draw by repetition!"
+            result == ChessResult.DRAW_FIFTY_MOVE -> " -- draw by the fifty-move rule!"
+            result == ChessResult.DRAW_INSUFFICIENT_MATERIAL -> " -- draw, insufficient material!"
             inCheckNext -> " -- check!"
             else -> ""
         }
         val lastAction = "$moverName moved ${squareName(move.from)} to ${squareName(move.to)}$captureNote$suffix"
+
+        // The mover's clock stops and earns the increment; the opponent's starts below.
+        settleClock(mover)
+        clockSpec.value?.let { spec ->
+            if (mover == PieceColor.WHITE) whiteClockMs += spec.incrementMs else blackClockMs += spec.incrementMs
+        }
 
         state.value = ChessState(
             board = newPos.board,
@@ -1361,18 +1698,12 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             roundOver = result != ChessResult.IN_PROGRESS,
             result = result,
             inCheck = inCheckNext,
-            winnerPlayerId = winnerPlayerId
+            winnerPlayerId = winnerPlayerId,
+            halfmoveClock = newHalfmoveClock
         )
+        startClockRunning() // stays stopped when the round just ended
 
-        if (result != ChessResult.IN_PROGRESS) {
-            when (result) {
-                ChessResult.WHITE_WINS -> if (seatForColor(PieceColor.WHITE) == 0) scoreP1.value += 1 else scoreP2.value += 1
-                ChessResult.BLACK_WINS -> if (seatForColor(PieceColor.BLACK) == 0) scoreP1.value += 1 else scoreP2.value += 1
-                ChessResult.DRAW_STALEMATE -> draws.value += 1
-                ChessResult.DRAW_REPETITION -> draws.value += 1
-                else -> {}
-            }
-        }
+        tallyResult(result)
         // One broadcast site covers every outcome (in-progress/checkmate/stalemate/
         // repetition) since they all funnel through this single state.value assignment
         // above -- unlike TicTacToeGame.kt's applyCellClicked, which has three separate
@@ -1410,7 +1741,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             scoreP1 = scoreP1.value,
             scoreP2 = scoreP2.value,
             draws = draws.value,
-            matchOver = matchOver.value
+            matchOver = matchOver.value,
+            halfmoveClock = s.halfmoveClock
         )
     }
 
@@ -1430,7 +1762,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
             roundOver = netState.roundOver,
             result = netState.result,
             inCheck = netState.inCheck,
-            winnerPlayerId = netState.winnerPlayerId
+            winnerPlayerId = netState.winnerPlayerId,
+            halfmoveClock = netState.halfmoveClock
         )
         scoreP1.value = netState.scoreP1
         scoreP2.value = netState.scoreP2
@@ -1520,7 +1853,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
         fun squareOk(sq: Int?): Boolean = sq == null || sq in 0..63
         return n.board.size == 64 &&
             PieceColor.entries.all { c -> n.board.count { it != null && it.type == PieceType.KING && it.color == c } == 1 } &&
-            squareOk(n.epSquare) && squareOk(n.lastFrom) && squareOk(n.lastTo)
+            squareOk(n.epSquare) && squareOk(n.lastFrom) && squareOk(n.lastTo) &&
+            n.halfmoveClock in 0..150
     }
 
     /** Board+side-to-move+castling-rights+en-passant signature for real threefold-repetition
@@ -1584,5 +1918,8 @@ class ChessGame : GameModule, ResumableGame, UndoableGame {
          * can, yet only a few hundred nodes, nowhere near HARD's depth-4 cost on the main thread.
          */
         const val HINT_SEARCH_DEPTH = 2
+
+        /** The fifty-move rule: 50 full moves = 100 half-moves without a pawn move or capture. */
+        const val FIFTY_MOVE_HALFMOVES = 100
     }
 }

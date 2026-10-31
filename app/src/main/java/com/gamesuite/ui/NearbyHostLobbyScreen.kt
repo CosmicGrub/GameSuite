@@ -131,7 +131,7 @@ fun NearbyHostLobbyScreen(
             Text("No one has joined yet.")
         } else {
             Text("Joined:")
-            roster.guests.forEach { guest -> Text("• ${guest.displayName}") }
+            roster.guests.forEach { guest -> com.gamesuite.ui.club.LobbySeatRow(guest.displayName) }
         }
 
         Spacer(Modifier.height(24.dp))

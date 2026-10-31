@@ -31,6 +31,60 @@ sealed class OnlineLobbyMessage {
      */
     @Serializable
     data class Rejected(val reason: String) : OnlineLobbyMessage()
+
+    /**
+     * Guest or spectator -> host (addressed), sent once the relay confirms a join (and again after a
+     * reconnect). The relay announces a joining SEAT to the host but never a spectator, and the host
+     * broadcasts [GameStart] only once, from its Start button, so a member who arrives after Start would
+     * wait forever. A host whose game is running answers a Hello (see [OnlineLateJoinResponder]); a host
+     * still in its lobby ignores it, since the Start broadcast is still to come. [spectator] is what the
+     * sender asked the relay for; it only decides between a [GameStart] and a "game already started"
+     * refusal, so claiming it falsely gains nothing (a watcher never receives a hand).
+     */
+    @Serializable
+    data class Hello(val spectator: Boolean = false) : OnlineLobbyMessage()
+}
+
+/** The raw relay payload of an [OnlineLobbyMessage.Hello]. */
+fun onlineHelloPayload(spectator: Boolean): ByteArray {
+    val hello: OnlineLobbyMessage = OnlineLobbyMessage.Hello(spectator)
+    return LobbyJson.encodeToString(OnlineLobbyMessage.serializer(), hello).toByteArray(Charsets.UTF_8)
+}
+
+/**
+ * Host-side answer to late arrivals, alive for as long as the host's game is. Feed every raw relay
+ * message to [onRawMessage]. A [OnlineLobbyMessage.Hello] from a roster seat (a reconnecting guest that
+ * missed Start) or from a spectator gets the [gameStart] re-sent, addressed to that sender alone; a
+ * Hello from anyone else who wanted a seat gets [LOBBY_STARTED_MESSAGE]. Game traffic and everything
+ * else is ignored, and a single sender is answered a bounded number of times.
+ */
+class OnlineLateJoinResponder(
+    private val gameStart: OnlineLobbyMessage.GameStart,
+    private val sendRaw: (toPlayerId: String, payload: ByteArray) -> Unit,
+) {
+    private val answered = HashMap<String, Int>()
+
+    @Synchronized
+    fun onRawMessage(fromPlayerId: String, payload: ByteArray) {
+        if (payload.size > MAX_HELLO_BYTES) return // game traffic, not a lobby Hello
+        val message = runCatching {
+            LobbyJson.decodeFromString(OnlineLobbyMessage.serializer(), String(payload, Charsets.UTF_8))
+        }.getOrNull()
+        if (message !is OnlineLobbyMessage.Hello) return
+        if (fromPlayerId == gameStart.players.firstOrNull()?.playerId) return // the host never answers itself
+        val count = answered[fromPlayerId] ?: 0
+        if (count >= MAX_ANSWERS_PER_SENDER) return
+        answered[fromPlayerId] = count + 1
+        val seated = gameStart.players.any { it.playerId == fromPlayerId }
+        val reply: OnlineLobbyMessage =
+            if (seated || message.spectator) gameStart else OnlineLobbyMessage.Rejected(LOBBY_STARTED_MESSAGE)
+        sendRaw(fromPlayerId, LobbyJson.encodeToString(OnlineLobbyMessage.serializer(), reply).toByteArray(Charsets.UTF_8))
+    }
+
+    private companion object {
+        const val MAX_HELLO_BYTES = 512
+        const val MAX_ANSWERS_PER_SENDER = 8
+    }
 }
 
 /** Whether a guest should act on this [OnlineLobbyMessage.Rejected]: only the room's host can turn a guest away. */

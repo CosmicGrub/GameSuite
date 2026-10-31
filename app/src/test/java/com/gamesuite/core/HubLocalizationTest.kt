@@ -46,8 +46,25 @@ class HubLocalizationTest {
         return Res(strings, plurals)
     }
 
-    private val en: Res by lazy { parse("res/values/strings.xml") }
-    private val es: Res by lazy { parse("res/values-es/strings.xml") }
+    /**
+     * Every strings file of a locale directory merged: games and features keep their own
+     * `<name>_strings.xml` so concurrent work never edits one shared file, and a resource name is unique
+     * across the directory (Android fails the build on a duplicate), so the merge loses nothing.
+     */
+    private fun parseDir(relativeDir: String): Res {
+        val dir = moduleFile(relativeDir)
+        val strings = linkedMapOf<String, String>()
+        val plurals = linkedSetOf<String>()
+        dir.listFiles { f -> f.isFile && f.name.endsWith(".xml") }!!.sortedBy { it.name }.forEach { f ->
+            val r = parse("$relativeDir/${f.name}")
+            strings.putAll(r.strings)
+            plurals += r.plurals
+        }
+        return Res(strings, plurals)
+    }
+
+    private val en: Res by lazy { parseDir("res/values") }
+    private val es: Res by lazy { parseDir("res/values-es") }
 
     private val ownedPrefixes = listOf("hub_", "home_", "games_")
     private fun owned(name: String) = ownedPrefixes.any { name.startsWith(it) }

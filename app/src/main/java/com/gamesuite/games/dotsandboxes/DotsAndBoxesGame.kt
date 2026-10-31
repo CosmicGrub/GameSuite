@@ -33,13 +33,38 @@ private data class DotsAndBoxesSnapshot(
     val sessionWins: Map<String, Int>,
     val sessionDraws: Int,
     val nextStartingPlayerIndex: Int,
-    val difficulty: String
+    val difficulty: String,
+    /** [DotsAndBoxesGrid.id]; absent in saves written before grid sizes existed, which were all the standard board. */
+    val grid: String = DotsAndBoxesGrid.STANDARD.id
 )
 
 @Serializable
 private data class DotsAndBoxesSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
 
 private val dotsAndBoxesSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * The board sizes the Game Hub offers, as boxes across x boxes down. [id] is the Hub option choice
+ * id (`extras["grid"]`) and the value stored in a snapshot.
+ */
+enum class DotsAndBoxesGrid(val id: String, val boxRows: Int, val boxCols: Int) {
+    SMALL("small", 3, 3),
+    MEDIUM("medium", 4, 4),
+    STANDARD("standard", 5, 5),
+    LARGE("large", 6, 6);
+
+    val horizontalEdgeCount: Int get() = (boxRows + 1) * boxCols
+    val verticalEdgeCount: Int get() = boxRows * (boxCols + 1)
+    val boxCount: Int get() = boxRows * boxCols
+
+    companion object {
+        /** The grid with this id, or null if unknown. */
+        fun byIdOrNull(id: String?): DotsAndBoxesGrid? = values().firstOrNull { it.id == id }
+
+        /** The grid with this id; the standard board for null or anything unknown. */
+        fun fromId(id: String?): DotsAndBoxesGrid = byIdOrNull(id) ?: STANDARD
+    }
+}
 
 /** One edge of the lattice, as the hint reports it: same (isHorizontal, row, col) addressing as [DotsAndBoxesGame.drawHorizontalEdge]/[DotsAndBoxesGame.drawVerticalEdge]. */
 data class DotsAndBoxesHintEdge(val horizontal: Boolean, val row: Int, val col: Int)
@@ -100,8 +125,8 @@ data class DotsAndBoxesState(
  * completing a box's 4th edge claims it AND grants that same player another
  * turn (the signature rule — a player can chain together many free turns in
  * a row this way); once every box is claimed, whoever claimed the most
- * wins. Board size is FIXED (5x5 boxes, the classic size), not scaled by
- * [difficulty] — unlike the solo puzzles in this batch (Minesweeper/Sudoku/
+ * wins. Board size is chosen per launch via [grid] (3x3 to 6x6 boxes, 5x5 the classic default), not
+ * scaled by [difficulty] — unlike the solo puzzles in this batch (Minesweeper/Sudoku/
  * Lights Out), this is a 2-player competitive game where [difficulty] tunes
  * the BOT's strategy, same idiom as DominoGame/TicTacToeGame's own bots,
  * not the puzzle itself.
@@ -155,6 +180,12 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * next-opener field from the snapshot.
      */
     var firstOpenerIndex: Int = 0
+
+    /**
+     * The board size for the NEXT board dealt (Play Again keeps it). Set by the screen from the Hub
+     * option before [startMatch]; a restored or synced snapshot overwrites it with its own size.
+     */
+    var grid: DotsAndBoxesGrid = DotsAndBoxesGrid.STANDARD
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -243,7 +274,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     private fun broadcastState(toPlayerId: String?) {
         if (!isNetworkedMode || !isHost) return
         val text = captureSnapshot() ?: return
-        val payload = encodeNet(DotsAndBoxesNetMessage.StateSync(stateVersion, text))
+        val payload = encodeNet(DotsAndBoxesNetMessage.StateSync(stateVersion, text, grid.id))
         val hostId = context.players[0].playerId
         if (toPlayerId != null) {
             context.transport.send(hostId, toPlayerId, payload)
@@ -270,7 +301,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         when (message) {
             // Only the host is authoritative: a StateSync from any other sender is a forgery.
             is DotsAndBoxesNetMessage.StateSync ->
-                if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.snapshot)
+                if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.snapshot, message.grid)
             is DotsAndBoxesNetMessage.RequestState ->
                 if (isHost && context.players.drop(1).any { it.playerId == fromPlayerId }) {
                     if (state.value != null) broadcastState(toPlayerId = fromPlayerId)
@@ -294,16 +325,18 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     }
 
     /** Guest: adopt the host's snapshot if it is newer than anything applied so far. */
-    private fun applyRemoteState(version: Int, text: String) {
+    private fun applyRemoteState(version: Int, text: String, wireGrid: String = DotsAndBoxesGrid.STANDARD.id) {
         if (version <= lastAppliedRemoteVersion) return
         val snap = decodeSnapshot(text) ?: return
+        if (snap.grid != wireGrid) return // the envelope and the snapshot disagree about the board size
         lastAppliedRemoteVersion = version
         val before = state.value
         applySnapshot(snap)
         val after = state.value ?: return
         // applySnapshot clears the one-shot claim event; rebuild it from the difference so the
         // guest still gets the claim cue, and restart the counter on a fresh board.
-        val freshBoard = before == null || drawnEdgeCount(after) < drawnEdgeCount(before)
+        val freshBoard = before == null || before.boxOwner.size != after.boxOwner.size ||
+            drawnEdgeCount(after) < drawnEdgeCount(before)
         if (freshBoard) {
             eventSeq = 0L
             return
@@ -347,7 +380,8 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
                 sessionWins = sessionWins.value,
                 sessionDraws = sessionDraws.value,
                 nextStartingPlayerIndex = nextStartingPlayerIndex,
-                difficulty = difficulty.name
+                difficulty = difficulty.name,
+                grid = DotsAndBoxesGrid.byIdOrNull(grid.id)?.id ?: DotsAndBoxesGrid.STANDARD.id
             )
         )
     }
@@ -360,10 +394,13 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
             return null
         }
         val roster = context.players
-        val valid = snap.boxRows == BOX_ROWS && snap.boxCols == BOX_COLS &&
-            snap.horizontalEdges.size == (BOX_ROWS + 1) * BOX_COLS &&
-            snap.verticalEdges.size == BOX_ROWS * (BOX_COLS + 1) &&
-            snap.boxOwner.size == BOX_ROWS * BOX_COLS &&
+        // The snapshot names its own board size; it must be a size the Hub offers and every list
+        // must match it (a truncated or mixed-up state is rejected, never half-applied).
+        val snapGrid = DotsAndBoxesGrid.byIdOrNull(snap.grid) ?: return null
+        val valid = snap.boxRows == snapGrid.boxRows && snap.boxCols == snapGrid.boxCols &&
+            snap.horizontalEdges.size == snapGrid.horizontalEdgeCount &&
+            snap.verticalEdges.size == snapGrid.verticalEdgeCount &&
+            snap.boxOwner.size == snapGrid.boxCount &&
             snap.players.size == roster.size &&
             snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
             snap.boxOwner.all { it == null || it in snap.players.indices } &&
@@ -400,6 +437,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         sessionDraws.value = snap.sessionDraws
         nextStartingPlayerIndex = snap.nextStartingPlayerIndex
         difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        grid = DotsAndBoxesGrid.fromId(snap.grid)
         hintEdge.value = null
     }
 
@@ -454,8 +492,19 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * human's turn or the board is over. Dots and Boxes keeps no records, so a hint costs nothing.
      */
     fun hint(): DotsAndBoxesHintEdge? {
-        if (isNetworkedMode) return null
         val s = state.value ?: return null
+        val edge = computeHint(s) ?: return null
+        hintEdge.value = edge
+        return edge
+    }
+
+    /**
+     * The pure half of [hint]: the suggestion for position [s], touching no state, so a screen can
+     * run it on a background thread. Same rules and result as [hint]. Pair it with [showHint],
+     * which only shows the edge if the position is still the one it was computed for.
+     */
+    fun computeHint(s: DotsAndBoxesState): DotsAndBoxesHintEdge? {
+        if (isNetworkedMode) return null
         if (matchOver.value || s.boardOver) return null
         if (s.players[s.currentPlayerIndex].isBot) return null
         val candidates = allUndrawnEdges(s)
@@ -466,9 +515,14 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         } else {
             candidates.firstOrNull { isSafeMove(s, it) } ?: candidates.minByOrNull { chainSizeIfOpened(s, it) }!!
         }
-        val edge = DotsAndBoxesHintEdge(pick.first, pick.second, pick.third)
+        return DotsAndBoxesHintEdge(pick.first, pick.second, pick.third)
+    }
+
+    /** Shows [edge] as the hint iff the board is still exactly [expected] (no move, undo, restart or leave since). */
+    fun showHint(expected: DotsAndBoxesState, edge: DotsAndBoxesHintEdge): Boolean {
+        if (state.value !== expected || matchOver.value) return false
         hintEdge.value = edge
-        return edge
+        return true
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
@@ -479,8 +533,9 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         // A guest never deals: it waits for the host's StateSync (it already asked in init).
         if (isNetworkedMode && !isHost) return
         val players = context.players.map { DotsAndBoxesPlayerState(it.playerId, it.displayName, it.isBot) }
-        val totalH = (BOX_ROWS + 1) * BOX_COLS
-        val totalV = BOX_ROWS * (BOX_COLS + 1)
+        val size = grid
+        val totalH = size.horizontalEdgeCount
+        val totalV = size.verticalEdgeCount
         // A fresh board is always playable, regardless of whether a PRIOR
         // board's endMatch() left matchOver stuck true (a real bug found by
         // adversarial review of a sibling game in this batch, fixed
@@ -493,11 +548,11 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintEdge.value = null
         state.value = DotsAndBoxesState(
-            boxRows = BOX_ROWS,
-            boxCols = BOX_COLS,
+            boxRows = size.boxRows,
+            boxCols = size.boxCols,
             horizontalEdges = List(totalH) { false },
             verticalEdges = List(totalV) { false },
-            boxOwner = List(BOX_ROWS * BOX_COLS) { null },
+            boxOwner = List(size.boxCount) { null },
             players = players,
             currentPlayerIndex = nextStartingPlayerIndex % players.size,
             scores = List(players.size) { 0 },
@@ -706,6 +761,33 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     }
 
     /**
+     * The pure half of one bot move: the edge the bot would draw in position [s], or null when it
+     * is not a bot's turn / the board or session is over. Touches no state (it only reads
+     * [difficulty]), so a screen can run it on a background thread. Cost is polynomial in the
+     * board (a greedy scan plus, only when every move gives a box away, one chain-reaction
+     * simulation per edge): there is no exhaustive search on any grid size.
+     */
+    fun computeBotMove(s: DotsAndBoxesState): DotsAndBoxesHintEdge? {
+        if (matchOver.value || s.boardOver) return null
+        if (s.players.getOrNull(s.currentPlayerIndex)?.isBot != true) return null
+        val move = chooseBotMove(s) ?: return null
+        return DotsAndBoxesHintEdge(move.first, move.second, move.third)
+    }
+
+    /**
+     * Plays [move] (from [computeBotMove]) iff the board is still exactly [expected]: if the player
+     * undid, restarted or left while the bot was thinking, nothing is applied. Returns whether a
+     * move was made. One call is one edge; completing a box keeps the bot on turn, so the caller
+     * asks again.
+     */
+    fun applyBotMove(expected: DotsAndBoxesState, move: DotsAndBoxesHintEdge): Boolean {
+        if (state.value !== expected || matchOver.value || expected.boardOver) return false
+        if (!expected.players[expected.currentPlayerIndex].isBot) return false
+        drawEdge(move.horizontal, move.row, move.col)
+        return state.value !== expected
+    }
+
+    /**
      * EASY: uniform random over every legal edge, no strategy at all —
      * will occasionally complete boxes by accident and just as often hand
      * them away, genuinely weak, same spirit as DominoGame's own EASY tier.
@@ -866,8 +948,4 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         return completed
     }
 
-    private companion object {
-        const val BOX_ROWS = 5
-        const val BOX_COLS = 5
-    }
 }

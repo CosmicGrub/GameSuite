@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mancala_variant_board">%1$d hoyos por lado, %2$d piedras por hoyo</string>
+    <string name="mancala_variant_no_capture">Sin capturas</string>
+    <string name="mancala_help_variant">Esta partida usa %1$d hoyos por lado y %2$d piedras en cada hoyo al empezar.</string>
+    <string name="mancala_help_no_capture">Las capturas están desactivadas: caer en un hoyo vacío de tu lado no tiene ningún efecto especial. Solo cuenta el turno extra al terminar en tu propio almacén.</string>
+</resources>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chinese Checkers and Ludo (own file; hub_* entries serve GameHubSpecs once integrated) -->
+    <string name="ccl_play_again">Play Again</string>
+    <string name="ccl_back_to_menu">Back to Menu</string>
+    <string name="ccl_undo">Undo</string>
+    <string name="ccl_hint">Hint</string>
+    <string name="ccl_waiting_host">Waiting for the host…</string>
+    <string name="ccl_host_left">The host has left the game.</string>
+    <string name="ccl_leave_title">Leave this board?</string>
+    <string name="ccl_leave_body">This board is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="ccl_leave_body_session">This board is still in progress and won\'t count, but the boards you\'ve already finished stay on your record.</string>
+    <string name="ccl_session">Session: %1$s</string>
+    <string name="ccl_you_suffix">(you)</string>
+    <string name="ccl_cpu_tag">computer</string>
+    <string name="ccl_a_draw">A draw.</string>
+    <string name="ccl_you_won">You won!</string>
+    <string name="ccl_you_lost">You lost.</string>
+    <string name="cc_help_title">How to Play Chinese Checkers</string>
+    <string name="cc_help_text">Race your marbles from your corner of the star to the opposite corner.\n\nOn your turn move one marble: step to a neighbouring empty hole, or hop over any marble to the empty hole right behind it. Hops can chain, so one turn can carry a marble a long way.\n\nThe first player to fill the opposite corner wins. If nobody gets there after 200 moves each, whoever is closest to home wins.</string>
+    <string name="cc_turn_you">Your turn. Tap a marble, then a highlighted hole.</string>
+    <string name="cc_turn_named">%1$s\'s turn.</string>
+    <string name="cc_thinking">%1$s is thinking…</string>
+    <plurals name="cc_ann_hopped">
+        <item quantity="one">%1$s hopped once.</item>
+        <item quantity="other">%1$s hopped %2$d times in one turn.</item>
+    </plurals>
+    <string name="cc_ann_stepped">%1$s stepped one hole.</string>
+    <string name="cc_ann_skipped">%1$s is boxed in and passes.</string>
+    <string name="cc_wins">%1$s wins!</string>
+    <string name="cc_draw">It\'s a draw!</string>
+    <string name="cc_end_limit">Move limit reached: the closest to home wins.</string>
+    <string name="cc_end_stuck">Nobody can move: the closest to home wins.</string>
+    <string name="cc_final_line">%1$s: %2$d of %3$d home</string>
+    <string name="cc_why_wait">It isn\'t your turn yet.</string>
+    <string name="cc_why_cpu">The computer is taking its turn.</string>
+    <string name="cc_why_opponent">That marble belongs to %1$s.</string>
+    <string name="cc_why_boxed">That marble is boxed in: no empty hole next to it and nothing to hop.</string>
+    <string name="cc_why_unreachable">It can\'t get there. A marble steps to an empty neighbouring hole or hops over marbles in straight lines.</string>
+    <string name="cc_why_pick">Tap one of your marbles first.</string>
+    <string name="cc_why_over">This board is over.</string>
+    <string name="cc_chip_desc">%1$s, %2$s marbles, %3$d of %4$d in the goal</string>
+    <string name="cc_board_desc">Chinese Checkers board. %1$s</string>
+    <string name="cc_a11y_panel_title">Your marbles</string>
+    <string name="cc_a11y_piece">Marble, %1$d holes from the goal tip, %2$d moves</string>
+    <string name="cc_a11y_dest_title">Move to</string>
+    <string name="cc_a11y_dest">Hole %1$d from the goal tip, gains %2$d</string>
+    <string name="ludo_help_title">How to Play Ludo</string>
+    <string name="ludo_help_text">Roll the die and move one of your four tokens that many squares clockwise around the board.\n\nWith the default rules a token needs a six to leave the yard, and a six gives you another roll (three sixes in a row lose the turn). Land on a rival\'s token to send it back to its yard, unless it is on a safe square: a start square or a star.\n\nTake all four tokens round and up your coloured home column to win. With Exact roll on, the last step needs the exact number.</string>
+    <string name="ludo_roll">Roll</string>
+    <string name="ludo_die_none">Die, not rolled yet</string>
+    <string name="ludo_die_desc">Die shows %1$d</string>
+    <string name="ludo_turn_roll">Your turn. Roll the die.</string>
+    <string name="ludo_turn_named_roll">%1$s\'s turn. Roll the die.</string>
+    <string name="ludo_turn_choose">Choose a token to move.</string>
+    <string name="ludo_turn_named">%1$s\'s turn.</string>
+    <string name="ludo_thinking">%1$s is thinking…</string>
+    <string name="ludo_ann_rolled">%1$s rolled a %2$d.</string>
+    <string name="ludo_ann_no_move">%1$s rolled a %2$d and cannot move.</string>
+    <string name="ludo_ann_three_sixes">%1$s rolled three sixes and loses the turn.</string>
+    <string name="ludo_ann_enter">%1$s brought token %2$d onto the board.</string>
+    <string name="ludo_ann_move">%1$s moved token %2$d forward %3$d.</string>
+    <string name="ludo_ann_capture">%1$s captured a token with token %2$d!</string>
+    <string name="ludo_ann_home">%1$s got token %2$d home!</string>
+    <string name="ludo_ann_win">%1$s got all four tokens home and wins!</string>
+    <string name="ludo_ann_start">New game. First roll: %1$s.</string>
+    <string name="ludo_why_roll_first">Roll the die first.</string>
+    <string name="ludo_why_already">You\'ve already rolled. Choose a token to move.</string>
+    <string name="ludo_why_need_six">That token needs a six to leave the yard.</string>
+    <string name="ludo_why_exact">That token needs the exact number to finish, and %1$d is too many.</string>
+    <string name="ludo_why_finished">That token is already home.</string>
+    <string name="ludo_why_not_yours">That isn\'t one of your tokens.</string>
+    <string name="ludo_board_desc">Ludo board. %1$s</string>
+    <string name="ludo_chip_desc">%1$s, %2$s tokens, %3$d of 4 home</string>
+    <string name="ludo_final_line">%1$s: %2$d of 4 home</string>
+    <string name="ludo_wins">%1$s wins!</string>
+    <string name="ludo_suggested">Suggested move.</string>
+    <string name="ludo_token_btn_home">Token %1$d, already home</string>
+    <string name="ludo_token_btn_yard">Token %1$d, in the yard</string>
+    <string name="ludo_token_btn_track">Token %1$d, on the board</string>
+    <string name="hub_chinese_checkers">Chinese Checkers</string>
+    <string name="hub_hop_your_marbles_across_the_star_to_the_opposite_eae5f6">Hop your marbles across the star to the opposite corner.</string>
+    <string name="hub_race_1_to_5_computer_players">Race 1 to 5 computer players.</string>
+    <string name="hub_pieces_each">Pieces each</string>
+    <string name="hub_ten_is_the_full_game_six_is_a_shorter_race">Ten is the full game; six is a shorter race.</string>
+    <string name="hub_10_pieces">10 pieces</string>
+    <string name="hub_the_full_game">The full game.</string>
+    <string name="hub_6_pieces">6 pieces</string>
+    <string name="hub_a_shorter_race">A shorter race.</string>
+    <string name="hub_ludo">Ludo</string>
+    <string name="hub_roll_race_four_tokens_home_and_send_rivals_back_60c05a">Roll, race four tokens home and send rivals back to the yard.</string>
+    <string name="hub_race_1_to_3_computer_players">Race 1 to 3 computer players.</string>
+    <string name="hub_need_a_six_to_start">Need a six to start</string>
+    <string name="hub_on_a_token_leaves_the_yard_only_on_a_six_off_any_b67a35">On: a token leaves the yard only on a six. Off: any roll brings one out.</string>
+    <string name="hub_exact_roll_to_finish">Exact roll to finish</string>
+    <string name="hub_on_the_last_step_needs_the_exact_number_off_any_85fffb">On: the last step needs the exact number. Off: any roll that reaches home counts.</string>
+    <string-array name="cc_color_names">
+        <item>Orange</item>
+        <item>Blue</item>
+        <item>Yellow</item>
+        <item>Green</item>
+        <item>Pink</item>
+        <item>Sky blue</item>
+    </string-array>
+    <string-array name="cc_shape_names">
+        <item>circle</item>
+        <item>square</item>
+        <item>triangle</item>
+        <item>diamond</item>
+        <item>star</item>
+        <item>plus</item>
+    </string-array>
+    <string-array name="ludo_color_names">
+        <item>Red</item>
+        <item>Green</item>
+        <item>Yellow</item>
+        <item>Blue</item>
+    </string-array>
+</resources>

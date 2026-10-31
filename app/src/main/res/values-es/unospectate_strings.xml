@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="uno_spectate_banner">Mirando</string>
+    <string name="uno_spectate_hint">Estás mirando esta partida. Las cartas se quedan boca abajo.</string>
+    <string name="uno_spectate_leave">Salir</string>
+    <string name="uno_spectate_round_over">Esperando a que el anfitrión reparta la siguiente ronda…</string>
+</resources>

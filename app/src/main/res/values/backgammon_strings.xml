@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub catalog texts (the resource name is hub_ + the slug of the English text). -->
+    <string name="hub_backgammon">Backgammon</string>
+    <string name="hub_race_your_checkers_home_and_bear_them_off">Race your checkers home and bear them off.</string>
+    <string name="hub_opening_roll">Opening roll</string>
+
+    <!-- How to play / leaving -->
+    <string name="backgammon_help_title">How to Play Backgammon</string>
+    <string name="backgammon_help_body">Race all 15 of your checkers around the board and off it before your opponent does.\n\nEach turn you roll two dice and move checkers by those numbers, one die at a time. A double gives you four moves. Tap one of your highlighted checkers, then a highlighted destination.\n\nA point with two or more enemy checkers is blocked. A lone enemy checker (a blot) is hit and sent to the bar, and a checker on the bar must enter before you can move anything else. You must play both dice if you can, otherwise the larger one if only one can be played.\n\nOnce all 15 of your checkers are in your home board you can bear them off, with the exact number or, if no checker is farther back, a larger one.\n\nA normal win scores 1 point, a gammon (the loser has borne off nothing) 2 points, and a backgammon (a gammon with a loser\'s checker still on the bar or in your home board) 3 points. There is no doubling cube.\n\nAt the start each side rolls one die and the higher roll goes first, using both numbers.</string>
+    <string name="backgammon_leave_title">Leave this game?</string>
+    <string name="backgammon_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="backgammon_leave_body_session">This game is still in progress and won\'t count, but the games you\'ve already finished stay on your record.</string>
+
+    <!-- Sides, places -->
+    <string name="backgammon_side_white">White</string>
+    <string name="backgammon_side_black">Black</string>
+    <string name="backgammon_bar">bar</string>
+    <string name="backgammon_off">off</string>
+
+    <!-- Status line -->
+    <string name="backgammon_status_opening">Roll to see who starts.</string>
+    <string name="backgammon_status_opening_tie">Tie, both rolled %1$d. Roll again.</string>
+    <string name="backgammon_status_opening_won">%1$s won the opening roll and plays %2$d and %3$d.</string>
+    <string name="backgammon_status_roll_you">Your turn: roll the dice.</string>
+    <string name="backgammon_status_roll">%1$s (%2$s), roll the dice.</string>
+    <string name="backgammon_thinking">%1$s is thinking…</string>
+    <string name="backgammon_status_select">Tap a highlighted checker, then where to move it.</string>
+    <string name="backgammon_status_destination">Tap a highlighted destination.</string>
+    <string name="backgammon_status_enter">Enter your checker from the bar first.</string>
+    <string name="backgammon_status_blocked">No legal move for the remaining dice.</string>
+    <string name="backgammon_status_turn_done">All dice played. Tap Done.</string>
+    <string name="backgammon_status_over">Game over</string>
+    <string name="backgammon_hint_text">Suggested: %1$s to %2$s</string>
+
+    <!-- Controls -->
+    <string name="backgammon_roll_opening">Roll to start</string>
+    <string name="backgammon_roll_dice">Roll dice</string>
+    <string name="backgammon_make_move">Make your moves</string>
+    <string name="backgammon_done">Done</string>
+    <string name="backgammon_no_moves_pass">No legal moves, pass</string>
+    <string name="backgammon_undo">Undo</string>
+    <string name="backgammon_hint">Hint</string>
+    <string name="backgammon_hint_unavailable">Hint unavailable</string>
+    <string name="backgammon_moves_left">Moves left: %1$d</string>
+    <string name="backgammon_no_moves_left">No moves left</string>
+    <string name="backgammon_die">Die showing %1$d</string>
+    <string name="backgammon_die_used">Die showing %1$d, already used</string>
+
+    <!-- Board accessibility -->
+    <string name="backgammon_cd_point_empty">Point %1$d, empty%2$s</string>
+    <string name="backgammon_cd_point">Point %1$d, %2$d %3$s%4$s</string>
+    <string name="backgammon_checker_white_one">white checker</string>
+    <string name="backgammon_checker_white_many">white checkers</string>
+    <string name="backgammon_checker_black_one">black checker</string>
+    <string name="backgammon_checker_black_many">black checkers</string>
+    <string name="backgammon_cd_suffix_movable">, can move</string>
+    <string name="backgammon_cd_suffix_selected">, selected</string>
+    <string name="backgammon_cd_suffix_destination">, legal destination</string>
+    <string name="backgammon_cd_suffix_hit">, legal destination, hits a checker</string>
+    <string name="backgammon_cd_suffix_hint">, suggested move</string>
+    <string name="backgammon_cd_bar">Bar, %1$d white and %2$d black checkers%3$s</string>
+    <string name="backgammon_cd_tray">%1$s bear-off tray, %2$d borne off%3$s</string>
+    <string name="backgammon_click_select">Select checker</string>
+    <string name="backgammon_click_move">Move here</string>
+    <string name="backgammon_click_bear_off">Bear off</string>
+
+    <!-- Result panel -->
+    <string name="backgammon_result_wins">%1$s wins!</string>
+    <string name="backgammon_result_normal">Normal win: %1$d point</string>
+    <string name="backgammon_result_gammon">Gammon! %1$d points</string>
+    <string name="backgammon_result_backgammon">Backgammon! %1$d points</string>
+    <string name="backgammon_result_session">Session points: %1$s</string>
+    <string name="backgammon_play_again">Play Again</string>
+    <string name="backgammon_back_to_menu">Back to Menu</string>
+</resources>

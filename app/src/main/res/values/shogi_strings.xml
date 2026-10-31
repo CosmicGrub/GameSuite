@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hub catalog text (names are hubKey(text)) -->
+    <string name="hub_shogi">Shogi</string>
+    <string name="hub_mini_shogi">Mini Shogi</string>
+    <string name="hub_japanese_chess_captured_pieces_join_your_side">Japanese chess: captured pieces join your side.</string>
+    <string name="hub_shogi_on_a_small_5x5_board_quick_sharp_games">Shogi on a small 5x5 board: quick, sharp games.</string>
+    <string name="hub_piece_style">Piece style</string>
+    <string name="hub_kanji_is_the_traditional_look_symbols_draws_arro_a4a945">Kanji is the traditional look. Symbols draws arrows showing how each piece moves, so no kanji reading is needed.</string>
+    <string name="hub_kanji">Kanji</string>
+    <string name="hub_traditional_characters">Traditional characters.</string>
+    <string name="hub_symbols">Symbols</string>
+    <string name="hub_arrows_and_letters">Arrows and letters.</string>
+
+    <!-- First-run tips (GameTips resource names) -->
+    <string name="tip_shogi_1">Tap a piece, then a marked square. Dots are moves; corner brackets are captures.</string>
+    <string name="tip_shogi_2">Pieces you capture go to your hand. Tap one in your hand, then an empty square to drop it back as your own.</string>
+    <string name="tip_shogi_3">Reaching the last three rows lets you promote. Trap the enemy king to win.</string>
+    <string name="tip_mini_shogi_1">Tap a piece, then a marked square. Dots are moves; corner brackets are captures.</string>
+    <string name="tip_mini_shogi_2">Pieces you capture go to your hand. Tap one in your hand, then an empty square to drop it back as your own.</string>
+    <string name="tip_mini_shogi_3">Reach the far row to promote. Trap the enemy king to win.</string>
+
+    <!-- Screen -->
+    <string name="shogi_help_title">How to Play Shogi</string>
+    <string name="shogi_mini_help_title">How to Play Mini Shogi</string>
+    <string name="shogi_help_text">Shogi is Japanese chess on a 9x9 board. Sente (the first player) sits at the bottom and moves first. Each piece moves in its own way; switch the piece style to Symbols to see arrows for every piece.\n\nCaptured pieces are kept in your hand. On your turn you may instead drop a piece from your hand onto any empty square, and it becomes yours. Drops have limits: no two unpromoted pawns of yours in one column (nifu), no piece dropped where it could never move, and no pawn drop that gives checkmate.\n\nWhen a piece moves into, within, or out of the last three rows it may promote; pawns, lances and knights must promote when they could not move any more. Promoted silver, knight, lance and pawn move like a gold general; a bishop becomes a horse and a rook a dragon.\n\nTrap the enemy king (checkmate) to win. Repeating the same position four times is a draw, unless one side was giving perpetual check, which loses. If both kings reach the enemy camp, you can declare a win on your turn with enough pieces (28 points for Sente, 27 for Gote; rooks and bishops count 5, others 1).</string>
+    <string name="shogi_mini_help_text">Mini Shogi is shogi on a 5x5 board with a rook, bishop, gold, silver, king and pawn each. Sente (the first player) sits at the bottom and moves first.\n\nCaptured pieces are kept in your hand. On your turn you may instead drop a piece from your hand onto any empty square, and it becomes yours. You may not drop a pawn in a column where you already have one (nifu), drop a pawn where it could not move, or drop a pawn that gives checkmate.\n\nReaching the far row lets a piece promote (a pawn must). Promoted pawn and silver move like a gold; a bishop becomes a horse and a rook a dragon.\n\nTrap the enemy king (checkmate) to win. Four repetitions of a position is a draw, unless one side kept giving check, which loses.</string>
+    <string name="shogi_leave_title">Leave this game?</string>
+    <string name="shogi_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="shogi_leave_body_keeps">This game is still in progress and won\'t count, but the games you already finished stay on your record.</string>
+    <string name="shogi_waiting_host">Waiting for the host to set up the board.</string>
+    <string name="shogi_thinking">The computer is thinking…</string>
+    <string name="shogi_undo">Undo</string>
+    <string name="shogi_hint">Hint</string>
+    <string name="shogi_style_kanji">Kanji</string>
+    <string name="shogi_style_symbols">Symbols</string>
+    <string name="shogi_style_toggle_desc">Piece style: %1$s</string>
+    <string name="shogi_declare_impasse">Declare a win (impasse)</string>
+    <string name="shogi_play_again">Play Again</string>
+    <string name="shogi_back_menu">Back to Menu</string>
+    <string name="shogi_sente">Sente</string>
+    <string name="shogi_gote">Gote</string>
+    <string name="shogi_turn">%1$s to move (%2$s)</string>
+    <string name="shogi_your_turn">Your turn</string>
+    <string name="shogi_waiting_for">Waiting for %1$s</string>
+    <string name="shogi_vs_you_play">vs %1$s · you are %2$s</string>
+    <string name="shogi_check">Check!</string>
+    <string name="shogi_opponent_left">Opponent disconnected</string>
+    <string name="shogi_hand_of">%1$s\'s hand</string>
+    <string name="shogi_hand_empty">No pieces in hand</string>
+    <string name="shogi_hand_piece_desc">%1$s, %2$d in hand</string>
+    <string name="shogi_tap_label">Select square</string>
+    <string name="shogi_square">row %1$d, column %2$d</string>
+    <string name="shogi_cell_empty">Empty, %1$s</string>
+    <string name="shogi_cell_piece">%1$s %2$s, %3$s</string>
+    <string name="shogi_cell_selected">, selected</string>
+    <string name="shogi_cell_legal">, legal move</string>
+    <string name="shogi_cell_capture">, can capture</string>
+    <string name="shogi_cell_hint">, suggested move</string>
+
+    <string name="shogi_piece_pawn">Pawn</string>
+    <string name="shogi_piece_lance">Lance</string>
+    <string name="shogi_piece_knight">Knight</string>
+    <string name="shogi_piece_silver">Silver general</string>
+    <string name="shogi_piece_gold">Gold general</string>
+    <string name="shogi_piece_bishop">Bishop</string>
+    <string name="shogi_piece_rook">Rook</string>
+    <string name="shogi_piece_king">King</string>
+    <string name="shogi_piece_tokin">Promoted pawn</string>
+    <string name="shogi_piece_pro_lance">Promoted lance</string>
+    <string name="shogi_piece_pro_knight">Promoted knight</string>
+    <string name="shogi_piece_pro_silver">Promoted silver</string>
+    <string name="shogi_piece_horse">Horse (promoted bishop)</string>
+    <string name="shogi_piece_dragon">Dragon (promoted rook)</string>
+
+    <string name="shogi_ann_start">New game. First move: %1$s.</string>
+    <string name="shogi_ann_move">%1$s moved %2$s from %3$s to %4$s.</string>
+    <string name="shogi_ann_drop">%1$s dropped %2$s on %3$s.</string>
+    <string name="shogi_ann_capture">Captured %1$s.</string>
+    <string name="shogi_ann_check">Check.</string>
+
+    <string name="shogi_why_notyours">That is not your piece, or it is not your turn.</string>
+    <string name="shogi_why_nomoves">That piece has no legal moves right now.</string>
+    <string name="shogi_why_nodrop">That piece cannot be dropped anywhere right now.</string>
+    <string name="shogi_why_cannot">That piece cannot move there.</string>
+    <string name="shogi_why_incheck">Your king is in check. Capture the attacker, block it, or move the king.</string>
+    <string name="shogi_why_exposes">That move would leave your king in check.</string>
+    <string name="shogi_why_occupied">That square is occupied.</string>
+    <string name="shogi_why_nifu">Nifu: you already have an unpromoted pawn in that column.</string>
+    <string name="shogi_why_dead">A piece dropped there could never move.</string>
+    <string name="shogi_why_uchifuzume">Not allowed: dropping a pawn to give checkmate.</string>
+    <string name="shogi_why_drop_check">That drop would leave your king in check.</string>
+    <string name="shogi_why_nohand">You have none of that piece in hand.</string>
+
+    <string name="shogi_promote_prompt">Promote the %1$s?</string>
+    <string name="shogi_promote_yes">Promote</string>
+    <string name="shogi_promote_no">Don\'t promote</string>
+
+    <string name="shogi_result_win">%1$s wins!</string>
+    <string name="shogi_result_draw">It\'s a draw.</string>
+    <string name="shogi_reason_checkmate">Checkmate.</string>
+    <string name="shogi_reason_repetition">The same position came up four times.</string>
+    <string name="shogi_reason_perpetual">Perpetual check is not allowed: the checking side loses.</string>
+    <string name="shogi_reason_impasse">Won by declaring impasse (both kings in the enemy camp).</string>
+    <string name="shogi_reason_limit">Move limit reached.</string>
+    <string name="shogi_you_won">You won!</string>
+    <string name="shogi_you_lost">You lost.</string>
+    <string name="shogi_session">Session: %1$s</string>
+    <string name="shogi_session_draws">Draws %1$d</string>
+
+    <string name="shogi_coach_title">New to shogi?</string>
+    <string name="shogi_coach_body">Tap a piece to see where it can go: dots are moves, corner brackets are captures. Pieces you capture join your hand and can be dropped back onto the board as yours. Use the Symbols style to see how every piece moves.</string>
+    <string name="shogi_mini_coach_body">Tap a piece to see where it can go: dots are moves, corner brackets are captures. Pieces you capture join your hand and can be dropped back onto the board as yours. Mini Shogi is a fast 5x5 version of the game.</string>
+    <string name="shogi_coach_trivia">Did you know? Shogi is the only major chess game where captured pieces return to play, which is why there are no draws by lack of material.</string>
+    <string name="shogi_coach_gotit">Got it</string>
+</resources>

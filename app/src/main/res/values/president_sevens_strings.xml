@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- President and Sevens (own file). Game strings, Hub strings (hub_*) and first-run tips. -->
+    <string name="ps_hidden_card">face-down card</string>
+    <string name="ps_card_desc">%1$s of %2$s</string>
+    <string name="ps_group_1">one card: %1$s</string>
+    <string name="ps_group_2">a pair: %1$s</string>
+    <string name="ps_group_3">three of a kind: %1$s</string>
+    <string name="ps_group_4">four of a kind: %1$s</string>
+    <string name="ps_you_suffix">(you)</string>
+    <string name="ps_cpu_tag">computer</string>
+    <string name="ps_waiting_host">Waiting for the host…</string>
+    <string name="ps_host_left">The host has left the game.</string>
+    <string name="ps_leave_title">Leave this table?</string>
+    <string name="ps_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="ps_leave_body_session">This session is still in progress and won\'t count, but the sessions you\'ve already finished stay on your record.</string>
+    <string name="ps_play">Play</string>
+    <string name="ps_pass">Pass</string>
+    <string name="ps_clear">Clear</string>
+    <string name="ps_selected">selected</string>
+    <string name="ps_pass_bubble">Pass</string>
+    <string name="ps_back_to_menu">Back to menu</string>
+    <string name="ps_on_turn">on turn</string>
+    <string name="ps_out_label">Out · %1$d</string>
+    <string name="ps_thinking">%1$s is thinking…</string>
+    <string name="ps_yg_thinking">You are thinking…</string>
+    <string name="ps_turn_named">%1$s\'s turn.</string>
+    <string name="ps_yg_turn_named">Your turn.</string>
+    <string name="ps_ann_play">%1$s played %2$s.</string>
+    <string name="ps_yg_ann_play">You played %1$s.</string>
+    <string name="ps_ann_pass">%1$s passed.</string>
+    <string name="ps_yg_ann_pass">You passed.</string>
+    <string name="ps_why_wait">It is not your turn yet.</string>
+    <string name="ps_why_phase">That is not possible right now.</string>
+    <string name="ps_why_spectator">You are watching this game.</string>
+    <string name="ps_why_not_in_hand">Those cards are not in your hand.</string>
+    <string name="ps_cover_title">Pass the device to %1$s</string>
+    <string name="ps_cover_button">Show my cards</string>
+    <string name="ps_help_title">How to Play President</string>
+    <string name="ps_help_text">Be the first to get rid of all your cards.\n\nThe player holding the 3 of clubs starts and plays any set of cards of one rank: one card, a pair, three or four of a kind. Each player after that must beat the last play with the SAME number of cards of a higher rank, or pass. Ranks run from 3 (lowest) up to Ace, and the 2 is the highest. A 2 wins the trick on the spot.\n\nWhen everyone else has passed, the player who played last takes the trick and leads the next one. With Ties switched on you may play the same rank as the last play, which skips the next player.\n\nFour of a kind starts a revolution: the order of the cards turns upside down (3 highest, 2 lowest) until another four of a kind is played.\n\nThe first player out is the President and the last is the Scum. Before each new round the Scum hands its two best cards to the President (one card at a table of three) and gets cards back; the Vice-Scum and the Vice swap one card. Points: the President scores the most and the Scum nothing. The most points after the last round wins the session.</string>
+    <string name="ps_round_of">Round %1$d of %2$d</string>
+    <string name="ps_revolution_chip">Revolution: 3 is high</string>
+    <string name="ps_revolution_banner">Revolution!</string>
+    <string name="ps_table_empty">The table is empty. Whoever leads plays any set of cards of one rank.</string>
+    <string name="ps_table_empty_desc">The table is empty.</string>
+    <string name="ps_table_caption">%1$s · %2$s</string>
+    <string name="ps_table_desc">On the table: %1$s played %2$s.</string>
+    <string name="ps_role_president">President</string>
+    <string name="ps_role_vice">Vice President</string>
+    <string name="ps_role_neutral">Neutral</string>
+    <string name="ps_role_vice_scum">Vice-Scum</string>
+    <string name="ps_role_scum">Scum</string>
+    <string name="ps_ann_deal">%1$s leads round %2$d of %3$d.</string>
+    <string name="ps_yg_ann_deal">You lead round %1$d of %2$d.</string>
+    <string name="ps_ann_exchange">%1$s handed over cards.</string>
+    <string name="ps_yg_ann_exchange">You handed over cards.</string>
+    <string name="ps_ann_revolution_on">Revolution! The order of the cards is upside down.</string>
+    <string name="ps_ann_revolution_off">Revolution! The cards are back in their usual order.</string>
+    <string name="ps_ann_skipped">%1$s is skipped.</string>
+    <string name="ps_yg_ann_skipped">You are skipped.</string>
+    <string name="ps_ann_out">%1$s is out: place %2$d.</string>
+    <string name="ps_yg_ann_out">You are out: place %1$d.</string>
+    <string name="ps_ann_trick">%1$s takes the trick and leads.</string>
+    <string name="ps_yg_ann_trick">You take the trick and lead.</string>
+    <string name="ps_ann_round_end">Round over. %1$s is the new President.</string>
+    <string name="ps_yg_ann_round_end">Round over. You are the new President!</string>
+    <string name="ps_ann_session_end">Session over. %1$s wins!</string>
+    <string name="ps_yg_ann_session_end">Session over. You win!</string>
+    <string name="ps_ann_session_tie">Session over. The top score is tied.</string>
+    <string name="ps_turn_first">Your turn: the first play must include the 3 of clubs.</string>
+    <string name="ps_turn_lead">Your turn: lead any set of cards of one rank.</string>
+    <string name="ps_turn_beat">Your turn: beat %1$s, or pass.</string>
+    <string name="ps_exch_wait">Waiting for %1$s to choose cards…</string>
+    <string name="ps_exch_received">You received %1$s from %2$s.</string>
+    <string name="ps_exch_gave">You gave %1$s to %2$s.</string>
+    <string name="ps_hint_pass">Hint: pass on this trick.</string>
+    <string name="ps_hint_play">Hint: the selected cards are a good play.</string>
+    <string name="ps_hint_give">Hint: these are the cards to give away.</string>
+    <string name="ps_why_none">Select the cards you want to play first.</string>
+    <string name="ps_why_mixed">A play must be cards of one rank only.</string>
+    <string name="ps_why_low">That is too low. Beat the last play with a higher rank (the 2 is highest).</string>
+    <string name="ps_why_low_rev">That is too low. During a revolution the 3 is highest and the 2 is lowest.</string>
+    <string name="ps_why_tie">The same rank is not allowed: ties are switched off.</string>
+    <string name="ps_why_three">The first play of the game must include the 3 of clubs.</string>
+    <string name="ps_why_cant_pass">You are leading, so you have to play something.</string>
+    <string name="ps_result_title">Round %1$d results</string>
+    <string name="ps_final_title">Final standings</string>
+    <string name="ps_result_row">%1$d. %2$s · %3$s · +%4$d · %5$d in total</string>
+    <string name="ps_final_row">%1$d. %2$s · %3$d points</string>
+    <string name="ps_next_leads">%1$s leads the next round.</string>
+    <string name="ps_yg_next_leads">You lead the next round.</string>
+    <string name="ps_session_winner">%1$s wins the session!</string>
+    <string name="ps_yg_session_winner">You win the session!</string>
+    <string name="ps_session_tie">The session ends in a tie.</string>
+    <string name="ps_sessions_won">Sessions won: %1$s</string>
+    <string name="ps_next_round">Next round</string>
+    <string name="ps_play_again">Play again</string>
+    <string name="sv_help_title">How to Play Sevens</string>
+    <string name="sv_help_text">Be the first to play all your cards.\n\nThe player holding the 7 of diamonds starts by playing it. After that you may play a 7 of any suit to start that suit\'s row, or the card next to either end of a row that has started: a 6 or an 8 beside a 7, and so on, from the Ace up to the King.\n\nIf you can play a card you must. If nothing fits, you pass. With Pass penalty switched on, every pass adds 5 points to your score.\n\nThe first player to empty their hand wins the round. Everyone else scores the points left in their hand: Ace 1, number cards their face value, Jack 11, Queen 12, King 13. Keep playing rounds to build a running total.</string>
+    <string name="sv_round_n">Round %1$d</string>
+    <string name="sv_penalty_chip">Pass = +%1$d</string>
+    <string name="sv_leave_body_session">This round is still in progress and won\'t count, but the rounds you\'ve already finished stay on your record.</string>
+    <string name="sv_ann_deal">%1$s opens with the 7 of diamonds.</string>
+    <string name="sv_yg_ann_deal">You open with the 7 of diamonds.</string>
+    <string name="sv_ann_penalty">+%1$d points.</string>
+    <string name="sv_ann_round_end">%1$s played the last card and wins the round!</string>
+    <string name="sv_yg_ann_round_end">You played your last card and win the round!</string>
+    <string name="sv_turn_open">Your turn: play the 7 of diamonds to open the round.</string>
+    <string name="sv_turn_play">Your turn: tap a glowing card to play it.</string>
+    <string name="sv_turn_pass">Your turn: nothing fits, so you have to pass.</string>
+    <string name="sv_why_not_playable">That card does not fit yet. Play a 7, or a card next to the end of a row.</string>
+    <string name="sv_why_open">The round opens with the 7 of diamonds.</string>
+    <string name="sv_why_must_play">You have a card you can play, so you cannot pass.</string>
+    <string name="sv_hint_play">Hint: play %1$s.</string>
+    <string name="sv_hint_pass">Hint: nothing fits, so pass.</string>
+    <string name="sv_playable">can be played</string>
+    <string name="sv_passes_count">Passes: %1$d</string>
+    <string name="sv_board_desc">Table. %1$s</string>
+    <string name="sv_row_none">%1$s row: not started</string>
+    <string name="sv_row_range">%1$s row: %2$s to %3$s</string>
+    <string name="sv_result_title">Round %1$d results</string>
+    <string name="sv_winner_line">%1$s wins the round!</string>
+    <string name="sv_yg_winner_line">You win the round!</string>
+    <string name="sv_result_row">%1$d. %2$s · %3$s this round · %4$s in total</string>
+    <string name="sv_result_passes">Passes: %1$d</string>
+    <string name="sv_rounds_won">Rounds won: %1$s</string>
+    <string name="sv_next_round">Deal next round</string>
+    <string-array name="ps_rank_names">
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+        <item>Ace</item>
+    </string-array>
+    <string-array name="ps_rank_plurals">
+        <item>Twos</item>
+        <item>Threes</item>
+        <item>Fours</item>
+        <item>Fives</item>
+        <item>Sixes</item>
+        <item>Sevens</item>
+        <item>Eights</item>
+        <item>Nines</item>
+        <item>Tens</item>
+        <item>Jacks</item>
+        <item>Queens</item>
+        <item>Kings</item>
+        <item>Aces</item>
+    </string-array>
+    <string-array name="ps_suit_names">
+        <item>Clubs</item>
+        <item>Diamonds</item>
+        <item>Hearts</item>
+        <item>Spades</item>
+    </string-array>
+    <plurals name="ps_cards_left">
+        <item quantity="one">%1$d card left</item>
+        <item quantity="other">%1$d cards left</item>
+    </plurals>
+    <plurals name="ps_exch_choose">
+        <item quantity="one">Choose %1$d card to give to %2$s.</item>
+        <item quantity="other">Choose %1$d cards to give to %2$s.</item>
+    </plurals>
+    <plurals name="ps_give_cards">
+        <item quantity="one">Give %1$d card</item>
+        <item quantity="other">Give %1$d cards</item>
+    </plurals>
+    <plurals name="ps_play_cards">
+        <item quantity="one">Play %1$d card</item>
+        <item quantity="other">Play %1$d cards</item>
+    </plurals>
+    <plurals name="ps_why_count">
+        <item quantity="one">You need exactly %1$d card of one rank to answer this play.</item>
+        <item quantity="other">You need exactly %1$d cards of one rank to answer this play.</item>
+    </plurals>
+    <plurals name="ps_why_gift">
+        <item quantity="one">Choose exactly %1$d card to give.</item>
+        <item quantity="other">Choose exactly %1$d cards to give.</item>
+    </plurals>
+    <plurals name="sv_points">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <string name="tip_president_1">Tap cards of one rank to select them, then Play. To beat a pair you must play a pair.</string>
+    <string name="tip_president_2">The 2 is the highest card and wins the trick at once. Four of a kind starts a revolution.</string>
+    <string name="tip_president_3">Go out first to become President. The Scum has to hand over its best cards.</string>
+    <string name="tip_sevens_1">Start with the 7 of diamonds. Then play a 7 of any suit, or the card next to a row\'s end.</string>
+    <string name="tip_sevens_2">Cards you can play glow. If you can play, you must; if nothing fits, you pass.</string>
+    <string name="tip_sevens_3">First to empty their hand wins. The others score the points left in their hands.</string>
+    <string name="hub_president">President</string>
+    <string name="hub_be_first_to_play_out_your_cards_beat_the_last_pl_75de78">Be first to play out your cards. Beat the last play, become President and make the Scum pay.</string>
+    <string name="hub_take_on_2_to_5_computer_players">Take on 2 to 5 computer players.</string>
+    <string name="hub_revolutions">Revolutions</string>
+    <string name="hub_four_of_a_kind_turns_the_order_of_the_cards_upsi_3c5f24">Four of a kind turns the order of the cards upside down until another four is played.</string>
+    <string name="hub_ties_skip_a_player">Ties skip a player</string>
+    <string name="hub_playing_the_same_rank_as_the_last_play_is_allowe_ade68e">Playing the same rank as the last play is allowed and skips the next player.</string>
+    <string name="hub_card_exchange">Card exchange</string>
+    <string name="hub_each_round_starts_with_the_scum_giving_the_presi_8df39a">Each round starts with the Scum giving the President its best cards and getting worse ones back.</string>
+    <string name="hub_rounds">Rounds</string>
+    <string name="hub_a_session_lasts_this_many_rounds_the_most_points_d8afc6">A session lasts this many rounds. The most points wins.</string>
+    <string name="hub_3_rounds">3 rounds</string>
+    <string name="hub_5_rounds">5 rounds</string>
+    <string name="hub_10_rounds">10 rounds</string>
+    <string name="hub_sevens">Sevens</string>
+    <string name="hub_build_every_suit_out_from_the_sevens_and_be_firs_c767a9">Build every suit out from the sevens and be first to empty your hand.</string>
+    <string name="hub_pass_penalty">Pass penalty</string>
+    <string name="hub_each_time_you_are_forced_to_pass_you_add_5_point_b3ca12">Each time you are forced to pass, you add 5 points to your score.</string>
+</resources>

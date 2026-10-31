@@ -139,10 +139,22 @@ class TileGame : GameModule, ResumableGame {
     override val maxPlayers = 4
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<TileGameState?>(null)
+
+    /**
+     * Networked play only: true once the other seat has left (transport onPlayerLeft). Input is
+     * refused from then on and [leaveSession] aborts instead of recording a result.
+     */
+    val opponentLeft = mutableStateOf(false)
+
+    /** Networked play only: games won this session by playerId (a tie increments nobody, see [sessionDraws]). */
+    val sessionWins = mutableStateOf<Map<String, Int>>(emptyMap())
+    val sessionDraws = mutableStateOf(0)
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
@@ -162,8 +174,47 @@ class TileGame : GameModule, ResumableGame {
     /** True once [endMatch] has reported; makes a second finish/abort a no-op. Reset by [startMatch]. */
     private var matchEnded = false
 
+    // ---- Networked play bookkeeping (PlayMode.LOCAL_AD_HOC / ONLINE): host = seat 0 owns the engine ----
+    private val isNetworked: Boolean
+        get() = this::context.isInitialized &&
+            (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+
+    /** Counts committed plays (host) so a guest can fire the success feedback exactly once per play. */
+    private var playSeq = 0
+    private var lastSeenPlaySeq = 0
+    private var lastPlay: TileNetLastPlay? = null
+
+    /** Networked Play Again alternates who opens, like Connect Four. */
+    private var nextStarterIndex = 0
+
+    /**
+     * Bumped by every change of the position (start, restore, a committed play / pass / swap, the end).
+     * A bot search runs off the main thread against a snapshot of the position; [applyBotMove] only
+     * applies its result if this counter still equals the one the search started from.
+     */
+    private var moveCounter = 0
+
     override fun init(context: GameContext) {
         this.context = context
+        opponentLeft.value = false
+        sessionWins.value = context.players.associate { it.playerId to 0 }
+        sessionDraws.value = 0
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        playSeq = 0
+        lastSeenPlaySeq = 0
+        lastPlay = null
+        nextStarterIndex = 0
+        moveCounter++
+        if (isNetworked) {
+            // A guest renders only what the host sends; drop any game left over from an earlier one.
+            if (!isHost) state.value = null
+            registerNetworkListeners()
+            if (!isHost) sendToHost(TileNetMessage.RequestState)
+        }
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -223,6 +274,7 @@ class TileGame : GameModule, ResumableGame {
     override fun restore(snapshot: String): Boolean {
         try {
             if (!this::context.isInitialized) return false
+            if (isNetworked) return false // networked games are never resumed
             val snap = tileGameSnapshotJson.decodeFromString(TileGameSnapshot.serializer(), snapshot)
             val roster = context.players
             if (snap.boardSize != BOARD_SIZE || snap.cells.size != BOARD_SIZE * BOARD_SIZE) return false
@@ -262,6 +314,7 @@ class TileGame : GameModule, ResumableGame {
             val newDifficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
 
             matchEnded = false
+            moveCounter++
             bag = newBag
             difficulty = newDifficulty
             state.value = TileGameState(
@@ -295,7 +348,10 @@ class TileGame : GameModule, ResumableGame {
     }
 
     override fun startMatch() {
+        if (isNetworked && !isHost) return // guest: wait for the host's StateSync (or its reply to RequestState)
         matchEnded = false
+        moveCounter++
+        lastPlay = null
         bag = TileBag.freshBag()
         val board = List(BOARD_SIZE) { List(BOARD_SIZE) { BoardCell() } }
         val players = context.players.map { info ->
@@ -306,14 +362,56 @@ class TileGame : GameModule, ResumableGame {
                 rack = drawTiles(7)
             )
         }
-        val first = firstMoverIndex.coerceIn(0, maxOf(0, players.size - 1))
+        // Networked: a named first mover opens the first game, then Play Again alternates the opener.
+        val wanted = if (isNetworked && firstMoverIndex <= 0) nextStarterIndex else firstMoverIndex
+        val first = wanted.coerceIn(0, maxOf(0, players.size - 1))
         firstMoverIndex = 0
+        nextStarterIndex = (first + 1) % maxOf(1, players.size)
         state.value = TileGameState(
             board = board,
             players = players,
             currentPlayerIndex = first,
             bagCount = bag.size,
             lastAction = "Game started"
+        )
+        publishIfHost()
+    }
+
+    /**
+     * Networked play: after a game is over (its result panel is showing) either seat can deal the
+     * next one in the same session. The guest only asks; the host re-checks and deals.
+     */
+    fun playAgain() {
+        if (!isNetworked || matchEnded || opponentLeft.value) return
+        if (!isHost) {
+            if (state.value?.matchOver == true) sendToHost(TileNetMessage.PlayAgainRequest)
+            return
+        }
+        if (state.value?.matchOver != true) return // a late request must not wipe a game already dealt
+        startMatch()
+    }
+
+    /**
+     * Networked play: ends the whole session (from the result panel), reporting the games won this
+     * session. Only a STRICT leader is flagged the winner; an even tally records as a draw. If the
+     * other seat has gone, nothing is settled and nothing is recorded (an abort).
+     */
+    fun leaveSession() {
+        if (!isNetworked || matchEnded) return
+        if (opponentLeft.value) {
+            abortMatch()
+            return
+        }
+        val wins = sessionWins.value
+        val best = context.players.maxOfOrNull { wins[it.playerId] ?: 0 } ?: 0
+        val leaders = context.players.count { (wins[it.playerId] ?: 0) == best }
+        endMatch(
+            GameResult(
+                scores = context.players.map {
+                    val w = wins[it.playerId] ?: 0
+                    PlayerScore(playerId = it.playerId, score = w, isWinner = best > 0 && w == best && leaders == 1)
+                }
+            )
         )
     }
 
@@ -328,15 +426,26 @@ class TileGame : GameModule, ResumableGame {
     override fun endMatch(result: GameResult) {
         if (matchEnded) return
         matchEnded = true
+        moveCounter++
         state.value = state.value?.copy(matchOver = true)
         onMatchEnd?.invoke(result)
     }
 
     // ---- Placement staging (before submit) ----
 
+    /** Networked play: staging is the local player's own, on their own turn, from their own rack. */
+    private fun networkedStagingRefused(s: TileGameState, tile: RackTile? = null): Boolean {
+        if (!isNetworked) return false
+        if (opponentLeft.value || s.currentPlayerIndex != context.localPlayerIndex) return true
+        if (tile != null && s.players.getOrNull(context.localPlayerIndex)?.rack?.none { it.instanceId == tile.instanceId } != false) return true
+        return false
+    }
+
     fun stageTile(row: Int, col: Int, tile: RackTile, chosenLetter: Char) {
         val s = state.value ?: return
         if (s.matchOver) return
+        if (networkedStagingRefused(s, tile)) return
+        if (row !in 0 until BOARD_SIZE || col !in 0 until BOARD_SIZE) return
         if (s.board[row][col].tile != null) return
         if (s.pending.any { it.row == row && it.col == col }) return
         state.value = s.copy(pending = s.pending + PendingPlacement(row, col, tile, chosenLetter))
@@ -358,23 +467,49 @@ class TileGame : GameModule, ResumableGame {
     fun submitMove(): String? {
         val s = state.value ?: return "No active game"
         if (s.matchOver) return "The game is over"
-        if (s.pending.isEmpty()) return "Place at least one tile first"
+        if (isNetworked) {
+            if (opponentLeft.value) return "Your opponent has left"
+            if (s.currentPlayerIndex != context.localPlayerIndex) return "It is not your turn"
+            if (!isHost) return requestPlayFromHost(s)
+        }
+        return applyPlay(s, s.pending, keepPending = emptyList())
+    }
+
+    /** The result of checking a staged placement: an error message, or the words it forms. */
+    private class PlayCheck(val error: String?, val words: List<DetectedWord> = emptyList())
+
+    /** Validates [s].pending as a play, exactly as a local submit does (placement legality, then the dictionary). */
+    private fun checkPlay(s: TileGameState): PlayCheck {
+        if (s.pending.isEmpty()) return PlayCheck("Place at least one tile first")
 
         val boardHasAnyTile = s.board.any { row -> row.any { it.tile != null } }
-        val words = detectWords(s) ?: return "Tiles must form a single connected line"
-        if (words.isEmpty()) return "No valid word formed"
+        val words = detectWords(s) ?: return PlayCheck("Tiles must form a single connected line")
+        if (words.isEmpty()) return PlayCheck("No valid word formed")
         val coveredCells = words.flatMap { it.cells }.toSet()
         if (s.pending.any { (it.row to it.col) !in coveredCells }) {
-            return "All placed tiles must form part of a word"
+            return PlayCheck("All placed tiles must form part of a word")
         }
-        if (boardHasAnyTile && words.none { it.touchesExisting }) return "Must connect to an existing word"
+        if (boardHasAnyTile && words.none { it.touchesExisting }) return PlayCheck("Must connect to an existing word")
         if (!boardHasAnyTile && words.none { w -> w.cells.any { it.first == CENTER && it.second == CENTER } }) {
-            return "First word must cover the center square"
+            return PlayCheck("First word must cover the center square")
         }
 
         for (w in words) {
-            if (!WordDictionary.isValidWord(w.text)) return "\"${w.text}\" is not a valid word"
+            if (!WordDictionary.isValidWord(w.text)) return PlayCheck("\"${w.text}\" is not a valid word")
         }
+        return PlayCheck(null, words)
+    }
+
+    /**
+     * Validates [pending] as the current player's play, scores and commits it, and advances the turn.
+     * [keepPending] is what the local staging area holds afterwards: empty for the player's own submit,
+     * the host's own still-staged tiles when it is applying a guest's play.
+     */
+    private fun applyPlay(s0: TileGameState, pending: List<PendingPlacement>, keepPending: List<PendingPlacement>): String? {
+        val s = s0.copy(pending = pending)
+        val check = checkPlay(s)
+        if (check.error != null) return check.error
+        val words = check.words
 
         val isBingo = s.pending.size == 7
         val gained = words.sumOf { scoreWord(it, s) } + if (isBingo) 50 else 0
@@ -408,11 +543,20 @@ class TileGame : GameModule, ResumableGame {
             players = updatedPlayers,
             currentPlayerIndex = nextIndex,
             bagCount = bag.size,
-            pending = emptyList(),
+            pending = keepPending,
+            // Only a real play resets the run of passes / swaps that ends the game.
             consecutivePasses = 0,
             lastAction = "${player.displayName} played ${words.joinToString(", ") { it.text }} for $gained points",
             lastPlayedWords = words.map { it.text }.distinct(),
             matchOver = matchOver
+        )
+        moveCounter++
+        playSeq++
+        lastPlay = TileNetLastPlay(
+            seat = s.currentPlayerIndex,
+            words = words.map { it.text }.distinct(),
+            points = gained,
+            tier = tier.name
         )
 
         onWordPlayed?.invoke(
@@ -424,7 +568,7 @@ class TileGame : GameModule, ResumableGame {
                 byBot = player.isBot
             )
         )
-        if (matchOver) finishGame()
+        if (matchOver) finishGame() else publishIfHost()
         return null
     }
 
@@ -438,67 +582,121 @@ class TileGame : GameModule, ResumableGame {
     fun currentStagedWordIsValid(): Boolean {
         val s = state.value ?: return false
         if (s.pending.isEmpty()) return false
-        val boardHasAnyTile = s.board.any { row -> row.any { it.tile != null } }
-        val words = detectWords(s) ?: return false
-        if (words.isEmpty()) return false
-        val coveredCells = words.flatMap { it.cells }.toSet()
-        if (s.pending.any { (it.row to it.col) !in coveredCells }) return false
-        if (boardHasAnyTile && words.none { it.touchesExisting }) return false
-        if (!boardHasAnyTile && words.none { w -> w.cells.any { it.first == CENTER && it.second == CENTER } }) return false
-        return words.all { WordDictionary.isValidWord(it.text) }
+        return checkPlay(s).error == null
     }
 
     fun pass() {
         val s = state.value ?: return
         if (s.matchOver) return
+        if (isNetworked) {
+            if (opponentLeft.value || s.currentPlayerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                sendToHost(TileNetMessage.PassRequest)
+                return
+            }
+        }
+        applyPass(s, keepPending = emptyList())
+    }
+
+    private fun applyPass(s: TileGameState, keepPending: List<PendingPlacement>) {
         val player = s.players[s.currentPlayerIndex]
         val consecutivePasses = s.consecutivePasses + 1
         val allPassed = consecutivePasses >= s.players.size * 2
 
         state.value = s.copy(
-            pending = emptyList(),
+            pending = keepPending,
             currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.size,
             consecutivePasses = consecutivePasses,
             lastAction = "${player.displayName} passed",
             matchOver = allPassed
         )
-        if (allPassed) finishGame()
+        moveCounter++
+        if (allPassed) finishGame() else publishIfHost()
     }
 
+    /**
+     * Exchanges the named rack tiles for fresh ones and ends the turn. A swap COUNTS AS A PASS for the
+     * "everyone passed twice in a row" ending (only a real play resets that run), so two players can
+     * no longer trade tiles back and forth forever.
+     */
     fun swapTiles(tileIds: Set<Int>) {
         val s = state.value ?: return
         if (s.matchOver) return
+        if (isNetworked) {
+            if (opponentLeft.value || s.currentPlayerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                if (tileIds.isNotEmpty()) sendToHost(TileNetMessage.SwapRequest(tileIds.toList()))
+                return
+            }
+        }
+        applySwap(s, tileIds, keepPending = emptyList())
+    }
+
+    private fun applySwap(s: TileGameState, tileIds: Set<Int>, keepPending: List<PendingPlacement>) {
         if (bag.size < tileIds.size) return
         val player = s.players[s.currentPlayerIndex]
         val kept = player.rack.filterNot { it.instanceId in tileIds }
         val returning = player.rack.filter { it.instanceId in tileIds }
+        // Draw the new tiles BEFORE the old ones go back, so a swap can never hand the same tile back.
+        val drawn = drawTiles(returning.size)
         bag.addAll(returning)
         bag.shuffle()
-        val drawn = drawTiles(returning.size)
 
         val updatedPlayers = s.players.toMutableList()
         updatedPlayers[s.currentPlayerIndex] = player.copy(rack = kept + drawn)
+
+        val consecutivePasses = s.consecutivePasses + 1
+        val allPassed = consecutivePasses >= s.players.size * 2
 
         state.value = s.copy(
             players = updatedPlayers,
             currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.size,
             bagCount = bag.size,
-            lastAction = "${player.displayName} swapped ${tileIds.size} tile(s)"
+            // Staged tiles never ride along into the next player's turn.
+            pending = keepPending,
+            consecutivePasses = consecutivePasses,
+            lastAction = "${player.displayName} swapped ${tileIds.size} tile(s)",
+            matchOver = allPassed
         )
+        moveCounter++
+        if (allPassed) finishGame() else publishIfHost()
     }
 
     // ---- Bot driver ----
 
-    fun playBotTurn() {
-        val s = state.value ?: return
-        if (s.matchOver) return
-        val current = s.players[s.currentPlayerIndex]
-        if (!current.isBot) return
+    /** A bot's turn as the screen needs it: the position to search, taken on the main thread. */
+    class BotTurnRequest internal constructor(
+        internal val position: TileGameState,
+        internal val bot: TilePlayerState,
+        internal val difficulty: CpuDifficulty,
+        internal val moveCounter: Int
+    )
 
-        val move = TileBot.findMove(s, current, difficulty)
+    /** Null unless it is a bot's turn in a live game. Cheap; call on the main thread. */
+    fun prepareBotTurn(): BotTurnRequest? {
+        val s = state.value ?: return null
+        if (s.matchOver || matchEnded) return null
+        val current = s.players[s.currentPlayerIndex]
+        if (!current.isBot) return null
+        return BotTurnRequest(s, current, difficulty, moveCounter)
+    }
+
+    /** The slow part: pure, touches no engine state, safe to run on a background thread. Null = the bot has no move (it passes). */
+    fun searchBotMove(request: BotTurnRequest): List<TileBot.PendingPlacementSpec>? =
+        TileBot.findMove(request.position, request.bot, request.difficulty)
+
+    /**
+     * Applies a finished search on the main thread. Returns false (and does nothing) when the position
+     * changed since [prepareBotTurn] (the game was left, restarted, or moved on meanwhile).
+     */
+    fun applyBotMove(request: BotTurnRequest, move: List<TileBot.PendingPlacementSpec>?): Boolean {
+        if (request.moveCounter != moveCounter || matchEnded) return false
+        val s = state.value ?: return false
+        if (s.matchOver || s.board != request.position.board || s.currentPlayerIndex != request.position.currentPlayerIndex) return false
+        if (!s.players[s.currentPlayerIndex].isBot) return false
         if (move == null) {
             pass()
-            return
+            return true
         }
         move.forEach { (row, col, tile, letter) -> stageTile(row, col, tile, letter) }
         val error = submitMove()
@@ -507,6 +705,302 @@ class TileGame : GameModule, ResumableGame {
             clearStaged()
             pass()
         }
+        return true
+    }
+
+    /** Synchronous convenience (tests, and anything off the UI): search and apply in one call. */
+    fun playBotTurn() {
+        val request = prepareBotTurn() ?: return
+        applyBotMove(request, searchBotMove(request))
+    }
+
+    // ---- Networked play ----
+
+    private fun hostId(): String = context.players[0].playerId
+
+    private fun registerNetworkListeners() {
+        val transport = context.transport
+        transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+        // After a blip the transport recovered from: a guest asks again, the host re-sends (a guest
+        // whose own link stayed up would never think to ask).
+        transport.onReconnected {
+            if (isHost) {
+                if (state.value != null) broadcastState()
+            } else {
+                sendToHost(TileNetMessage.RequestState)
+            }
+        }
+        transport.onPlayerLeft { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId }) {
+                opponentLeft.value = true
+                state.value = state.value?.copy(lastAction = OPPONENT_DISCONNECTED)
+            }
+        }
+        transport.onPlayerJoined { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId } && opponentLeft.value) {
+                opponentLeft.value = false
+                if (isHost && state.value != null) broadcastState()
+            }
+        }
+    }
+
+    private fun publishIfHost() {
+        if (isNetworked && isHost && state.value != null) broadcastState()
+    }
+
+    private fun tileToNet(t: RackTile) = TileNetTile(t.instanceId, t.letter.toString(), t.isBlank)
+
+    /**
+     * The REDACTED view of [s] for the seat [recipientSeat]: its own rack in full, every other rack
+     * and the bag only as counts. Nothing else of the host's private state (bag order, other racks,
+     * staged tiles) is representable in the result.
+     */
+    private fun toNetState(s: TileGameState, recipientSeat: Int): TileNetState {
+        val cells = ArrayList<TileNetCell?>(BOARD_SIZE * BOARD_SIZE)
+        for (r in 0 until BOARD_SIZE) for (c in 0 until BOARD_SIZE) {
+            val cell = s.board[r][c]
+            val tile = cell.tile
+            cells.add(if (tile == null) null else TileNetCell(tileToNet(tile), cell.letterOverride?.toString()))
+        }
+        return TileNetState(
+            seat = recipientSeat,
+            cells = cells,
+            scores = s.players.map { it.score },
+            rackCounts = s.players.map { it.rack.size },
+            myRack = s.players.getOrNull(recipientSeat)?.rack?.map { tileToNet(it) } ?: emptyList(),
+            bagCount = s.bagCount,
+            currentPlayerIndex = s.currentPlayerIndex,
+            consecutivePasses = s.consecutivePasses,
+            lastAction = s.lastAction,
+            lastPlayedWords = s.lastPlayedWords,
+            matchOver = s.matchOver,
+            sessionWins = sessionWins.value,
+            sessionDraws = sessionDraws.value,
+            playSeq = playSeq,
+            lastPlay = lastPlay
+        )
+    }
+
+    /** Host: bumps the version and sends every other seat its own redacted view. */
+    private fun broadcastState() {
+        val s = state.value ?: return
+        stateVersion++
+        context.players.forEachIndexed { seat, recipient ->
+            if (recipient.playerId != hostId()) sendStateTo(seat, s)
+        }
+    }
+
+    private fun sendStateTo(seat: Int, s: TileGameState) {
+        val recipient = context.players.getOrNull(seat) ?: return
+        send(recipient.playerId, TileNetMessage.StateSync(stateVersion, toNetState(s, seat)))
+    }
+
+    /** Host: a fresh (newer) state for one seat, e.g. after refusing its request, so it drops whatever it staged. */
+    private fun resync(seat: Int) {
+        val s = state.value ?: return
+        stateVersion++
+        sendStateTo(seat, s)
+    }
+
+    private fun sendToHost(message: TileNetMessage) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        context.transport.send(fromPlayerId = localId, toPlayerId = hostId(), payload = encode(message))
+    }
+
+    private fun send(toPlayerId: String, message: TileNetMessage) {
+        context.transport.send(fromPlayerId = hostId(), toPlayerId = toPlayerId, payload = encode(message))
+    }
+
+    private fun encode(message: TileNetMessage): ByteArray =
+        Json.encodeToString(TileNetMessage.serializer(), message).toByteArray(Charsets.UTF_8)
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = try {
+            Json.decodeFromString(TileNetMessage.serializer(), String(payload, Charsets.UTF_8))
+        } catch (_: Exception) {
+            return // malformed or foreign payload
+        }
+        if (!isNetworked || matchEnded) return
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other seat is a forgery.
+            is TileNetMessage.StateSync ->
+                if (!isHost && fromPlayerId == hostId()) applyRemoteState(message.version, message.state)
+            is TileNetMessage.RequestState -> {
+                val seat = seatOf(fromPlayerId)
+                if (isHost && seat > 0) state.value?.let { sendStateTo(seat, it) }
+            }
+            is TileNetMessage.PlayRequest ->
+                if (isHost) handlePlayRequest(fromPlayerId, message)
+            is TileNetMessage.SwapRequest ->
+                if (isHost) handleSwapRequest(fromPlayerId, message.tileIds)
+            is TileNetMessage.PassRequest ->
+                if (isHost) handlePassRequest(fromPlayerId)
+            is TileNetMessage.PlayAgainRequest ->
+                if (isHost && seatOf(fromPlayerId) > 0 && !opponentLeft.value && state.value?.matchOver == true) startMatch()
+        }
+    }
+
+    /** The roster seat of [playerId], or -1. Seat 0 is the host's own (the transport never delivers our own sends). */
+    private fun seatOf(playerId: String): Int = context.players.indexOfFirst { it.playerId == playerId }
+
+    /**
+     * Host: the seat that sent a request must be a guest seat, and must be the one on turn in a live
+     * game. Anything else is dropped; a guest that is simply out of date gets a fresh state.
+     */
+    private fun requestingSeatOnTurn(fromPlayerId: String): Int? {
+        val s = state.value ?: return null
+        if (matchEnded || s.matchOver || opponentLeft.value) return null
+        val seat = seatOf(fromPlayerId)
+        if (seat <= 0) return null // unknown, or the host's own seat
+        if (seat != s.currentPlayerIndex) {
+            resync(seat)
+            return null
+        }
+        return seat
+    }
+
+    private fun handlePassRequest(fromPlayerId: String) {
+        val s = state.value ?: return
+        requestingSeatOnTurn(fromPlayerId) ?: return
+        applyPass(s, keepPending = s.pending)
+    }
+
+    private fun handleSwapRequest(fromPlayerId: String, tileIds: List<Int>) {
+        val s = state.value ?: return
+        val seat = requestingSeatOnTurn(fromPlayerId) ?: return
+        val rackIds = s.players[seat].rack.map { it.instanceId }.toSet()
+        val ids = tileIds.toSet()
+        if (ids.isEmpty() || ids.size != tileIds.size || !rackIds.containsAll(ids) || ids.size > bag.size) {
+            resync(seat)
+            return
+        }
+        applySwap(s, ids, keepPending = s.pending)
+    }
+
+    /** Host: re-validates a guest's whole play from scratch (seat, turn, tiles, squares, letters, words) exactly as a local play. */
+    private fun handlePlayRequest(fromPlayerId: String, request: TileNetMessage.PlayRequest) {
+        val s = state.value ?: return
+        val seat = requestingSeatOnTurn(fromPlayerId) ?: return
+        val rack = s.players[seat].rack
+        val pending = resolvePlacements(s, rack, request.placements)
+        if (pending == null) {
+            resync(seat)
+            return
+        }
+        // The host's own staged tiles (if any) sit on squares the guest's play may now occupy.
+        val hostKeeps = s.pending.filter { p -> s.board[p.row][p.col].tile == null && pending.none { it.row == p.row && it.col == p.col } }
+        val check = checkPlay(s.copy(pending = pending))
+        val claimed = request.words.map { it.lowercase() }.toSet()
+        val actual = check.words.map { it.text.lowercase() }.toSet()
+        if (check.error != null || claimed != actual) {
+            resync(seat)
+            return
+        }
+        if (applyPlay(s, pending, keepPending = hostKeeps) != null) resync(seat)
+    }
+
+    /** Turns wire placements into engine ones, or null when any is malformed (unknown / repeated tile, bad square, wrong letter). */
+    private fun resolvePlacements(s: TileGameState, rack: List<RackTile>, placements: List<TileNetPlacement>): List<PendingPlacement>? {
+        if (placements.isEmpty() || placements.size > rack.size) return null
+        if (placements.map { it.tileId }.toSet().size != placements.size) return null
+        if (placements.map { it.row to it.col }.toSet().size != placements.size) return null
+        val result = ArrayList<PendingPlacement>(placements.size)
+        for (p in placements) {
+            if (p.row !in 0 until BOARD_SIZE || p.col !in 0 until BOARD_SIZE) return null
+            if (s.board[p.row][p.col].tile != null) return null
+            val tile = rack.firstOrNull { it.instanceId == p.tileId } ?: return null
+            if (p.letter.length != 1 || p.letter[0] !in 'A'..'Z') return null
+            if (!tile.isBlank && tile.letter != p.letter[0]) return null
+            result.add(PendingPlacement(p.row, p.col, tile, p.letter[0]))
+        }
+        return result
+    }
+
+    /** Guest: validates the staged play locally (same messages as a local submit), then asks the host to apply it. Returns an error or null. */
+    private fun requestPlayFromHost(s: TileGameState): String? {
+        val check = checkPlay(s)
+        if (check.error != null) return check.error
+        sendToHost(
+            TileNetMessage.PlayRequest(
+                placements = s.pending.map { TileNetPlacement(it.row, it.col, it.tile.instanceId, it.chosenLetter.toString()) },
+                words = check.words.map { it.text }.distinct()
+            )
+        )
+        return null
+    }
+
+    /** Guest: accepts only strictly newer, well-formed host state, and only for this guest's own seat. */
+    private fun applyRemoteState(version: Int, net: TileNetState) {
+        if (version <= lastAppliedRemoteVersion) return
+        val n = context.players.size
+        val seat = context.localPlayerIndex
+        if (net.seat != seat || seat !in 0 until n) return
+        if (net.cells.size != BOARD_SIZE * BOARD_SIZE) return
+        if (net.scores.size != n || net.rackCounts.size != n) return
+        if (net.rackCounts.any { it !in 0..RACK_CAPACITY } || net.myRack.size != net.rackCounts[seat]) return
+        if (net.currentPlayerIndex !in 0 until n || net.bagCount < 0 || net.consecutivePasses < 0) return
+        val seenIds = HashSet<Int>()
+        fun tile(t: TileNetTile): RackTile? {
+            if (t.letter.length != 1) return null
+            val ch = t.letter[0]
+            if (t.isBlank) { if (ch != ' ') return null } else if (ch !in 'A'..'Z') return null
+            return if (seenIds.add(t.instanceId)) RackTile(ch, t.isBlank, t.instanceId) else null
+        }
+        val rows = List(BOARD_SIZE) { r ->
+            List(BOARD_SIZE) { c ->
+                val nc = net.cells[r * BOARD_SIZE + c]
+                if (nc == null) BoardCell() else {
+                    val rt = tile(nc.tile) ?: return
+                    val chosen = nc.letterOverride
+                    if (rt.isBlank) {
+                        if (chosen == null || chosen.length != 1 || chosen[0] !in 'A'..'Z') return
+                    } else if (chosen != null) return
+                    BoardCell(rt, chosen?.get(0))
+                }
+            }
+        }
+        val myRack = net.myRack.map { tile(it) ?: return }
+        lastAppliedRemoteVersion = version
+
+        // Keep what this guest has staged this turn if it is still valid on the new board and rack.
+        val previous = state.value
+        val keptPending = previous?.pending?.filter { p ->
+            rows[p.row][p.col].tile == null && myRack.any { it.instanceId == p.tile.instanceId }
+        } ?: emptyList()
+
+        val players = context.players.mapIndexed { i, info ->
+            TilePlayerState(
+                playerId = info.playerId,
+                displayName = info.displayName,
+                isBot = false,
+                // Another seat's letters are never known here: placeholders that only carry the count.
+                rack = if (i == seat) myRack else List(net.rackCounts[i]) { RackTile(UNKNOWN_TILE, false, -(1 + i * RACK_CAPACITY + it)) },
+                score = net.scores[i]
+            )
+        }
+        state.value = TileGameState(
+            board = rows,
+            players = players,
+            currentPlayerIndex = net.currentPlayerIndex,
+            bagCount = net.bagCount,
+            pending = if (net.currentPlayerIndex == seat && !net.matchOver) keptPending else emptyList(),
+            consecutivePasses = net.consecutivePasses,
+            lastAction = if (opponentLeft.value) OPPONENT_DISCONNECTED else net.lastAction,
+            lastPlayedWords = net.lastPlayedWords,
+            matchOver = net.matchOver
+        )
+        sessionWins.value = net.sessionWins
+        sessionDraws.value = net.sessionDraws
+
+        // Same word-play feedback the host's screen gets, once per newly committed play.
+        val play = net.lastPlay
+        if (previous != null && play != null && net.playSeq > lastSeenPlaySeq) {
+            val tier = WordPlayTier.values().firstOrNull { it.name == play.tier } ?: WordPlayTier.ORDINARY
+            onWordPlayed?.invoke(WordPlayResult(play.words, play.points, tier, play.seat, byBot = false))
+        }
+        lastSeenPlaySeq = maxOf(lastSeenPlaySeq, net.playSeq)
     }
 
     // ---- Word detection & scoring ----
@@ -645,8 +1139,31 @@ class TileGame : GameModule, ResumableGame {
         val result = GameResult(
             scores = adjustedPlayers.map { PlayerScore(playerId = it.playerId, score = it.score, isWinner = it.score == maxScore) }
         )
+        if (isNetworked) {
+            // A networked game ends the GAME, not the session: the result panel offers Play Again, and
+            // the session (with its tally) is only reported when someone leaves (see leaveSession).
+            val winners = adjustedPlayers.filter { it.score == maxScore }
+            if (winners.size == 1) {
+                val id = winners.first().playerId
+                sessionWins.value = sessionWins.value + (id to ((sessionWins.value[id] ?: 0) + 1))
+            } else {
+                sessionDraws.value = sessionDraws.value + 1
+            }
+            moveCounter++
+            state.value = s.copy(players = adjustedPlayers, matchOver = true)
+            publishIfHost()
+            return
+        }
         state.value = s.copy(players = adjustedPlayers)
         endMatch(result)
+    }
+
+    private companion object {
+        const val OPPONENT_DISCONNECTED = "Opponent disconnected"
+        const val RACK_CAPACITY = 7
+
+        /** Face of the placeholder tiles standing in for a rack whose letters this device must not know. */
+        const val UNKNOWN_TILE = '?'
     }
 
     private fun drawTiles(count: Int): List<RackTile> {

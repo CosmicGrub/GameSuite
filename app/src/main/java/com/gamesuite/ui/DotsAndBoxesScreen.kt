@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -55,6 +57,7 @@ import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesGame
+import com.gamesuite.games.dotsandboxes.DotsAndBoxesGrid
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesHintEdge
 import com.gamesuite.games.dotsandboxes.DotsAndBoxesState
 import com.gamesuite.haptics.HapticSignal
@@ -72,7 +75,10 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.floor
 
 /** Below this cell size (dp) the board stops shrinking and scrolls instead. */
@@ -182,6 +188,17 @@ fun DotsAndBoxesScreen(
     val hintEdge by game.hintEdge
     val gameSpeed = LocalGameSpeed.current
     val opponentLeft by game.opponentLeft
+    val uiScope = rememberCoroutineScope()
+    // The hint search runs off the main thread too, and is shown only if the board is unchanged.
+    val requestHint: () -> Unit = {
+        val live = game.state.value
+        if (live != null) {
+            uiScope.launch {
+                val edge = withContext(Dispatchers.Default) { game.computeHint(live) }
+                if (edge != null) game.showHint(live, edge)
+            }
+        }
+    }
 
     // JUICE: two CameraShake instances (a per-claim nudge and the whole-board win shake are
     // different weights of the same gesture, and a shake's magnitude is fixed per
@@ -216,6 +233,10 @@ fun DotsAndBoxesScreen(
         // Networked play has no first-mover choice: the host opens the first board.
         val networkedLaunch = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
         game.firstOpenerIndex = if (networkedLaunch) 0 else sessionManager.launchOptions.firstMoverIndex
+        // Hub's board-size choice (networked play is always the standard board; a resumed game
+        // takes the size from its snapshot instead).
+        game.grid = if (networkedLaunch) DotsAndBoxesGrid.STANDARD
+        else DotsAndBoxesGrid.fromId(sessionManager.launchOptions.extras["grid"])
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -234,10 +255,20 @@ fun DotsAndBoxesScreen(
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
             val thinkMs = gameSpeed.scale(800L)
             if (thinkMs > 60L) delay(thinkMs)
-            val boxesBefore = s.scores.sum()
-            game.playBotTurn()
-            val after = game.state.value
-            if (after != null && after.scores.sum() == boxesBefore) sounds.playTap()
+            // The search runs OFF the main thread; each move is applied only if the board is still
+            // exactly the one it was computed for (an undo, restart or leave meanwhile drops it).
+            // Completing a box keeps the bot on turn, so the loop plays the whole chain.
+            var guard = 0
+            while (guard++ < 400) {
+                val live = game.state.value ?: break
+                if (live.boardOver || game.matchOver.value) break
+                if (!live.players[live.currentPlayerIndex].isBot) break
+                val move = withContext(Dispatchers.Default) { game.computeBotMove(live) } ?: break
+                val boxesBefore = live.scores.sum()
+                if (!game.applyBotMove(live, move)) continue // the position changed under us: look again
+                val after = game.state.value
+                if (after != null && after.scores.sum() == boxesBefore) sounds.playTap()
+            }
         }
     }
 
@@ -367,12 +398,7 @@ fun DotsAndBoxesScreen(
     // through leaveSession(), which scores the session.
     GameChrome(
         helpTitle = "How to Play Dots and Boxes",
-        helpText = "Take turns drawing one line between two neighboring dots. Draw the fourth " +
-            "side of a box and you claim it, then you must draw again. One line can finish " +
-            "two boxes at once.\n\n" +
-            "When every box on the 5 by 5 board is claimed, whoever claimed more wins.\n\n" +
-            "Play Again keeps the session tally, and the player who moves first alternates " +
-            "each board.",
+        helpText = stringResource(R.string.dots_help_body, s.boxCols, s.boxRows),
         // A vanished opponent leaves nothing to confirm: leave straight away.
         matchInProgress = !s.boardOver && !(networked && opponentLeft),
         onLeave = if (networked && opponentLeft) leaveAction else game::leaveSession,
@@ -381,7 +407,7 @@ fun DotsAndBoxesScreen(
         // No take-backs or hints against another person.
         onUndo = if (networked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = if (networked) null else ({ game.hint() }),
+        onHint = if (networked) null else requestHint,
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -419,7 +445,7 @@ fun DotsAndBoxesScreen(
                         canUndo = game.canUndo,
                         canHint = isMyTurn && !s.boardOver,
                         onUndo = { game.undo() },
-                        onHint = { game.hint() },
+                        onHint = requestHint,
                         palette = palette
                     )
                 } else if (opponentLeft && !s.boardOver) {

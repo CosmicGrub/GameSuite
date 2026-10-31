@@ -141,7 +141,8 @@ object ChessNetKit {
             lastAction = s.lastAction, roundOver = s.roundOver, result = s.result,
             inCheck = s.inCheck, winnerPlayerId = s.winnerPlayerId,
             scoreP1 = game.scoreP1.value, scoreP2 = game.scoreP2.value, draws = game.draws.value,
-            matchOver = false
+            matchOver = false,
+            halfmoveClock = s.halfmoveClock
         )
     }
 }

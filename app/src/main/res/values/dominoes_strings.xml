@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dominoes: networked play (Nearby / Online) and the blocked-hand tie. -->
+    <string name="dominoes_waiting_host">Waiting for the host…</string>
+    <string name="dominoes_opponent_left">Opponent disconnected</string>
+    <string name="dominoes_leave_game">Leave game</string>
+    <string name="dominoes_turn_of">%1$s\'s turn</string>
+    <string name="dominoes_your_turn_net">Your turn — drag a tile to an end, or tap one to select it</string>
+    <string name="dominoes_your_turn_open">Your turn — play any tile to start</string>
+    <string name="dominoes_blocked_tie">Blocked with level pip totals: nobody scores this hand.</string>
+    <string name="dominoes_blocked_lowest">Blocked: nobody can move, so the lowest pip total wins and scores the difference.</string>
+    <string name="dominoes_tile_set_label">Tile set: %1$s</string>
+    <string name="dominoes_set_double_six">Double-six</string>
+    <string name="dominoes_set_double_nine">Double-nine</string>
+</resources>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Snake: screen texts -->
+    <string name="snake_help_title">How to Play Snake</string>
+    <string name="snake_help_text">Swipe on the board, press the arrow pad, or use the arrow keys or WASD to steer. The snake never stops moving.\n\nEat the food (the diamond) to grow and score. Each food is worth your current level in points, and every 5 foods you go up a level and the snake gets a little faster.\n\nThe run ends when you hit your own body, or a wall when the walls are solid. With wrap-around, the snake comes out on the opposite side instead.\n\nOpening the corner menu pauses the game; tap the board to carry on.</string>
+    <string name="snake_leave_title">Leave this run?</string>
+    <string name="snake_leave_body">This run is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="snake_leave_body_finished">This run is still in progress and won\'t count, but the runs you\'ve already finished stay on your record.</string>
+    <string name="snake_score">Score: %1$d</string>
+    <string name="snake_best">Best: %1$d</string>
+    <string name="snake_level">Level %1$d</string>
+    <string name="snake_length">Length %1$d</string>
+    <string name="snake_setup_line">%1$dx%1$d · %2$s · %3$s</string>
+    <string name="snake_walls_solid">Solid walls</string>
+    <string name="snake_walls_wrap">Wrap-around</string>
+    <string name="snake_speed_relaxed">Relaxed</string>
+    <string name="snake_speed_steady">Steady</string>
+    <string name="snake_speed_quick">Quick</string>
+    <string name="snake_paused">Paused</string>
+    <string name="snake_tap_to_resume">Tap to resume</string>
+    <string name="snake_resume_action">Resume game</string>
+    <string name="snake_steer_hint">Swipe or use the pad to steer</string>
+    <string name="snake_game_over">Game over</string>
+    <string name="snake_board_cleared">Board cleared!</string>
+    <string name="snake_new_best">New best!</string>
+    <string name="snake_play_again">Play again</string>
+    <string name="snake_back_to_menu">Back to menu</string>
+    <string name="snake_death_wall">You hit the wall.</string>
+    <string name="snake_death_self">You bit your own tail.</string>
+    <string name="snake_board_desc">Snake play field</string>
+    <string name="snake_state_desc">Score %1$d, level %2$d, length %3$d</string>
+    <string name="snake_state_countdown">, starting in %1$d</string>
+    <string name="snake_state_paused">, paused</string>
+    <string name="snake_state_over">, game over</string>
+    <string name="snake_dpad_desc">Direction pad</string>
+    <string name="snake_steer_up">Steer up</string>
+    <string name="snake_steer_down">Steer down</string>
+    <string name="snake_steer_left">Steer left</string>
+    <string name="snake_steer_right">Steer right</string>
+
+    <!-- Snake: Game Hub catalog texts (name = hub_ + slug of the text). hub_play / hub_classic style
+         texts that already exist elsewhere are not repeated here. -->
+    <string name="hub_snake">Snake</string>
+    <string name="hub_eat_grow_and_never_bite_your_own_tail">Eat, grow, and never bite your own tail.</string>
+    <string name="hub_swipe_or_use_the_pad_to_steer">Swipe or use the pad to steer.</string>
+    <string name="hub_snake_speed">Snake speed</string>
+    <string name="hub_it_also_speeds_up_as_you_eat">It also speeds up as you eat.</string>
+    <string name="hub_relaxed">Relaxed</string>
+    <string name="hub_steady">Steady</string>
+    <string name="hub_quick">Quick</string>
+    <string name="hub_board_edges">Board edges</string>
+    <string name="hub_wrap_lets_you_cross_to_the_far_side">Wrap lets you cross to the far side.</string>
+    <string name="hub_solid_walls">Solid walls</string>
+    <string name="hub_wrap_around">Wrap-around</string>
+    <string name="hub_play_field">Play field</string>
+    <string name="hub_a_bigger_field_leaves_more_room_to_grow">A bigger field leaves more room to grow.</string>
+    <string name="hub_small_12x12">Small 12x12</string>
+    <string name="hub_classic_16x16">Classic 16x16</string>
+    <string name="hub_big_20x20">Big 20x20</string>
+</resources>

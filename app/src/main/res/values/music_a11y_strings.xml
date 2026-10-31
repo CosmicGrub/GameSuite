@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="music_a11y_volume_state">%1$d percent</string>
+    <string name="music_a11y_crossfade_state">%1$d seconds</string>
+    <string name="music_a11y_crossfade_state_off">Off</string>
+    <string name="gamespeed_menu_item">Game speed: %1$s</string>
+    <string name="gamespeed_menu_item_desc">Game speed: %1$s. %2$s Tap to change.</string>
+    <string name="gamespeed_slow">Slow</string>
+    <string name="gamespeed_slow_desc">Long, deliberate pauses: time to study every turn.</string>
+    <string name="gamespeed_relaxed">Relaxed</string>
+    <string name="gamespeed_relaxed_desc">A little slower than the original pacing.</string>
+    <string name="gamespeed_normal">Normal</string>
+    <string name="gamespeed_normal_desc">The original pacing.</string>
+    <string name="gamespeed_quick">Quick</string>
+    <string name="gamespeed_quick_desc">Opponents move fast.</string>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Carrom and Curling coach cards (own file; the GameCoach.entries entries are added by the integrator) -->
+    <string name="coach_carrom_s1">Slide the striker anywhere along your baseline with the Position slider, or drag it. Then pull back from the striker like a slingshot and let go to flick it. A longer pull is a harder flick.</string>
+    <string name="coach_carrom_s2">Use the striker to knock coins into the corner pockets. You play one colour (white or black); the red queen is worth the most. The dotted line shows where the striker will first touch something.</string>
+    <string name="coach_carrom_s3">Pocket one of your own coins and you shoot again. Pocket nothing, or only a rival\'s coin, and the turn passes. A rival\'s coin that goes in still counts for them.</string>
+    <string name="coach_carrom_s4">Pocket the queen, then cover her by pocketing one of your own coins on the same flick or the very next one. If you miss, she goes back to the centre. You cannot sink your last coin before the queen is won.</string>
+    <string name="coach_carrom_s5">If the striker drops into a pocket it is a foul: your coins from that flick go back on the board plus one more as a penalty. Clear your colour to win the board; you score one point for each coin your rivals have left, and three more with the queen.</string>
+    <string name="coach_carrom_fact">Carrom is thought to have come from India, where maharajas played it on grand boards, and it is still played in homes and clubs from Sri Lanka to the Netherlands.</string>
+    <string name="coach_curling_s1">Each end, both teams slide stones down the ice toward the target rings, called the house. Tap the ice where you want your stone to stop; the game sets the line and weight for you. You can fine tune both with the sliders.</string>
+    <string name="coach_curling_s2">Turn the handle to curl the stone left or right. A stone drifts sideways more as it slows down, so the faint line shows where it will really go.</string>
+    <string name="coach_curling_s3">Press Throw, then press Sweep while the stone slides. Sweeping carries it further and keeps it straighter. Sweep too long and it goes through the house, so watch it.</string>
+    <string name="coach_curling_s4">A stone must stop beyond the far hog line to stay in play, and one that touches the side lines or slides past the back line is removed. Knock a rival stone out of the house to take its place.</string>
+    <string name="coach_curling_s5">When every stone is thrown, the team with the stone closest to the button scores a point for each of its stones that is closer than the rival\'s best. The team that did not score throws last next end.</string>
+    <string name="coach_curling_fact">Curling began in Scotland in the 1500s, and stones are still cut from a rare granite found on one small Scottish island, Ailsa Craig.</string>
+</resources>

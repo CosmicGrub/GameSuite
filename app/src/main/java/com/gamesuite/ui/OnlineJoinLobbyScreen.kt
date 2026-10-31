@@ -26,6 +26,7 @@ import com.gamesuite.transport.isFromHost
 import com.gamesuite.transport.lobbyGameProblem
 import com.gamesuite.transport.lobbyRejectionText
 import com.gamesuite.transport.localSeatIndex
+import com.gamesuite.transport.onlineHelloPayload
 import com.gamesuite.transport.LobbyJson
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -117,7 +118,18 @@ fun OnlineJoinLobbyScreen(
     }
 
     DisposableEffect(transport) {
-        transport.onJoined { _, _ -> hasJoined = true }
+        // Say hello to the host: the relay never tells it about a spectator, and a host whose game is already
+        // running re-sends GameStart (or refuses a late seat) only to someone who asks. Before Start the host
+        // ignores it and its Start broadcast reaches us as usual. Also after a reconnect, in case Start was missed.
+        val sayHello = {
+            transport.hostPlayerId?.let { host -> transport.sendRaw(host, onlineHelloPayload(joinedAsSpectator)) }
+            Unit
+        }
+        transport.onJoined { _, _ ->
+            hasJoined = true
+            sayHello()
+        }
+        transport.onReconnected { sayHello() }
         transport.onRawMessageReceived { fromPlayerId, payload ->
             val message = runCatching {
                 LobbyJson.decodeFromString<OnlineLobbyMessage>(String(payload, Charsets.UTF_8))

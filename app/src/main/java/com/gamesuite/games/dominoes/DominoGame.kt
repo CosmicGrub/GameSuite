@@ -24,7 +24,9 @@ private data class DominoSnapshot(
     val winnerPlayerId: String?,
     val sessionScores: Map<String, Int>,
     val handsFinished: Int,
-    val difficulty: String
+    val difficulty: String,
+    /** Highest pip of the tile set (6 = double-six, 9 = double-nine). Saves from before the option read as 6. */
+    val maxPip: Int = 6
 )
 
 @Serializable
@@ -41,9 +43,44 @@ private data class DominoSnapshotPlayer(
     val hand: List<DominoSnapshotTile>
 )
 
-private val dominoSnapshotJson = Json { ignoreUnknownKeys = true }
+private val dominoSnapshotJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-private const val DOMINO_SET_SIZE = 28
+/**
+ * The tile set a session is played with. Tile ids are dealt in (0-0, 0-1, ... max-max) order, so an
+ * id always carries the same pips for a given set. [key] is the Hub option value ("set").
+ */
+enum class DominoSet(val key: String, val maxPip: Int) {
+    DOUBLE_SIX("double-six", 6),
+    DOUBLE_NINE("double-nine", 9);
+
+    /** 28 for double-six, 55 for double-nine. */
+    val tileCount: Int get() = (maxPip + 1) * (maxPip + 2) / 2
+
+    /**
+     * Tiles dealt to each player: double-six 7 (two players) or 5 (three or four); double-nine 10
+     * (two players) or 7 (three or four), which still leaves a boneyard to draw from.
+     */
+    fun handSize(playerCount: Int): Int = if (playerCount <= 2) {
+        if (maxPip == 9) 10 else 7
+    } else {
+        if (maxPip == 9) 7 else 5
+    }
+
+    /** Every tile of the set in id order, ids 0 until [tileCount]. */
+    fun fullSet(): List<Domino> {
+        val tiles = ArrayList<Domino>(tileCount)
+        var id = 0
+        for (a in 0..maxPip) for (b in a..maxPip) tiles.add(Domino(a, b, id++))
+        return tiles
+    }
+
+    companion object {
+        /** The set for a Hub option value; anything unknown (or null) is the default double-six. */
+        fun fromKey(key: String?): DominoSet = values().firstOrNull { it.key == key } ?: DOUBLE_SIX
+
+        fun fromMaxPip(maxPip: Int): DominoSet? = values().firstOrNull { it.maxPip == maxPip }
+    }
+}
 
 data class Domino(val a: Int, val b: Int, val instanceId: Int) {
     val isDouble: Boolean get() = a == b
@@ -76,7 +113,12 @@ data class DominoState(
      * hand-over panel's "Back to Menu" rather than "Play Again").
      */
     val handOver: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    /**
+     * Networked guest only: pip totals of hands whose tiles this device never learns (the host's),
+     * known once the hand is over so the result can show how it was scored. Empty everywhere else.
+     */
+    val knownPips: Map<String, Int> = emptyMap()
 ) {
     val leftEnd: Int? get() = chain.firstOrNull()?.leftValue
     val rightEnd: Int? get() = chain.lastOrNull()?.rightValue
@@ -88,7 +130,22 @@ data class DominoState(
  * chain with a matching tile; draw from the boneyard if you can't play;
  * pass if the boneyard is empty and you still can't play. Game ends when a
  * player empties their hand (win) or every player is blocked (lowest total
- * pips in hand wins).
+ * pips in hand wins). A double-nine set (55 tiles) is available through [tileSet].
+ *
+ * BLOCKED HANDS (standard rule). When nobody can play and the boneyard is empty, every player
+ * passes in turn; once all of them have passed in a row the hand is blocked and ends at once. The
+ * player with the LOWEST pip total left in hand wins the hand and scores the DIFFERENCE: for each
+ * opponent, that opponent's pips minus the winner's own (with two players simply the gap between
+ * the two hands). A hand won by emptying the hand scores the same way, the winner holding 0 pips.
+ * If the lowest total is SHARED the hand is a TIE: nobody scores, [DominoState.winnerPlayerId] is
+ * null, the hand still counts as finished ([handsFinished]) and Play Again deals a fresh one.
+ * Drawing is only possible while the boneyard has tiles and nothing in hand fits; passing is only
+ * possible once the boneyard is empty and nothing fits.
+ *
+ * NETWORKED PLAY (PlayMode.LOCAL_AD_HOC / ONLINE, two seats; host = seat 0 owns this engine,
+ * guest = seat 1 mirrors it). See [DominoNetMessage]. The guest only ever holds its own hand and
+ * the COUNTS of the other hand and the boneyard; the host validates every request against the
+ * sender's seat and turn. Network games are never resumable and have no Undo or Hint.
  */
 class DominoGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "dominoes"
@@ -98,10 +155,25 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     override val maxPlayers = 4
     override val supportedModes = listOf(
         PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-        PlayMode.SINGLE_PLAYER_VS_BOT
+        PlayMode.SINGLE_PLAYER_VS_BOT,
+        PlayMode.LOCAL_AD_HOC,
+        PlayMode.ONLINE
     )
 
     val state = mutableStateOf<DominoState?>(null)
+
+    /**
+     * Networked play only: true once the other seat has left (transport onPlayerLeft). Input is
+     * refused from then on and [leaveSession] aborts instead of recording a result.
+     */
+    val opponentLeft = mutableStateOf(false)
+
+    /**
+     * The tile set of this session (Hub option "set"). Set by the screen after [init] and before
+     * the first [startMatch]; a restored game takes the saved set and a networked guest the
+     * host's. [init] resets it to the default double-six.
+     */
+    var tileSet: DominoSet = DominoSet.DOUBLE_SIX
 
     /**
      * Running per-player score across hands this session, keyed by playerId
@@ -140,6 +212,13 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     /** Snapshots taken just BEFORE each human action (play, draw, pass), newest last; popping one is Undo. Per hand. */
     private val history = SnapshotHistory()
 
+    // ---- Networked play bookkeeping (PlayMode.LOCAL_AD_HOC / ONLINE): host = seat 0 owns the engine ----
+    private val isNetworked: Boolean
+        get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
+    private val isHost: Boolean get() = context.localPlayerIndex == 0
+    private var stateVersion = 0
+    private var lastAppliedRemoteVersion = 0
+
     override fun init(context: GameContext) {
         this.context = context
         matchOver.value = false
@@ -147,6 +226,17 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         handsFinished.value = 0
         history.clear()
         firstOpenerIndex = null
+        tileSet = DominoSet.DOUBLE_SIX
+        opponentLeft.value = false
+        stateVersion = 0
+        lastAppliedRemoteVersion = 0
+        boneyard = mutableListOf()
+        if (isNetworked) {
+            // A guest renders only what the host sends; drop any hand left over from an earlier game.
+            if (!isHost) state.value = null
+            registerNetworkListeners()
+            if (!isHost) sendToHost(DominoNetMessage.RequestState)
+        }
     }
 
     // --- Resume -----------------------------------------------------------------------------
@@ -170,7 +260,8 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
                 winnerPlayerId = s.winnerPlayerId,
                 sessionScores = sessionScores.value,
                 handsFinished = handsFinished.value,
-                difficulty = difficulty.name
+                difficulty = difficulty.name,
+                maxPip = tileSet.maxPip
             )
         )
     }
@@ -190,15 +281,16 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         if (snap.winnerPlayerId != null && snap.players.none { it.playerId == snap.winnerPlayerId }) return null
         if (!roster.all { (snap.sessionScores[it.playerId] ?: -1) >= 0 }) return null
 
-        // The whole 28-tile set must be accounted for exactly once across hands, boneyard and chain.
+        // The saved tile set must be one we know (double-six or double-nine).
+        val set = DominoSet.fromMaxPip(snap.maxPip) ?: return null
+        // The whole set (28 or 55 tiles) must be accounted for exactly once across hands, boneyard and chain.
         val tiles = snap.players.flatMap { it.hand } + snap.boneyard + snap.chain.map { it.tile }
-        if (tiles.size != DOMINO_SET_SIZE) return null
-        if (tiles.map { it.id }.toSet().size != DOMINO_SET_SIZE) return null
-        // Each id must carry its real pips (ids are dealt in (0-0, 0-1, ... 6-6) order), so a stale or
+        if (tiles.size != set.tileCount) return null
+        if (tiles.map { it.id }.toSet().size != set.tileCount) return null
+        // Each id must carry its real pips (ids are dealt in (0-0, 0-1, ... max-max) order), so a stale or
         // edited save cannot hold two tiles with the same pips.
-        val canonical = ArrayList<Pair<Int, Int>>(DOMINO_SET_SIZE)
-        for (a in 0..6) for (b in a..6) canonical.add(a to b)
-        if (!tiles.all { it.id in 0 until DOMINO_SET_SIZE && canonical[it.id] == (it.a to it.b) }) return null
+        val canonical = set.fullSet()
+        if (!tiles.all { it.id in 0 until set.tileCount && canonical[it.id].a == it.a && canonical[it.id].b == it.b }) return null
 
         // Neighbouring chain tiles must actually touch with matching pips.
         for (i in 0 until snap.chain.size - 1) {
@@ -231,6 +323,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         sessionScores.value = context.players.associate { it.playerId to (snap.sessionScores[it.playerId] ?: 0) }
         handsFinished.value = snap.handsFinished
         difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        tileSet = DominoSet.fromMaxPip(snap.maxPip) ?: tileSet
     }
 
     /** Null when there is nothing to save: no hand yet, the session already ended, or a mode whose state lives with other players. */
@@ -245,6 +338,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (isNetworked) return false // networked hands are never resumed
         return try {
             val snap = decodeSnapshot(snapshot) ?: return false
             matchOver.value = false
@@ -261,7 +355,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     /** Not while the CPU is on the move (its turn is mid-flight); a finished hand can still be taken back. */
     override val canUndo: Boolean
         get() {
-            if (history.depth <= 0 || matchOver.value) return false
+            if (history.depth <= 0 || matchOver.value || isNetworked) return false
             val s = state.value ?: return false
             return s.handOver || s.players.getOrNull(s.currentPlayerIndex)?.isBot == false
         }
@@ -290,15 +384,14 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     }
 
     override fun startMatch() {
+        if (isNetworked && !isHost) return // guest: wait for the host's StateSync (or its reply to RequestState)
         // A new hand starts a new undo history: undo never reaches back into the previous hand.
         history.clear()
-        var id = 0
-        val full = mutableListOf<Domino>()
-        for (a in 0..6) for (b in a..6) full.add(Domino(a, b, id++))
+        val full = tileSet.fullSet().toMutableList()
         full.shuffle()
         boneyard = full
 
-        val handSize = if (context.players.size <= 2) 7 else 5
+        val handSize = tileSet.handSize(context.players.size)
         val players = context.players.map { info ->
             DominoPlayerState(
                 playerId = info.playerId,
@@ -330,6 +423,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
             consecutivePasses = 0,
             lastAction = "Game started"
         )
+        publishIfHost()
     }
 
     // Nothing in a hand of dominoes runs on a clock, so there is no state to freeze: pause() and
@@ -350,6 +444,11 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
      */
     fun leaveSession() {
         if (matchOver.value) return
+        // The other player is gone: nothing to settle, and a walk-away must never be recorded as a loss.
+        if (isNetworked && opponentLeft.value) {
+            abortMatch()
+            return
+        }
         val bestScore = sessionScores.value.values.maxOrNull() ?: 0
         val scores = context.players.map {
             val score = sessionScores.value[it.playerId] ?: 0
@@ -368,6 +467,16 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
      */
     fun playAgain() {
         if (matchOver.value) return
+        if (isNetworked) {
+            if (opponentLeft.value) return
+            if (!isHost) {
+                // Only worth asking while the hand we are looking at is over; the host re-checks.
+                if (state.value?.handOver == true) sendToHost(DominoNetMessage.PlayAgainRequest)
+                return
+            }
+            // Host: a request (or tap) arriving after the hand was already re-dealt must not wipe it.
+            if (state.value?.handOver != true) return
+        }
         startMatch()
     }
 
@@ -406,10 +515,28 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value) return // the session already ended (left or aborted): ignore stray input
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
+        if (playerIndex !in s.players.indices) return
+        if (isNetworked) {
+            // Networked taps are only ever the local player's own, on their turn.
+            if (opponentLeft.value || playerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                // The guest never mutates its engine from a tap: validate cheaply, ask the host, render its reply.
+                if (s.players[playerIndex].hand.none { it.instanceId == domino.instanceId }) return
+                if (!canPlace(domino, attachToLeft)) return
+                sendToHost(DominoNetMessage.PlayRequest(domino.instanceId, attachToLeft))
+                return
+            }
+        }
+        applyPlay(playerIndex, domino, attachToLeft)
+    }
+
+    private fun applyPlay(playerIndex: Int, domino: Domino, attachToLeft: Boolean) {
+        val s = state.value ?: return
+        if (s.handOver || playerIndex != s.currentPlayerIndex) return
         val player = s.players[playerIndex]
         if (!player.hand.any { it.instanceId == domino.instanceId }) return
         if (!canPlace(domino, attachToLeft)) return // doesn't match, illegal
-        recordUndoStep(player)
+        if (!isNetworked) recordUndoStep(player)
 
         val newChain: List<PlacedDomino> = if (s.chain.isEmpty()) {
             listOf(PlacedDomino(domino, flipped = false))
@@ -432,15 +559,32 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         )
 
         if (newHand.isEmpty()) finishWithWinner(playerIndex)
+        publishIfHost()
     }
 
+    /** Draws one tile from the boneyard; only legal while it has tiles AND nothing in hand fits. */
     fun drawFromBoneyard(playerIndex: Int) {
         if (matchOver.value) return
+        val s = state.value ?: return
+        if (s.handOver || playerIndex != s.currentPlayerIndex) return
+        if (playerIndex !in s.players.indices) return
+        if (isNetworked) {
+            if (opponentLeft.value || playerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                if (s.boneyardSize <= 0 || canPlay(playerIndex)) return
+                sendToHost(DominoNetMessage.DrawRequest)
+                return
+            }
+        }
+        applyDraw(playerIndex)
+    }
+
+    private fun applyDraw(playerIndex: Int) {
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex || boneyard.isEmpty()) return
         if (canPlay(playerIndex)) return // must play a legal tile instead of drawing
         val player = s.players[playerIndex]
-        recordUndoStep(player)
+        if (!isNetworked) recordUndoStep(player)
         val drawn = draw(1)
         val updatedPlayers = s.players.toMutableList()
         updatedPlayers[playerIndex] = player.copy(hand = player.hand + drawn)
@@ -449,15 +593,32 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
             boneyardSize = boneyard.size,
             lastAction = "${player.displayName} drew a tile"
         )
+        publishIfHost()
     }
 
+    /** Passes the turn; only legal once the boneyard is empty AND nothing in hand fits. */
     fun pass(playerIndex: Int) {
         if (matchOver.value) return
         val s = state.value ?: return
         if (s.handOver || playerIndex != s.currentPlayerIndex) return
+        if (playerIndex !in s.players.indices) return
+        if (isNetworked) {
+            if (opponentLeft.value || playerIndex != context.localPlayerIndex) return
+            if (!isHost) {
+                if (s.boneyardSize > 0 || canPlay(playerIndex)) return
+                sendToHost(DominoNetMessage.PassRequest)
+                return
+            }
+        }
+        applyPass(playerIndex)
+    }
+
+    private fun applyPass(playerIndex: Int) {
+        val s = state.value ?: return
+        if (s.handOver || playerIndex != s.currentPlayerIndex) return
         // Only allowed once the boneyard is empty and the player genuinely has no legal move.
         if (boneyard.isNotEmpty() || canPlay(playerIndex)) return
-        recordUndoStep(s.players[playerIndex])
+        if (!isNetworked) recordUndoStep(s.players[playerIndex])
         val consecutivePasses = s.consecutivePasses + 1
         val blocked = consecutivePasses >= s.players.size
 
@@ -468,6 +629,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
             handOver = blocked
         )
         if (blocked) finishBlocked()
+        publishIfHost()
     }
 
     fun canPlay(playerIndex: Int): Boolean {
@@ -486,7 +648,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
      * unchanged as MEDIUM.
      */
     fun playBotTurn() {
-        if (matchOver.value) return
+        if (matchOver.value || isNetworked) return // a network table has no CPU seat
         val s = state.value ?: return
         if (s.handOver) return
         val botIndex = s.currentPlayerIndex
@@ -551,28 +713,245 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         state.value = s.copy(handOver = true, winnerPlayerId = winner.playerId, lastAction = "${winner.displayName} wins!")
     }
 
+    /**
+     * A blocked hand (everyone passed in a row with the boneyard empty): the player with the strictly
+     * LOWEST pip total wins and scores the difference (see [awardHandPoints]). When the lowest total
+     * is shared the hand is a TIE: [DominoState.winnerPlayerId] stays null and nobody scores, yet the
+     * hand counts as finished and Play Again deals a fresh one.
+     */
     private fun finishBlocked() {
         val s = state.value ?: return
-        val pipTotals = s.players.associate { it.playerId to it.hand.sumOf { d -> d.a + d.b } }
-        val winnerId = pipTotals.minByOrNull { it.value }?.key
+        val pipTotals = s.players.map { p -> p.hand.sumOf { d -> d.a + d.b } }
+        val lowest = pipTotals.minOrNull()
+        val leaders = pipTotals.indices.filter { pipTotals[it] == lowest }
+        val winnerId = if (leaders.size == 1) s.players[leaders[0]].playerId else null
         awardHandPoints(winnerId, s.players)
         handsFinished.value += 1
-        state.value = s.copy(winnerPlayerId = winnerId, lastAction = "Blocked — lowest pips wins")
+        state.value = s.copy(
+            winnerPlayerId = winnerId,
+            lastAction = if (winnerId == null) "Blocked — level pips, no score" else "Blocked — lowest pips wins"
+        )
     }
 
     /**
-     * Standard "Draw Dominoes" hand scoring: whoever wins the hand (emptied
-     * their hand, or -- in a blocked game -- held the fewest pips) scores
-     * the pip total left in every OTHER player's hand, not just their own.
-     * Accumulates into [sessionScores] so the running total survives
-     * [playAgain]; only [leaveSession] reports it and ends the match. A null
-     * [winnerId] (a genuine tie) awards nothing for that hand.
+     * Hand scoring: the winner scores, for every OTHER player, that player's pips left minus the
+     * winner's own pips left. A winner who went out holds 0 pips, so this is simply the pips left in
+     * the other hands; in a blocked hand it is the DIFFERENCE between the hands (two players: the gap
+     * between the totals). Accumulates into [sessionScores] so the running total survives
+     * [playAgain]; only [leaveSession] reports it and ends the match. A null [winnerId] (a tied
+     * blocked hand) awards nothing for that hand.
      */
     private fun awardHandPoints(winnerId: String?, players: List<DominoPlayerState>) {
         if (winnerId == null) return
-        val points = players.filter { it.playerId != winnerId }.sumOf { it.hand.sumOf { d -> d.a + d.b } }
+        val winnerPips = players.firstOrNull { it.playerId == winnerId }?.hand?.sumOf { d -> d.a + d.b } ?: return
+        val points = players.filter { it.playerId != winnerId }
+            .sumOf { p -> (p.hand.sumOf { d -> d.a + d.b } - winnerPips).coerceAtLeast(0) }
         val current = sessionScores.value
         sessionScores.value = current + (winnerId to (current[winnerId] ?: 0) + points)
+    }
+
+    // --- Networked play ---------------------------------------------------------------------
+
+    private fun hostId(): String = context.players[0].playerId
+
+    private fun registerNetworkListeners() {
+        val transport = context.transport
+        transport.onMessageReceived { fromPlayerId, payload -> handleNetworkMessage(fromPlayerId, payload) }
+        // After a blip the transport recovered from: a guest asks again, the host re-sends (a guest
+        // whose own link stayed up would never think to ask).
+        transport.onReconnected {
+            if (isHost) {
+                if (state.value != null) broadcastState()
+            } else {
+                sendToHost(DominoNetMessage.RequestState)
+            }
+        }
+        transport.onPlayerLeft { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId }) {
+                opponentLeft.value = true
+                state.value = state.value?.copy(lastAction = OPPONENT_DISCONNECTED)
+            }
+        }
+        transport.onPlayerJoined { playerId ->
+            val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId
+            if (playerId != localId && context.players.any { it.playerId == playerId } && opponentLeft.value) {
+                opponentLeft.value = false
+                if (isHost && state.value != null) broadcastState()
+            }
+        }
+    }
+
+    private fun publishIfHost() {
+        if (isNetworked && isHost && state.value != null) broadcastState()
+    }
+
+    private fun netTile(d: Domino) = DominoNetTile(d.a, d.b, d.instanceId)
+
+    /**
+     * The host's view for the seat [recipientIndex]: public table + that seat's OWN hand + the COUNT
+     * of every hand and of the boneyard. No other hand's tile and no boneyard tile is ever put in
+     * here; once the hand is over only the pip totals are added (so the result can be explained).
+     */
+    private fun toNetState(s: DominoState, recipientIndex: Int) = DominoNetState(
+        maxPip = tileSet.maxPip,
+        chain = s.chain.map { DominoNetPlaced(netTile(it.domino), it.flipped) },
+        myHand = s.players[recipientIndex].hand.map { netTile(it) },
+        handSizes = s.players.map { it.hand.size },
+        boneyardSize = s.boneyardSize,
+        currentPlayerIndex = s.currentPlayerIndex,
+        consecutivePasses = s.consecutivePasses,
+        lastAction = s.lastAction,
+        handOver = s.handOver,
+        winnerPlayerId = s.winnerPlayerId,
+        sessionScores = sessionScores.value,
+        handsFinished = handsFinished.value,
+        handPips = if (s.handOver) s.players.map { p -> p.hand.sumOf { d -> d.a + d.b } } else null
+    )
+
+    /** Host: bumps the version and sends each other seat its own redacted view. */
+    private fun broadcastState() {
+        val s = state.value ?: return
+        stateVersion++
+        context.players.forEachIndexed { index, recipient ->
+            if (index != 0) send(recipient.playerId, DominoNetMessage.StateSync(stateVersion, toNetState(s, index)))
+        }
+    }
+
+    private fun sendStateTo(recipientIndex: Int, s: DominoState) {
+        send(
+            context.players[recipientIndex].playerId,
+            DominoNetMessage.StateSync(stateVersion, toNetState(s, recipientIndex))
+        )
+    }
+
+    private fun sendToHost(message: DominoNetMessage) {
+        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        context.transport.send(fromPlayerId = localId, toPlayerId = hostId(), payload = encode(message))
+    }
+
+    private fun send(toPlayerId: String, message: DominoNetMessage) {
+        context.transport.send(fromPlayerId = hostId(), toPlayerId = toPlayerId, payload = encode(message))
+    }
+
+    private fun encode(message: DominoNetMessage): ByteArray =
+        Json.encodeToString(DominoNetMessage.serializer(), message).toByteArray(Charsets.UTF_8)
+
+    private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
+        val message = try {
+            Json.decodeFromString(DominoNetMessage.serializer(), String(payload, Charsets.UTF_8))
+        } catch (_: Exception) {
+            return // malformed or foreign payload
+        }
+        if (!isNetworked || matchOver.value) return
+        val seat = context.players.indexOfFirst { it.playerId == fromPlayerId }
+        when (message) {
+            // Only the host is authoritative: a StateSync from any other seat is a forgery.
+            is DominoNetMessage.StateSync ->
+                if (!isHost && fromPlayerId == hostId()) applyRemoteState(message.version, message.state)
+            is DominoNetMessage.RequestState ->
+                if (isHost && seat > 0) state.value?.let { sendStateTo(seat, it) }
+            is DominoNetMessage.PlayRequest ->
+                if (isHost && seat > 0) handlePlayRequest(seat, message.tileId, message.attachToLeft)
+            is DominoNetMessage.DrawRequest ->
+                if (isHost && seat > 0) handleSeatRequest(seat) { applyDraw(seat) }
+            is DominoNetMessage.PassRequest ->
+                if (isHost && seat > 0) handleSeatRequest(seat) { applyPass(seat) }
+            is DominoNetMessage.PlayAgainRequest ->
+                if (isHost && seat > 0 && !opponentLeft.value && state.value?.handOver == true) startMatch()
+        }
+    }
+
+    /**
+     * Host: runs [action] only if [seat] (a real guest seat, derived from the transport's sender, never
+     * from the payload) is on turn in a live hand. [applyDraw]/[applyPass] re-check the rule itself.
+     */
+    private fun handleSeatRequest(seat: Int, action: () -> Unit) {
+        val s = state.value ?: return
+        if (matchOver.value || s.handOver || opponentLeft.value) return
+        if (seat <= 0 || seat != s.currentPlayerIndex) return
+        action()
+    }
+
+    /** Host: a guest's play is applied only for a tile that is in THAT guest's hand and fits the chosen end. */
+    private fun handlePlayRequest(seat: Int, tileId: Int, attachToLeft: Boolean) {
+        handleSeatRequest(seat) {
+            val s = state.value ?: return@handleSeatRequest
+            val tile = s.players[seat].hand.firstOrNull { it.instanceId == tileId } ?: return@handleSeatRequest
+            applyPlay(seat, tile, attachToLeft)
+        }
+    }
+
+    /** Guest: accepts only strictly newer, well-formed host state, and rejects anything inconsistent. */
+    private fun applyRemoteState(version: Int, net: DominoNetState) {
+        if (version <= lastAppliedRemoteVersion) return
+        val n = context.players.size
+        val me = context.localPlayerIndex
+        val set = DominoSet.fromMaxPip(net.maxPip) ?: return
+        if (me !in 0 until n) return
+        val canonical = set.fullSet()
+        fun real(t: DominoNetTile) = t.id in 0 until set.tileCount && canonical[t.id].a == t.a && canonical[t.id].b == t.b
+        val visible = net.chain.map { it.tile } + net.myHand
+        val valid = net.handSizes.size == n &&
+            net.handSizes.all { it >= 0 } &&
+            net.handSizes[me] == net.myHand.size &&
+            net.boneyardSize >= 0 &&
+            visible.all { real(it) } &&
+            visible.map { it.id }.toSet().size == visible.size &&
+            // every tile is in the chain, in a hand or in the boneyard -- exactly once
+            net.chain.size + net.handSizes.sum() + net.boneyardSize == set.tileCount &&
+            net.currentPlayerIndex in 0 until n &&
+            net.consecutivePasses >= 0 && net.handsFinished >= 0 &&
+            (net.winnerPlayerId == null || context.players.any { it.playerId == net.winnerPlayerId }) &&
+            context.players.all { (net.sessionScores[it.playerId] ?: -1) >= 0 } &&
+            (net.handPips == null || (net.handPips.size == n && net.handPips.all { it >= 0 })) &&
+            (!net.handOver || net.handPips != null) &&
+            chainIsContiguous(net.chain)
+        if (!valid) return
+        lastAppliedRemoteVersion = version
+        tileSet = set
+        boneyard = mutableListOf() // the guest never knows the boneyard; only its size (in the state) is shown
+        state.value = DominoState(
+            players = context.players.mapIndexed { index, info ->
+                DominoPlayerState(
+                    playerId = info.playerId,
+                    displayName = info.displayName,
+                    isBot = false,
+                    hand = if (index == me) {
+                        net.myHand.map { Domino(it.a, it.b, it.id) }
+                    } else {
+                        // Hidden tiles: placeholders that carry a count and nothing else (negative id, no pips).
+                        List(net.handSizes[index]) { k -> Domino(-1, -1, -(k + 1)) }
+                    }
+                )
+            },
+            boneyardSize = net.boneyardSize,
+            chain = net.chain.map { PlacedDomino(Domino(it.tile.a, it.tile.b, it.tile.id), it.flipped) },
+            currentPlayerIndex = net.currentPlayerIndex,
+            consecutivePasses = net.consecutivePasses,
+            lastAction = if (opponentLeft.value) OPPONENT_DISCONNECTED else net.lastAction,
+            handOver = net.handOver,
+            winnerPlayerId = net.winnerPlayerId,
+            knownPips = if (net.handOver && net.handPips != null) {
+                context.players.indices.associate { context.players[it].playerId to net.handPips[it] }
+            } else {
+                emptyMap()
+            }
+        )
+        sessionScores.value = context.players.associate { it.playerId to (net.sessionScores[it.playerId] ?: 0) }
+        handsFinished.value = net.handsFinished
+    }
+
+    /** True when neighbouring chain tiles touch with matching pips (the same check a saved game gets). */
+    private fun chainIsContiguous(chain: List<DominoNetPlaced>): Boolean {
+        for (i in 0 until chain.size - 1) {
+            val left = chain[i]
+            val right = chain[i + 1]
+            val leftRight = if (left.flipped) left.tile.a else left.tile.b
+            val rightLeft = if (right.flipped) right.tile.b else right.tile.a
+            if (leftRight != rightLeft) return false
+        }
+        return true
     }
 
     private fun draw(count: Int): List<Domino> {
@@ -580,5 +959,9 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         val drawn = boneyard.take(n)
         boneyard = boneyard.drop(n).toMutableList()
         return drawn
+    }
+
+    companion object {
+        const val OPPONENT_DISCONNECTED = "Opponent disconnected"
     }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Toy Soccer and Toy Tennis (coach_<id>_s1..sN and _fact). -->
+    <string name="coach_toy_soccer_s1">Two teams, one ball. Knock the ball into the goal at the far end to score. Your own goal is the one nearest you.</string>
+    <string name="coach_toy_soccer_s2">Pull back from one of your figures, like a slingshot, and let go. The figure shoots the way you pulled, harder the longer the pull.</string>
+    <string name="coach_toy_soccer_s3">Flick your figures into the ball. A figure can be flicked again once it stops. Your keeper springs back to the goal by itself.</string>
+    <string name="coach_toy_soccer_s4">Everyone plays at the same time. First to the goal target wins, or the most goals when the clock runs out. Level? Sudden death.</string>
+    <string name="coach_toy_soccer_s5">Want to take your time? Turn on Turn-based assist: the teams take turns and the table settles between flicks. Hint shows a good flick.</string>
+    <string name="coach_toy_soccer_fact">Flicking small figures across a cloth pitch goes back to Subbuteo, a table game first sold in England in 1947.</string>
+    <string name="coach_toy_tennis_s1">Your player runs to the ball by itself. You choose the shot and its moment with one swipe.</string>
+    <string name="coach_toy_tennis_s2">A ring closes around the spot where the ball will be hit. Swipe toward the net just as it closes: a perfectly timed swipe makes a perfect shot.</string>
+    <string name="coach_toy_tennis_s3">Swipe left or right of straight for the angle. Swipe faster for a harder, deeper shot, but a deep shot can land out.</string>
+    <string name="coach_toy_tennis_s4">To serve, the ball is tossed for you. Swipe at the top and land it in the opposite service box. Two faults lose the point.</string>
+    <string name="coach_toy_tennis_s5">Score like real tennis (0, 15, 30, 40) or race to a set number of points. Relaxed timing makes the ball wait for your swing.</string>
+    <string name="coach_toy_tennis_fact">The scores 15, 30 and 40 come from medieval France, and the word tennis probably comes from the French tenez, meaning take it.</string>
+</resources>

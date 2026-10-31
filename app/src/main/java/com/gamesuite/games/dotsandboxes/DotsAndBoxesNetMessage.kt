@@ -20,7 +20,12 @@ sealed class DotsAndBoxesNetMessage {
      * StateSync whose [version] is <= the last one it applied.
      */
     @Serializable
-    data class StateSync(val version: Int, val snapshot: String) : DotsAndBoxesNetMessage()
+    data class StateSync(
+        val version: Int,
+        val snapshot: String,
+        /** The board size id ([DotsAndBoxesGrid.id]); optional on the wire (older hosts omit it = standard) and cross-checked against the snapshot. */
+        val grid: String = "standard"
+    ) : DotsAndBoxesNetMessage()
 
     /** A guest's request to draw one edge, addressed exactly like DotsAndBoxesGame.drawHorizontalEdge/drawVerticalEdge. */
     @Serializable

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chinese Checkers and Ludo (own file; hub_* entries serve GameHubSpecs once integrated) -->
+    <string name="ccl_play_again">Jugar otra vez</string>
+    <string name="ccl_back_to_menu">Volver al menú</string>
+    <string name="ccl_undo">Deshacer</string>
+    <string name="ccl_hint">Pista</string>
+    <string name="ccl_waiting_host">Esperando al anfitrión…</string>
+    <string name="ccl_host_left">El anfitrión ha salido de la partida.</string>
+    <string name="ccl_leave_title">¿Salir de esta partida?</string>
+    <string name="ccl_leave_body">La partida sigue en curso. Si sales ahora, no contará como victoria ni derrota.</string>
+    <string name="ccl_leave_body_session">La partida sigue en curso y no contará, pero las que ya terminaste se conservan en tu historial.</string>
+    <string name="ccl_session">Sesión: %1$s</string>
+    <string name="ccl_you_suffix">(tú)</string>
+    <string name="ccl_cpu_tag">CPU</string>
+    <string name="ccl_a_draw">Empate.</string>
+    <string name="ccl_you_won">¡Has ganado!</string>
+    <string name="ccl_you_lost">Has perdido.</string>
+    <string name="cc_help_title">Cómo jugar a las damas chinas</string>
+    <string name="cc_help_text">Lleva tus canicas desde tu esquina de la estrella hasta la esquina opuesta.\n\nEn tu turno mueve una canica: avanza a un hueco libre vecino o salta sobre cualquier canica hasta el hueco libre justo detrás. Los saltos se encadenan, así que un turno puede llevar una canica muy lejos.\n\nGana quien primero llene la esquina opuesta. Si nadie llega tras 200 jugadas cada uno, gana quien esté más cerca de casa.</string>
+    <string name="cc_turn_you">Tu turno. Toca una canica y luego un hueco resaltado.</string>
+    <string name="cc_turn_named">Turno de %1$s.</string>
+    <string name="cc_thinking">%1$s está pensando…</string>
+    <plurals name="cc_ann_hopped">
+        <item quantity="one">%1$s saltó una vez.</item>
+        <item quantity="other">%1$s saltó %2$d veces en un turno.</item>
+    </plurals>
+    <string name="cc_ann_stepped">%1$s avanzó un hueco.</string>
+    <string name="cc_ann_skipped">%1$s está bloqueado y pasa.</string>
+    <string name="cc_wins">¡Gana %1$s!</string>
+    <string name="cc_draw">¡Empate!</string>
+    <string name="cc_end_limit">Se alcanzó el límite de jugadas: gana quien esté más cerca de casa.</string>
+    <string name="cc_end_stuck">Nadie puede mover: gana quien esté más cerca de casa.</string>
+    <string name="cc_final_line">%1$s: %2$d de %3$d en casa</string>
+    <string name="cc_why_wait">Todavía no es tu turno.</string>
+    <string name="cc_why_cpu">La CPU está jugando su turno.</string>
+    <string name="cc_why_opponent">Esa canica es de %1$s.</string>
+    <string name="cc_why_boxed">Esa canica está bloqueada: no tiene un hueco libre al lado ni nada que saltar.</string>
+    <string name="cc_why_unreachable">No puede llegar ahí. Una canica avanza a un hueco vecino libre o salta sobre canicas en línea recta.</string>
+    <string name="cc_why_pick">Toca primero una de tus canicas.</string>
+    <string name="cc_why_over">Esta partida ha terminado.</string>
+    <string name="cc_chip_desc">%1$s, canicas %2$s, %3$d de %4$d en la meta</string>
+    <string name="cc_board_desc">Tablero de damas chinas. %1$s</string>
+    <string name="cc_a11y_panel_title">Tus canicas</string>
+    <string name="cc_a11y_piece">Canica a %1$d huecos de la punta de la meta, %2$d movimientos</string>
+    <string name="cc_a11y_dest_title">Mover a</string>
+    <string name="cc_a11y_dest">Hueco a %1$d de la punta de la meta, avanza %2$d</string>
+    <string name="ludo_help_title">Cómo jugar al Ludo</string>
+    <string name="ludo_help_text">Tira el dado y mueve una de tus cuatro fichas tantas casillas como indique, en el sentido de las agujas del reloj.\n\nCon las reglas por defecto una ficha necesita un seis para salir del patio, y un seis te da otra tirada (tres seises seguidos pierden el turno). Si caes sobre una ficha rival la mandas a su patio, salvo que esté en una casilla segura: una casilla de salida o una estrella.\n\nGana quien lleve las cuatro fichas por todo el tablero y por su columna de color hasta casa. Con la tirada exacta activada, el último paso necesita el número justo.</string>
+    <string name="ludo_roll">Tirar</string>
+    <string name="ludo_die_none">Dado, aún sin tirar</string>
+    <string name="ludo_die_desc">El dado muestra %1$d</string>
+    <string name="ludo_turn_roll">Tu turno. Tira el dado.</string>
+    <string name="ludo_turn_named_roll">Turno de %1$s. Tira el dado.</string>
+    <string name="ludo_turn_choose">Elige una ficha para mover.</string>
+    <string name="ludo_turn_named">Turno de %1$s.</string>
+    <string name="ludo_thinking">%1$s está pensando…</string>
+    <string name="ludo_ann_rolled">%1$s sacó un %2$d.</string>
+    <string name="ludo_ann_no_move">%1$s sacó un %2$d y no puede mover.</string>
+    <string name="ludo_ann_three_sixes">%1$s sacó tres seises y pierde el turno.</string>
+    <string name="ludo_ann_enter">%1$s sacó la ficha %2$d al tablero.</string>
+    <string name="ludo_ann_move">%1$s avanzó la ficha %2$d, %3$d casillas.</string>
+    <string name="ludo_ann_capture">¡%1$s capturó una ficha con la ficha %2$d!</string>
+    <string name="ludo_ann_home">¡%1$s llevó la ficha %2$d a casa!</string>
+    <string name="ludo_ann_win">¡%1$s llevó las cuatro fichas a casa y gana!</string>
+    <string name="ludo_ann_start">Nueva partida. Primer lanzamiento: %1$s.</string>
+    <string name="ludo_why_roll_first">Tira primero el dado.</string>
+    <string name="ludo_why_already">Ya has tirado. Elige una ficha para mover.</string>
+    <string name="ludo_why_need_six">Esa ficha necesita un seis para salir del patio.</string>
+    <string name="ludo_why_exact">Esa ficha necesita el número exacto para llegar, y %1$d es demasiado.</string>
+    <string name="ludo_why_finished">Esa ficha ya está en casa.</string>
+    <string name="ludo_why_not_yours">Esa no es una de tus fichas.</string>
+    <string name="ludo_board_desc">Tablero de Ludo. %1$s</string>
+    <string name="ludo_chip_desc">%1$s, fichas %2$s, %3$d de 4 en casa</string>
+    <string name="ludo_final_line">%1$s: %2$d de 4 en casa</string>
+    <string name="ludo_wins">¡Gana %1$s!</string>
+    <string name="ludo_suggested">Jugada sugerida.</string>
+    <string name="ludo_token_btn_home">Ficha %1$d, ya en casa</string>
+    <string name="ludo_token_btn_yard">Ficha %1$d, en el patio</string>
+    <string name="ludo_token_btn_track">Ficha %1$d, en el tablero</string>
+    <string name="hub_chinese_checkers">Damas chinas</string>
+    <string name="hub_hop_your_marbles_across_the_star_to_the_opposite_eae5f6">Salta con tus canicas por la estrella hasta la esquina opuesta.</string>
+    <string name="hub_race_1_to_5_computer_players">Compite contra de 1 a 5 jugadores de la CPU.</string>
+    <string name="hub_pieces_each">Fichas por jugador</string>
+    <string name="hub_ten_is_the_full_game_six_is_a_shorter_race">Diez es la partida completa; seis es una carrera más corta.</string>
+    <string name="hub_10_pieces">10 fichas</string>
+    <string name="hub_the_full_game">La partida completa.</string>
+    <string name="hub_6_pieces">6 fichas</string>
+    <string name="hub_a_shorter_race">Una carrera más corta.</string>
+    <string name="hub_ludo">Ludo</string>
+    <string name="hub_roll_race_four_tokens_home_and_send_rivals_back_60c05a">Tira el dado, lleva tus cuatro fichas a casa y manda a los rivales de vuelta al patio.</string>
+    <string name="hub_race_1_to_3_computer_players">Compite contra de 1 a 3 jugadores de la CPU.</string>
+    <string name="hub_need_a_six_to_start">Hace falta un seis para salir</string>
+    <string name="hub_on_a_token_leaves_the_yard_only_on_a_six_off_any_b67a35">Activado: una ficha sale del patio solo con un seis. Desactivado: cualquier tirada saca una.</string>
+    <string name="hub_exact_roll_to_finish">Tirada exacta para llegar</string>
+    <string name="hub_on_the_last_step_needs_the_exact_number_off_any_85fffb">Activado: el último paso necesita el número exacto. Desactivado: vale cualquier tirada que llegue a casa.</string>
+    <string-array name="cc_color_names">
+        <item>Naranja</item>
+        <item>Azul</item>
+        <item>Amarillo</item>
+        <item>Verde</item>
+        <item>Rosa</item>
+        <item>Celeste</item>
+    </string-array>
+    <string-array name="cc_shape_names">
+        <item>círculo</item>
+        <item>cuadrado</item>
+        <item>triángulo</item>
+        <item>rombo</item>
+        <item>estrella</item>
+        <item>cruz</item>
+    </string-array>
+    <string-array name="ludo_color_names">
+        <item>Rojo</item>
+        <item>Verde</item>
+        <item>Amarillo</item>
+        <item>Azul</item>
+    </string-array>
+</resources>

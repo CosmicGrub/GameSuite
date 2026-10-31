@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lista compartida de jugadores -->
+    <string name="party1_roster_title">Jugadores</string>
+    <string name="party1_roster_summary_empty">Ninguno guardado</string>
+    <string name="party1_roster_edit">Editar</string>
+    <string name="party1_roster_done">Listo</string>
+    <string name="party1_roster_hint">Se guarda en este dispositivo. Las herramientas de abajo usan esta lista. Con menos de 2 nombres usan Jugador 1, Jugador 2 y así sucesivamente.</string>
+    <string name="party1_roster_count">%1$d de %2$d jugadores</string>
+    <string name="party1_roster_add_label">Nombre del nuevo jugador</string>
+    <string name="party1_roster_add">Añadir</string>
+    <string name="party1_roster_full">La lista está llena.</string>
+    <string name="party1_roster_name_label">Jugador %1$d</string>
+    <string name="party1_roster_move_up">Subir a %1$s</string>
+    <string name="party1_roster_move_down">Bajar a %1$s</string>
+    <string name="party1_roster_remove">Quitar a %1$s</string>
+
+    <!-- Común -->
+    <string name="party1_player_prefix">Jugador</string>
+    <string name="party1_fallback_hint">No hay lista guardada, así que esta herramienta usa Jugador 1, Jugador 2 y así sucesivamente. Añade al menos 2 nombres arriba para usarlos.</string>
+    <string name="party1_players_label">Jugadores</string>
+    <string name="party1_players_count_cd">%1$d jugadores</string>
+    <string name="party1_players_fewer">Menos jugadores</string>
+    <string name="party1_players_more">Más jugadores</string>
+    <string name="party1_cancel">Cancelar</string>
+
+    <!-- Pestañas -->
+    <string name="party1_tab_score">Marcador</string>
+    <string name="party1_tab_teams">Equipos</string>
+    <string name="party1_tab_picker">¿Quién paga?</string>
+    <string name="party1_tab_turn_order">Orden de turno</string>
+    <string name="party1_tab_first_player">Quién empieza</string>
+    <string name="party1_tab_clock">Reloj de partida</string>
+    <string name="party1_tab_rounds">Rondas</string>
+    <string name="party1_tab_dealer">Repartir cartas</string>
+    <string name="party1_help_new_tools">Jugadores: la lista de arriba es compartida. Edítala una vez y el Marcador, Equipos, ¿Quién paga?, Orden de turno, Quién empieza, Reloj de partida, Rondas y Repartir cartas la usan.\n\nMarcador: toca +1, +5, +10 o -1 para un jugador, u Otra para cualquier cantidad. Siguiente ronda abre una fila nueva en el historial, Deshacer quita la última anotación y Reiniciar pregunta antes. Se guarda en este dispositivo.\n\nEquipos: elige de 2 a 4 equipos y toca Dividir. Repetir vuelve a mezclar y Copiar pone los equipos en el portapapeles.\n\n¿Quién paga?: toca Elegir para sacar un nombre al azar.</string>
+
+    <!-- Marcador -->
+    <string name="party1_score_title">Marcador</string>
+    <string name="party1_score_round">Ronda %1$d</string>
+    <string name="party1_score_target_label">Puntuación objetivo (opcional)</string>
+    <string name="party1_score_leading">★ En cabeza</string>
+    <string name="party1_score_target_reached">🏁 Objetivo alcanzado</string>
+    <string name="party1_score_add_cd">Sumar %1$d a %2$s</string>
+    <string name="party1_score_subtract_cd">Restar %1$d a %2$s</string>
+    <string name="party1_score_custom">Otra…</string>
+    <string name="party1_score_custom_cd">Cantidad personalizada para %1$s</string>
+    <string name="party1_score_custom_title">Cantidad personalizada para %1$s</string>
+    <string name="party1_score_custom_field">Puntos</string>
+    <string name="party1_score_custom_add">Sumar</string>
+    <string name="party1_score_custom_subtract">Restar</string>
+    <string name="party1_score_next_round">Siguiente ronda</string>
+    <string name="party1_score_undo">Deshacer</string>
+    <string name="party1_score_undo_last">Deshacer: %1$s %2$s</string>
+    <string name="party1_score_reset">Reiniciar</string>
+    <string name="party1_score_reset_title">¿Reiniciar los marcadores?</string>
+    <string name="party1_score_reset_body">Esto borra todos los puntos y rondas. Los jugadores y la puntuación objetivo se mantienen.</string>
+    <string name="party1_score_history">Historial de rondas</string>
+    <string name="party1_score_history_empty">Aún no hay puntos. Toca un botón de puntuación para empezar.</string>
+    <string name="party1_score_history_round">Ronda</string>
+    <string name="party1_score_total">Total</string>
+    <string name="party1_score_round_cd">Ronda %1$d: %2$s</string>
+    <string name="party1_score_no_entry">sin cambios</string>
+
+    <!-- Equipos -->
+    <string name="party1_teams_title">Dividir en equipos</string>
+    <string name="party1_teams_hint">Los equipos quedan lo más parejos posible: el tamaño difiere como mucho en uno.</string>
+    <string name="party1_teams_count_label">Equipos</string>
+    <string name="party1_teams_count_cd">%1$d equipos</string>
+    <string name="party1_teams_fewer">Menos equipos</string>
+    <string name="party1_teams_more">Más equipos</string>
+    <string name="party1_teams_split">Dividir en equipos</string>
+    <string name="party1_teams_reroll">Repetir</string>
+    <string name="party1_teams_copy">Copiar como texto</string>
+    <string name="party1_teams_copied">Copiado al portapapeles.</string>
+    <string name="party1_team_word">Equipo</string>
+    <plurals name="party1_team_size">
+        <item quantity="one">%d jugador</item>
+        <item quantity="other">%d jugadores</item>
+    </plurals>
+
+    <!-- ¿Quién paga? -->
+    <string name="party1_picker_title">¿Quién paga?</string>
+    <string name="party1_picker_hint">Toca Elegir y se escoge un nombre al azar, de forma justa.</string>
+    <string name="party1_picker_ready">Listo</string>
+    <string name="party1_picker_pick">Elegir</string>
+    <string name="party1_picker_again">Elegir otra vez</string>
+    <string name="party1_picker_picking">Eligiendo…</string>
+    <string name="party1_picker_history">Últimas elecciones</string>
+    <string name="party1_picker_result_cd">Elegido: %1$s</string>
+</resources>

@@ -89,9 +89,16 @@ import com.gamesuite.uikit.fitBoard
 import com.gamesuite.ui.effects.cameraShakeOffsetFor
 import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.ui.effects.specularSweep
+import androidx.compose.ui.res.stringResource
+import com.gamesuite.R
+import com.gamesuite.games.checkers.CheckersDrawReason
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -277,6 +284,8 @@ fun CheckersScreen(
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         // The seat that opens plays Light (Light always moves first); the roster order is unchanged.
         game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex
+        // Hub option "Mandatory capture" (default on); a Resume overrides it from its snapshot.
+        game.mandatoryCapture = sessionManager.launchOptions.extras["mandatoryCapture"] != "false"
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -294,10 +303,18 @@ fun CheckersScreen(
         val ctx = context ?: return@LaunchedEffect
         if (s.gameOver || game.matchOver.value) return@LaunchedEffect
         if (ctx.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            delay(gameSpeed.scale(700L))
-            // The player may have left (abort) during the delay.
+            val job = game.beginBotTurn() ?: return@LaunchedEffect
+            // The search (HARD is 9 plies deep) runs off the main thread, concurrently with the
+            // think delay, so the bot waits for whichever finishes last and the UI never stalls.
+            val plan = coroutineScope {
+                val search = async(Dispatchers.Default) { job.compute() }
+                delay(gameSpeed.scale(700L))
+                search.await()
+            }
+            // The player may have left (abort) or undone during the wait; applyBotPlan re-checks
+            // that the position is still the one that was searched.
             if (game.matchOver.value) return@LaunchedEffect
-            game.playBotTurn()
+            if (!game.applyBotPlan(plan)) return@LaunchedEffect
             // Real SFX gap: the bot's own move was completely silent before —
             // sounds.playTap() only ever fires from the human's own tap in
             // onSquareTapped (see this file's own KDoc). Mirror the same plain-
@@ -357,6 +374,9 @@ fun CheckersScreen(
             if (humanWon) {
                 playSfx(SfxKind.SUCCESS_CHIME)
                 haptics(HapticSignal.SUCCESS)
+            } else if (s.drawReason != null) {
+                // A draw is neither a fanfare nor a loss: a quiet tick only.
+                playSfx(SfxKind.LIGHT_TICK)
             } else {
                 playSfx(SfxKind.INVALID_BUZZ)
                 haptics(HapticSignal.FAILURE)
@@ -438,7 +458,7 @@ fun CheckersScreen(
     }
 
     // A capture is mandatory iff any movable piece's legal destinations are two rows away.
-    fun captureIsMandatory(): Boolean = movableSquares.any { sq ->
+    fun captureIsMandatory(): Boolean = game.mandatoryCapture && movableSquares.any { sq ->
         game.legalDestinationsFrom(sq / 8, sq % 8).any { (toRow, _) -> abs(toRow - sq / 8) == 2 }
     }
 
@@ -607,7 +627,25 @@ fun CheckersScreen(
         notice = null
         game.undo()
     }
-    val doHint: () -> Unit = { game.hint() }
+    // The hint search runs off the main thread; the Hint button shows "Thinking..." meanwhile, and
+    // applyHint drops the result if the position changed (a move, undo or restart) in the meantime.
+    var hintThinking by remember { mutableStateOf(false) }
+    val doHint: () -> Unit = {
+        if (!hintThinking) {
+            val job = game.beginHint()
+            if (job != null) {
+                hintThinking = true
+                scope.launch {
+                    val found = try {
+                        withContext(Dispatchers.Default) { job.computeHint() }
+                    } finally {
+                        hintThinking = false
+                    }
+                    game.applyHint(job, found)
+                }
+            }
+        }
+    }
     val hintShown = hintMove?.takeIf { isHumanTurn }
     val hintSentence = hintShown?.let { m ->
         val fromRowShown = if (rotated) 7 - m.fromRow else m.fromRow
@@ -692,6 +730,7 @@ fun CheckersScreen(
                 CheckersControlsRow(
                     canUndo = game.canUndo,
                     canHint = isHumanTurn,
+                    hintThinking = hintThinking,
                     onUndo = doUndo,
                     onHint = doHint
                 )
@@ -956,9 +995,15 @@ fun CheckersScreen(
             }) +
             " Pieces step one square diagonally forward, and a piece that reaches the far row becomes " +
             "a king, which can step and jump diagonally backward too.\n\n" +
-            "Jumping is mandatory: if any of your pieces can jump an opponent's piece, you must make a jump, " +
-            "and if the same piece can jump again it must keep going (a piece that has just been crowned stops there).\n\n" +
-            "You win by capturing every opposing piece or leaving your opponent with no legal move. There are no draws."
+            (if (game.mandatoryCapture) {
+                "Jumping is mandatory: if any of your pieces can jump an opponent's piece, you must make a jump, and "
+            } else {
+                "Jumping is optional in this game, but once a piece has started a jump "
+            }) +
+            "if the same piece can jump again it must keep going (a piece that has just been crowned stops there).\n\n" +
+            "You win by capturing every opposing piece or leaving your opponent with no legal move. " +
+            "The round is a draw after 40 moves (both sides counted) with no capture and no man move, " +
+            "or when the same position comes up three times."
         )
 
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-round
@@ -1005,7 +1050,13 @@ fun CheckersScreen(
             val scoreP1 by game.scoreP1
             val scoreP2 by game.scoreP2
             val winnerSeat = ctx.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+            val drawLine: String? = when (s.drawReason) {
+                CheckersDrawReason.NO_PROGRESS -> stringResource(R.string.checkers_draw_no_progress)
+                CheckersDrawReason.REPETITION -> stringResource(R.string.checkers_draw_repetition)
+                null -> null
+            }
             val resultTitle = when {
+                winnerPlayer == null && drawLine != null -> stringResource(R.string.checkers_draw_title)
                 winnerPlayer == null -> "It's a tie!"
                 networked && winnerSeat == humanSeat -> "You win!"
                 networked -> "${seatName(winnerSeat)} wins!"
@@ -1015,6 +1066,7 @@ fun CheckersScreen(
             val sessionLine = "$p1Name: $scoreP1 · $p2Name: $scoreP2"
             val resultLine = when {
                 networked && opponentLeft -> "Opponent disconnected\n$sessionLine"
+                drawLine != null -> "$drawLine\n$sessionLine"
                 networked && winnerPlayer != null ->
                     (if (winnerSeat == humanSeat) "You won this round" else "You lost this round") +
                         " against ${seatName(1 - humanSeat)} (you played ${sideName(humanSide)})\n$sessionLine"
@@ -1089,7 +1141,8 @@ private fun CheckersControlsRow(
     canHint: Boolean,
     onUndo: () -> Unit,
     onHint: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hintThinking: Boolean = false
 ) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(
@@ -1102,12 +1155,12 @@ private fun CheckersControlsRow(
         ) { Text("Undo") }
         OutlinedButton(
             onClick = onHint,
-            enabled = canHint,
+            enabled = canHint && !hintThinking,
             modifier = Modifier
                 .heightIn(min = 48.dp)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .semantics { if (!canHint) stateDescription = "Not available until it is your turn" }
-        ) { Text("Hint") }
+        ) { Text(if (hintThinking) stringResource(R.string.checkers_hint_thinking) else "Hint") }
     }
 }
 

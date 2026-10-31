@@ -20,6 +20,7 @@ import com.gamesuite.core.PlayerInfo
 import com.gamesuite.core.PlayerNameStore
 import com.gamesuite.transport.LOBBY_FULL_MESSAGE
 import com.gamesuite.transport.LobbySeatLimits
+import com.gamesuite.transport.OnlineLateJoinResponder
 import com.gamesuite.transport.OnlineLobbyMessage
 import com.gamesuite.transport.seatOnlineGuests
 import kotlinx.serialization.encodeToString
@@ -134,7 +135,7 @@ fun OnlineHostLobbyScreen(
                     Text("No one has joined yet.")
                 } else {
                     Text("Joined:")
-                    seatedGuests.forEach { player -> Text("• ${player.displayName}") }
+                    seatedGuests.forEach { player -> com.gamesuite.ui.club.LobbySeatRow(player.displayName) }
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -150,7 +151,14 @@ fun OnlineHostLobbyScreen(
                         val players = listOf(PlayerInfo(playerId = hostPlayerId, displayName = nameStore.lobbyName("Host"))) +
                             seated.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) }
 
-                        val startMessage: OnlineLobbyMessage = OnlineLobbyMessage.GameStart(gameRoute, players, gameDisplayName)
+                        val gameStart = OnlineLobbyMessage.GameStart(gameRoute, players, gameDisplayName)
+                        // This screen is left right after Start, but the transport (and this listener on it) lives
+                        // as long as the game: a spectator or a guest that arrives, or reconnects, after Start asks
+                        // with a Hello and is answered with the GameStart again (or a "started" refusal for a seat).
+                        // Installed before the broadcast so no Hello can fall in the gap.
+                        val lateJoin = OnlineLateJoinResponder(gameStart) { to, bytes -> transport.sendRaw(to, bytes) }
+                        transport.onRawMessageReceived { from, bytes -> lateJoin.onRawMessage(from, bytes) }
+                        val startMessage: OnlineLobbyMessage = gameStart
                         transport.sendRaw(null, Json.encodeToString(startMessage).toByteArray(Charsets.UTF_8))
 
                         sessionManager.launchGame(

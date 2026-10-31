@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gomoku_help_title">How to Play Gomoku</string>
+    <string name="gomoku_help_body">Take turns placing a stone on any empty point of the board. The first player to line up five of their stones in a row, across, down or diagonally, wins.
+
+%1$s
+
+If the board fills up with no five in a row, it is a draw.
+
+Did you know? Gomoku means \"five points\" in Japanese. Versions of it have been played across East Asia for centuries.</string>
+    <string name="gomoku_rules_free">Free-style rules: five or more in a row wins.</string>
+    <string name="gomoku_rules_exact">Exactly-five rules: a line of six or more does not count.</string>
+    <string name="gomoku_thinking">The computer is thinking…</string>
+    <string name="gomoku_waiting_host">Waiting for the host to start the game…</string>
+    <string name="gomoku_waiting_help">Waiting for the host to start the game.</string>
+    <string name="gomoku_your_turn">Your turn</string>
+    <string name="gomoku_turn_of">%1$s’s turn</string>
+    <string name="gomoku_turn_of_stone">%1$s’s turn (%2$s stones)</string>
+    <string name="gomoku_waiting_for">Waiting for %1$s</string>
+    <string name="gomoku_vs_line">vs %1$s · you play %2$s stones</string>
+    <string name="gomoku_opp_left">Opponent disconnected</string>
+    <string name="gomoku_dark">dark</string>
+    <string name="gomoku_light">light</string>
+    <string name="gomoku_cell_empty">Empty, row %1$d, column %2$d</string>
+    <string name="gomoku_cell_dark">Dark stone, row %1$d, column %2$d</string>
+    <string name="gomoku_cell_light">Light stone, row %1$d, column %2$d</string>
+    <string name="gomoku_cell_last">last move</string>
+    <string name="gomoku_cell_win">part of the winning line</string>
+    <string name="gomoku_cell_hint">suggested move</string>
+    <string name="gomoku_cell_selected">selected, tap again to place</string>
+    <string name="gomoku_err_occupied">That point is already taken.</string>
+    <string name="gomoku_err_not_turn">It is not your turn yet.</string>
+    <string name="gomoku_err_over">This game is over. Start a new one to keep playing.</string>
+    <string name="gomoku_err_left">Your opponent has left the game.</string>
+    <string name="gomoku_ann_move">%1$s placed a stone at row %2$d, column %3$d</string>
+    <string name="gomoku_ann_win">%1$s wins with five in a row</string>
+    <string name="gomoku_ann_draw">The board is full. It is a draw.</string>
+    <string name="gomoku_win_title">%1$s wins!</string>
+    <string name="gomoku_draw_title">It’s a draw!</string>
+    <string name="gomoku_you_won">You won!</string>
+    <string name="gomoku_you_lost">You lost.</string>
+    <string name="gomoku_a_draw">A draw.</string>
+    <string name="gomoku_session_entry">%1$s: %2$d</string>
+    <string name="gomoku_session">Session: %1$s</string>
+    <string name="gomoku_session_draws">Session: %1$s · Draws %2$d</string>
+    <string name="gomoku_play_again">Play Again</string>
+    <string name="gomoku_back_to_menu">Back to Menu</string>
+    <string name="gomoku_undo">Undo</string>
+    <string name="gomoku_hint">Hint</string>
+    <string name="gomoku_hint_unavailable">Hint unavailable, %1$s</string>
+    <string name="gomoku_reason_over">the game is over</string>
+    <string name="gomoku_reason_cpu">the computer is playing</string>
+    <string name="gomoku_place">Place stone</string>
+    <string name="gomoku_leave_title">Leave this game?</string>
+    <string name="gomoku_leave_body">This game is still in progress. Leaving now won’t count it as a win or a loss.</string>
+    <string name="gomoku_leave_body_kept">This game is still in progress and won’t count, but the games you already finished stay on your record.</string>
+    <string name="gomoku_coach_title">New to Gomoku?</string>
+    <string name="gomoku_coach_body">Tap a point to select it, then tap it again (or press Place stone) to play. Block your opponent’s open threes and fours before they turn into five, and build your own. Gomoku means \"five points\" in Japanese.</string>
+    <string name="gomoku_coach_dismiss">Got it</string>
+    <string name="gomoku_board_desc">Gomoku board, 15 by 15. %1$s</string>
+    <string name="hex_help_title">How to Play Hex</string>
+    <string name="hex_help_body">Take turns placing a stone on any empty hexagon. Red joins its two red edges; Blue joins its two blue edges (the coloured borders of the board). The first player to link their two sides with an unbroken chain of their own stones wins. A game of Hex can never end in a draw.
+
+%1$s
+
+Did you know? Hex was invented in the 1940s by the mathematician Piet Hein and, independently, by John Nash.</string>
+    <string name="hex_pie_on">Pie rule is on: after the first stone, the second player may swap, taking over that stone instead of moving.</string>
+    <string name="hex_pie_off">Pie rule is off.</string>
+    <string name="hex_thinking">The computer is thinking…</string>
+    <string name="hex_waiting_host">Waiting for the host to start the game…</string>
+    <string name="hex_waiting_help">Waiting for the host to start the game.</string>
+    <string name="hex_your_turn">Your turn</string>
+    <string name="hex_turn_of">%1$s’s turn (%2$s)</string>
+    <string name="hex_waiting_for">Waiting for %1$s</string>
+    <string name="hex_vs_line">vs %1$s · you are %2$s</string>
+    <string name="hex_opp_left">Opponent disconnected</string>
+    <string name="hex_red">Red</string>
+    <string name="hex_blue">Blue</string>
+    <string name="hex_goal_red">joins red edges</string>
+    <string name="hex_goal_blue">joins blue edges</string>
+    <string name="hex_side_line">%1$s · %2$s</string>
+    <string name="hex_cell_empty">Empty, row %1$d, column %2$d</string>
+    <string name="hex_cell_red">Red stone, row %1$d, column %2$d</string>
+    <string name="hex_cell_blue">Blue stone, row %1$d, column %2$d</string>
+    <string name="hex_cell_last">last move</string>
+    <string name="hex_cell_win">part of the winning chain</string>
+    <string name="hex_cell_hint">suggested move</string>
+    <string name="hex_cell_selected">selected, tap again to place</string>
+    <string name="hex_err_occupied">That hexagon is already taken.</string>
+    <string name="hex_err_not_turn">It is not your turn yet.</string>
+    <string name="hex_err_over">This game is over. Start a new one to keep playing.</string>
+    <string name="hex_err_left">Your opponent has left the game.</string>
+    <string name="hex_ann_move">%1$s placed a stone at row %2$d, column %3$d</string>
+    <string name="hex_ann_swap">%1$s swapped and took over the opening stone</string>
+    <string name="hex_ann_win">%1$s wins by connecting their sides</string>
+    <string name="hex_win_title">%1$s wins!</string>
+    <string name="hex_you_won">You won!</string>
+    <string name="hex_you_lost">You lost.</string>
+    <string name="hex_session_entry">%1$s: %2$d</string>
+    <string name="hex_session">Session: %1$s</string>
+    <string name="hex_play_again">Play Again</string>
+    <string name="hex_back_to_menu">Back to Menu</string>
+    <string name="hex_undo">Undo</string>
+    <string name="hex_hint">Hint</string>
+    <string name="hex_hint_unavailable">Hint unavailable, %1$s</string>
+    <string name="hex_reason_over">the game is over</string>
+    <string name="hex_reason_cpu">the computer is playing</string>
+    <string name="hex_place">Place stone</string>
+    <string name="hex_swap">Swap sides</string>
+    <string name="hex_swap_hint">Pie rule: take over the opening stone instead of moving.</string>
+    <string name="hex_leave_title">Leave this game?</string>
+    <string name="hex_leave_body">This game is still in progress. Leaving now won’t count it as a win or a loss.</string>
+    <string name="hex_leave_body_kept">This game is still in progress and won’t count, but the games you already finished stay on your record.</string>
+    <string name="hex_coach_title">New to Hex?</string>
+    <string name="hex_coach_body">Tap a hexagon to select it, then tap it again (or press Place stone) to play. Red links the two red edges, Blue links the two blue edges: every stone you place is both a step for you and a wall for your opponent. Two stones set apart in a diamond shape are hard to cut.</string>
+    <string name="hex_coach_dismiss">Got it</string>
+    <string name="hex_board_desc">Hex board, %1$d by %1$d. %2$s</string>
+    <string name="hub_gomoku">Gomoku</string>
+    <string name="hub_line_up_five_stones_before_your_opponent_does">Line up five stones before your opponent does.</string>
+    <string name="hub_rules">Rules</string>
+    <string name="hub_free_style_five_or_more_in_a_row_wins_exactly_fi_d28772">Free-style: five or more in a row wins. Exactly five: an overline of six or more does not count.</string>
+    <string name="hub_free_style">Free-style</string>
+    <string name="hub_five_or_more_in_a_row_wins">Five or more in a row wins.</string>
+    <string name="hub_exactly_five">Exactly five</string>
+    <string name="hub_six_or_more_in_a_row_does_not_count">Six or more in a row does not count.</string>
+    <string name="hub_hex">Hex</string>
+    <string name="hub_join_your_two_sides_of_the_board_before_your_opp_b28da1">Join your two sides of the board before your opponent does.</string>
+    <string name="hub_a_bigger_board_means_a_longer_game_eleven_is_the_86ef76">A bigger board means a longer game. Eleven is the classic size.</string>
+    <string name="hub_9_x_9">9 x 9</string>
+    <string name="hub_11_x_11">11 x 11</string>
+    <string name="hub_13_x_13">13 x 13</string>
+    <string name="hub_pie_rule">Pie rule</string>
+    <string name="hub_after_the_first_stone_the_second_player_may_swap_823070">After the first stone the second player may swap sides, so a strong opening is not a free win.</string>
+</resources>

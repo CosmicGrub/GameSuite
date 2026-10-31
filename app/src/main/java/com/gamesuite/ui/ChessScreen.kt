@@ -39,6 +39,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -56,6 +57,7 @@ import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
+import com.gamesuite.R
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
@@ -70,7 +72,9 @@ import com.gamesuite.games.chess.Piece
 import com.gamesuite.games.chess.PieceColor
 import com.gamesuite.games.chess.PieceType
 import com.gamesuite.games.chess.capturedPiecesFor
+import com.gamesuite.games.chess.formatChessClock
 import com.gamesuite.games.chess.materialAdvantageForWhite
+import com.gamesuite.games.chess.parseChessClock
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.haptics.HapticSignal
@@ -88,6 +92,9 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.floor
@@ -227,6 +234,9 @@ fun ChessScreen(
             if (ctx.activeMode == PlayMode.SINGLE_PLAYER_VS_BOT || ctx.activeMode == PlayMode.SINGLE_DEVICE_PASS_AND_PLAY) {
                 sessionManager.launchOptions.firstMoverIndex
             } else 0
+        // Hub clock choice (local modes only; the engine ignores it online). A resume below
+        // replaces it with the clock the saved game was played on.
+        game.configureClock(parseChessClock(sessionManager.launchOptions.extras["clock"]))
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
@@ -260,10 +270,17 @@ fun ChessScreen(
         val s = state ?: return@LaunchedEffect
         val ctx = context ?: return@LaunchedEffect
         if (s.roundOver) return@LaunchedEffect
-        if (ctx.players.getOrNull(game.seatForColor(s.sideToMove))?.isBot == true) {
+        // The bot's search runs on a background dispatcher while the usual (game-speed scaled)
+        // think delay plays, so the main thread never blocks. The move is only applied if the
+        // game is still in exactly the position the search started from: a state change in
+        // between (undo, restart, leaving) cancels this effect and applyBotMove refuses it too.
+        val request = game.botRequest() ?: return@LaunchedEffect
+        val botMove = coroutineScope {
+            val search = async(Dispatchers.Default) { game.searchBotMove(request) }
             chessPause(gameSpeed, 700)
-            game.playBotTurn()
+            search.await()
         }
+        if (botMove != null) game.applyBotMove(request, botMove)
     }
 
     val s = state
@@ -305,9 +322,11 @@ fun ChessScreen(
     context?.let { ctxHolder[0] = it }
     val ctx = ctxHolder[0] ?: return
 
-    val isCheckmate = s.result == ChessResult.WHITE_WINS || s.result == ChessResult.BLACK_WINS
+    // A win on time is not a checkmate: no mate celebration, and its own wording.
+    val isCheckmate = (s.result == ChessResult.WHITE_WINS || s.result == ChessResult.BLACK_WINS) && !s.timeout
     val isNetworked = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
     val opponentLeft by game.opponentLeft
+    val clockSpec by game.clockSpec
 
     // Who delivered the mate, from THIS device's point of view. The celebration (haptic, fanfare,
     // glow, camera push) used to fire for any checkmate, including the CPU mating the human --
@@ -363,6 +382,8 @@ fun ChessScreen(
         ChessResult.WHITE_WINS, ChessResult.BLACK_WINS -> {
             val winnerName = winner?.displayName ?: "?"
             when {
+                s.timeout && winnerIsLocal -> stringResource(R.string.chess_end_win_on_time_you)
+                s.timeout -> stringResource(R.string.chess_end_win_on_time, winnerName)
                 // Networked: name the winner AND say whether it was you.
                 isNetworked && winnerIsLocal -> "$winnerName (you) wins by checkmate!"
                 isNetworked -> "$winnerName wins by checkmate. You lost."
@@ -372,6 +393,10 @@ fun ChessScreen(
         }
         ChessResult.DRAW_STALEMATE -> "Draw by stalemate"
         ChessResult.DRAW_REPETITION -> "Draw by repetition"
+        ChessResult.DRAW_FIFTY_MOVE -> stringResource(R.string.chess_end_draw_fifty)
+        ChessResult.DRAW_INSUFFICIENT_MATERIAL ->
+            if (s.timeout) stringResource(R.string.chess_end_draw_time_insufficient)
+            else stringResource(R.string.chess_end_draw_insufficient)
         ChessResult.IN_PROGRESS -> ""
     }
 
@@ -414,7 +439,10 @@ fun ChessScreen(
             // true but the panel hasn't taken over yet.
             val titleText = when {
                 s.roundOver && isCheckmate -> "Checkmate!"
+                s.roundOver && s.timeout -> stringResource(R.string.chess_end_time_up)
                 s.result == ChessResult.DRAW_REPETITION -> "Draw by repetition"
+                s.result == ChessResult.DRAW_FIFTY_MOVE -> stringResource(R.string.chess_end_draw_fifty)
+                s.result == ChessResult.DRAW_INSUFFICIENT_MATERIAL -> stringResource(R.string.chess_end_draw_insufficient)
                 s.roundOver -> "Stalemate"
                 isNetworked && opponentLeft -> "Opponent disconnected"
                 isNetworked && !isHumanTurn -> "${opponentPlayer?.displayName ?: "Opponent"}'s turn ($sideName)"
@@ -430,6 +458,11 @@ fun ChessScreen(
                 // minLines keeps the block's height steady whether the last-move text wraps or
                 // not, so the board slot below it does not resize (and the board jitter) every move.
                 Text(s.lastAction, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, minLines = 2)
+            }
+            if (clockSpec != null && !isNetworked) {
+                Spacer(Modifier.height(6.dp))
+                ChessClockBar(game = game, sideToMove = s.sideToMove, roundOver = s.roundOver)
+                Spacer(Modifier.height(4.dp))
             }
             if (isNetworked) {
                 // Small connection / opponent line; it replaces the CPU line, which never applies.
@@ -625,7 +658,7 @@ fun ChessScreen(
                         haptics(HapticSignal.FAILURE)
                         sounds.playPlace()
                     }
-                    s.result == ChessResult.DRAW_STALEMATE || s.result == ChessResult.DRAW_REPETITION -> {
+                    s.roundOver && !isCheckmate -> { // stalemate, repetition, fifty-move, insufficient material
                         haptics(HapticSignal.FAILURE)
                         sounds.playTap()
                     }
@@ -963,10 +996,13 @@ fun ChessScreen(
         helpText = "Tap one of your pieces, then tap a highlighted square to move it: a dot marks a " +
             "move to an empty square and a ring marks a capture.\n\n" +
             "Standard rules apply, including castling and en passant, and a pawn reaching the " +
-            "far rank always becomes a queen. Checkmate wins; stalemate, or the same position " +
-            "occurring three times, is a draw. There is no 50-move or insufficient-material " +
-            "rule, so a game neither side can win ends only by repetition or by leaving from " +
-            "this menu.\n\n" +
+            "far rank always becomes a queen. Checkmate wins. These end the game in a draw: " +
+            "stalemate, the same position occurring three times, fifty moves each without a " +
+            "pawn move or capture, and positions where neither side can possibly checkmate " +
+            "(such as king against king, or king and one minor piece against king).\n\n" +
+            "With a chess clock (vs Computer and Pass & Play), running out of time loses " +
+            "unless the opponent could never checkmate, which is a draw. The Computer's " +
+            "thinking time counts against its clock.\n\n" +
             "White moves first. Against the computer your own pieces are at the bottom; in pass " +
             "and play White stays at the bottom for both players.",
         // Once the opponent has gone there is nothing left to protect: leaving is immediate and
@@ -1085,6 +1121,106 @@ fun ChessScreen(
                         }
                     }
                 }
+            )
+        }
+    }
+}
+
+/** Below this many milliseconds a clock shows its low-time state. */
+private const val CHESS_LOW_TIME_MS = 20_000L
+
+/**
+ * The two chess clocks (local timed games). It owns the 100ms ticker so only this composable
+ * recomposes while time runs; each tick also asks the engine to check for a flag fall. White's
+ * clock is on the left, Black's on the right, whichever way the board is turned.
+ */
+@Composable
+private fun ChessClockBar(
+    game: ChessGame,
+    sideToMove: PieceColor,
+    roundOver: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(roundOver, sideToMove) {
+        while (!roundOver) {
+            game.tickClock()
+            tick++
+            delay(100)
+        }
+        tick++
+    }
+    @Suppress("UNUSED_VARIABLE")
+    val shownTick = tick // read so every tick recomposes this bar (and only this bar)
+    val whiteMs = game.remainingMs(PieceColor.WHITE)
+    val blackMs = game.remainingMs(PieceColor.BLACK)
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        ChessClockChip(
+            label = stringResource(R.string.chess_clock_side_white),
+            a11yLabel = stringResource(R.string.chess_clock_a11y_white, formatChessClock(whiteMs)),
+            timeMs = whiteMs,
+            active = !roundOver && sideToMove == PieceColor.WHITE
+        )
+        ChessClockChip(
+            label = stringResource(R.string.chess_clock_side_black),
+            a11yLabel = stringResource(R.string.chess_clock_a11y_black, formatChessClock(blackMs)),
+            timeMs = blackMs,
+            active = !roundOver && sideToMove == PieceColor.BLACK
+        )
+    }
+}
+
+/**
+ * One side's clock. The side whose clock is running is bold with a filled container; the low-time
+ * state (under [CHESS_LOW_TIME_MS]) adds a thick border and a LOW tag as well as the error colour, so
+ * neither state relies on colour alone. The whole chip is one accessibility node, e.g. "White 4:32".
+ */
+@Composable
+private fun ChessClockChip(
+    label: String,
+    a11yLabel: String,
+    timeMs: Long,
+    active: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val low = timeMs < CHESS_LOW_TIME_MS
+    val lowText = stringResource(R.string.chess_clock_low_time)
+    val runningText = stringResource(R.string.chess_clock_running)
+    val shape = RoundedCornerShape(10.dp)
+    val colors = MaterialTheme.colorScheme
+    val stateText = listOfNotNull(if (active) runningText else null, if (low) lowText else null).joinToString(", ")
+    Column(
+        modifier = modifier
+            .widthIn(min = 92.dp)
+            .clip(shape)
+            .background(if (active) colors.primaryContainer else colors.surfaceVariant)
+            .border(if (low) 3.dp else 1.dp, if (low) colors.error else colors.outline, shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clearAndSetSemantics {
+                contentDescription = a11yLabel
+                if (stateText.isNotEmpty()) stateDescription = stateText
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+        )
+        Text(
+            formatChessClock(timeMs),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (active || low) FontWeight.Bold else FontWeight.Normal
+        )
+        if (low) {
+            Text(
+                stringResource(R.string.chess_clock_low_tag),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = colors.error
             )
         }
     }

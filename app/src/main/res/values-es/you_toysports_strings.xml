@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dt_wins_you">¡Ganas!</string>
+    <string name="dt_ann_start_you">Lanzas primero.</string>
+    <string name="dt_ann_throw_you">Acertaste %1$s por %2$d.</string>
+    <string name="dt_ann_miss_you">Fallaste la diana.</string>
+    <string name="dt_ann_bust_you">Te pasaste. La puntuación vuelve a %1$d.</string>
+    <string name="dt_ann_180_you">¡Hiciste 180!</string>
+    <string name="dt_ann_win_you">¡Ganas!</string>
+    <string name="dt_ann_up_you">Te toca.</string>
+    <string name="dt_turn_named_you">Vas por el dardo %1$d de 3.</string>
+    <string name="bw_wins_you">¡Ganas con %1$d!</string>
+    <string name="bw_ann_start_you">Lanzas primero.</string>
+    <string name="bw_ann_strike_you">¡Hiciste un pleno!</string>
+    <string name="bw_ann_spare_you">Conseguiste el semipleno.</string>
+    <string name="bw_ann_gutter_you">Echaste la bola a la canaleta.</string>
+    <string name="bw_ann_miss_you">No derribaste ningún bolo.</string>
+    <string name="bw_ann_roll_you">Derribaste %1$d. Quedan %2$d en pie.</string>
+    <string name="bw_ann_win_you">¡Ganas con %1$d!</string>
+    <string name="carrom_ann_start_you">Abres la partida.</string>
+    <string name="carrom_ann_miss_you">Has fallado.</string>
+    <string name="carrom_ann_foul_you">Has metido el lanzador: falta.</string>
+    <plurals name="carrom_ann_own_you">
+        <item quantity="one">Has metido una ficha.</item>
+        <item quantity="other">Has metido %1$d fichas.</item>
+    </plurals>
+    <string name="curling_ann_hogged_you">Tu piedra se quedó corta de la línea hog y sale.</string>
+    <string name="curling_ann_out_you">Tu piedra salió del juego.</string>
+    <string name="curling_ann_takeout_you">Sacaste una piedra rival del juego.</string>
+    <string name="curling_ann_hit_you">Golpeaste una piedra.</string>
+    <string name="curling_ann_slid_you">Deslizaste una piedra.</string>
+</resources>

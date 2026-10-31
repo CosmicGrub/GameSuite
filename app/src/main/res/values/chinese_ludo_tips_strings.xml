@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips; move these into polish_strings.xml (GameTipsTest reads only that file) and delete this file -->
+    <string name="tip_chinese_checkers_1">Tap a marble to see every hole it can reach, then tap one to move.</string>
+    <string name="tip_chinese_checkers_2">Hop over any marble into the empty hole behind it, and chain hops in one turn.</string>
+    <string name="tip_chinese_checkers_3">Fill the opposite corner first to win. Bring the stragglers along.</string>
+    <string name="tip_ludo_1">Tap Roll, then move one of your highlighted tokens that many squares.</string>
+    <string name="tip_ludo_2">A six lets a token leave the yard and gives you another roll.</string>
+    <string name="tip_ludo_3">Land on a rival to send it home, unless it is on a start square or a star.</string>
+</resources>

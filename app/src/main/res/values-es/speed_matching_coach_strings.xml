@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Speed and Matching (GameCoach conventions: coach_<id>_s1..sN and _fact). -->
+    <string name="coach_speed_s1">Los dos jugáis a la vez. Cada montón del centro muestra una carta.</string>
+    <string name="coach_speed_s2">Juega una carta de tu mano sobre un montón del centro si es exactamente una más alta o más baja. Los ases quedan entre los reyes y los doses.</string>
+    <string name="coach_speed_s3">Tu mano se rellena con tu mazo. Juega todas las cartas de tu mano y de tu mazo para ganar.</string>
+    <string name="coach_speed_s4">¿Nadie puede jugar? Toca Voltear y aparecen cartas nuevas en el centro. ¿Prefieres jugar por turnos? Activa la ayuda por turnos.</string>
+    <string name="coach_speed_fact">Speed también se llama Spit o Slam, y la mayoría de las versiones usan una sola baraja de 52 cartas.</string>
+    <string name="coach_matching_s1">Las cartas están boca abajo. En tu turno, toca dos cartas para voltearlas.</string>
+    <string name="coach_matching_s2">¿La misma imagen? Te quedas la pareja y sigues. ¿Distinta? Se vuelven a tapar y pasa el turno.</string>
+    <string name="coach_matching_s3">Recuerda dónde está cada imagen. La pista muestra una pareja que ya viste.</string>
+    <string name="coach_matching_s4">El tablero termina cuando se encuentran todas las parejas. Con amigos gana quien tenga más; solo, intenta usar menos movimientos y menos tiempo.</string>
+    <string name="coach_matching_fact">Este juego también se llama Concentración, Memoria, Parejas o Pelmanismo, por un sistema británico de entrenamiento de la memoria.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texas Hold'em coach card (own file; the GameCoach.entries entry is added by the integrator) -->
+    <string name="coach_texas_holdem_s1">Everyone gets two private cards. Five shared cards are dealt face up in the middle: the flop (three), then the turn (one), then the river (one).</string>
+    <string name="coach_texas_holdem_s2">Make the best five-card hand from your two cards and the five on the table. From weakest to strongest: high card, pair, two pair, three of a kind, straight, flush, full house, four of a kind, straight flush.</string>
+    <string name="coach_texas_holdem_s3">You bet before the flop and after each new card. On your turn fold, check, call, or bet and raise with the slider and the Min, half-pot, pot and all-in buttons.</string>
+    <string name="coach_texas_holdem_s4">The small and big blinds are forced bets that move around the table with the dealer button. They can rise as the game goes on, so a game always ends.</string>
+    <string name="coach_texas_holdem_s5">If you go all in for less than the bet, the extra chips form a side pot you cannot win. Chips are for play only: the last player holding chips wins the tournament.</string>
+    <string name="coach_texas_holdem_fact">Texas Hold\'em is said to have started in Robstown, Texas, in the early 1900s, and the Texas legislature recognised the town as its birthplace in 2007.</string>
+</resources>

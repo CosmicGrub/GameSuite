@@ -21,8 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.gamesuite.R
+import com.gamesuite.core.Achievements
+import com.gamesuite.core.SystemDayClock
 import com.gamesuite.stats.GameStats
 import com.gamesuite.stats.StatsViewModel
+import com.gamesuite.stats.StreakSummary
+import com.gamesuite.stats.achievementSnapshotFor
+import com.gamesuite.stats.streakSummary
+import androidx.compose.ui.draw.alpha
 import com.gamesuite.ui.effects.DialogBackdropBlur
 
 /**
@@ -36,6 +42,9 @@ fun StatsScreen(
     onBack: () -> Unit
 ) {
     val stats by viewModel.allStats.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    // Resolved when the screen opens: an expired day streak shows as 0 without waiting for a match.
+    val today = remember { SystemDayClock.today() }
     var confirmingReset by remember { mutableStateOf(false) }
     var sortName by rememberSaveable { mutableStateOf(StatsSort.RECENT.name) }
     val sort = StatsSort.values().firstOrNull { it.name == sortName } ?: StatsSort.RECENT
@@ -79,6 +88,8 @@ fun StatsScreen(
                 val summary = summarizeStats(stats.values)
                 SummaryHeader(summary)
                 Spacer(Modifier.height(16.dp))
+                StreakHeader(streakSummary(progress, today))
+                Spacer(Modifier.height(16.dp))
 
                 SortChips(selected = sort, onSelect = { sortName = it.name })
                 Spacer(Modifier.height(16.dp))
@@ -107,6 +118,8 @@ fun StatsScreen(
                     }
                 }
 
+                Spacer(Modifier.height(24.dp))
+                AchievementsSection(achievementRows(achievementSnapshotFor(stats.values, progress), progress.unlocked.keys))
                 Spacer(Modifier.height(24.dp))
                 OutlinedButton(
                     onClick = { confirmingReset = true },
@@ -225,6 +238,9 @@ private fun StatRow(stats: GameStats) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(stats.displayName, style = MaterialTheme.typography.bodyLarge)
             Text(played, style = MaterialTheme.typography.labelSmall)
+            if (stats.winStreak >= 2) {
+                Text(stringResource(R.string.streak_game_wins, stats.winStreak), style = MaterialTheme.typography.labelSmall)
+            }
         }
         Text(record, style = MaterialTheme.typography.titleMedium)
     }
@@ -243,8 +259,125 @@ private fun StatCard(stats: GameStats, modifier: Modifier = Modifier) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(stats.displayName, style = MaterialTheme.typography.bodyLarge)
             Text(played, style = MaterialTheme.typography.labelSmall)
+            if (stats.winStreak >= 2) {
+                Text(stringResource(R.string.streak_game_wins, stats.winStreak), style = MaterialTheme.typography.labelSmall)
+            }
             Spacer(Modifier.height(6.dp))
             Text(record, style = MaterialTheme.typography.titleMedium)
         }
+    }
+}
+
+/** Day streak and cross-game win streak tiles. */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun StreakHeader(streaks: StreakSummary) {
+    Text(
+        stringResource(R.string.streak_title),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.semantics { heading() }
+    )
+    Spacer(Modifier.height(8.dp))
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SummaryTile(
+            stringResource(R.string.streak_tile_days),
+            "${streaks.dayStreak} (${stringResource(R.string.streak_best, streaks.bestDayStreak)})"
+        )
+        SummaryTile(
+            stringResource(R.string.streak_tile_wins),
+            "${streaks.overallWinStreak} (${stringResource(R.string.streak_best, streaks.bestOverallWinStreak)})"
+        )
+    }
+}
+
+@Composable
+internal fun achievementTitle(id: String): String = stringResource(
+    when (id) {
+        Achievements.FIRST_WIN -> R.string.achv_first_win_title
+        Achievements.WINS_10 -> R.string.achv_wins_10_title
+        Achievements.WINS_100 -> R.string.achv_wins_100_title
+        Achievements.STREAK_5 -> R.string.achv_streak_5_title
+        Achievements.HARD_WIN -> R.string.achv_hard_win_title
+        Achievements.DAILY -> R.string.achv_daily_title
+        Achievements.ALL_FAMILIES -> R.string.achv_all_families_title
+        Achievements.ONLINE_WIN -> R.string.achv_online_win_title
+        Achievements.DAYS_7 -> R.string.achv_days_7_title
+        else -> R.string.achv_games_10_title
+    }
+)
+
+@Composable
+private fun achievementDescription(id: String): String = stringResource(
+    when (id) {
+        Achievements.FIRST_WIN -> R.string.achv_first_win_desc
+        Achievements.WINS_10 -> R.string.achv_wins_10_desc
+        Achievements.WINS_100 -> R.string.achv_wins_100_desc
+        Achievements.STREAK_5 -> R.string.achv_streak_5_desc
+        Achievements.HARD_WIN -> R.string.achv_hard_win_desc
+        Achievements.DAILY -> R.string.achv_daily_desc
+        Achievements.ALL_FAMILIES -> R.string.achv_all_families_desc
+        Achievements.ONLINE_WIN -> R.string.achv_online_win_desc
+        Achievements.DAYS_7 -> R.string.achv_days_7_desc
+        else -> R.string.achv_games_10_desc
+    }
+)
+
+/**
+ * Every achievement: unlocked ones show a check mark and "Unlocked"; locked ones are dimmed AND carry a
+ * lock glyph with the word "Locked" plus a done / goal count, so state never depends on colour alone.
+ */
+@Composable
+private fun AchievementsSection(rows: List<AchievementRow>) {
+    Text(
+        stringResource(R.string.achv_section_title),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.semantics { heading() }
+    )
+    Text(
+        stringResource(R.string.achv_summary, rows.count { it.unlocked }, rows.size),
+        style = MaterialTheme.typography.labelMedium
+    )
+    Spacer(Modifier.height(8.dp))
+    rows.forEach { row ->
+        val title = achievementTitle(row.id)
+        val description = achievementDescription(row.id)
+        val spoken = if (row.unlocked) {
+            stringResource(R.string.achv_row_description_unlocked, title, description)
+        } else {
+            stringResource(R.string.achv_row_description_locked, title, description, row.done, row.goal)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(vertical = 8.dp)
+                .semantics(mergeDescendants = true) { contentDescription = spoken },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f).padding(end = 12.dp).alpha(if (row.unlocked) 1f else 0.6f)
+            ) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(description, style = MaterialTheme.typography.labelSmall)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    if (row.unlocked) "✓ " + stringResource(R.string.achv_unlocked_label)
+                    else "🔒 " + stringResource(R.string.achv_locked_label),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                if (!row.unlocked && row.goal > 1) {
+                    Text(
+                        stringResource(R.string.achv_progress, row.done, row.goal),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
+        HorizontalDivider()
     }
 }

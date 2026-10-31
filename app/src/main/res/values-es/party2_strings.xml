@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="party2_cancel">Cancelar</string>
+    <string name="party2_off">Desactivado</string>
+    <string name="party2_players">Jugadores</string>
+    <string name="party2_player_n">Jugador %1$d</string>
+    <string name="party2_decrease">Reducir %1$s</string>
+    <string name="party2_increase">Aumentar %1$s</string>
+    <string name="party2_copied">Copiado al portapapeles</string>
+
+    <!-- Turn order -->
+    <string name="party2_turn_title">Orden de turnos</string>
+    <string name="party2_turn_hint">Bloquea un asiento para que ese jugador se quede ahí al volver a barajar.</string>
+    <string name="party2_turn_reshuffle">Volver a sortear</string>
+    <string name="party2_turn_copy">Copiar orden</string>
+    <string name="party2_turn_clip_label">Orden de turnos</string>
+    <string name="party2_turn_lock_seat">Bloquear asiento %1$d (%2$s)</string>
+    <string name="party2_turn_unlock_seat">Desbloquear asiento %1$d (%2$s)</string>
+    <string name="party2_turn_all_locked">Desbloquea al menos dos asientos para sortear.</string>
+
+    <!-- First player -->
+    <string name="party2_first_title">¿Quién empieza?</string>
+    <string name="party2_first_pick">Elegir primer jugador</string>
+    <string name="party2_first_choosing">Eligiendo…</string>
+    <string name="party2_first_result">Primer jugador: %1$s</string>
+    <string name="party2_first_history">Elecciones anteriores</string>
+    <string name="party2_first_clear">Borrar historial</string>
+
+    <!-- Game clock -->
+    <string name="party2_clock_title">Reloj de partida</string>
+    <string name="party2_clock_minutes">Minutos por jugador</string>
+    <string name="party2_clock_increment">Segundos extra por turno</string>
+    <string name="party2_clock_turn_limit">Límite por turno</string>
+    <string name="party2_clock_min_fmt">%1$d min</string>
+    <string name="party2_clock_sec_fmt">%1$d s</string>
+    <string name="party2_clock_tap_start">Toca el reloj para empezar con %1$s.</string>
+    <string name="party2_clock_tap_pass">Pasar el turno</string>
+    <string name="party2_clock_summary">Reloj de partida. Juega %1$s y le quedan %2$s. Toca para pasar el turno.</string>
+    <string name="party2_clock_summary_idle">Reloj de partida. Toca para empezar con %1$s.</string>
+    <string name="party2_clock_start">Empezar</string>
+    <string name="party2_clock_pause">Pausa</string>
+    <string name="party2_clock_resume">Reanudar</string>
+    <string name="party2_clock_skip">Saltar</string>
+    <string name="party2_clock_reset">Reiniciar</string>
+    <string name="party2_clock_paused">En pausa</string>
+    <string name="party2_clock_out">SIN TIEMPO</string>
+    <string name="party2_clock_out_status">%1$s se ha quedado sin tiempo. Toca para pasar el turno.</string>
+    <string name="party2_clock_turn_over_label">TURNO AGOTADO</string>
+    <string name="party2_clock_turn_over">%1$s ha agotado el límite del turno. Toca para pasar el turno.</string>
+    <string name="party2_clock_turn_left">Turno: %1$s</string>
+    <string name="party2_clock_winner">%1$s gana por tiempo</string>
+    <string name="party2_clock_all_out">Todos se han quedado sin tiempo</string>
+    <string name="party2_clock_reset_title">¿Reiniciar el reloj?</string>
+    <string name="party2_clock_reset_body">Todos los jugadores vuelven al tiempo inicial.</string>
+
+    <!-- Round / bid tracker -->
+    <string name="party2_round_title">Control de rondas</string>
+    <string name="party2_round_mode_bid">Apuesta y bazas</string>
+    <string name="party2_round_mode_manual">Puntos manuales</string>
+    <string name="party2_round_rules">Puntuación</string>
+    <string name="party2_round_made_bonus">Bonus por cumplir la apuesta</string>
+    <string name="party2_round_miss">Si no se cumple la apuesta</string>
+    <string name="party2_miss_minus_bid">Pierde la apuesta</string>
+    <string name="party2_miss_minus_diff">Pierde la diferencia</string>
+    <string name="party2_miss_zero">No puntúa</string>
+    <string name="party2_round_over_makes">Las bazas de más también cumplen la apuesta</string>
+    <string name="party2_round_step">Paso</string>
+    <string name="party2_round_n">Ronda %1$d</string>
+    <string name="party2_round_bid">Apuesta</string>
+    <string name="party2_round_won">Bazas ganadas</string>
+    <string name="party2_round_points">Puntos</string>
+    <string name="party2_round_preview">Suma %1$s</string>
+    <string name="party2_round_add">Añadir ronda</string>
+    <string name="party2_round_undo">Deshacer última ronda</string>
+    <string name="party2_round_reset">Reiniciar partida</string>
+    <string name="party2_round_reset_title">¿Reiniciar la partida?</string>
+    <string name="party2_round_reset_body">Se borran todas las rondas y los totales.</string>
+    <string name="party2_round_totals">Totales</string>
+    <string name="party2_round_none">Todavía no hay rondas.</string>
+    <string name="party2_round_leader">En cabeza: %1$s</string>
+    <string name="party2_round_leading">En cabeza.</string>
+    <string name="party2_round_total_desc">%1$s: %2$d puntos.</string>
+    <string name="party2_round_history">Historial</string>
+    <string name="party2_round_history_line">Ronda %1$d: %2$s</string>
+
+    <!-- Card dealer -->
+    <string name="party2_deal_title">Repartidor de cartas</string>
+    <string name="party2_deal_standard">Baraja estándar</string>
+    <string name="party2_deal_custom">Baraja numerada</string>
+    <string name="party2_deal_jokers">Comodines</string>
+    <string name="party2_deal_custom_size">Cartas en la baraja</string>
+    <string name="party2_deal_per">Cartas por jugador</string>
+    <string name="party2_deal_limit">Esta baraja alcanza para %1$d cartas por jugador.</string>
+    <string name="party2_deal_deal">Repartir</string>
+    <string name="party2_deal_reshuffle">Barajar y repartir</string>
+    <string name="party2_deal_draw">Robar 1 cada uno</string>
+    <string name="party2_deal_collect">Recoger cartas</string>
+    <string name="party2_deal_stock">En el mazo: %1$s</string>
+    <string name="party2_deal_hint">Pasa el dispositivo a cada jugador y que mantenga pulsado su botón. Las cartas se ocultan al soltar.</string>
+    <string name="party2_deal_hold">Mantener para ver</string>
+    <string name="party2_deal_hold_desc">Mantener pulsado para ver las cartas de %1$s</string>
+    <string name="party2_deal_hold_action">Mostrar las cartas durante tres segundos</string>
+    <string name="party2_card_spoken">%1$s de %2$s</string>
+    <string name="party2_joker">Comodín</string>
+    <plurals name="party2_cards">
+        <item quantity="one">%d carta</item>
+        <item quantity="other">%d cartas</item>
+    </plurals>
+    <string-array name="party2_ranks">
+        <item>As</item>
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+    </string-array>
+    <string-array name="party2_suits">
+        <item>picas</item>
+        <item>corazones</item>
+        <item>diamantes</item>
+        <item>tréboles</item>
+    </string-array>
+</resources>

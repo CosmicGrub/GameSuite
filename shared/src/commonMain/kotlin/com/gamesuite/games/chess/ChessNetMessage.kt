@@ -40,7 +40,10 @@ data class ChessNetState(
     val scoreP1: Int,
     val scoreP2: Int,
     val draws: Int,
-    val matchOver: Boolean
+    val matchOver: Boolean,
+    /** Half-moves since the last pawn move or capture (the fifty-move rule counter). Optional on
+     *  the wire (an older sender omits it, which reads as 0) so Nearby/Online stay compatible. */
+    val halfmoveClock: Int = 0
 )
 
 @Serializable

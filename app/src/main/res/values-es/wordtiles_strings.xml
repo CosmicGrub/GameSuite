@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wordtiles_waiting_for_host">Esperando al anfitrión…</string>
+    <string name="wordtiles_opponent_left">El oponente se ha desconectado</string>
+    <string name="wordtiles_your_turn">Tu turno</string>
+    <string name="wordtiles_play_again">Jugar de nuevo</string>
+    <string name="wordtiles_session_tally">Sesión: %1$s %2$d · %3$s %4$d · empates %5$d</string>
+</resources>

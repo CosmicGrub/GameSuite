@@ -5,8 +5,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.gamesuite.R
 import com.gamesuite.settings.GameSpeed
 
 /**
@@ -17,11 +19,18 @@ import com.gamesuite.settings.GameSpeed
  */
 @Composable
 fun ColumnScope.GameSpeedMenuItem(current: GameSpeed, onChange: (GameSpeed) -> Unit) {
+    val (labelRes, descRes) = when (current) {
+        GameSpeed.SLOW -> R.string.gamespeed_slow to R.string.gamespeed_slow_desc
+        GameSpeed.RELAXED -> R.string.gamespeed_relaxed to R.string.gamespeed_relaxed_desc
+        GameSpeed.NORMAL -> R.string.gamespeed_normal to R.string.gamespeed_normal_desc
+        GameSpeed.QUICK -> R.string.gamespeed_quick to R.string.gamespeed_quick_desc
+    }
+    val label = stringResource(labelRes)
+    val itemText = stringResource(R.string.gamespeed_menu_item, label)
+    val itemDesc = stringResource(R.string.gamespeed_menu_item_desc, label, stringResource(descRes))
     DropdownMenuItem(
-        text = { Text("Game speed: ${current.label}") },
+        text = { Text(itemText) },
         onClick = { onChange(current.next()) },
-        modifier = Modifier.semantics {
-            contentDescription = "Game speed: ${current.label}. ${current.description} Tap to change."
-        }
+        modifier = Modifier.semantics { contentDescription = itemDesc }
     )
 }
