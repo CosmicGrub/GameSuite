@@ -539,10 +539,10 @@ private fun HexBoard(
     val unit = remember(geo) { geo.hexPath() }
     val winSet = remember(s.winPath) { s.winPath.toSet() }
 
-    val pulse = if (reduced) 1f else {
+    // A State, read only inside the draw lambda below: the 121 cells must not recompose every frame.
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(1f) } else {
         val t = rememberInfiniteTransition(label = "hex-pulse")
-        val v by t.animateFloat(0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
-        v
+        t.animateFloat(0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
     }
     val drop = remember { Animatable(1f) }
     LaunchedEffect(s.lastMove, s.stones, s.swapped) {
@@ -596,6 +596,7 @@ private fun HexBoard(
                 }
             }
         ) {
+            val pulseValue = pulse.value
             for (r in 0 until n) for (c in 0 until n) {
                 val i = r * n + c
                 val cx = geo.cx(r, c)
@@ -604,15 +605,15 @@ private fun HexBoard(
                 if (owner != null) {
                     val isLast = i == s.lastMove
                     val inWin = i in winSet
-                    val k = (if (isLast) drop.value else 1f) * (if (inWin && !reduced) 1f + 0.08f * pulse else 1f)
+                    val k = (if (isLast) drop.value else 1f) * (if (inWin && !reduced) 1f + 0.08f * pulseValue else 1f)
                     drawSphere(if (owner == 0) palette.red else palette.blue, owner == 0, sPx * 0.62f * k, Offset(cx, cy))
                     if (inWin) drawCircle(palette.accent, sPx * 0.74f, Offset(cx, cy), style = Stroke(sPx * 0.12f))
                     else if (isLast) drawCircle(
-                        Color.White.copy(alpha = if (reduced) 1f else pulse), sPx * 0.2f, Offset(cx, cy), style = Stroke(sPx * 0.07f)
+                        Color.White.copy(alpha = if (reduced) 1f else pulseValue), sPx * 0.2f, Offset(cx, cy), style = Stroke(sPx * 0.07f)
                     )
                 } else {
                     if (i == pending) drawCircle(
-                        (if (s.currentPlayerIndex == 0) palette.red else palette.blue).copy(alpha = 0.35f + 0.25f * pulse), sPx * 0.55f, Offset(cx, cy)
+                        (if (s.currentPlayerIndex == 0) palette.red else palette.blue).copy(alpha = 0.35f + 0.25f * pulseValue), sPx * 0.55f, Offset(cx, cy)
                     )
                     if (i == hint) {
                         drawCircle(palette.accent, sPx * 0.62f, Offset(cx, cy), style = Stroke(sPx * 0.1f))

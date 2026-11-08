@@ -27,6 +27,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.R
+import com.gamesuite.core.RelayUrlError
+import com.gamesuite.core.RelayUrlResult
+import com.gamesuite.core.RelayUrlValidator
 import com.gamesuite.games.cards.CardVisual
 import com.gamesuite.games.cards.LocalCardScale
 import com.gamesuite.games.cards.PlayingCardView
@@ -356,21 +359,53 @@ fun SettingsScreen(
                     Text(descServer, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(8.dp))
                     var serverUrlDraft by remember(settings.onlineServerUrl) { mutableStateOf(settings.onlineServerUrl) }
+                    var serverUrlError by remember(settings.onlineServerUrl) { mutableStateOf<RelayUrlError?>(null) }
+                    // Validates before saving: invalid values show an inline error and are NOT persisted.
+                    val saveServerUrl = {
+                        when (val r = RelayUrlValidator.validate(serverUrlDraft)) {
+                            is RelayUrlResult.Valid -> {
+                                serverUrlError = null
+                                serverUrlDraft = r.normalized
+                                viewModel.setOnlineServerUrl(r.normalized)
+                            }
+                            RelayUrlResult.Empty -> {
+                                serverUrlError = null
+                                serverUrlDraft = ""
+                                viewModel.setOnlineServerUrl("")
+                            }
+                            is RelayUrlResult.Invalid -> serverUrlError = r.error
+                        }
+                    }
                     OutlinedTextField(
                         value = serverUrlDraft,
-                        onValueChange = { serverUrlDraft = it },
+                        onValueChange = { serverUrlDraft = it; serverUrlError = null },
                         label = { Text(lblServer) },
-                        placeholder = { Text("ws://192.168.1.23:8080") },
+                        placeholder = { Text("wss://relay.example.com") },
                         singleLine = true,
+                        isError = serverUrlError != null,
+                        supportingText = serverUrlError?.let { e ->
+                            {
+                                Text(
+                                    stringResource(
+                                        when (e) {
+                                            RelayUrlError.SCHEME -> R.string.relay_url_error_scheme
+                                            RelayUrlError.HOST_MISSING -> R.string.relay_url_error_host_missing
+                                            RelayUrlError.WHITESPACE -> R.string.relay_url_error_whitespace
+                                            RelayUrlError.CREDENTIALS -> R.string.relay_url_error_credentials
+                                            RelayUrlError.PORT -> R.string.relay_url_error_port
+                                            RelayUrlError.INSECURE_PUBLIC_HOST -> R.string.relay_url_error_insecure_host
+                                        }
+                                    )
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = { viewModel.setOnlineServerUrl(serverUrlDraft) }
-                        )
+                        keyboardActions = KeyboardActions(onDone = { saveServerUrl() })
                     )
                     Spacer(Modifier.height(8.dp))
                     Button(
-                        onClick = { viewModel.setOnlineServerUrl(serverUrlDraft) },
+                        onClick = { saveServerUrl() },
                         modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
                     ) {
                         Text(stringResource(R.string.settings_online_save))

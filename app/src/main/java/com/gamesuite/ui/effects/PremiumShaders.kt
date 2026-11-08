@@ -1,8 +1,13 @@
 package com.gamesuite.ui.effects
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
+import android.os.PowerManager
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -12,9 +17,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -23,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 
@@ -283,26 +293,52 @@ private fun Modifier.meshGradientBackgroundApi33(
     colorC: Color,
     periodMs: Int
 ): Modifier {
-    val infiniteTransition = rememberInfiniteTransition(label = "meshGradient")
-    val time by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(periodMs, easing = LinearEasing)),
-        label = "meshGradientTime"
-    )
+    // In battery-saver mode the gradient is drawn once and left still: no perpetual GPU work.
+    val powerSave = rememberPowerSaveMode()
+    // A State read only inside the draw lambda below, so the animation never recomposes the host.
+    val time: State<Float> = if (powerSave) remember { mutableStateOf(0.3f) } else {
+        val infiniteTransition = rememberInfiniteTransition(label = "meshGradient")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(animation = tween(periodMs, easing = LinearEasing)),
+            label = "meshGradientTime"
+        )
+    }
     val shader = remember { runCatching { RuntimeShader(PremiumShaders.MESH_GRADIENT_AGSL) }.getOrNull() }
         ?: return this
+    // One brush for the shader's lifetime instead of a new ShaderBrush every frame.
+    val brush = remember(shader) { ShaderBrush(shader) }
     return this.drawWithContent {
         runCatching {
             shader.setFloatUniform("resolution", size.width, size.height)
-            shader.setFloatUniform("time", time)
+            shader.setFloatUniform("time", time.value)
             shader.setFloatUniform("colorA", colorA.red, colorA.green, colorA.blue, colorA.alpha)
             shader.setFloatUniform("colorB", colorB.red, colorB.green, colorB.blue, colorB.alpha)
             shader.setFloatUniform("colorC", colorC.red, colorC.green, colorC.blue, colorC.alpha)
-            drawRect(brush = ShaderBrush(shader))
+            drawRect(brush = brush)
         }
         drawContent()
     }
+}
+
+/** True while the OS battery saver is on; tracks changes while composed. */
+@Composable
+internal fun rememberPowerSaveMode(): Boolean {
+    val context = LocalContext.current
+    var powerSave by remember {
+        mutableStateOf(runCatching { (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isPowerSaveMode }.getOrDefault(false))
+    }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                powerSave = runCatching { (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isPowerSaveMode }.getOrDefault(false)
+            }
+        }
+        runCatching { context.registerReceiver(receiver, IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)) }
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return powerSave
 }
 
 /**

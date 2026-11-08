@@ -704,10 +704,63 @@ private fun evaluateForWhite(board: List<Piece?>): Int {
     return score
 }
 
+/** Thrown (and caught inside [minimaxBestMove]) to unwind a search whose time budget ran out or
+ *  whose caller cancelled it. Never escapes the search. */
+private class SearchAborted : RuntimeException()
+
+/**
+ * Time/cancel budget threaded through the search. The clock and cancel flag are only consulted every
+ * [CHECK_INTERVAL] nodes so the check costs almost nothing. [nowMs] is injectable for deterministic
+ * tests (see ChessSearchBudgetTest); [enforce] is turned off for the guaranteed depth-1 pass so a
+ * move is always available.
+ */
+private class SearchBudget(
+    private val deadlineMs: Long,
+    private val nowMs: () -> Long,
+    private val isCancelled: () -> Boolean
+) {
+    var enforce = true
+    private var nodes = 0
+
+    fun checkpoint() {
+        if (!enforce) return
+        if (++nodes and (CHECK_INTERVAL - 1) != 0) return
+        if (isCancelled() || nowMs() >= deadlineMs) throw SearchAborted()
+    }
+
+    /** Immediate (uncounted) check, used between root moves and iterations. */
+    fun expiredNow(): Boolean = enforce && (isCancelled() || nowMs() >= deadlineMs)
+
+    private companion object { const val CHECK_INTERVAL = 128 }
+}
+
+/** True if [color] has at least one legal move. Stops at the first one instead of generating and
+ *  filtering the whole list (used at leaf nodes, which only need mate/stalemate detection). */
+private fun hasLegalMove(pos: Position, color: PieceColor): Boolean {
+    val opp = opponent(color)
+    for (m in generatePseudoMoves(pos, color)) {
+        val copy = applyMove(pos, m)
+        if (!isSquareAttacked(copy.board, kingSquare(copy.board, color), opp)) return true
+    }
+    return false
+}
+
 /** Depth-limited minimax with alpha-beta pruning, scored relative to [maximizerColor] (the
  *  bot's own color this match -- see this file's top comment on why that isn't hardcoded to
  *  Black). Pure over [Position] copies; never touches real Compose state. */
-private fun search(pos: Position, sideToMove: PieceColor, depthLeft: Int, alphaIn: Int, betaIn: Int, maximizerColor: PieceColor): Int {
+private fun search(pos: Position, sideToMove: PieceColor, depthLeft: Int, alphaIn: Int, betaIn: Int, maximizerColor: PieceColor, budget: SearchBudget): Int {
+    budget.checkpoint()
+    if (depthLeft == 0) {
+        // Leaf: only need to know whether the side to move has ANY legal move (mate/stalemate),
+        // not the full move list.
+        if (!hasLegalMove(pos, sideToMove)) {
+            val inCheckLeaf = isSquareAttacked(pos.board, kingSquare(pos.board, sideToMove), opponent(sideToMove))
+            if (!inCheckLeaf) return 0 // stalemate
+            return if (sideToMove == maximizerColor) -MATE_SCORE else MATE_SCORE
+        }
+        val whiteScore = evaluateForWhite(pos.board)
+        return if (maximizerColor == PieceColor.WHITE) whiteScore else -whiteScore
+    }
     val (moves, inCheckNow) = legalMovesAndCheck(pos, sideToMove)
     if (moves.isEmpty()) {
         if (!inCheckNow) return 0 // stalemate
@@ -715,10 +768,6 @@ private fun search(pos: Position, sideToMove: PieceColor, depthLeft: Int, alphaI
         // a mate found with MORE depth remaining (sooner from the root) when it's good, and
         // prefers to delay one found sooner when it's bad -- "win fast, lose slow."
         return if (sideToMove == maximizerColor) -MATE_SCORE - depthLeft else MATE_SCORE + depthLeft
-    }
-    if (depthLeft == 0) {
-        val whiteScore = evaluateForWhite(pos.board)
-        return if (maximizerColor == PieceColor.WHITE) whiteScore else -whiteScore
     }
 
     val ordered = moves.sortedByDescending { moveOrderScore(it, pos.board) }
@@ -728,7 +777,7 @@ private fun search(pos: Position, sideToMove: PieceColor, depthLeft: Int, alphaI
     var beta = betaIn
     for (m in ordered) {
         val next = applyMove(pos, m)
-        val score = search(next, opponent(sideToMove), depthLeft - 1, alpha, beta, maximizerColor)
+        val score = search(next, opponent(sideToMove), depthLeft - 1, alpha, beta, maximizerColor, budget)
         if (maximizing) {
             if (score > best) best = score
             if (best > alpha) alpha = best
@@ -741,16 +790,16 @@ private fun search(pos: Position, sideToMove: PieceColor, depthLeft: Int, alphaI
     return best
 }
 
-private fun minimaxBestMove(pos: Position, color: PieceColor, depth: Int): ChessMove? {
-    val moves = generateLegalMoves(pos, color).sortedByDescending { moveOrderScore(it, pos.board) }
-    if (moves.isEmpty()) return null
+/** One full fixed-depth root search. Throws [SearchAborted] if [budget] runs out mid-way. */
+private fun searchRootAtDepth(pos: Position, color: PieceColor, moves: List<ChessMove>, depth: Int, budget: SearchBudget): ChessMove? {
     var alpha = -INF
     val beta = INF
     var bestScore = -INF
     var bestMove: ChessMove? = null
     for (m in moves) {
+        if (budget.expiredNow()) throw SearchAborted()
         val next = applyMove(pos, m)
-        val score = search(next, opponent(color), depth - 1, alpha, beta, color)
+        val score = search(next, opponent(color), depth - 1, alpha, beta, color, budget)
         if (score > bestScore) {
             bestScore = score
             bestMove = m
@@ -758,6 +807,39 @@ private fun minimaxBestMove(pos: Position, color: PieceColor, depth: Int): Chess
         if (bestScore > alpha) alpha = bestScore
     }
     return bestMove
+}
+
+/**
+ * Iterative deepening 1..[depth] under a wall-clock budget: returns the best move of the deepest
+ * COMPLETED iteration. Depth 1 always completes (budget not enforced) so a move is always
+ * available. When the budget is not hit, the final depth-[depth] result is exactly what a plain
+ * fixed-depth search returns (same root ordering, same tie-breaking).
+ */
+private fun minimaxBestMove(
+    pos: Position,
+    color: PieceColor,
+    depth: Int,
+    timeBudgetMs: Long = Long.MAX_VALUE / 4,
+    nowMs: () -> Long = ::chessMonotonicMs,
+    isCancelled: () -> Boolean = { false }
+): ChessMove? {
+    val moves = generateLegalMoves(pos, color).sortedByDescending { moveOrderScore(it, pos.board) }
+    if (moves.isEmpty()) return null
+    val start = nowMs()
+    val deadline = if (timeBudgetMs >= Long.MAX_VALUE / 4) Long.MAX_VALUE else start + timeBudgetMs
+    val budget = SearchBudget(deadline, nowMs, isCancelled)
+    budget.enforce = false
+    var best: ChessMove? = searchRootAtDepth(pos, color, moves, 1, budget) ?: moves.first()
+    budget.enforce = true
+    for (d in 2..depth) {
+        if (budget.expiredNow()) break
+        try {
+            best = searchRootAtDepth(pos, color, moves, d, budget) ?: best
+        } catch (_: SearchAborted) {
+            break
+        }
+    }
+    return best
 }
 
 /** MEDIUM's one-ply greedy heuristic: statically evaluate the position immediately after
@@ -1481,13 +1563,18 @@ class ChessGame(
      * engine or Compose state, so it is safe to run on a background dispatcher. Null when the
      * bot has no legal move.
      */
-    fun searchBotMove(request: ChessBotRequest): ChessHint? {
+    fun searchBotMove(
+        request: ChessBotRequest,
+        timeBudgetMs: Long = HARD_TIME_BUDGET_MS,
+        nowMs: () -> Long = ::chessMonotonicMs,
+        isCancelled: () -> Boolean = { false }
+    ): ChessHint? {
         val s = request.position
         val pos = positionOf(s)
         val move = when (request.difficulty) {
             CpuDifficulty.EASY -> generateLegalMoves(pos, s.sideToMove).randomOrNull()
             CpuDifficulty.MEDIUM -> onePlyGreedyMove(pos, s.sideToMove)
-            CpuDifficulty.HARD -> minimaxBestMove(pos, s.sideToMove, HARD_SEARCH_DEPTH)
+            CpuDifficulty.HARD -> minimaxBestMove(pos, s.sideToMove, HARD_SEARCH_DEPTH, timeBudgetMs, nowMs, isCancelled)
         } ?: return null
         return ChessHint(move.from, move.to)
     }
@@ -1911,6 +1998,13 @@ class ChessGame(
          * depth 5 is safe to ship too.
          */
         const val HARD_SEARCH_DEPTH = 4
+
+        /**
+         * Wall-clock cap for HARD's iterative-deepening search. Desktop JVM averages ~50 ms at
+         * depth 4, so this only bites on slow devices or pathological positions, where the best
+         * fully-completed shallower depth is played instead.
+         */
+        const val HARD_TIME_BUDGET_MS = 1500L
 
         /**
          * Hint look-ahead: 2 plies (the suggested move and the opponent's best reply), so a hint

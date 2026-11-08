@@ -96,6 +96,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.sin
@@ -276,7 +277,7 @@ fun ChessScreen(
         // between (undo, restart, leaving) cancels this effect and applyBotMove refuses it too.
         val request = game.botRequest() ?: return@LaunchedEffect
         val botMove = coroutineScope {
-            val search = async(Dispatchers.Default) { game.searchBotMove(request) }
+            val search = async(Dispatchers.Default) { game.searchBotMove(request, isCancelled = { !isActive }) }
             chessPause(gameSpeed, 700)
             search.await()
         }

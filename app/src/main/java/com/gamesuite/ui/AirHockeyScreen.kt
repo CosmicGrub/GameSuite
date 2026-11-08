@@ -636,7 +636,7 @@ fun AirHockeyScreen(
                                 .size(puckDiameterDp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.06f))
-                                .specularSweep(enabled = true, tint = Color.White.copy(alpha = 0.85f), periodMs = 1400)
+                                .specularSweep(enabled = enhanced, tint = Color.White.copy(alpha = 0.85f), periodMs = 1400)
                         ) {}
                     }
                 }

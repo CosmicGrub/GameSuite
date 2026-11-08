@@ -2,21 +2,23 @@ package com.gamesuite.stats
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.gamesuite.core.LocalOutcome
 import com.gamesuite.core.MatchDetails
 import com.gamesuite.core.epochDayOf
+import com.gamesuite.core.gameDataStore
+import java.io.IOException
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
-private val Context.statsDataStore: DataStore<Preferences> by preferencesDataStore(name = "game_stats")
+private val Context.statsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("game_stats")
 
 /**
  * DataStore-backed persistence for per-game [GameStats] — this is the fix for the audited
@@ -38,14 +40,27 @@ class StatsRepository(private val context: Context) {
     private object Keys {
         val ALL_STATS_JSON = stringPreferencesKey("all_stats_json")
         val PROGRESS_JSON = stringPreferencesKey("progress_json")
+        // First unreadable copy of each blob, preserved so a failed decode never destroys data.
+        val ALL_STATS_CORRUPT = stringPreferencesKey("all_stats_json_corrupt")
+        val PROGRESS_CORRUPT = stringPreferencesKey("progress_json_corrupt")
     }
 
-    val allStats: Flow<Map<String, GameStats>> = context.statsDataStore.data.map { prefs ->
+    private val safeData: Flow<Preferences> = context.statsDataStore.data.catch { e ->
+        if (e is IOException) emit(emptyPreferences()) else throw e
+    }
+
+    /** Preserves any blob that failed to decode before a write replaces it. */
+    private fun MutablePreferences.quarantine(stats: Decoded<*>, progress: Decoded<*>) {
+        quarantineValue(this[Keys.ALL_STATS_CORRUPT], stats.corruptRaw)?.let { this[Keys.ALL_STATS_CORRUPT] = it }
+        quarantineValue(this[Keys.PROGRESS_CORRUPT], progress.corruptRaw)?.let { this[Keys.PROGRESS_CORRUPT] = it }
+    }
+
+    val allStats: Flow<Map<String, GameStats>> = safeData.map { prefs ->
         decode(prefs[Keys.ALL_STATS_JSON])
     }
 
     /** Day streak, win streak and unlocked achievements. */
-    val progress: Flow<ProgressState> = context.statsDataStore.data.map { prefs ->
+    val progress: Flow<ProgressState> = safeData.map { prefs ->
         decodeProgress(prefs[Keys.PROGRESS_JSON])
     }
 
@@ -62,9 +77,12 @@ class StatsRepository(private val context: Context) {
     ): List<String> {
         var unlocked: List<String> = emptyList()
         context.statsDataStore.edit { prefs ->
+            val statsIn = decodeStatsBlob(prefs[Keys.ALL_STATS_JSON])
+            val progressIn = decodeProgressBlob(prefs[Keys.PROGRESS_JSON])
+            prefs.quarantine(statsIn, progressIn)
             val recorded = recordMatchInto(
-                stats = decode(prefs[Keys.ALL_STATS_JSON]),
-                progress = decodeProgress(prefs[Keys.PROGRESS_JSON]),
+                stats = statsIn.value,
+                progress = progressIn.value,
                 gameId = gameId,
                 displayName = displayName,
                 outcome = outcome,
@@ -104,20 +122,11 @@ class StatsRepository(private val context: Context) {
 
     suspend fun resetAll() = context.statsDataStore.edit { it.clear() }
 
-    private fun decode(raw: String?): Map<String, GameStats> {
-        if (raw.isNullOrBlank()) return emptyMap()
-        // A corrupted or (hypothetically) future-format blob should never crash app start —
-        // same defensive stance SettingsRepository takes on a bad enum value.
-        return runCatching { JSON.decodeFromString<Map<String, GameStats>>(raw) }.getOrDefault(emptyMap())
-    }
+    private fun decode(raw: String?): Map<String, GameStats> = decodeStatsBlob(raw).value
 
-    private fun decodeProgress(raw: String?): ProgressState {
-        if (raw.isNullOrBlank()) return ProgressState()
-        return runCatching { JSON.decodeFromString<ProgressState>(raw) }.getOrDefault(ProgressState())
-    }
+    private fun decodeProgress(raw: String?): ProgressState = decodeProgressBlob(raw).value
 
     private companion object {
-        /** Tolerates fields a newer build wrote; missing fields take their defaults. */
-        val JSON = Json { ignoreUnknownKeys = true }
+        val JSON = StatsJson
     }
 }

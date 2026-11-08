@@ -548,9 +548,10 @@ private fun HoundsBoardView(
             t.snapTo(1f)
         }
     }
-    val pulse = if (reduced) 0f else {
+    // A State, read only inside the Canvas draw lambdas below so the idle pulse does not recompose the board.
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(0f) } else {
         val transition = rememberInfiniteTransition(label = "houndsPulse")
-        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "houndsPulseValue").value
+        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "houndsPulseValue")
     }
     val lm = s.lastMove
     val animating = t.value < 1f && lm != null
@@ -606,15 +607,15 @@ private fun HoundsBoardView(
                 Canvas(Modifier.fillMaxSize()) {
                     val c = center
                     val r = size.minDimension * 0.36f
-                    val breathe = if (canMove) 1f + 0.05f * pulse else 1f
+                    val breathe = if (canMove) 1f + 0.05f * pulse.value else 1f
                     if (!hideStone) {
                         if (kind == 1) drawHound(c, r * breathe)
                         if (kind == 2) drawHare(Offset(c.x, c.y + r * 0.2f), r * 0.85f * breathe)
                     }
                     if (isSelected) drawCircle(palette.accent, r * 1.2f, c, style = Stroke(width = r * 0.18f))
                     if (isDest) {
-                        drawCircle(palette.accent.copy(alpha = 0.9f), r * (0.28f + 0.06f * pulse), c)
-                        drawCircle(palette.accent.copy(alpha = 0.45f), r * (0.6f + 0.1f * pulse), c, style = Stroke(width = r * 0.1f))
+                        drawCircle(palette.accent.copy(alpha = 0.9f), r * (0.28f + 0.06f * pulse.value), c)
+                        drawCircle(palette.accent.copy(alpha = 0.45f), r * (0.6f + 0.1f * pulse.value), c, style = Stroke(width = r * 0.1f))
                     }
                     if (isHint) {
                         drawCircle(palette.gold, r * 1.3f, c, style = Stroke(width = r * 0.12f))

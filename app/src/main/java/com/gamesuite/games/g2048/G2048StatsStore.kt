@@ -5,14 +5,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.g2048StatsDataStore: DataStore<Preferences> by preferencesDataStore(name = "g2048_stats")
+private val Context.g2048StatsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("g2048_stats")
 
 /**
  * Self-contained best-score persistence for 2048, keyed by [G2048Size.id] since a 3 x 3 score and a

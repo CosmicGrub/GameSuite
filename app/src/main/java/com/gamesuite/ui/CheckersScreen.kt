@@ -97,6 +97,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.PI
@@ -307,7 +308,7 @@ fun CheckersScreen(
             // The search (HARD is 9 plies deep) runs off the main thread, concurrently with the
             // think delay, so the bot waits for whichever finishes last and the UI never stalls.
             val plan = coroutineScope {
-                val search = async(Dispatchers.Default) { job.compute() }
+                val search = async(Dispatchers.Default) { job.compute(isCancelled = { !isActive }) }
                 delay(gameSpeed.scale(700L))
                 search.await()
             }

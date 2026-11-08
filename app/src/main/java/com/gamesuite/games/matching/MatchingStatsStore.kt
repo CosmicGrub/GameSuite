@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -13,7 +12,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.matchingStatsDataStore: DataStore<Preferences> by preferencesDataStore(name = "matching_stats")
+private val Context.matchingStatsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("matching_stats")
 
 /** The solo personal best for one board size: fewest moves and fastest time are kept independently. */
 @Serializable

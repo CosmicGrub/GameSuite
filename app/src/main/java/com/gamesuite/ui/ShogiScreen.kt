@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -283,12 +284,14 @@ fun ShogiScreen(
         }
     }
 
-    val pulseTransition = rememberInfiniteTransition(label = "shogi-pulse")
-    val pulseAnim by pulseTransition.animateFloat(
-        initialValue = 0.55f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse"
-    )
-    val pulse = if (reduced) 1f else pulseAnim
+    // A State, read only inside draw / graphicsLayer lambdas: the idle pulse must not recompose the screen.
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(1f) } else {
+        val pulseTransition = rememberInfiniteTransition(label = "shogi-pulse")
+        pulseTransition.animateFloat(
+            initialValue = 0.55f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse"
+        )
+    }
 
     // ---- derived highlights ----
     val legal = s.legalMoves
@@ -569,8 +572,9 @@ fun ShogiScreen(
                     if (botThinking && !s.gameOver) {
                         Text(
                             stringResource(R.string.shogi_thinking),
-                            color = palette.text.copy(alpha = 0.5f + 0.4f * pulse),
-                            style = MaterialTheme.typography.bodySmall
+                            color = palette.text,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.graphicsLayer { alpha = 0.5f + 0.4f * pulse.value }
                         )
                     }
                     val msg = message

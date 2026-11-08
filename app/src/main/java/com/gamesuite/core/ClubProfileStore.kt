@@ -6,11 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.clubProfileDataStore: DataStore<Preferences> by preferencesDataStore(name = "club_profile")
+private val Context.clubProfileDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("club_profile")
 
 /**
  * DataStore-backed [ClubProfile]. Reads are lenient (a corrupt value falls back to the default part).

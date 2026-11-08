@@ -5,11 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.tileMotionPrefsDataStore: DataStore<Preferences> by preferencesDataStore(name = "tile_motion_prefs")
+private val Context.tileMotionPrefsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("tile_motion_prefs")
 
 /**
  * Word Tiles' own motion-intensity tier from the "premium 2026 vision"

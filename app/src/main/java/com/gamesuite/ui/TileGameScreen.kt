@@ -221,7 +221,8 @@ fun TileGameScreen(
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.firstMoverIndex = sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
-        game.loadDictionary(androidContext)
+        // Parsing the 359k-word list is heavy; keep it off the main thread.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { game.loadDictionary(androidContext) }
         // A finished game stays on screen for its result panel (its button calls onMatchEnded). An
         // abort leaves from the chrome's onAbort below instead, since it has no result to show.
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }

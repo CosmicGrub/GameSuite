@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -14,7 +13,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.partyToolkitDataStore: DataStore<Preferences> by preferencesDataStore(name = "party_toolkit")
+private val Context.partyToolkitDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("party_toolkit")
 
 /** One Scoreboard entry. [score] can go negative (some party games genuinely do). */
 @Serializable

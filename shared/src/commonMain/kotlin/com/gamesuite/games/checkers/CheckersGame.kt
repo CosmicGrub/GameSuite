@@ -6,6 +6,7 @@ import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.transport.MultiplayerTransport
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.time.TimeSource
 
 /**
  * Everything needed to put a Checkers session back exactly as it was: the board (including a
@@ -219,7 +220,11 @@ class CheckersBotJob internal constructor(
     private val game: CheckersGame
 ) {
     /** The bot's whole turn (every hop of a multi-jump), or null when it has no move. */
-    fun compute(): CheckersBotPlan? = game.searchBotTurn(this)
+    fun compute(
+        isCancelled: () -> Boolean = { false },
+        timeBudgetMs: Long = CheckersGame.HARD_TIME_BUDGET_MS,
+        nowMs: () -> Long = ::checkersMonotonicMs
+    ): CheckersBotPlan? = game.searchBotTurn(this, timeBudgetMs, nowMs, isCancelled)
 
     /** The hop the MEDIUM bot would choose (the Hint button). */
     fun computeHint(): CheckersMove? = game.searchHint(this)
@@ -1073,7 +1078,13 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     }
 
     /** Pure: safe on any thread (reads only the job's immutable copy). */
-    internal fun searchBotTurn(job: CheckersBotJob): CheckersBotPlan? {
+    internal fun searchBotTurn(
+        job: CheckersBotJob,
+        timeBudgetMs: Long = HARD_TIME_BUDGET_MS,
+        nowMs: () -> Long = ::checkersMonotonicMs,
+        isCancelled: () -> Boolean = { false }
+    ): CheckersBotPlan? {
+        val budget = CheckersSearchBudget(nowMs() + timeBudgetMs, nowMs, isCancelled)
         val botIndex = job.side // the board side the search plays for
         val searchDifficulty = job.difficulty
 
@@ -1090,7 +1101,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
             val move = when (searchDifficulty) {
                 CpuDifficulty.EASY -> pickRandomMove(pos)
                 CpuDifficulty.MEDIUM -> pickGreedyMove(pos, botIndex)
-                CpuDifficulty.HARD -> pickMinimaxMove(pos, botIndex)
+                CpuDifficulty.HARD -> pickMinimaxMove(pos, botIndex, budget)
             } ?: break
             if (firstMove == null) firstMove = move
             lastMove = move
@@ -1158,7 +1169,8 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         return score
     }
 
-    private fun minimax(pos: Position, depthRemaining: Int, plyFromRoot: Int, maximizer: Int, alpha: Int, beta: Int): Int {
+    private fun minimax(pos: Position, depthRemaining: Int, plyFromRoot: Int, maximizer: Int, alpha: Int, beta: Int, budget: CheckersSearchBudget): Int {
+        budget.checkpoint()
         val moves = generateMoves(pos)
         if (pieceCountFor(pos.board, pos.sideToMove) == 0 || moves.isEmpty()) {
             val score = WIN_SCORE - plyFromRoot
@@ -1171,7 +1183,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         return if (pos.sideToMove == maximizer) {
             var best = -SCORE_INF
             for (m in moves) {
-                val score = minimax(applyMove(pos, m), depthRemaining - 1, plyFromRoot + 1, maximizer, a, b)
+                val score = minimax(applyMove(pos, m), depthRemaining - 1, plyFromRoot + 1, maximizer, a, b, budget)
                 if (score > best) best = score
                 if (best > a) a = best
                 if (a >= b) break
@@ -1180,7 +1192,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         } else {
             var best = SCORE_INF
             for (m in moves) {
-                val score = minimax(applyMove(pos, m), depthRemaining - 1, plyFromRoot + 1, maximizer, a, b)
+                val score = minimax(applyMove(pos, m), depthRemaining - 1, plyFromRoot + 1, maximizer, a, b, budget)
                 if (score < best) best = score
                 if (best < b) b = best
                 if (a >= b) break
@@ -1189,18 +1201,41 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         }
     }
 
-    private fun pickMinimaxMove(pos: Position, botIndex: Int): CheckersMove? {
-        val moves = generateMoves(pos)
+    /** Fixed-depth root search; throws [CheckersSearchAborted] if [budget] runs out. */
+    private fun searchRoot(pos: Position, moves: List<CheckersMove>, depth: Int, botIndex: Int, budget: CheckersSearchBudget): CheckersMove? {
         var bestMove: CheckersMove? = null
         var bestScore = -SCORE_INF
         for (m in moves) {
-            val score = minimax(applyMove(pos, m), HARD_SEARCH_DEPTH - 1, 1, botIndex, -SCORE_INF, SCORE_INF)
+            if (budget.expiredNow()) throw CheckersSearchAborted()
+            val score = minimax(applyMove(pos, m), depth - 1, 1, botIndex, -SCORE_INF, SCORE_INF, budget)
             if (bestMove == null || score > bestScore) {
                 bestScore = score
                 bestMove = m
             }
         }
         return bestMove
+    }
+
+    /**
+     * Iterative deepening 1..[HARD_SEARCH_DEPTH]: plays the best move of the deepest completed
+     * iteration. Depth 1 always completes; when the budget is not hit the depth-9 result is
+     * identical to a plain fixed-depth search.
+     */
+    private fun pickMinimaxMove(pos: Position, botIndex: Int, budget: CheckersSearchBudget): CheckersMove? {
+        val moves = generateMoves(pos)
+        if (moves.isEmpty()) return null
+        budget.enforce = false
+        var best: CheckersMove? = searchRoot(pos, moves, 1, botIndex, budget) ?: moves.first()
+        budget.enforce = true
+        for (d in 2..HARD_SEARCH_DEPTH) {
+            if (budget.expiredNow()) break
+            try {
+                best = searchRoot(pos, moves, d, botIndex, budget) ?: best
+            } catch (_: CheckersSearchAborted) {
+                break
+            }
+        }
+        return best
     }
 
     companion object {
@@ -1242,5 +1277,32 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
          * the source engine's depth 6, since phones can afford to.
          */
         private const val HARD_SEARCH_DEPTH = 9
+
+        /** Wall-clock cap for one HARD bot turn (all hops of a capture chain share it). */
+        const val HARD_TIME_BUDGET_MS = 1500L
     }
+}
+
+private val checkersTimeOrigin = TimeSource.Monotonic.markNow()
+
+fun checkersMonotonicMs(): Long = checkersTimeOrigin.elapsedNow().inWholeMilliseconds
+
+private class CheckersSearchAborted : RuntimeException()
+
+/** Deadline + cancellation budget for the HARD search; the clock is injectable for tests. */
+private class CheckersSearchBudget(
+    private val deadlineMs: Long,
+    private val nowMs: () -> Long,
+    private val isCancelled: () -> Boolean
+) {
+    var enforce = true
+    private var nodes = 0
+
+    fun checkpoint() {
+        if (!enforce) return
+        if (++nodes and 127 != 0) return
+        if (isCancelled() || nowMs() >= deadlineMs) throw CheckersSearchAborted()
+    }
+
+    fun expiredNow(): Boolean = enforce && (isCancelled() || nowMs() >= deadlineMs)
 }

@@ -193,7 +193,8 @@ internal class ShogiHighlights(
     val hintFrom: Int = -1,
     val hintTo: Int = -1,
     val checkSquare: Int = -1,
-    val pulse: Float = 1f
+    /** Read only inside draw lambdas so the idle pulse never recomposes the screen. */
+    val pulse: androidx.compose.runtime.State<Float> = androidx.compose.runtime.mutableStateOf(1f)
 )
 
 /**
@@ -301,11 +302,12 @@ internal fun ShogiBoardView(
 
         // legal moves, selection, check, hint
         Canvas(Modifier.size(total)) {
+            val pulseValue = highlights.pulse.value
             fun center(sq: Int) = xy(sq) + Offset(cellPx / 2f, cellPx / 2f)
             if (highlights.checkSquare >= 0) {
                 val o = xy(highlights.checkSquare)
                 drawRect(palette.check, o + Offset(cellPx * 0.03f, cellPx * 0.03f), Size(cellPx * 0.94f, cellPx * 0.94f), style = Stroke(cellPx * 0.07f))
-                drawCircle(palette.check.copy(alpha = 0.18f * highlights.pulse), cellPx * 0.5f, center(highlights.checkSquare))
+                drawCircle(palette.check.copy(alpha = 0.18f * pulseValue), cellPx * 0.5f, center(highlights.checkSquare))
             }
             for (sq in highlights.targets) {
                 if (sq in highlights.captureTargets) {
@@ -313,13 +315,13 @@ internal fun ShogiBoardView(
                     val L = cellPx * 0.28f
                     val m = cellPx * 0.06f
                     val sw = cellPx * 0.07f
-                    val c = palette.legal.copy(alpha = highlights.pulse)
+                    val c = palette.legal.copy(alpha = pulseValue)
                     drawLine(c, o + Offset(m, m), o + Offset(m + L, m), sw); drawLine(c, o + Offset(m, m), o + Offset(m, m + L), sw)
                     drawLine(c, o + Offset(cellPx - m, m), o + Offset(cellPx - m - L, m), sw); drawLine(c, o + Offset(cellPx - m, m), o + Offset(cellPx - m, m + L), sw)
                     drawLine(c, o + Offset(m, cellPx - m), o + Offset(m + L, cellPx - m), sw); drawLine(c, o + Offset(m, cellPx - m), o + Offset(m, cellPx - m - L), sw)
                     drawLine(c, o + Offset(cellPx - m, cellPx - m), o + Offset(cellPx - m - L, cellPx - m), sw); drawLine(c, o + Offset(cellPx - m, cellPx - m), o + Offset(cellPx - m, cellPx - m - L), sw)
                 } else {
-                    drawCircle(palette.legal.copy(alpha = 0.55f + 0.45f * highlights.pulse), cellPx * 0.13f, center(sq))
+                    drawCircle(palette.legal.copy(alpha = 0.55f + 0.45f * pulseValue), cellPx * 0.13f, center(sq))
                 }
             }
             if (highlights.selected >= 0) {

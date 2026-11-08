@@ -197,10 +197,11 @@ fun ShootingGalleryScreen(
     var seenSeed by remember { mutableStateOf(0L) }
     var callout by remember { mutableStateOf<String?>(null) }
 
-    val seconds = if (reduced) 0f else rememberInfiniteTransition(label = "gallery-clock").animateFloat(
+    // A State, read only inside RangeSurface's draw lambda: the HUD must not recompose every frame.
+    val seconds: State<Float> = if (reduced) remember { mutableStateOf(0f) } else rememberInfiniteTransition(label = "gallery-clock").animateFloat(
         initialValue = 0f, targetValue = 600f,
         animationSpec = infiniteRepeatable(tween(600_000, easing = LinearEasing), RepeatMode.Restart), label = "gallery-seconds"
-    ).value
+    )
 
     fun nameOfRaw(s: GalleryState, i: Int) = androidContext.seatLabel(s.players.getOrNull(i)?.displayName ?: "")
 
@@ -682,7 +683,7 @@ private fun FitRatio(ratio: Float, modifier: Modifier, content: @Composable BoxS
 
 @Composable
 private fun RangeSurface(
-    side: SglSide?, clock: State<Int>, phase: GPhase, suggestId: Int, seconds: Float, colorblind: Boolean, reduced: Boolean, dark: Boolean,
+    side: SglSide?, clock: State<Int>, phase: GPhase, suggestId: Int, seconds: State<Float>, colorblind: Boolean, reduced: Boolean, dark: Boolean,
     desc: String, burst: ParticleBurst, onTap: (Int, Int) -> Unit
 ) {
     val measurer = rememberTextMeasurer()
@@ -698,7 +699,8 @@ private fun RangeSurface(
             }
     ) {
         val sc = size.width / GalleryWorld.W
-        drawGalleryBooth(sc, seconds, reduced, dark)
+        val secondsValue = seconds.value
+        drawGalleryBooth(sc, secondsValue, reduced, dark)
         val sd = side
         if (sd != null && (phase == GPhase.RUNNING || phase == GPhase.REPLAY || phase == GPhase.COUNTDOWN)) {
             val t = clock.value
@@ -710,7 +712,7 @@ private fun RangeSurface(
                     val age = if (fx != null) t - fx.atMs else -1
                     val standing = tg.aliveAt(t) && !sd.run.isGone(tg.id)
                     if (!standing && !(age in 0..450)) continue
-                    drawGalleryTarget(sc, tg, t, if (age in 0..450) age else -1, colorblind, seconds, tg.id == suggestId, reduced)
+                    drawGalleryTarget(sc, tg, t, if (age in 0..450) age else -1, colorblind, secondsValue, tg.id == suggestId, reduced)
                 }
                 sd.marks.forEach { m -> drawGalleryMark(sc, m.x, m.y, t - m.atMs, m.hit) }
                 sd.hits.values.forEach { fx ->

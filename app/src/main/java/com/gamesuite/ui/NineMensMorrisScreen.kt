@@ -794,9 +794,10 @@ private fun MorrisBoardView(
             t.snapTo(1f)
         }
     }
-    val pulse = if (reduced) 0f else {
+    // A State, read only inside the Canvas draw lambdas below so the idle pulse does not recompose the board.
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(0f) } else {
         val transition = rememberInfiniteTransition(label = "morrisPulse")
-        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "morrisPulseValue").value
+        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "morrisPulseValue")
     }
 
     val lm = s.lastMove
@@ -874,7 +875,7 @@ private fun MorrisBoardView(
                     val c = center
                     val r = size.minDimension * 0.36f
                     if (owner != null && !hideStone && !isPendingFrom) {
-                        val breathe = if (flags.canMove && owner == s.currentPlayerIndex) 1f + 0.05f * pulse else 1f
+                        val breathe = if (flags.canMove && owner == s.currentPlayerIndex) 1f + 0.05f * pulse.value else 1f
                         drawStone(c, r * breathe, owner)
                     }
                     if (ghost != null) drawStone(c, r, ghost, alpha = 0.6f)
@@ -882,8 +883,8 @@ private fun MorrisBoardView(
                         drawCircle(palette.gold, r * 1.25f, c, style = Stroke(width = r * 0.18f))
                     }
                     if (flags.destination) {
-                        drawCircle(palette.accent.copy(alpha = 0.85f), r * (0.3f + 0.06f * pulse), c)
-                        drawCircle(palette.accent.copy(alpha = 0.45f), r * (0.62f + 0.1f * pulse), c, style = Stroke(width = r * 0.1f))
+                        drawCircle(palette.accent.copy(alpha = 0.85f), r * (0.3f + 0.06f * pulse.value), c)
+                        drawCircle(palette.accent.copy(alpha = 0.45f), r * (0.62f + 0.1f * pulse.value), c, style = Stroke(width = r * 0.1f))
                     }
                     if (flags.removable) {
                         drawCircle(palette.warn, r * 1.2f, c, style = Stroke(width = r * 0.2f))

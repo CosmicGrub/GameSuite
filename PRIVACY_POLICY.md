@@ -1,73 +1,131 @@
 # GameSuite Privacy Policy
 
-*Last updated: 2026*
+*Last updated: November 2026*
 
-GameSuite is a local Android game collection. This policy describes exactly
-what the app does and does not do with your data — written to match the
-actual code, not a generic template.
+GameSuite is an Android game collection. This policy describes what the app
+does with data, written to match the code in this repository rather than a
+generic template. It is a plain description of behaviour, not a statement of
+legal compliance with any particular law or store programme.
 
 ## What GameSuite stores on your device
 
-- **Settings** (theme, sound, haptics, text size, accessibility toggles,
-  default CPU difficulty, card size, your configured online relay address) —
-  stored locally via Android's DataStore, never transmitted anywhere.
-- **Game stats** (matches played, wins, losses, draws per game) and
-  **Sliding Puzzle's best-move/best-time records** — stored locally the same
-  way. Nothing is uploaded to any server, and there is no account to sign
-  into that would let this sync across devices.
+All of the following lives in the app's private storage on your device, via
+Android's DataStore and similar local storage:
 
-None of this is encrypted at rest beyond whatever protection Android's own
-app-sandboxed storage provides, and none of it is backed up off-device
-unless you use Android's own system backup feature (`android:allowBackup`),
-which restores it only to a device signed into the same Google account.
+- **Club profile**: the display name you choose, your avatar (a short
+  identifier string for a built-in avatar), your favourite game and which
+  in-app hints you have already seen.
+- **Settings**: theme, sound and music, haptics, text size, accessibility
+  toggles, default CPU difficulty, card size, the online relay address you
+  typed (if any) and the folder you picked for your own music (stored as an
+  Android folder-access URI; the app reads audio from it on your device only).
+- **Game stats and progress**: matches played, wins, losses, draws, streaks,
+  achievements and per-game personal bests, saved games, and per-game
+  preferences.
+
+None of this is uploaded to a GameSuite server, and there is no account or
+cross-device sync. It is not encrypted by the app beyond Android's normal
+app-sandbox protection. The app sets `android:allowBackup="false"`, so this
+data is not included in Android's automatic cloud backup or device-to-device
+transfer.
+
+### Deleting your data
+
+- In Settings, the reset option restores every setting to its default.
+- Android Settings, Apps, GameSuite, Storage, then **Clear storage** (or
+  uninstalling the app) deletes everything the app stores locally, including
+  the Club profile and all stats.
+- Data held only for the duration of an online room (see below) disappears
+  when the room ends or the relay restarts; there is nothing stored for you on
+  the relay to delete afterwards.
 
 ## What GameSuite does NOT do
 
-- **No analytics or crash-reporting SDK** of any kind is included in the
-  app — nothing about how you use GameSuite is collected, on-device or off.
-- **No advertising SDK** — GameSuite shows no ads.
-- **No account or sign-in** — there is no username/password/email
-  collection anywhere in the app.
-- **No location data** — Nearby Connections' Bluetooth/Wi-Fi permissions are
-  requested with `neverForLocation` where the platform allows it, and the
-  app never reads device location.
+- **No analytics or crash-reporting SDK** is included. Nothing about how you
+  use the app is collected.
+- **No advertising SDK**: the app shows no ads.
+- **No accounts**: there is no username, password or email collection.
+- **No location use**: the app does not read device location. Some Android
+  versions require a location or "nearby devices" permission for Bluetooth and
+  Wi-Fi discovery; where the platform allows, these are declared with
+  `neverForLocation`.
+- **No microphone, camera or contacts access.**
+- **No free-text chat.** The only text other players can see from you is your
+  display name.
 
-## Multiplayer data — what's actually exchanged, and with whom
+## Permissions
 
-GameSuite has three multiplayer modes, each with a different (and
-increasingly wider) data footprint:
+- **Internet**: used only to reach the optional online relay you configure.
+- **Bluetooth, Wi-Fi state and Nearby Wi-Fi devices (and, on some older
+  Android versions, location)**: used only by Nearby multiplayer to find and
+  connect to devices in the same room.
+- **Vibrate**: haptic feedback.
 
-1. **Pass-and-play** (one device, players take turns): no network activity
-   at all.
-2. **Nearby (ad-hoc local multiplayer)**: uses Android's Nearby Connections
-   API over Bluetooth/Wi-Fi Direct to talk directly to another device in
-   physical range. Nothing leaves the two (or more) devices in the room —
-   there is no internet involved and no third-party server sees any of it.
-3. **Online multiplayer**: connects over the internet (WebSocket) to a relay
-   server — see [server/README.md](server/README.md). This is **not** a
-   GameSuite-operated cloud service: it's small, open-source relay code
-   (`server/index.js`) that you or whoever's hosting your match runs
-   yourselves, typically on a free-tier host or a home server. The relay is
-   deliberately a "dumb" pipe: it never inspects, logs, or stores the
-   contents of game moves — it only ever sees a room code, the display name
-   and player ID you typed in for that match, and however many bytes your
-   device sends as an opaque payload, all of which exist only in that
-   server process's memory for the life of the room and are discarded when
-   the room empties or the relay restarts. If you or someone else deploys
-   the relay to a host that keeps its own request/connection logs (most
-   hosting providers do, at the infrastructure level), that's a property of
-   wherever it's deployed, not of the relay code itself — see that host's
-   own privacy practices.
+## Multiplayer: what is exchanged, and with whom
 
-Whoever displayName you type into an online or Nearby match is visible to
-the other players in that same room/match — that's the only "identity" any
-multiplayer mode in GameSuite has.
+1. **Pass-and-play** (one device): no network activity.
+2. **Nearby (local multiplayer)** uses Google's Nearby Connections API from
+   **Google Play Services** (`play-services-nearby`) over Bluetooth and Wi-Fi
+   to connect to devices in physical range. Game data goes directly between
+   the devices, not through the internet or any server of ours. Google Play
+   Services is Google software and handles device radios and identifiers under
+   Google's own privacy policy; GameSuite has no control over that. A hosting
+   device broadcasts a neutral label ("GameSuite host" plus a short random
+   code), not your name, and accepts connections only while its lobby is open
+   and a seat is free. Once guests are in the lobby, the display names players
+   choose are shared among the people in that match.
+3. **Online multiplayer** connects over WebSocket to a relay server
+   (`server/index.js`, see [server/README.md](server/README.md)). The relay is
+   open-source code that whoever sets it up runs; the app has no built-in
+   address and online play stays off until you type one into Settings. The
+   relay address you enter is the server your data goes to, so use one you
+   trust.
+
+### What the relay receives and keeps
+
+To host, join, find a quick match or spectate, your device sends the relay:
+a room code or matchmaking request, a player ID, your display name (shortened
+and cleaned by the relay), your avatar identifier, and the game messages for
+the match as opaque payloads. In matchmaking, a ticket with your name and
+avatar is held in memory while you wait in the queue. The relay forwards
+these to the other players in the same room (and spectators, if any). It
+supports a fixed list of preset quick-chat phrase and emote IDs (numbers, no
+free text); the Android app does not currently expose this feature.
+
+The relay keeps this only in memory for the life of the room or queue entry;
+it has no database. It does not write game moves, display names or avatars to
+its log.
+
+**IP addresses.** The relay sees the IP address of each connection. It holds
+the address in memory to enforce rate limits (join attempts, rooms per
+address, queue entries) and to limit how many rooms one address can host. When
+it writes a log line that refers to a client, it prints only the first 6 hex
+characters of a SHA-256 hash of the IP combined with a random salt generated
+each time the process starts, so those log entries cannot be matched across
+restarts. Log lines also contain room codes and player IDs, timestamps and
+event types (for example, "room created", "player joined", "kicked"). If the
+relay runs behind a proxy it may be configured to read the client address from
+the proxy's forwarding header. Whoever hosts the relay also controls the
+infrastructure, and hosting providers typically keep their own connection and
+request logs, which are outside the relay code and covered by that provider's
+policies.
+
+Anything you type as a display name is visible to the other players in the
+same Nearby or online match and to spectators of an online room.
+
+## Children
+
+GameSuite has no accounts, ads or analytics and no free-text chat. It does not
+currently include a parental gate or a setting that turns off Online and
+Nearby play. Online play stays disabled until a relay address is entered in
+Settings, and a parent or guardian who does not want a child to play with
+strangers should not configure one.
 
 ## Changes to this policy
 
-If GameSuite ever adds a feature that changes any of the above (an account
-system, analytics, ads, a hosted online service), this document will be
-updated to say so plainly before that feature ships.
+If GameSuite adds a feature that changes any of the above (accounts,
+analytics, ads, a hosted service, chat), this document will be updated before
+that feature ships.
 
 ## Questions
 
