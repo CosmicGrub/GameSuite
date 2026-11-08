@@ -157,7 +157,7 @@ class MatchingGame(
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
-    private val lock = Any()
+    private val lock: Any = this // one monitor for @Synchronized entry points and network callbacks alike
     private val history = SnapshotHistory()
 
     // ---- truth (host / offline) ----
@@ -191,7 +191,7 @@ class MatchingGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** True for one human alone: the mode with moves, time, undo and personal bests. */
@@ -200,6 +200,7 @@ class MatchingGame(
     override fun init(context: GameContext) {
         synchronized(lock) {
             this.context = context
+            botSeats.clear()
             matchOver.value = false
             opponentLeft.value = false
             sessionWins.value = context.players.associate { it.playerId to 0 }
@@ -209,7 +210,7 @@ class MatchingGame(
             state.value = null
             boardOver = false
             nextStarter = if (!isNetworked && firstOpenerIndex in context.players.indices) firstOpenerIndex else 0
-            stateVersion = 0
+            stateVersion = com.gamesuite.core.SyncEpoch.base()
             lastAppliedRemoteVersion = 0
             if (isNetworked) registerNetworkListeners()
         }
@@ -361,7 +362,7 @@ class MatchingGame(
     /** Every computer seat sees the card and keeps it with its own chance. */
     private fun observe(index: Int) {
         for (seat in context.players.indices) {
-            if (!context.players[seat].isBot) continue
+            if (!isBotSeat(seat)) continue
             if (random.nextDouble() < MatchingRules.botProfile(difficulty).rememberChance) memory[seat][index] = faces[index]
         }
     }
@@ -525,7 +526,7 @@ class MatchingGame(
     // ---- state ---------------------------------------------------------------------------
 
     private fun buildState(): MatchingState = MatchingState(
-        players = context.players.map { MatchingPlayerState(it.playerId, it.displayName, it.isBot) },
+        players = context.players.mapIndexed { i, it -> MatchingPlayerState(it.playerId, it.displayName, isBotSeat(i)) },
         cardCount = currentCount,
         faces = faces.toList(),
         status = status.toList(),
@@ -667,16 +668,32 @@ class MatchingGame(
         broadcastState()
     }
 
-    // A leaving seat other than the host ends the shared table for a guest; the host keeps playing the rest.
+    /** Seats of guests who left mid-match; the host plays them as computers so the table never freezes. */
+    private val botSeats = HashSet<Int>()
+
+    private fun isBotSeat(seat: Int): Boolean = context.players.getOrNull(seat)?.isBot == true || seat in botSeats
+
+    // The host's leaving ends the shared table for a guest. A guest leaving is covered by the host: that seat
+    // becomes a computer (the screen's bot loop flips for it), so the other players are never left waiting on it.
     private fun handlePlayerLeft(playerId: String) {
         if (!isNetworked) return
         val seat = context.players.indexOfFirst { it.playerId == playerId }
         if (seat < 0 || seat == context.localPlayerIndex) return
-        if (isHost || seat == 0) opponentLeft.value = true
+        if (seat == 0) { opponentLeft.value = true; return }
+        if (!isHost || context.players[seat].isBot) return
+        botSeats += seat
+        if (state.value != null) commit() // players[seat].isBot is now true in the state, and guests are told
     }
 
     private fun handlePlayerJoined(playerId: String) {
-        if (!isNetworked || !opponentLeft.value || context.players.none { it.playerId == playerId }) return
+        if (!isNetworked || context.players.none { it.playerId == playerId }) return
+        val seat = context.players.indexOfFirst { it.playerId == playerId }
+        if (isHost && seat in botSeats) { // the guest came back: hand the seat back to them
+            botSeats -= seat
+            if (state.value != null) commit()
+            return
+        }
+        if (!opponentLeft.value) return
         opponentLeft.value = false
         if (isHost) resendState()
     }
@@ -703,7 +720,7 @@ class MatchingGame(
             .toByteArray(Charsets.UTF_8)
         for (seat in 1 until context.players.size) {
             val p = context.players[seat]
-            if (p.isBot) continue
+            if (isBotSeat(seat)) continue // a computer seat, or a guest who left and was replaced by one
             context.transport.send(fromPlayerId = hostId, toPlayerId = p.playerId, payload = payload)
         }
     }
@@ -723,7 +740,7 @@ class MatchingGame(
         }
         synchronized(lock) {
             val hostId = context.players.getOrNull(0)?.playerId
-            val senderSeat = context.players.indexOfFirst { it.playerId == fromPlayerId && !it.isBot }
+            val senderSeat = context.players.withIndex().firstOrNull { (i, p) -> p.playerId == fromPlayerId && !isBotSeat(i) }?.index ?: -1
             when (message) {
                 is MatchingNetMessage.StateSync ->
                     if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.state)

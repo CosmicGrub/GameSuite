@@ -54,9 +54,15 @@ class ClubProfileStore(private val context: Context) {
 
     /** Replace everything at once (the AvatarPicker's Save). */
     suspend fun save(profile: ClubProfile, known: Set<String>, playerNames: PlayerNameStore? = null) {
-        setDisplayName(profile.displayName, playerNames)
-        setAvatar(profile.avatar)
-        setFavorite(profile.favoriteGameId, known)
+        // One atomic edit: three separate ones left a half-saved profile if the process died between them.
+        val clean = cleanPlayerName(profile.displayName, "")
+        val favorite = profile.favoriteGameId?.takeIf { it in known }
+        context.clubProfileDataStore.edit { prefs ->
+            prefs[Keys.NAME] = clean
+            prefs[Keys.AVATAR] = profile.avatar.encode()
+            if (favorite == null) prefs.remove(Keys.FAVORITE) else prefs[Keys.FAVORITE] = favorite
+        }
+        if (clean.isNotEmpty()) playerNames?.hostName = clean
     }
 
     internal companion object {

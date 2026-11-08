@@ -60,7 +60,7 @@ class SevensGame(private val random: Random = Random.Default) : GameModule, Resu
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private val history = SnapshotHistory()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private val spectatorIds = LinkedHashSet<String>()
     private var roundsFinished = 0
@@ -81,7 +81,7 @@ class SevensGame(private val random: Random = Random.Default) : GameModule, Resu
         hostLeft.value = false
         clearHint()
         history.clear()
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         roundsFinished = 0
         spectatorIds.clear()

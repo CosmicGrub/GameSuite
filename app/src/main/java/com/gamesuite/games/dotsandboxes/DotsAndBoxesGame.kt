@@ -220,7 +220,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     /** Set when the other seat's transport reported a departure; input is frozen and the UI offers the way out. */
     val opponentLeft = mutableStateOf(false)
 
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var listenersOn: MultiplayerTransport? = null
 
@@ -293,7 +293,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         if (!isNetworkedMode) return
         val message = try {
-            Json.decodeFromString<DotsAndBoxesNetMessage>(String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString<DotsAndBoxesNetMessage>(String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return // malformed or foreign payload
         }

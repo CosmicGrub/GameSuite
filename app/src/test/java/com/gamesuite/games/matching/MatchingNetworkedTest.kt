@@ -163,12 +163,14 @@ class MatchingNetworkedTest {
         assertTrue(t.nodes[1].game.opponentLeft.value)
         t.nodes[1].transport.fireJoined("h")
         assertFalse(t.nodes[1].game.opponentLeft.value)
+        // a guest leaving no longer freezes the host's table: the seat becomes a computer, the host keeps playing
         t.host.transport.fireLeft("g1")
-        assertTrue(t.host.game.opponentLeft.value)
-        assertEquals(MatchingReject.NOT_YOUR_TURN, t.host.game.flipCard(0))
-        val n = t.host.transport.sent.size
-        t.host.transport.fireJoined("g1")
         assertFalse(t.host.game.opponentLeft.value)
+        assertTrue(t.host.game.state.value!!.players[1].isBot)
+        assertEquals(MatchingReject.NONE, t.host.game.flipCard(0))
+        val n = t.host.transport.sent.size
+        t.host.transport.fireJoined("g1") // and the guest coming back gets the seat (and the state) again
+        assertFalse(t.host.game.state.value!!.players[1].isBot)
         assertTrue(t.host.transport.sent.size > n)
         t.nodes[2].transport.fireReconnected()
         assertNotNull(t.nodes[2].game.state.value)

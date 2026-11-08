@@ -70,7 +70,7 @@ class BilliardsGame(
     private var startedAtMs = 0L
     var finishedAtMs = 0L
         private set
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private val isNetworked: Boolean
@@ -89,7 +89,7 @@ class BilliardsGame(
         history.clear()
         sessionWins = IntArray(2)
         nextBreaker = firstBreaker.coerceIn(0, 1)
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         finishedAtMs = 0L
         if (isNetworked) registerNetworkListeners()
@@ -328,6 +328,7 @@ class BilliardsGame(
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (context.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC || context.activeMode == com.gamesuite.core.PlayMode.ONLINE) return false // a networked table is the host's, never a saved game
         return try {
             val snap = billiardsJson.decodeFromString(BilliardsSnap.serializer(), snapshot)
             val s = snap.state

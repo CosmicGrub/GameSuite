@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared texts of the same-screen party games Light-Trail Duel and Sumo Push. -->
+    <string name="tsp_style_solid">solid</string>
+    <string name="tsp_style_dashed">dashed</string>
+    <string name="tsp_style_dotted">dotted</string>
+    <string name="tsp_style_hollow">hollow</string>
+    <string name="tsp_seat_in">in</string>
+    <string name="tsp_seat_out">out</string>
+    <string name="tsp_chip_desc">%1$s, %2$s pattern, %3$d of %4$d round wins, %5$s</string>
+    <string name="tsp_paused_title">Paused</string>
+    <string name="tsp_paused_body">Everybody take your fingers off the screen. Press Resume when all are ready.</string>
+    <string name="tsp_resume">Resume</string>
+    <string name="tsp_pause">Pause</string>
+    <string name="tsp_go">Go!</string>
+    <string name="tsp_round_win">%1$s wins the round.</string>
+    <string name="tsp_round_win_you">You win the round.</string>
+    <string name="tsp_round_draw">Round drawn: nobody wins it. It will be played again.</string>
+    <string name="tsp_match_win">%1$s wins the match!</string>
+    <string name="tsp_match_win_you">You win the match!</string>
+    <string name="tsp_match_draw">The match is a draw.</string>
+    <string name="tsp_summary">Rounds won: %1$s</string>
+    <string name="tsp_hud_round">Round %1$d · first to %2$d wins</string>
+    <string name="tsp_leave_title">Leave the match?</string>
+    <string name="tsp_leave_body">Your match is saved. You can resume it from the game page.</string>
+    <string name="tsp_leave_body_session">This ends the session and records the matches played so far.</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gc_game_menu">Menú del juego</string>
+    <string name="gc_open_game_menu">Abrir el menú del juego</string>
+    <string name="gc_how_to_play">Cómo jugar</string>
+    <string name="gc_undo">Deshacer</string>
+    <string name="gc_hint">Pista</string>
+    <string name="gc_back_to_menu">Volver al menú</string>
+    <string name="gc_leave_title">¿Salir de esta partida?</string>
+    <string name="gc_leave_body">Esta partida sigue en curso. Si sales ahora, no contará como victoria ni como derrota.</string>
+    <string name="gc_progress_saved">Tu progreso está guardado: elige este juego en el menú para continuar.</string>
+    <string name="gc_leave">Salir</string>
+    <string name="gc_keep_playing">Seguir jugando</string>
+    <string name="gc_got_it">Entendido</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips of Tap Race and Tug of War; move into polish_strings.xml when GameTips is updated (GameTipsTest reads only that file) -->
+    <string name="tip_tap_race_1">Put a finger of each hand on your lane\'s pad and tap as fast as you can once the countdown ends.</string>
+    <string name="tip_tap_race_2">In Rhythm, tap only on the beat: early, late and extra taps cost you ground.</string>
+    <string name="tip_tap_race_3">In Mash and Brake, stop tapping the moment the light turns amber. A tap on red sets you back.</string>
+    <string name="tip_tug_of_war_1">Tap your pad to pull the marker toward your line. Every pull costs stamina, and mashing runs you dry.</string>
+    <string name="tip_tug_of_war_2">Hold your finger down to rest and charge up, then let go for a heave that pulls up to four times harder.</string>
+    <string name="tip_tug_of_war_3">Can\'t hold or tap fast? Turn on Relaxed pulling or Hold to pull in the setup.</string>
+</resources>

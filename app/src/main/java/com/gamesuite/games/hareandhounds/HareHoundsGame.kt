@@ -126,7 +126,7 @@ class HareAndHoundsGame : GameModule, ResumableGame, UndoableGame {
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     val opponentLeft = mutableStateOf(false)
@@ -160,7 +160,7 @@ class HareAndHoundsGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -488,7 +488,7 @@ class HareAndHoundsGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(HoundsNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(HoundsNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -526,6 +526,7 @@ class HareAndHoundsGame : GameModule, ResumableGame, UndoableGame {
         val lm = net.lastMove
         if (lm != null && (lm.from !in 0 until HoundsBoard.POINTS || lm.to !in 0 until HoundsBoard.POINTS)) return
         val pos = validPosition(net.cells, net.houndsSeat, net.currentPlayerIndex, net.houndMoves, net.ply, net.boardOver) ?: return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         state.value = stateFrom(
             pos, net.players.mapIndexed { i, p -> HoundsPlayerState(p.playerId, p.displayName, roster[i].isBot) },

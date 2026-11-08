@@ -47,6 +47,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -536,10 +537,11 @@ private fun CCBoardCanvas(
     theme: CCTheme, pitchDp: Float, reduced: Boolean, colorblind: Boolean,
     seatColorIndex: (Int) -> Int, description: String, onTap: (Int) -> Unit
 ) {
-    val pulse = if (reduced) 0.6f else rememberInfiniteTransition(label = "cc-pulse").animateFloat(
+    // A State read only inside the draw lambda (below), so the pulse redraws the board without recomposing it.
+    val pulseState: androidx.compose.runtime.State<Float> = if (reduced) remember { androidx.compose.runtime.mutableStateOf(0.6f) } else rememberInfiniteTransition(label = "cc-pulse").animateFloat(
         initialValue = 0.35f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "cc-pulse-a"
-    ).value
+    )
     val tapPitch = remember { FloatArray(1) { 1f } }
     val glyph = if (colorblind) 0.95f else 0.62f
 
@@ -560,54 +562,56 @@ private fun CCBoardCanvas(
                     if (best >= 0 && bestD <= (0.66f * p) * (0.66f * p)) onTap(best)
                 }
             }
+            .drawWithCache {
+                val p = size.width / CC_COLS
+                val center = Offset(size.width / 2f, (7.5f + CC_MARGIN) * p)
+                fun tri(corners: List<Int>): Path {
+                    val path = Path()
+                    corners.forEachIndexed { i, k ->
+                        val t = pitchPos(CCBoard.tip(k), p)
+                        val v = Offset(center.x + (t.x - center.x) * 1.09f, center.y + (t.y - center.y) * 1.09f)
+                        if (i == 0) path.moveTo(v.x, v.y) else path.lineTo(v.x, v.y)
+                    }
+                    path.close()
+                    return path
+                }
+                val t1 = tri(listOf(0, 2, 4))
+                val t2 = tri(listOf(1, 3, 5))
+                val round = Stroke(p * 1.0f, join = StrokeJoin.Round, cap = StrokeCap.Round)
+                val edge = Stroke(p * 1.22f, join = StrokeJoin.Round, cap = StrokeCap.Round)
+                val wood = Brush.linearGradient(listOf(theme.woodA, theme.woodB), Offset(0f, 0f), Offset(size.width, size.height))
+                val glow = Brush.radialGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent), center, p * 7f)
+                val holeBrushes = Array(CCBoard.CELLS) { c ->
+                    val o = pitchPos(c, p)
+                    Brush.radialGradient(listOf(theme.holeLight, theme.holeDark), Offset(o.x, o.y - p * 0.1f), p * 0.4f)
+                }
+                val tint = HashMap<Int, Pair<Color, Boolean>>() // corner -> (colour, isGoal)
+                s.players.indices.forEach { i ->
+                    tint[s.players[i].homeCorner] = ChineseSeatColors[seatColorIndex(i) % 6] to false
+                }
+                onDrawBehind {
+                    drawPath(t1, theme.woodEdge, style = edge); drawPath(t2, theme.woodEdge, style = edge)
+                    drawPath(t1, wood); drawPath(t2, wood)
+                    drawPath(t1, wood, style = round); drawPath(t2, wood, style = round)
+                    drawCircle(glow, p * 7f, center)
+                    // --- holes, with the seats' home and goal corners tinted ---
+                    for (c in 0 until CCBoard.CELLS) {
+                        val o = pitchPos(c, p)
+                        drawCircle(Color.White.copy(alpha = 0.16f), p * 0.385f, Offset(o.x, o.y + p * 0.05f))
+                        drawCircle(holeBrushes[c], p * 0.36f, o)
+                        val corner = CCBoard.cornerOf(c)
+                        val t = tint[corner]
+                        if (t != null && CCBoard.depthIn(c, corner) < CCBoard.rowsFor(s.pieces)) {
+                            drawCircle(t.first.copy(alpha = 0.55f), p * 0.33f, o, style = Stroke(p * 0.07f))
+                        }
+                    }
+                }
+            }
     ) {
         val p = size.width / CC_COLS
         tapPitch[0] = p
-        val center = Offset(size.width / 2f, (7.5f + CC_MARGIN) * p)
+        val pulse = pulseState.value
 
-        // --- the wooden star ---
-        fun tri(corners: List<Int>): Path {
-            val path = Path()
-            corners.forEachIndexed { i, k ->
-                val t = pitchPos(CCBoard.tip(k), p)
-                val v = Offset(center.x + (t.x - center.x) * 1.09f, center.y + (t.y - center.y) * 1.09f)
-                if (i == 0) path.moveTo(v.x, v.y) else path.lineTo(v.x, v.y)
-            }
-            path.close()
-            return path
-        }
-        val t1 = tri(listOf(0, 2, 4))
-        val t2 = tri(listOf(1, 3, 5))
-        val round = Stroke(p * 1.0f, join = StrokeJoin.Round, cap = StrokeCap.Round)
-        val edge = Stroke(p * 1.22f, join = StrokeJoin.Round, cap = StrokeCap.Round)
-        drawPath(t1, theme.woodEdge, style = edge); drawPath(t2, theme.woodEdge, style = edge)
-        val wood = Brush.linearGradient(listOf(theme.woodA, theme.woodB), Offset(0f, 0f), Offset(size.width, size.height))
-        drawPath(t1, wood); drawPath(t2, wood)
-        drawPath(t1, wood, style = round); drawPath(t2, wood, style = round)
-        drawCircle(
-            Brush.radialGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent), center, p * 7f),
-            p * 7f, center
-        )
-
-        // --- holes, with the seats' home and goal corners tinted ---
-        val tint = HashMap<Int, Pair<Color, Boolean>>() // corner -> (colour, isGoal)
-        s.players.indices.forEach { i ->
-            val col = ChineseSeatColors[seatColorIndex(i) % 6]
-            tint[s.players[i].homeCorner] = col to false
-        }
-        for (c in 0 until CCBoard.CELLS) {
-            val o = pitchPos(c, p)
-            drawCircle(Color.White.copy(alpha = 0.16f), p * 0.385f, Offset(o.x, o.y + p * 0.05f))
-            drawCircle(
-                Brush.radialGradient(listOf(theme.holeLight, theme.holeDark), Offset(o.x, o.y - p * 0.1f), p * 0.4f),
-                p * 0.36f, o
-            )
-            val corner = CCBoard.cornerOf(c)
-            val t = tint[corner]
-            if (t != null && CCBoard.depthIn(c, corner) < CCBoard.rowsFor(s.pieces)) {
-                drawCircle(t.first.copy(alpha = 0.55f), p * 0.33f, o, style = Stroke(p * 0.07f))
-            }
-        }
         // goal-corner glyph in the tip hole, so a goal is told apart by shape as well as colour
         s.players.indices.forEach { i ->
             val goalTip = CCBoard.tip(CCBoard.opposite(s.players[i].homeCorner))

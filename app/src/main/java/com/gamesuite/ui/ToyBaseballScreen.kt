@@ -375,6 +375,24 @@ fun ToyBaseballScreen(
                 ClStatusLine(status, colors.text, Modifier.fillMaxWidth().padding(top = 2.dp), emphasized = true)
                 ClWhyLine(whyText ?: hintText, colors.text, colors.card)
             }
+            val pickerActive = !s.over && actor >= 0 && actorIsHuman && (hotSeat || actor == viewSeat) && animDone && !opponentLeft &&
+                !(hotSeat && revealed != actor)
+            val doThrow: () -> Unit = {
+                val seatNow = actor
+                if (pRow < 0) { game.pitch(seatNow, pType, -1, -1) } else {
+                    val res = game.pitch(seatNow, pType, pRow, pCol)
+                    if (res == BaseballReject.NONE) revealed = -1
+                }
+            }
+            val doSwing: () -> Unit = { if (game.swing(actor, BaseballSwing(false, sRow, sCol, sTiming, sPower)) == BaseballReject.NONE) revealed = -1 }
+            val doTake: () -> Unit = { if (game.swing(actor, BaseballSwing.TAKE) == BaseballReject.NONE) revealed = -1 }
+            // Throw / Swing / Take are pinned under the scrolling picker so they never sink below the fold at large text or in landscape.
+            val pinnedActions: @Composable () -> Unit = {
+                if (pickerActive) {
+                    Spacer(Modifier.height(6.dp))
+                    if (phase == BaseballPhase.PITCH) PitchActionBar(pRow, doThrow) else SwingActionBar(colors, doSwing, doTake)
+                }
+            }
             val panel: @Composable () -> Unit = {
                 if (s.over) {
                     val winnerSeat = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
@@ -398,21 +416,12 @@ fun ToyBaseballScreen(
                         PitchPicker(
                             colors = colors, type = pType, row = pRow, col = pCol, hint = hint,
                             onType = { pType = it }, onCell = { r, c -> pRow = r; pCol = c },
-                            onThrow = {
-                                val seatNow = mine
-                                if (pRow < 0) { game.pitch(seatNow, pType, -1, -1) } else {
-                                    val res = game.pitch(seatNow, pType, pRow, pCol)
-                                    if (res == BaseballReject.NONE) revealed = -1
-                                }
-                            },
                             history = s.history, pitchedBy = s.pitcherSeat
                         )
                     } else {
                         SwingPicker(
                             colors = colors, timing = sTiming, row = sRow, col = sCol, power = sPower, hint = hint,
                             onTiming = { sTiming = it }, onCell = { r, c -> sRow = r; sCol = c }, onPower = { sPower = it },
-                            onSwing = { if (game.swing(mine, BaseballSwing(false, sRow, sCol, sTiming, sPower)) == BaseballReject.NONE) revealed = -1 },
-                            onTake = { if (game.swing(mine, BaseballSwing.TAKE) == BaseballReject.NONE) revealed = -1 },
                             history = s.history, pitchedBy = s.pitcherSeat
                         )
                     }
@@ -428,14 +437,20 @@ fun ToyBaseballScreen(
             if (landscape) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState())) { header(); fieldContent() }
-                    Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState())) { panel() }
+                    Column(Modifier.weight(1f).fillMaxSize()) {
+                        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) { panel() }
+                        pinnedActions()
+                    }
                 }
             } else {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    header()
-                    fieldContent()
-                    Spacer(Modifier.height(8.dp))
-                    panel()
+                Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        header()
+                        fieldContent()
+                        Spacer(Modifier.height(8.dp))
+                        panel()
+                    }
+                    pinnedActions()
                 }
             }
         }
@@ -698,7 +713,7 @@ private fun CellGrid(
 @Composable
 private fun PitchPicker(
     colors: BbColors, type: PitchType, row: Int, col: Int, hint: com.gamesuite.games.toybaseball.BaseballHint?,
-    onType: (PitchType) -> Unit, onCell: (Int, Int) -> Unit, onThrow: () -> Unit, history: List<PitchRecord>, pitchedBy: Int
+    onType: (PitchType) -> Unit, onCell: (Int, Int) -> Unit, history: List<PitchRecord>, pitchedBy: Int
 ) {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -717,16 +732,31 @@ private fun PitchPicker(
             },
             onCell = onCell
         )
-        Button(onClick = onThrow, enabled = row >= 0, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-            Text(if (row >= 0) stringResource(R.string.tbb_throw) else stringResource(R.string.tbb_pick_spot_first))
-        }
+    }
+}
+
+@Composable
+private fun PitchActionBar(row: Int, onThrow: () -> Unit) {
+    Button(onClick = onThrow, enabled = row >= 0, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+        Text(if (row >= 0) stringResource(R.string.tbb_throw) else stringResource(R.string.tbb_pick_spot_first))
+    }
+}
+
+@Composable
+private fun SwingActionBar(colors: BbColors, onSwing: () -> Unit, onTake: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onSwing, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text(stringResource(R.string.tbb_swing)) }
+        OutlinedButton(
+            onClick = onTake, colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.text),
+            modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+        ) { Text(stringResource(R.string.tbb_take)) }
     }
 }
 
 @Composable
 private fun SwingPicker(
     colors: BbColors, timing: PitchType, row: Int, col: Int, power: Boolean, hint: com.gamesuite.games.toybaseball.BaseballHint?,
-    onTiming: (PitchType) -> Unit, onCell: (Int, Int) -> Unit, onPower: (Boolean) -> Unit, onSwing: () -> Unit, onTake: () -> Unit,
+    onTiming: (PitchType) -> Unit, onCell: (Int, Int) -> Unit, onPower: (Boolean) -> Unit,
     history: List<PitchRecord>, pitchedBy: Int
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -749,13 +779,6 @@ private fun SwingPicker(
             }
         }
         Text(stringResource(if (power) R.string.tbb_power_help else R.string.tbb_contact_help), color = colors.text, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = onSwing, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text(stringResource(R.string.tbb_swing)) }
-            OutlinedButton(
-                onClick = onTake, colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.text),
-                modifier = Modifier.weight(1f).heightIn(min = 56.dp)
-            ) { Text(stringResource(R.string.tbb_take)) }
-        }
         // What the pitcher has thrown so far: the batter's reading material.
         val recent = history.filter { it.batterSeat != pitchedBy || true }.takeLast(6)
         if (recent.isNotEmpty()) {

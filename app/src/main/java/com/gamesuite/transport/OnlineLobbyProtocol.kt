@@ -43,7 +43,53 @@ sealed class OnlineLobbyMessage {
      */
     @Serializable
     data class Hello(val spectator: Boolean = false) : OnlineLobbyMessage()
+
+    /**
+     * Guest -> host (addressed): this guest is ready to start (or no longer). Only believed from a SEATED guest's
+     * relay-stamped id, never from anything inside the payload; the host decides what readiness means (see
+     * [com.gamesuite.core.OnlineHostLobbyState]). A host that predates this simply ignores it.
+     */
+    @Serializable
+    data class Ready(val ready: Boolean) : OnlineLobbyMessage()
+
+    /**
+     * Host -> everyone (broadcast), whenever a seat changes: what the lobby table looks like, so every guest sees the
+     * same seat grid with avatars, computers and ready marks. A guest only believes it from the host
+     * ([isFromHost]) and shows [sanitized] text. Purely informational: it never decides who is seated (the
+     * [GameStart] roster does).
+     */
+    @Serializable
+    data class RosterUpdate(val seats: List<SeatView>) : OnlineLobbyMessage()
 }
+
+/** What a lobby seat holds. */
+@Serializable
+enum class SeatKind { HOST, HUMAN, CPU, EMPTY }
+
+/** One seat of the lobby table as the host reports it in [OnlineLobbyMessage.RosterUpdate]. */
+@Serializable
+data class SeatView(
+    val kind: SeatKind,
+    val playerId: String? = null,
+    val name: String = "",
+    val ready: Boolean = false,
+)
+
+/** [seats] made safe to show: a bounded count, control characters dropped, names capped, ids bounded. */
+fun OnlineLobbyMessage.RosterUpdate.sanitized(): List<SeatView> =
+    seats.take(MAX_LOBBY_SEATS).map {
+        it.copy(
+            playerId = it.playerId?.filterNot { c -> c.isISOControl() }?.take(64),
+            name = it.name.filterNot { c -> c.isISOControl() }.trim().take(40),
+        )
+    }
+
+/** The most seats any lobby table can show (the relay seats 8 per room). */
+const val MAX_LOBBY_SEATS = 16
+
+/** Whether a guest should act on this [OnlineLobbyMessage.RosterUpdate]: only the room's host describes the table. */
+fun OnlineLobbyMessage.RosterUpdate.isFromHost(fromPlayerId: String, hostPlayerId: String?): Boolean =
+    hostPlayerId != null && fromPlayerId == hostPlayerId
 
 /** The raw relay payload of an [OnlineLobbyMessage.Hello]. */
 fun onlineHelloPayload(spectator: Boolean): ByteArray {
@@ -99,8 +145,12 @@ class OnlineSeating(val seated: List<OnlinePlayer>, val overflow: List<OnlinePla
  * `limits.maxGuests` guests in join order are seated, anyone beyond that is overflow (sent a
  * [OnlineLobbyMessage.Rejected] and left out of the announced roster).
  */
-fun seatOnlineGuests(connected: List<OnlinePlayer>, limits: LobbySeatLimits): OnlineSeating =
-    OnlineSeating(connected.take(limits.maxGuests), connected.drop(limits.maxGuests))
+fun seatOnlineGuests(connected: List<OnlinePlayer>, limits: LobbySeatLimits): OnlineSeating {
+    // An id in the computer-seat namespace ("cpu-N") is never seated: it would collide with a computer seat's id and
+    // make every guest's roster fail the duplicate-id check. It is turned away like overflow.
+    val (impostors, candidates) = connected.partition { isCpuPlayerId(it.playerId) }
+    return OnlineSeating(candidates.take(limits.maxGuests), candidates.drop(limits.maxGuests) + impostors)
+}
 
 /**
  * Whether a guest should act on this [OnlineLobbyMessage.GameStart]: the relay stamped it as

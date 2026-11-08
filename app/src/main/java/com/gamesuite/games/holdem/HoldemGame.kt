@@ -78,7 +78,7 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
     val isSpectator: Boolean get() = isNetworked && context.localPlayerIndex < 0
 
     private val spectatorIds = LinkedHashSet<String>()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     // ---- lifecycle ----------------------------------------------------------------------------
@@ -90,7 +90,7 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
         history.clear()
         hint.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         spectatorIds.clear()
         if (isNetworked) registerNetworkListeners()

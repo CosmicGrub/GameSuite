@@ -226,7 +226,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     private val isNetworked: Boolean
         get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -238,7 +238,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintColumn.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) {
             // A guest renders only what the host sends; drop any board left over from an earlier game.
@@ -625,7 +625,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(ConnectFourNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(ConnectFourNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return // malformed or foreign payload
         }
@@ -670,6 +670,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             net.currentPlayerIndex in 0 until n &&
             (net.winningLine?.all { it in 0 until spec.cellCount } ?: true)
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         positionEpoch++
         state.value = ConnectFourState(

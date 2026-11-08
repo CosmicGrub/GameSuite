@@ -99,7 +99,7 @@ class WarGame(private val random: Random = Random.Default) : GameModule, Resumab
     private var piles: List<ArrayDeque<Card>> = emptyList()
     private var picks = IntArray(0)
     private var sessionWins = IntArray(0)
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private val isNetworked: Boolean
@@ -113,7 +113,7 @@ class WarGame(private val random: Random = Random.Default) : GameModule, Resumab
         matchOver.value = false
         hostLeft.value = false
         hintIndex.value = null
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         piles = emptyList()
         picks = IntArray(context.players.size) { -1 }
@@ -465,7 +465,7 @@ class WarGame(private val random: Random = Random.Default) : GameModule, Resumab
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(WarNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(WarNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return
         }

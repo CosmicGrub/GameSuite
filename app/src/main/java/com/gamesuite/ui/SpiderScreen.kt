@@ -204,6 +204,7 @@ fun SpiderScreen(
     var dealing by remember { mutableStateOf(true) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     fun newGame() {
+        if (dealing) return // a deal (possibly a long winnable search) is already running
         scope.launch {
             dealing = true
             game.newDeal(if (daily) java.time.LocalDate.now().toEpochDay() else null)

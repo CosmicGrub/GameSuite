@@ -105,6 +105,34 @@ import com.gamesuite.ui.G2048Screen
 import com.gamesuite.ui.SnakeScreen
 import com.gamesuite.ui.FlowLinesScreen
 import com.gamesuite.ui.MahjongScreen
+import com.gamesuite.games.taprace.TapRaceGame
+import com.gamesuite.ui.TapRaceScreen
+import com.gamesuite.games.tugofwar.TugOfWarGame
+import com.gamesuite.ui.TugOfWarScreen
+import com.gamesuite.games.reactionduel.ReactionDuelGame
+import com.gamesuite.ui.ReactionDuelScreen
+import com.gamesuite.games.whackamole.WhackAMoleGame
+import com.gamesuite.ui.WhackAMoleScreen
+import com.gamesuite.games.lighttrail.LightTrailGame
+import com.gamesuite.ui.LightTrailScreen
+import com.gamesuite.games.sumopush.SumoPushGame
+import com.gamesuite.ui.SumoPushScreen
+import com.gamesuite.games.partypack.PaddleDuelGame
+import com.gamesuite.ui.PaddleDuelScreen
+import com.gamesuite.games.partypack.RpsGame
+import com.gamesuite.ui.RpsShowdownScreen
+import com.gamesuite.games.slotcars.SlotCarsGame
+import com.gamesuite.ui.SlotCarsScreen
+import com.gamesuite.games.fishing.FishingGame
+import com.gamesuite.ui.FishingScreen
+import com.gamesuite.games.tankbattle.TankGame
+import com.gamesuite.ui.TankBattleScreen
+import com.gamesuite.games.shootinggallery.GalleryGame
+import com.gamesuite.ui.ShootingGalleryScreen
+import com.gamesuite.games.sixball.SixBallGame
+import com.gamesuite.ui.SixBallScreen
+import com.gamesuite.games.pigdice.PigGame
+import com.gamesuite.ui.PigScreen
 import com.gamesuite.games.darts.DartsGame
 import com.gamesuite.ui.DartsScreen
 import com.gamesuite.games.bowling.BowlingGame
@@ -1086,6 +1114,66 @@ class MainActivity : ComponentActivity() {
                         composable("toy-baseball") {
                             val g = rememberActiveModule(sessionManager, "toy-baseball") { ToyBaseballGame() }
                             ToyBaseballScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("slot-cars") {
+                            val g = rememberActiveModule(sessionManager, "slot-cars") { SlotCarsGame() }
+                            SlotCarsScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("fishing") {
+                            val g = rememberActiveModule(sessionManager, "fishing") { FishingGame() }
+                            FishingScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("tank-battle") {
+                            val g = rememberActiveModule(sessionManager, "tank-battle") { TankGame() }
+                            TankBattleScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("shooting-gallery") {
+                            val g = rememberActiveModule(sessionManager, "shooting-gallery") { GalleryGame() }
+                            ShootingGalleryScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("six-ball-puzzle") {
+                            val g = rememberActiveModule(sessionManager, "six-ball-puzzle") { SixBallGame() }
+                            SixBallScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("six-ball-puzzle-daily") {
+                            val g = rememberActiveModule(sessionManager, "six-ball-puzzle-daily") { SixBallGame() }
+                            SixBallScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch, dailyEpochDay = java.time.LocalDate.now().toEpochDay())
+                        }
+                        composable("pig-dice") {
+                            val g = rememberActiveModule(sessionManager, "pig-dice") { PigGame() }
+                            PigScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("tap-race") {
+                            val g = rememberActiveModule(sessionManager, "tap-race") { TapRaceGame() }
+                            TapRaceScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("tug-of-war") {
+                            val g = rememberActiveModule(sessionManager, "tug-of-war") { TugOfWarGame() }
+                            TugOfWarScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("reaction-duel") {
+                            val g = rememberActiveModule(sessionManager, "reaction-duel") { ReactionDuelGame() }
+                            ReactionDuelScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("whack-a-mole") {
+                            val g = rememberActiveModule(sessionManager, "whack-a-mole") { WhackAMoleGame() }
+                            WhackAMoleScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("light-trail") {
+                            val g = rememberActiveModule(sessionManager, "light-trail") { LightTrailGame() }
+                            LightTrailScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("sumo-push") {
+                            val g = rememberActiveModule(sessionManager, "sumo-push") { SumoPushGame() }
+                            SumoPushScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("paddle-duel") {
+                            val g = rememberActiveModule(sessionManager, "paddle-duel") { PaddleDuelGame() }
+                            PaddleDuelScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("rps-showdown") {
+                            val g = rememberActiveModule(sessionManager, "rps-showdown") { RpsGame() }
+                            RpsShowdownScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
                         }
                         composable("party-toolkit") {
                             val partyToolkitGame = rememberActiveModule(sessionManager, "party-toolkit") { PartyToolkitGame() }

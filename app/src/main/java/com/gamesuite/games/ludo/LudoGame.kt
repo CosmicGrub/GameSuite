@@ -121,7 +121,7 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     val hostLeft = mutableStateOf(false)
@@ -154,7 +154,7 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
         history.clear()
         hintToken.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         rolls.clear()
         if (isNetworked) registerNetworkListeners()
@@ -268,6 +268,11 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
         )
     }
 
+    /** The last move's progress values drive the screen's hop animation, so they must be real progress values
+     *  (-1 = in the yard ... FINISHED) and never run backwards; an unbounded range once meant a multi-billion-step loop. */
+    private fun eventRangeValid(from: Int, to: Int): Boolean =
+        from in LudoBoard.YARD..LudoBoard.FINISHED && to in LudoBoard.YARD..LudoBoard.FINISHED && to >= from
+
     private fun decodeSnapshot(text: String): LudoSnapshot? {
         return try {
             val snap = ludoSnapshotJson.decodeFromString(LudoSnapshot.serializer(), text)
@@ -287,6 +292,7 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
                 snap.event in LudoEvent.ALL &&
                 seatOk(snap.eventSeat) && (snap.eventToken == null || snap.eventToken in 0 until LudoBoard.TOKENS) &&
                 snap.captured >= 0 && snap.rollSerial >= 0 && snap.moveSerial >= 0 &&
+                eventRangeValid(snap.eventFrom, snap.eventTo) &&
                 snap.sessionWins.all { (id, w) -> w >= 0 && roster.any { it.playerId == id } } &&
                 (snap.winnerPlayerId == null || roster.any { it.playerId == snap.winnerPlayerId }) &&
                 snap.rollLog.all { it in 1..6 } &&
@@ -597,7 +603,7 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(LudoNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(LudoNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -637,8 +643,13 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
             (net.eventSeat == null || net.eventSeat in 0 until n) &&
             (net.eventToken == null || net.eventToken in 0 until LudoBoard.TOKENS) &&
             net.captured >= 0 && net.rollSerial >= 0 && net.moveSerial >= 0 &&
+            eventRangeValid(net.eventFrom, net.eventTo) &&
+            net.sessionWins.all { (id, w) -> w >= 0 && roster.any { it.playerId == id } } &&
             (net.winnerPlayerId == null || roster.any { it.playerId == net.winnerPlayerId }) &&
-            (!net.awaitingMove || (net.dice in 1..6 && !net.boardOver))
+            (net.boardOver == (net.winnerPlayerId != null)) &&
+            (!net.boardOver || (0 until n).any { LudoRules.hasWon(positions, it) }) &&
+            (!net.awaitingMove || (!net.boardOver && net.dice in 1..6 &&
+                LudoRules.legalTokens(positions, net.currentPlayerIndex, net.dice, net.needSix, net.exactFinish).isNotEmpty()))
         if (!valid) return
         lastAppliedRemoteVersion = version
         state.value = LudoState(

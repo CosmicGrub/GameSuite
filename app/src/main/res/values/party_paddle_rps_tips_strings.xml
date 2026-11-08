@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips of Paddle Duel and Rock-Paper-Showdown (the English literals are in PartyPaddleRpsHubSpecs.tips). -->
+    <string name="tip_paddle_duel_1">Slide a thumb along your edge and the paddle follows. Hit the ball with the paddle end to send it sideways.</string>
+    <string name="tip_paddle_duel_2">A moving paddle puts spin on the ball, and the ball speeds up every rally. Drift back to the middle between returns.</string>
+    <string name="tip_paddle_duel_3">Want a gentler game? Turn on the Relaxed assist, or use the arrow buttons or one switch.</string>
+    <string name="tip_rps_showdown_1">Tap a move to lock it in. Your neighbours only ever see a lock, never your pick. Tap Undo to change your mind.</string>
+    <string name="tip_rps_showdown_2">When everyone is locked in, a countdown runs and all moves flip face up together. Ties are played again.</string>
+    <string name="tip_rps_showdown_3">Against the computer, Hard learns your habits. Mix up your moves and do not repeat what just won.</string>
+</resources>

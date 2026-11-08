@@ -262,7 +262,7 @@ class TennisSim(val cfg: TennisConfig) {
             tx = tx.coerceIn(-TennisRules.HW - 3.0, TennisRules.HW + 3.0)
             val ox = s.px(p); val oy = s.py(p)
             val dx = tx - ox; val dy = ty - oy
-            val d = hypot(dx, dy)
+            val d = StrictMath.hypot(dx, dy)
             val stepLen = speed * TennisRules.DT
             val nx: Double; val ny: Double
             if (d <= stepLen || d < 1e-9) { nx = tx; ny = ty } else { nx = ox + dx / d * stepLen; ny = oy + dy / d * stepLen }
@@ -302,7 +302,7 @@ class TennisSim(val cfg: TennisConfig) {
         // Reach is judged at the spot where the ball was to be hit, so a late swing is not also punished twice.
         val rx = if (s.cTick >= 0) s.cX else s.bx
         val ry = if (s.cTick >= 0) s.cY else s.by
-        if (hypot(s.px(side) - rx, s.py(side) - ry) > TennisRules.REACH) { whiff(s, side, Whiff.FAR); return }
+        if (StrictMath.hypot(s.px(side) - rx, s.py(side) - ry) > TennisRules.REACH) { whiff(s, side, Whiff.FAR); return }
         val ae = abs(err)
         var q = when {
             ae <= TennisRules.PERFECT -> 1.0
@@ -362,7 +362,7 @@ class TennisSim(val cfg: TennisConfig) {
         var speed = speed0
         val cx = s.bx; val cy = s.by; val cz = s.bz
         val dx = tx - cx; val dy = ty - cy
-        val d = hypot(dx, dy).coerceAtLeast(0.5)
+        val d = StrictMath.hypot(dx, dy).coerceAtLeast(0.5)
         var vx = 0.0; var vy = 0.0; var vz = 0.0
         for (attempt in 0 until 16) {
             val t1 = d / speed

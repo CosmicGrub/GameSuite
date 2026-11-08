@@ -172,7 +172,7 @@ class ToySoccerGame(
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
-    private val lock = Any()
+    private val lock: Any = this // one monitor for @Synchronized entry points and network callbacks alike
 
     private var world = SoccerWorld(3)
     private var phase = SoccerPhase.OVER
@@ -213,7 +213,7 @@ class ToySoccerGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var lastSyncTick = 0L
     private var needSync = false
@@ -233,7 +233,7 @@ class ToySoccerGame(
             phase = SoccerPhase.OVER
             winnerTeam = null
             gone.clear(); pending.clear(); nextThink.clear()
-            stateVersion = 0; lastAppliedRemoteVersion = 0; lastSyncTick = 0; needSync = false
+            stateVersion = com.gamesuite.core.SyncEpoch.base(); lastAppliedRemoteVersion = 0; lastSyncTick = 0; needSync = false
             lastMs = -1; acc = 0.0; paused = false
             if (isNetworked) registerNetworkListeners()
         }

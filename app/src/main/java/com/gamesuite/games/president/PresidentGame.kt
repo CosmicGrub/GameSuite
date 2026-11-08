@@ -61,7 +61,7 @@ class PresidentGame(private val random: Random = Random.Default) : GameModule, R
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private val history = SnapshotHistory()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private val spectatorIds = LinkedHashSet<String>()
     private var sessionsFinished = 0
@@ -86,7 +86,7 @@ class PresidentGame(private val random: Random = Random.Default) : GameModule, R
         hostLeft.value = false
         hint.value = null
         history.clear()
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         sessionsFinished = 0
         spectatorIds.clear()

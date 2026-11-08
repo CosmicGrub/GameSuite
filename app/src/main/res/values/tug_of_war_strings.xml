@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tug of War screen strings -->
+    <string name="tow_help_title">Tug of War</string>
+    <string name="tow_help_text">Everyone has a pad in their own zone. Tap to pull the marker toward your line; every pull costs stamina, so mashing wears you out. Hold your finger down to rest and charge, then let go for a heave that pulls much harder. Bring the marker over your line to win the round, and win most rounds to win the match.</string>
+    <string name="tow_cpu_tag">(CPU)</string>
+    <string name="tow_band_info">Round %1$d of %2$d</string>
+    <string name="tow_band_tiebreak">Tiebreak round</string>
+    <string name="tow_time_left">%1$d s left</string>
+    <string name="tow_status_ready">Round %1$d of %2$d. Get ready!</string>
+    <string name="tow_status_go">Pull! Tap, or hold and let go for a heave.</string>
+    <string name="tow_status_round_win">%1$s wins the round!</string>
+    <string name="tow_status_round_win_you">You win the round!</string>
+    <string name="tow_status_round_win_team">%1$s win the round!</string>
+    <string name="tow_status_round_draw">Nobody wins that round.</string>
+    <string name="tow_status_match_win">%1$s wins the match!</string>
+    <string name="tow_status_match_win_you">You win the match!</string>
+    <string name="tow_status_match_win_team">%1$s win the match!</string>
+    <string name="tow_status_match_draw">The match is a draw.</string>
+    <string name="tow_score">Rounds won: %1$s</string>
+    <string name="tow_final_rounds">Rounds: %1$s</string>
+    <string name="tow_go">PULL!</string>
+    <string name="tow_heave">HEAVE!</string>
+    <string name="tow_resting">Resting</string>
+    <string name="tow_rest_hint">Tired: hold to rest</string>
+    <string name="tow_tired">Tired</string>
+    <string name="tow_stamina_pct">%1$d%%</string>
+    <string name="tow_zone_won">Round won!</string>
+    <string name="tow_zone_desc">%1$s, stamina %2$d percent. Double-tap to pull.</string>
+    <string name="tow_zone_desc_cpu">%1$s, computer puller.</string>
+    <string name="tow_action_heave">Heave</string>
+</resources>

@@ -53,7 +53,8 @@ object GameCoach {
      * screens use the Club card and ClubProfile.coachSeen, the same flag the Hub marks.
      */
     val ownCoachInGame: Set<String> = setOf(
-        "gomoku", "hex", "nine-mens-morris", "hare-and-hounds", "shogi", "mini-shogi"
+        "gomoku", "hex", "nine-mens-morris", "hare-and-hounds", "shogi", "mini-shogi",
+        "paddle-duel", "rps-showdown"
     )
 
     /** Whether the Hub should open the coach by itself on a first visit to [gameId]. */
@@ -79,7 +80,9 @@ object GameCoach {
         "blackjack" to CoachMotif.CARDS, "war" to CoachMotif.CARDS, "texas-holdem" to CoachMotif.CARDS,
         "president" to CoachMotif.CARDS, "sevens" to CoachMotif.CARDS, "speed" to CoachMotif.CARDS,
         "matching" to CoachMotif.TILES,
-        "darts" to CoachMotif.BALL, "bowling" to CoachMotif.BALL, "carrom" to CoachMotif.BALL, "curling" to CoachMotif.PATH, "billiards" to CoachMotif.BALL, "mini-golf" to CoachMotif.BALL, "toy-soccer" to CoachMotif.BALL, "toy-tennis" to CoachMotif.BALL, "toy-boxing" to CoachMotif.BALL, "toy-baseball" to CoachMotif.BALL, "spider-solitaire" to CoachMotif.CARDS, "hanafuda" to CoachMotif.CARDS,
+        "darts" to CoachMotif.BALL, "bowling" to CoachMotif.BALL, "carrom" to CoachMotif.BALL, "curling" to CoachMotif.PATH, "billiards" to CoachMotif.BALL, "mini-golf" to CoachMotif.BALL, "toy-soccer" to CoachMotif.BALL, "toy-tennis" to CoachMotif.BALL, "toy-boxing" to CoachMotif.BALL, "toy-baseball" to CoachMotif.BALL,
+        "slot-cars" to CoachMotif.PATH, "fishing" to CoachMotif.BALL, "tank-battle" to CoachMotif.PATH, "shooting-gallery" to CoachMotif.BALL, "six-ball-puzzle" to CoachMotif.BALL, "pig-dice" to CoachMotif.DICE,
+        "tap-race" to CoachMotif.PATH, "tug-of-war" to CoachMotif.BALL, "reaction-duel" to CoachMotif.BALL, "whack-a-mole" to CoachMotif.BALL, "light-trail" to CoachMotif.PATH, "sumo-push" to CoachMotif.BALL, "paddle-duel" to CoachMotif.BALL, "rps-showdown" to CoachMotif.CARDS, "spider-solitaire" to CoachMotif.CARDS, "hanafuda" to CoachMotif.CARDS,
         "word-tiles" to CoachMotif.LETTERS, "hangman" to CoachMotif.LETTERS, "word-search" to CoachMotif.LETTERS,
         "crossword" to CoachMotif.LETTERS, "word-guess" to CoachMotif.LETTERS,
         "sudoku" to CoachMotif.NUMBERS, "kenken" to CoachMotif.NUMBERS, "kakuro" to CoachMotif.NUMBERS,
@@ -105,6 +108,20 @@ object GameCoach {
         entry("dominoes", listOf(R.string.coach_dominoes_s1, R.string.coach_dominoes_s2, R.string.coach_dominoes_s3, R.string.coach_dominoes_s4), R.string.coach_dominoes_fact),
         entry("word-tiles", listOf(R.string.coach_word_tiles_s1, R.string.coach_word_tiles_s2, R.string.coach_word_tiles_s3, R.string.coach_word_tiles_s4), R.string.coach_word_tiles_fact),
         entry("uno", listOf(R.string.coach_uno_s1, R.string.coach_uno_s2, R.string.coach_uno_s3, R.string.coach_uno_s4), R.string.coach_uno_fact),
+        entry("tap-race", listOf(R.string.coach_tap_race_s1, R.string.coach_tap_race_s2, R.string.coach_tap_race_s3, R.string.coach_tap_race_s4, R.string.coach_tap_race_s5), R.string.coach_tap_race_fact),
+        entry("tug-of-war", listOf(R.string.coach_tug_of_war_s1, R.string.coach_tug_of_war_s2, R.string.coach_tug_of_war_s3, R.string.coach_tug_of_war_s4, R.string.coach_tug_of_war_s5), R.string.coach_tug_of_war_fact),
+        entry("reaction-duel", listOf(R.string.coach_reaction_duel_s1, R.string.coach_reaction_duel_s2, R.string.coach_reaction_duel_s3, R.string.coach_reaction_duel_s4, R.string.coach_reaction_duel_s5), R.string.coach_reaction_duel_fact),
+        entry("whack-a-mole", listOf(R.string.coach_whack_a_mole_s1, R.string.coach_whack_a_mole_s2, R.string.coach_whack_a_mole_s3, R.string.coach_whack_a_mole_s4, R.string.coach_whack_a_mole_s5), R.string.coach_whack_a_mole_fact),
+        entry("light-trail", listOf(R.string.coach_light_trail_s1, R.string.coach_light_trail_s2, R.string.coach_light_trail_s3, R.string.coach_light_trail_s4, R.string.coach_light_trail_s5), R.string.coach_light_trail_fact),
+        entry("sumo-push", listOf(R.string.coach_sumo_push_s1, R.string.coach_sumo_push_s2, R.string.coach_sumo_push_s3, R.string.coach_sumo_push_s4, R.string.coach_sumo_push_s5), R.string.coach_sumo_push_fact),
+        entry("paddle-duel", listOf(R.string.coach_paddle_duel_s1, R.string.coach_paddle_duel_s2, R.string.coach_paddle_duel_s3, R.string.coach_paddle_duel_s4, R.string.coach_paddle_duel_s5), R.string.coach_paddle_duel_fact),
+        entry("rps-showdown", listOf(R.string.coach_rps_showdown_s1, R.string.coach_rps_showdown_s2, R.string.coach_rps_showdown_s3, R.string.coach_rps_showdown_s4, R.string.coach_rps_showdown_s5), R.string.coach_rps_showdown_fact),
+        entry("slot-cars", listOf(R.string.coach_slot_cars_s1, R.string.coach_slot_cars_s2, R.string.coach_slot_cars_s3, R.string.coach_slot_cars_s4, R.string.coach_slot_cars_s5), R.string.coach_slot_cars_fact),
+        entry("fishing", listOf(R.string.coach_fishing_s1, R.string.coach_fishing_s2, R.string.coach_fishing_s3, R.string.coach_fishing_s4, R.string.coach_fishing_s5), R.string.coach_fishing_fact),
+        entry("tank-battle", listOf(R.string.coach_tank_battle_s1, R.string.coach_tank_battle_s2, R.string.coach_tank_battle_s3, R.string.coach_tank_battle_s4, R.string.coach_tank_battle_s5), R.string.coach_tank_battle_fact),
+        entry("shooting-gallery", listOf(R.string.coach_shooting_gallery_s1, R.string.coach_shooting_gallery_s2, R.string.coach_shooting_gallery_s3, R.string.coach_shooting_gallery_s4, R.string.coach_shooting_gallery_s5), R.string.coach_shooting_gallery_fact),
+        entry("six-ball-puzzle", listOf(R.string.coach_six_ball_puzzle_s1, R.string.coach_six_ball_puzzle_s2, R.string.coach_six_ball_puzzle_s3, R.string.coach_six_ball_puzzle_s4, R.string.coach_six_ball_puzzle_s5), R.string.coach_six_ball_puzzle_fact),
+        entry("pig-dice", listOf(R.string.coach_pig_dice_s1, R.string.coach_pig_dice_s2, R.string.coach_pig_dice_s3, R.string.coach_pig_dice_s4, R.string.coach_pig_dice_s5), R.string.coach_pig_dice_fact),
         entry("darts", listOf(R.string.coach_darts_s1, R.string.coach_darts_s2, R.string.coach_darts_s3, R.string.coach_darts_s4, R.string.coach_darts_s5), R.string.coach_darts_fact),
         entry("bowling", listOf(R.string.coach_bowling_s1, R.string.coach_bowling_s2, R.string.coach_bowling_s3, R.string.coach_bowling_s4, R.string.coach_bowling_s5), R.string.coach_bowling_fact),
         entry("carrom", listOf(R.string.coach_carrom_s1, R.string.coach_carrom_s2, R.string.coach_carrom_s3, R.string.coach_carrom_s4, R.string.coach_carrom_s5), R.string.coach_carrom_fact),

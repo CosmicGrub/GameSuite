@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tarjetas de cómo se juega de Paddle Duel y Piedra, Papel o Tijera: el duelo. -->
+    <string name="coach_paddle_duel_s1">Paddle Duel es el Pong para dos a cuatro personas en una pantalla. Evita que la bola salga por tu borde y mándala más allá de todos los demás.</string>
+    <string name="coach_paddle_duel_s2">Pon un pulgar en cualquier punto de tu lado y desliza: tu pala te sigue. Cada jugador tiene su propio dedo, así que todos juegan a la vez.</string>
+    <string name="coach_paddle_duel_s3">Golpea la bola con el extremo de la pala para mandarla de lado. Una pala en movimiento da efecto, y la bola acelera con cada devolución.</string>
+    <string name="coach_paddle_duel_s4">Gana por puntos o por vidas: cuando se acaban las tuyas, tu borde se convierte en una pared y gana la última pala en pie. Los potenciadores son opcionales.</string>
+    <string name="coach_paddle_duel_s5">¿Prefieres no arrastrar? Mantén pulsadas las flechas junto a tu nombre, o elige Un solo botón en la configuración. La ayuda Relajada lo ralentiza todo. Por ahora solo en la misma pantalla: sin modo Cercano ni En línea.</string>
+    <string name="coach_paddle_duel_fact">Pong, lanzado por Atari en 1972, empezó como un ejercicio de calentamiento para un ingeniero novato, Allan Alcorn. Ayudó a lanzar la industria del videojuego.</string>
+    <string name="coach_rps_showdown_s1">Todos eligen un movimiento en secreto y a la vez, en su propio lado de la pantalla. Pueden jugar de dos a cuatro personas.</string>
+    <string name="coach_rps_showdown_s2">Toca un movimiento para fijarlo. Tu lado solo muestra entonces un candado, así nadie puede espiar tu elección. Toca Deshacer para cambiar de idea mientras los demás siguen eligiendo.</string>
+    <string name="coach_rps_showdown_s3">Cuando todos han fijado su movimiento, empieza una cuenta atrás y todos se revelan a la vez. Si un movimiento vence a todos los demás, sus jugadores ganan la ronda. Cualquier otra cosa es empate y se repite.</string>
+    <string name="coach_rps_showdown_s4">Juega al mejor de 3, 5 o 7, o Eliminación, donde los que pierden quedan fuera y gana el último que queda. Lagarto-Spock añade dos movimientos más.</string>
+    <string name="coach_rps_showdown_s5">Los jugadores de la CPU eligen antes de ver nada tuyo. En Difícil, la CPU aprende tus costumbres de rondas anteriores, así que varía. Por ahora solo en la misma pantalla: sin modo Cercano ni En línea.</string>
+    <string name="coach_rps_showdown_fact">Versiones de piedra, papel o tijera se juegan en Asia oriental desde hace siglos, y el juego incluso tiene campeonatos nacionales y mundiales.</string>
+</resources>

@@ -451,10 +451,10 @@ private fun GomokuBoard(
 ) {
     val n = GOMOKU_SIZE
     val shape = RoundedCornerShape(8.dp)
-    val pulse = if (reduced) 1f else {
+    // A State, read only inside draw / graphicsLayer lambdas below: the 225 cells must not recompose every frame.
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(1f) } else {
         val t = rememberInfiniteTransition(label = "gomoku-pulse")
-        val v by t.animateFloat(0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
-        v
+        t.animateFloat(0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
     }
     val winSet = remember(s.winLine) { s.winLine.toSet() }
     val boardDesc = stringResource(R.string.gomoku_board_desc, "")
@@ -494,7 +494,7 @@ private fun GomokuBoard(
 @Composable
 private fun GomokuCell(
     row: Int, col: Int, owner: Int?, size: Dp, palette: GomokuPalette, colorblind: Boolean, reduced: Boolean,
-    speed: Int, pulse: Float, isLast: Boolean, isWin: Boolean, isHint: Boolean, isPending: Boolean,
+    speed: Int, pulse: State<Float>, isLast: Boolean, isWin: Boolean, isHint: Boolean, isPending: Boolean,
     interactive: Boolean, onTap: () -> Unit
 ) {
     val base = when (owner) {
@@ -522,19 +522,21 @@ private fun GomokuCell(
             LaunchedEffect(Unit) {
                 if (isLast && !reduced) scale.animateTo(1f, tween(speed.coerceAtLeast(60), easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)))
             }
-            val winPulse = if (isWin && !reduced) 1f + 0.08f * pulse else 1f
             Canvas(
-                Modifier.fillMaxSize().graphicsLayer { scaleX = scale.value * winPulse; scaleY = scale.value * winPulse }
+                Modifier.fillMaxSize().graphicsLayer {
+                    val winPulse = if (isWin && !reduced) 1f + 0.08f * pulse.value else 1f
+                    scaleX = scale.value * winPulse; scaleY = scale.value * winPulse
+                }
             ) {
                 drawStone(owner == 0, palette.line, colorblind)
-                if (isLast && !isWin) drawCircle(palette.accent.copy(alpha = if (reduced) 1f else pulse), this.size.minDimension * 0.17f, style = Stroke(this.size.minDimension * 0.07f))
+                if (isLast && !isWin) drawCircle(palette.accent.copy(alpha = if (reduced) 1f else pulse.value), this.size.minDimension * 0.17f, style = Stroke(this.size.minDimension * 0.07f))
                 if (isWin) drawCircle(palette.accent, this.size.minDimension * 0.47f, style = Stroke(this.size.minDimension * 0.09f))
             }
         } else if (isPending || isHint) {
             // A ghost stone for the selected point, a dashed-look ring for a hint (shape, not only colour).
             Canvas(Modifier.fillMaxSize()) {
                 val r = this.size.minDimension * 0.4f
-                if (isPending) drawCircle(palette.ghost.copy(alpha = 0.4f * pulse + 0.2f), r)
+                if (isPending) drawCircle(palette.ghost.copy(alpha = 0.4f * pulse.value + 0.2f), r)
                 if (isHint) {
                     drawCircle(palette.accent, r * 1.05f, style = Stroke(this.size.minDimension * 0.08f))
                     drawCircle(palette.accent, r * 0.3f)

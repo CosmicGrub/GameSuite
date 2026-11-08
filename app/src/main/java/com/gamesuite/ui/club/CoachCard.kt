@@ -99,13 +99,12 @@ fun CoachCardContent(gameId: String, onDone: () -> Unit, onDontShowAgain: (() ->
     val accent = gameAccent(gameId, spec?.family ?: HubFamily.BOARD)
     val onAccent = onGameAccent(accent)
 
+    // The steps scroll; "Got it" is pinned below them, so it is on screen at large fonts and in landscape.
+    Column(Modifier.fillMaxWidth().widthIn(max = 560.dp).padding(horizontal = 20.dp).padding(bottom = 16.dp)) {
     Column(
         Modifier
-            .fillMaxWidth()
-            .widthIn(max = 560.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
+            .weight(1f, fill = false)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -163,15 +162,16 @@ fun CoachCardContent(gameId: String, onDone: () -> Unit, onDontShowAgain: (() ->
             }
         }
 
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.club_coach_got_it))
+    }
+    Spacer(Modifier.height(10.dp))
+    Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        Text(stringResource(R.string.club_coach_got_it))
+    }
+    if (onDontShowAgain != null) {
+        TextButton(onClick = onDontShowAgain, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text(stringResource(R.string.club_coach_dont_show))
         }
-        if (onDontShowAgain != null) {
-            TextButton(onClick = onDontShowAgain, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.club_coach_dont_show))
-            }
-        }
-        Spacer(Modifier.height(4.dp))
+    }
     }
 }
 

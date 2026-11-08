@@ -55,7 +55,7 @@ class CurlingGame(
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var nextOpener = 0
     private val history = SnapshotHistory()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var cachedReplay: Pair<Int, CurlingSimResult>? = null
 
@@ -73,7 +73,7 @@ class CurlingGame(
         history.clear()
         hintThrow.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         cachedReplay = null
         if (isNetworked) registerNetworkListeners()
@@ -412,7 +412,7 @@ class CurlingGame(
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(CurlingNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(CurlingNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -434,6 +434,7 @@ class CurlingGame(
     private fun applyRemote(version: Int, net: CurlingNetState) {
         if (version <= lastAppliedRemoteVersion) return
         if (!validNet(net)) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, 0, context.players)) return
         lastAppliedRemoteVersion = version
         state.value = fromNet(net)
         sessionWins.value = net.sessionWins

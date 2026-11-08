@@ -5,6 +5,13 @@ import com.gamesuite.games.carrom.CarromCurlingHubSpecs
 import com.gamesuite.games.darts.DartsBowlingHubSpecs
 import com.gamesuite.games.toyboxing.ToyBoxingBaseballHubSpecs
 import com.gamesuite.games.toysoccer.ToySportsHubSpecs
+import com.gamesuite.games.sixball.SixBallPigHubSpecs
+import com.gamesuite.games.slotcars.SlotCarsFishingHubSpecs
+import com.gamesuite.games.tankbattle.TankGalleryHubSpecs
+import com.gamesuite.games.partypack.PartyTapTugHubSpecs
+import com.gamesuite.games.partypack.PartyReactionWhackHubSpecs
+import com.gamesuite.games.partypack.PartyTrailSumoHubSpecs
+import com.gamesuite.games.partypack.PartyPaddleRpsHubSpecs
 import com.gamesuite.games.blackjack.BlackjackWarHubSpecs
 import com.gamesuite.games.holdem.HoldemHubSpecs
 import com.gamesuite.games.ludo.ChineseLudoHubSpecs
@@ -39,7 +46,8 @@ object GameHubSpecs {
         "dominoes", "word-tiles", "gomoku", "hex", "nine-mens-morris", "hare-and-hounds", "chinese-checkers", "ludo",
         "shogi", "mini-shogi", "blackjack", "war", "texas-holdem", "president", "sevens", "speed", "matching",
         "hanafuda",
-        "darts", "bowling", "carrom", "curling", "billiards", "mini-golf", "toy-soccer", "toy-tennis", "toy-boxing", "toy-baseball"
+        "darts", "bowling", "carrom", "curling", "billiards", "mini-golf", "toy-soccer", "toy-tennis", "toy-boxing", "toy-baseball",
+        "slot-cars", "fishing", "tank-battle", "shooting-gallery", "six-ball-puzzle", "pig-dice"
     )
 
     val all: List<GameHubSpec> by lazy { buildAll(networkedGames) }
@@ -398,6 +406,20 @@ object GameHubSpecs {
         ToySportsHubSpecs.toyTennis,
         ToyBoxingBaseballHubSpecs.boxing,
         ToyBoxingBaseballHubSpecs.baseball,
+        SlotCarsFishingHubSpecs.slotCars,
+        SlotCarsFishingHubSpecs.fishing,
+        TankGalleryHubSpecs.tank,
+        TankGalleryHubSpecs.gallery,
+        SixBallPigHubSpecs.sixBall,
+        SixBallPigHubSpecs.pig,
+        PartyTapTugHubSpecs.tapRace,
+        PartyTapTugHubSpecs.tugOfWar,
+        PartyReactionWhackHubSpecs.reactionDuel,
+        PartyReactionWhackHubSpecs.whackAMole,
+        PartyTrailSumoHubSpecs.lightTrail,
+        PartyTrailSumoHubSpecs.sumoPush,
+        PartyPaddleRpsHubSpecs.paddleDuel,
+        PartyPaddleRpsHubSpecs.rpsShowdown,
         solo("solitaire", "Solitaire", "Klondike with drag and drop.", HubFamily.CARD),
 
         // Word games

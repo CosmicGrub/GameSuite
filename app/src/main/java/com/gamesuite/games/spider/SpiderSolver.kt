@@ -90,7 +90,9 @@ object SpiderHints {
 class SpiderSolver(
     private val nodeBudget: Int,
     private val restarts: Int = 1,
-    private val seed: Long = 0L
+    private val seed: Long = 0L,
+    /** Polled every [STOP_POLL_NODES] nodes and between restarts; true abandons the search ("not shown winnable"). */
+    private val shouldStop: () -> Boolean = { false }
 ) {
     /** [firstStep] is the first move/deal of the winning line, or of the line that finished the most runs; null when no line made progress. */
     class Result(
@@ -113,6 +115,7 @@ class SpiderSolver(
         var bestRuns = start.completedRuns
         var bestStep: SpiderHint? = null
         for (r in 0 until restarts.coerceAtLeast(1)) {
+            if (shouldStop()) break
             val rng = if (r == 0) null else Random(seed * 31 + r)
             val res = dfs(start, per, rng, allowAttached = r > 0 && r % 2 == 0, minScore = if (r % 2 == 1) 1 else Int.MIN_VALUE)
             nodes += res.nodes
@@ -123,6 +126,10 @@ class SpiderSolver(
             }
         }
         return Result(false, bestRuns, nodes, bestStep)
+    }
+
+    private companion object {
+        const val STOP_POLL_NODES = 256
     }
 
     private fun asHint(step: SpiderMove?): SpiderHint = if (step == null) SpiderHint.Deal else SpiderHint.Move(step)
@@ -153,6 +160,7 @@ class SpiderSolver(
                 bestFirst = first
             }
             if (nodes >= budget) return Result(false, bestRuns, nodes, bestFirst)
+            if (nodes % STOP_POLL_NODES == 0 && shouldStop()) return Result(false, bestRuns, nodes, bestFirst)
             stack += Frame(child, orderedMoves(child, rng, allowAttached, minScore))
         }
         return Result(false, bestRuns, nodes, bestFirst)
@@ -220,15 +228,32 @@ object SpiderDealer {
         return s.won
     }
 
-    fun winnable(seed: Long, suits: Int, attempts: Int = 30): Deal {
+    /** Wall-clock safety cap on the whole winnable search. The node budgets already bound it, but a 4-suit worst
+     *  case on a slow phone is minutes; past this the unproven plain deal is returned (the UI never claims more than is known). */
+    const val SEARCH_CAP_MS = 12_000L
+
+    /**
+     * [isCancelled] is polled throughout (leaving the screen stops the search); [capMs] bounds it by wall clock.
+     * Either way the answer is the plain, honestly-unproven deal for `(seed, suits)`.
+     */
+    fun winnable(
+        seed: Long, suits: Int, attempts: Int = 30,
+        capMs: Long = SEARCH_CAP_MS,
+        isCancelled: () -> Boolean = { false },
+        nowNanos: () -> Long = System::nanoTime
+    ): Deal {
+        val deadline = nowNanos() + capMs * 1_000_000L
+        val stop = { isCancelled() || nowNanos() >= deadline }
         for (attempt in 0 until attempts) {
+            if (stop()) break
             val bias = ((when (suits) { 1 -> 0.5; 2 -> 0.65; else -> 0.8 }) + attempt * 0.005).coerceAtMost(0.95)
-            val built = constructWithLine(seededRandom(seed, suits, attempt), suits, bias)
+            val built = constructWithLine(seededRandom(seed, suits, attempt), suits, bias, stop)
             if (built != null) return Deal(built.state, provenWinnable = true, line = built.line)
         }
         for (attempt in 0 until 6) {
+            if (stop()) break
             val state = plain(seededRandom(seed, suits, 1000 + attempt), suits)
-            val res = SpiderSolver(20_000, 4, seed).solve(state)
+            val res = SpiderSolver(20_000, 4, seed, stop).solve(state)
             if (res.solved && replayWins(state, res.line)) return Deal(state, provenWinnable = true, line = res.line)
         }
         return Deal(plain(seededRandom(seed, suits), suits), provenWinnable = false)
@@ -256,7 +281,7 @@ object SpiderDealer {
         return joins || flips
     }
 
-    fun constructWithLine(rng: Random, suits: Int, bias: Double): Constructed? {
+    fun constructWithLine(rng: Random, suits: Int, bias: Double, shouldStop: () -> Boolean = { false }): Constructed? {
         val pool = (0 until SPIDER_DECK_SIZE).toMutableList()
         val deck = IntArray(SPIDER_DECK_SIZE) { -1 }
         var cursor = 0
@@ -337,10 +362,11 @@ object SpiderDealer {
         var plies = 0
         var finishedBySolver = false
         while (!s.won && plies < 800) {
+            if (shouldStop()) return fail("stopped")
             plies++
             if (s.stock.isEmpty()) {
                 s = fixHidden(s)
-                val res = SpiderSolver(30_000, 4, rng.nextLong()).solve(s)
+                val res = SpiderSolver(30_000, 4, rng.nextLong(), shouldStop).solve(s)
                 if (!res.solved) return fail("endgame unsolved: runs=${s.completedRuns} cols=${s.columns.map { it.size }}")
                 line += res.line
                 finishedBySolver = true

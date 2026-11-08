@@ -39,6 +39,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -642,6 +643,26 @@ private fun IceCanvas(
         initialValue = 0.3f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "curl-pulse-a"
     ).value
     val geom = remember { FloatArray(3) } // scale, camBottom, height
+    // The camera is worked out here, in composition, from the measured size, and published from an effect: it used to be
+    // written from inside the draw scope, which invalidated the very frame that was being drawn.
+    var iceSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val camGoal: Float = run {
+        if (iceSize.width <= 0 || iceSize.height <= 0) return@run Float.NaN
+        val scM = iceSize.width / VIEW_W
+        val visH = iceSize.height / scM
+        val house = minOf(CurlingSheet.BACK_Y.toFloat() + 45f, CurlingSheet.TEE_Y.toFloat() + visH * 0.5f) - visH
+        var follow = Float.NaN
+        if (live != null) { val k = live.sim.n - 1; follow = live.sim.y[k].toFloat() }
+        else if (playback != null) {
+            val fl = playFrame.toInt().coerceIn(0, playback.frames.size - 1)
+            follow = playback.frames[fl][(playback.ids.size - 1) * 3 + 1]
+        }
+        if (follow.isNaN()) house else (follow - visH * 0.3f).coerceIn(-70f, house)
+    }
+    val camNow: Float = if (camGoal.isNaN()) Float.NaN else if (reduced || camBottom.isNaN()) camGoal else camBottom + (camGoal - camBottom) * 0.25f
+    androidx.compose.runtime.LaunchedEffect(camNow) {
+        if (!camNow.isNaN() && (camBottom.isNaN() || abs(camNow - camBottom) > 0.01f)) onCam(camNow)
+    }
     val onCallState by rememberUpdatedState(onCall)
     // the line the stone would take, up to the first stone it touches
     val preview = remember(draft, s.stones, team, stoneId, canAim) {
@@ -661,6 +682,7 @@ private fun IceCanvas(
 
     Canvas(
         modifier
+            .onSizeChanged { iceSize = it }
             .semantics { contentDescription = description }
             .pointerInput(canAim) {
                 if (!canAim) return@pointerInput
@@ -690,16 +712,8 @@ private fun IceCanvas(
             val top = minOf(CurlingSheet.BACK_Y.toFloat() + 45f, CurlingSheet.TEE_Y.toFloat() + visibleH * 0.5f)
             top - visibleH
         }
-        // where the camera is: on the house, or following the stone that is sliding
-        var follow = Float.NaN
-        if (live != null) { val k = live.sim.n - 1; follow = live.sim.y[k].toFloat() }
-        else if (playback != null) {
-            val fl = playFrame.toInt().coerceIn(0, playback.frames.size - 1)
-            follow = playback.frames[fl][(playback.ids.size - 1) * 3 + 1]
-        }
-        val targetCam = if (follow.isNaN()) houseCam else (follow - visibleH * 0.3f).coerceIn(-70f, houseCam)
-        val cam = if (reduced || camBottom.isNaN()) targetCam else camBottom + (targetCam - camBottom) * 0.25f
-        if (abs(cam - camBottom) > 0.01f || camBottom.isNaN()) onCam(cam)
+        // the camera comes from composition (camNow); before the first measure, sit on the house
+        val cam = if (camNow.isNaN()) houseCam else camNow
         geom[0] = sc; geom[1] = cam; geom[2] = visibleH
 
         fun px(x: Double) = ((x + VIEW_W / 2f) * sc).toFloat()

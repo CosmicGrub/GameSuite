@@ -249,8 +249,15 @@ class GameSessionManager : ViewModel() {
      * zero-transport overload above for every mode where the transport can just be
      * created fresh at launch time.
      */
-    fun launchGame(mode: PlayMode, players: List<PlayerInfo>, localPlayerIndex: Int, transport: MultiplayerTransport) {
-        launchOptions = LaunchOptions()
+    fun launchGame(
+        mode: PlayMode,
+        players: List<PlayerInfo>,
+        localPlayerIndex: Int,
+        transport: MultiplayerTransport,
+        /** Per-launch choices; a lobby host with computer seats passes the CPU level here. */
+        options: LaunchOptions = LaunchOptions(),
+    ) {
+        launchOptions = options
         _activeContext.value = GameContext(
             activeMode = mode,
             players = players,

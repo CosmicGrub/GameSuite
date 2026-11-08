@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sh_reconnecting">Reconectando…</string>
+    <string name="sh_host_away">El anfitrión perdió la conexión. Esperando a que vuelva…</string>
+    <string name="sh_player_away">Un jugador perdió la conexión. Esperando a que vuelva…</string>
+    <string name="sh_host_left_title">El anfitrión se fue</string>
+    <string name="sh_host_left_body">El anfitrión se fue, así que la partida terminó. No se registró nada.</string>
+    <string name="sh_connection_lost_title">Conexión perdida</string>
+    <string name="sh_connection_lost_body">Se cortó tu conexión y no se pudo recuperar, así que la partida terminó. No se registró nada.</string>
+    <string name="sh_ok">Aceptar</string>
+</resources>

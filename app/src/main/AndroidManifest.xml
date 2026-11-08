@@ -78,6 +78,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.GameSuite"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|keyboard|keyboardHidden|navigation|layoutDirection|locale">
             <!-- uiMode/density/fontScale/locale added on top of the existing fold/rotation set:
                  each of those recreates the Activity by default (dark mode switching at sunset,

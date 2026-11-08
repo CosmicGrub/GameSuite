@@ -149,7 +149,7 @@ class DartsGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private lateinit var context: GameContext
@@ -169,7 +169,7 @@ class DartsGame(
         hintAim.value = null
         hintRoute.value = emptyList()
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -278,6 +278,7 @@ class DartsGame(
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (context.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC || context.activeMode == com.gamesuite.core.PlayMode.ONLINE) return false // a networked table is the host's, never a saved game
         val snap = try {
             dartsJson.decodeFromString(DartsSnapshot.serializer(), snapshot)
         } catch (_: Exception) {
@@ -597,7 +598,7 @@ class DartsGame(
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(DartsNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(DartsNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }

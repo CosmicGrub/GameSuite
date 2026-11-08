@@ -128,7 +128,7 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
     private var rep = ArrayList<ShogiRepEntry>()
     private val history = SnapshotHistory()
 
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private val isNetworked: Boolean
         get() = this::context.isInitialized &&
@@ -146,7 +146,7 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -458,6 +458,7 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
                 snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
             } &&
             snap.senteSeat in 0..1 && snap.nextStartingPlayerIndex in 0..1 &&
+            lastMoveValid(snap.cells, snap.lastFrom, snap.lastTo, snap.lastCaptured) &&
             snap.sessionDraws >= 0 && snap.sessionWins.all { (id, w) -> w >= 0 && roster.any { it.playerId == id } } &&
             (snap.winnerPlayerId == null || roster.any { it.playerId == snap.winnerPlayerId }) &&
             ShogiEnd.values().any { it.name == snap.endReason } &&
@@ -466,6 +467,22 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
         if (ok) Decoded(snap, position!!) else null
     } catch (_: Exception) {
         null
+    }
+
+    /**
+     * The last-move fields drive the board highlight and the TalkBack announcement (`cells[lastTo]`), so a
+     * snapshot or host state naming a square off the board, an empty destination, or a nonsense captured code
+     * is rejected whole. lastTo -1 = no board move yet (new game, or an impasse ending); lastFrom -1 = a drop.
+     */
+    private fun lastMoveValid(cells: List<Int>, lastFrom: Int, lastTo: Int, lastCaptured: Int): Boolean {
+        val squares = variant.n * variant.n
+        if (cells.size != squares) return false
+        if (lastFrom !in -1 until squares || lastTo !in -1 until squares) return false
+        if (lastTo < 0) return lastFrom < 0 && lastCaptured == 0
+        if (cells[lastTo] == 0) return false
+        if (lastCaptured == 0) return true
+        val t = ShogiPiece.type(lastCaptured)
+        return lastCaptured > 0 && ShogiPiece.side(lastCaptured) in 0..1 && t in 1..15 && t != 13
     }
 
     /** Builds a [ShogiPosition] from raw arrays, or null if they are not a plausible shogi position. */
@@ -602,7 +619,7 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
 
     private fun handleNetworkMessage(from: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(ShogiNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(ShogiNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -637,6 +654,8 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
         val end = ShogiEnd.values().firstOrNull { it.name == net.endReason } ?: return
         if (net.winnerPlayerId != null && roster.none { it.playerId == net.winnerPlayerId }) return
         val p = positionFrom(net.n, net.cells, net.hands, net.sideToMove) ?: return
+        if (!lastMoveValid(net.cells, net.lastFrom, net.lastTo, net.lastCaptured)) return
+        if (net.sessionDraws < 0 || net.sessionWins.any { (id, w) -> w < 0 || roster.none { it.playerId == id } }) return
         lastAppliedRemoteVersion = version
         pos = p
         val players = net.players.mapIndexed { i, pl -> ShogiPlayerState(pl.playerId, pl.displayName, roster[i].isBot) }

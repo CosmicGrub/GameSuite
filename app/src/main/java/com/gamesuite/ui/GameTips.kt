@@ -305,6 +305,76 @@ object GameTips {
             "Pitcher: pick a pitch and a spot. Batter: pick which pitch you\'re ready for and where to aim.",
             "The middle 3x3 of the grid is the strike zone. Take pitches outside it to draw a walk.",
             "The pitch history shows what your rival throws or swings at. Spot the pattern."
+        ),
+        "slot-cars" to listOf(
+            "Hold your pad to speed up and let go to brake. Slow down before the amber signs.",
+            "Too fast in a bend and the car leaves the slot and loses time. Watch the grip bar.",
+            "Too quick? Turn on Slow motion or Step by step in the setup."
+        ),
+        "fishing" to listOf(
+            "Pick a spot, hold the button and let go to cast. The farther out, the bigger the fish.",
+            "Press the button when the bobber plunges, not for small nibbles.",
+            "Hold to reel in, let go when the fish pulls, and keep the tension bar in the Good zone."
+        ),
+        "tank-battle" to listOf(
+            "Set the angle and power with the sliders, or drag back from your tank. The arrow shows the wind.",
+            "A big shell digs a wide crater, and a bouncer hops over hills. Each tank carries only a few.",
+            "Craters change the ground: dig out a rival\'s footing or bury your own tank. Last tank standing wins."
+        ),
+        "shooting-gallery" to listOf(
+            "Tap a target to shoot it. Six shots fill the magazine, then it reloads. Spare shots are wasted.",
+            "Hit targets in a row to build a combo up to times four. A miss or a decoy breaks it.",
+            "Can\'t tap fast? Choose Relaxed pace: slower, larger targets, more time and a quicker reload."
+        ),
+        "six-ball-puzzle" to listOf(
+            "Swipe the tray or press an arrow: every ball rolls until something stops it.",
+            "Put each ball on the slot with its own symbol and colour.",
+            "Beat par for three stars. Undo is unlimited and Hint shows the next tilt."
+        ),
+        "pig-dice" to listOf(
+            "Roll as often as you like; the numbers pile up in the pot.",
+            "Hold to bank the pot. Roll a 1 and you lose it and your turn.",
+            "First to the goal wins. Hint shows the best move and your chance."
+        ),
+        "tap-race" to listOf(
+            "Put a finger of each hand on your lane\'s pad and tap as fast as you can once the countdown ends.",
+            "In Rhythm, tap only on the beat: early, late and extra taps cost you ground.",
+            "In Mash and Brake, stop tapping the moment the light turns amber. A tap on red sets you back."
+        ),
+        "tug-of-war" to listOf(
+            "Tap your pad to pull the marker toward your line. Every pull costs stamina, and mashing runs you dry.",
+            "Hold your finger down to rest and charge up, then let go for a heave that pulls up to four times harder.",
+            "Can\'t hold or tap fast? Turn on Relaxed pulling or Hold to pull in the setup."
+        ),
+        "reaction-duel" to listOf(
+            "Rest a finger by your button, but do not press until the signal. An early press puts you out of the round.",
+            "In Colour match only the target shape counts. Check the shape, never just the colour.",
+            "Finding it hard? Turn on Relaxed in the setup for longer windows and no penalties."
+        ),
+        "whack-a-mole" to listOf(
+            "Spiky urchins cost points, so tap only the round-faced critters. Golden ones are worth triple.",
+            "Whack in a row without missing to build a streak: five makes it times two, ten times three.",
+            "Every zone gets the same critters at the same moments, so it is a fair race."
+        ),
+        "light-trail" to listOf(
+            "Your Left and Right pads turn the way the rider is facing, not the way you are. Watch the glowing head.",
+            "Leave yourself room: a wall you can see is a wall you can turn away from. Trap rivals by cutting across in front of them.",
+            "Hard to play fast? Turn on Relaxed or One button in the setup."
+        ),
+        "sumo-push" to listOf(
+            "Hold Dash to charge, release to shove. A charged dash is heavy, but then you wait for the cooldown.",
+            "The ring shrinks over time. Stay near the middle and let rivals push each other out.",
+            "Hard to steer? Turn on Relaxed or One button in the setup."
+        ),
+        "paddle-duel" to listOf(
+            "Slide a thumb along your edge and the paddle follows. Hit the ball with the paddle end to send it sideways.",
+            "A moving paddle puts spin on the ball, and the ball speeds up every rally. Drift back to the middle between returns.",
+            "Want a gentler game? Turn on the Relaxed assist, or use the arrow buttons or one switch."
+        ),
+        "rps-showdown" to listOf(
+            "Tap a move to lock it in. Your neighbours only ever see a lock, never your pick. Tap Undo to change your mind.",
+            "When everyone is locked in, a countdown runs and all moves flip face up together. Ties are played again.",
+            "Against the computer, Hard learns your habits. Mix up your moves and do not repeat what just won."
         )
     )
 

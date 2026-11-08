@@ -146,7 +146,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var nextFirstSeat = 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var botHoldsSet = false
     private val history = SnapshotHistory()
 
@@ -162,7 +162,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
         gamesFinished.value = 0
         lastGameNewBest.value = false
         nextFirstSeat = 0
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         botHoldsSet = false
         history.clear()
         clearHints()

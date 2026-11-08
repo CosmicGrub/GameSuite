@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Wave 5 S6: shown by the game chrome over any networked match whose connection is in trouble. -->
+    <string name="sh_reconnecting">Reconnecting…</string>
+    <string name="sh_host_away">The host lost connection. Waiting for them to come back…</string>
+    <string name="sh_player_away">A player lost connection. Waiting for them to come back…</string>
+    <string name="sh_host_left_title">Host left</string>
+    <string name="sh_host_left_body">The host left, so this match has ended. Nothing was recorded.</string>
+    <string name="sh_connection_lost_title">Connection lost</string>
+    <string name="sh_connection_lost_body">Your connection dropped and could not be restored, so this match has ended. Nothing was recorded.</string>
+    <string name="sh_ok">OK</string>
+</resources>

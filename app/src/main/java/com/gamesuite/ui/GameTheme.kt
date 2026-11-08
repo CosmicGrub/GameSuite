@@ -119,7 +119,21 @@ object GameThemes {
         "toy-soccer" to GameAccent(0xFF537D38, 0xFF6F9956),
         "toy-tennis" to GameAccent(0xFF7D6F38, 0xFF998C56),
         "toy-boxing" to GameAccent(0xFF9A3412, 0xFFFB8A5C),
-        "toy-baseball" to GameAccent(0xFF1E3A8A, 0xFF93AEF2)
+        "toy-baseball" to GameAccent(0xFF1E3A8A, 0xFF93AEF2),
+        "slot-cars" to GameAccent(0xFFB5381E, 0xFFFF8F70),
+        "fishing" to GameAccent(0xFF0B7A8F, 0xFF5CCBE6),
+        "tank-battle" to GameAccent(0xFF5F6B1F, 0xFFC8D86A),
+        "shooting-gallery" to GameAccent(0xFFB23A5C, 0xFFFF92A8),
+        "six-ball-puzzle" to GameAccent(0xFF96438E, 0xFFB766AF),
+        "pig-dice" to GameAccent(0xFFA55B76, 0xFFB2768C),
+        "tap-race" to GameAccent(0xFF0F766E, 0xFF5EEAD4),
+        "tug-of-war" to GameAccent(0xFF7C2D12, 0xFFFDBA74),
+        "reaction-duel" to GameAccent(0xFF12507A, 0xFF86C8F5),
+        "whack-a-mole" to GameAccent(0xFF9C5638, 0xFFF0B096),
+        "light-trail" to GameAccent(0xFF00669B, 0xFF5BD2FF),
+        "sumo-push" to GameAccent(0xFFA6402B, 0xFFF5927A),
+        "paddle-duel" to GameAccent(0xFF711F9E, 0xFFC779F2),
+        "rps-showdown" to GameAccent(0xFF9E1F78, 0xFFFF66D1)
     )
 
     /** What a game with no entry in [accents] (one added later) uses: a colour per family. */

@@ -111,7 +111,7 @@ class ToyTennisGame(
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
-    private val lock = Any()
+    private val lock: Any = this // one monitor for @Synchronized entry points and network callbacks alike
 
     private var format = TennisFormat.POINTS7
     private var cfg = TennisConfig()
@@ -119,6 +119,10 @@ class ToyTennisGame(
     private var ts = TennisState()
     private val history = ArrayDeque<TennisState>()
     private val cmdLog = HashMap<Int, MutableList<SwingCmd>>()
+    private var lastGuestSwingTick = Int.MIN_VALUE / 2
+
+    /** Guest swing requests that got past the rate limit and were judged (a test seam). */
+    @Volatile internal var guestSwingsJudged = 0
     private val consumed = HashMap<Int, List<SwingCmd>>()
     private var plannedHit = 0
     private var plannedToss = -1
@@ -134,7 +138,7 @@ class ToyTennisGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var lastSyncTick = 0
     private var needSync = false
@@ -161,9 +165,9 @@ class ToyTennisGame(
             hint.value = null
             lastReject.value = null
             state.value = null
-            history.clear(); cmdLog.clear(); consumed.clear()
+            history.clear(); cmdLog.clear(); consumed.clear(); lastGuestSwingTick = Int.MIN_VALUE / 2
             cfg = buildConfig(); sim = TennisSim(cfg)
-            stateVersion = 0; lastAppliedRemoteVersion = 0; lastSyncTick = 0; needSync = false
+            stateVersion = com.gamesuite.core.SyncEpoch.base(); lastAppliedRemoteVersion = 0; lastSyncTick = 0; needSync = false
             lastMs = -1; acc = 0.0; paused = false
             ts = TennisState(phase = TPhase.OVER)
             if (isNetworked) registerNetworkListeners()
@@ -221,7 +225,7 @@ class ToyTennisGame(
         cfg = buildConfig()
         sim = TennisSim(cfg)
         ts = sim.newMatch(format, firstServer.coerceIn(0, 1))
-        history.clear(); cmdLog.clear(); consumed.clear()
+        history.clear(); cmdLog.clear(); consumed.clear(); lastGuestSwingTick = Int.MIN_VALUE / 2
         plannedHit = 0; plannedToss = -1; wonCounted = false
         hint.value = null
         needSync = true
@@ -361,6 +365,12 @@ class ToyTennisGame(
         if (state.value == null || ts.phase == TPhase.OVER) return
         val cmd = SwingCmd(seat, dirX.coerceIn(-1.0, 1.0), power.coerceIn(0.0, 1.0))
         val now = ts.tick
+        // A racket cannot swing again for SWING_COOL ticks, so a second request a few ticks after the last one can
+        // never matter, yet each costs a rewind plus up to MAX_REWIND replayed steps: drop it before rewinding.
+        val sinceLast = now - lastGuestSwingTick
+        if (sinceLast in 0 until TennisRules.SWING_COOL / 4) return
+        lastGuestSwingTick = now
+        guestSwingsJudged++
         val at = tick.coerceIn(now - TennisRules.MAX_REWIND, now)
         val snap = if (at < now && !cfg.assist) history.firstOrNull { it.tick == at } else null
         if (snap == null) {
@@ -465,7 +475,7 @@ class ToyTennisGame(
         sim.placeForServe(ts)
         ts.phase = TPhase.PREP; ts.phaseTicks = TennisRules.PREP_TICKS + 40
         sessionWins.value = s.sessionWins
-        history.clear(); cmdLog.clear(); consumed.clear()
+        history.clear(); cmdLog.clear(); consumed.clear(); lastGuestSwingTick = Int.MIN_VALUE / 2
         plannedHit = 0; plannedToss = -1; wonCounted = false
         lastMs = -1
         hint.value = null

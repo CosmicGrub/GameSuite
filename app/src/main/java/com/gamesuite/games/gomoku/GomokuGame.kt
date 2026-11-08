@@ -75,6 +75,11 @@ internal fun gomokuPositionConsistent(
         return engine.winLine(board, winLine.first(), winnerIndex) != null
     }
     if (winLine.isNotEmpty()) return false
+    // Not over and nobody credited: a five already on the board would make this state impossible.
+    for (i in cells.indices) {
+        val owner = cells[i] ?: continue
+        if (engine.winLine(board, i, owner) != null) return false
+    }
     return if (boardOver) engine.isFull(board) else !engine.isFull(board)
 }
 
@@ -115,7 +120,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** Networked only: the other seat left; no further moves or rematches. */
@@ -151,7 +156,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -449,7 +454,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(GomokuNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(GomokuNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -490,6 +495,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
                 net.winLine, net.lastMove, net.boardOver
             )
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         exactFive = net.exactFive
         state.value = GomokuState(

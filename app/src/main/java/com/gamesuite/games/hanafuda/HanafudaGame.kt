@@ -140,7 +140,7 @@ class HanafudaGame(private val random: Random = Random.Default) : GameModule, Re
     private var nextParent = 0
     private var totals = listOf(0, 0)
     private var roundScores: List<List<Int>> = emptyList()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private val history = SnapshotHistory(8)
 
@@ -167,7 +167,7 @@ class HanafudaGame(private val random: Random = Random.Default) : GameModule, Re
         totals = listOf(0, 0)
         roundScores = emptyList()
         nextParent = if (!isNetworked && firstOpenerIndex in 0..1) firstOpenerIndex else 0
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         full = null
         if (isNetworked) registerNetworkListeners()
@@ -630,7 +630,7 @@ class HanafudaGame(private val random: Random = Random.Default) : GameModule, Re
 
     private fun handleNetworkMessage(from: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(HanafudaNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(HanafudaNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return
         }

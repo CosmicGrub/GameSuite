@@ -543,6 +543,16 @@ class BlackjackGameTest {
         assertFalse(result!!.scores[0].isWinner)
     }
 
+    @Test fun leavingMidRoundDoesNotScoreTheWageredChipsAsLost() {
+        val g = dealt(listOf("10S", "10H", "6D", "KC"), config = BjConfig(decks = 1, insurance = false))
+        // the bet is on the felt and the round is undecided
+        assertEquals(0, g.netOf(g.s(), 0))
+        var result: com.gamesuite.core.GameResult? = null
+        g.setOnMatchEnd { result = it }
+        g.leaveSession()
+        assertEquals(0, result!!.scores[0].score)
+    }
+
     @Test fun twoSeatsTheUniqueLeaderWinsATieDoesNot() {
         val g = dealt(listOf("10S", "10H", "9C", "KD", "6S", "8C"), seats = 2)
         g.act(BjAction.STAND); g.act(BjAction.STAND); finishDealer(g)

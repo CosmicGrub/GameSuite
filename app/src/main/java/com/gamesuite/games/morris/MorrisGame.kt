@@ -160,7 +160,7 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     val opponentLeft = mutableStateOf(false)
@@ -191,7 +191,7 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -569,7 +569,7 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(MorrisNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(MorrisNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -610,6 +610,7 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
         if (lm != null && (lm.to !in 0 until MorrisBoard.POINTS || lm.from >= MorrisBoard.POINTS || lm.remove >= MorrisBoard.POINTS)) return
         val rules = MorrisEngine(net.men, net.flying)
         val pos = validPosition(rules, net.points, net.hand, net.currentPlayerIndex, net.quietPlies, net.ply, net.boardOver) ?: return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         men = net.men
         flying = net.flying

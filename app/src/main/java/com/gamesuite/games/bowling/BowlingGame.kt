@@ -123,7 +123,7 @@ class BowlingGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private lateinit var context: GameContext
@@ -142,7 +142,7 @@ class BowlingGame(
             if (!isNetworked && firstOpenerIndex in context.players.indices) firstOpenerIndex else 0
         hintShot.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -229,6 +229,7 @@ class BowlingGame(
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (context.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC || context.activeMode == com.gamesuite.core.PlayMode.ONLINE) return false // a networked table is the host's, never a saved game
         val snap = try {
             bowlingJson.decodeFromString(BowlingSnapshot.serializer(), snapshot)
         } catch (_: Exception) {
@@ -465,7 +466,7 @@ class BowlingGame(
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(BowlingNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(BowlingNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }

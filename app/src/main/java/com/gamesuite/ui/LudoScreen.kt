@@ -231,8 +231,8 @@ fun LudoScreen(
             return@LaunchedEffect
         }
         val color = cur.players[seat].color
-        val from = cur.eventFrom
-        val to = cur.eventTo
+        val from = cur.eventFrom.coerceIn(LudoBoard.YARD, LudoBoard.FINISHED)
+        val to = cur.eventTo.coerceIn(from, LudoBoard.FINISHED) // defence in depth: state is validated, but never loop on a raw int
         val route = buildList {
             add(LudoBoard.cellOf(color, tok, from))
             if (from < 0) add(LudoBoard.cellOf(color, tok, 0))

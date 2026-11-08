@@ -189,7 +189,7 @@ class ToyBaseballGame(
     private val isNetworked: Boolean
         get() = this::context.isInitialized && (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -205,7 +205,7 @@ class ToyBaseballGame(
             phase = BaseballPhase.OVER
             over = false
             winnerPlayerId = null
-            stateVersion = 0
+            stateVersion = com.gamesuite.core.SyncEpoch.base()
             lastAppliedRemoteVersion = 0
             if (isNetworked) registerNetworkListeners()
         }

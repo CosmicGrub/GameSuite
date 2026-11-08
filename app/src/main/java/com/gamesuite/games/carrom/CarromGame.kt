@@ -56,7 +56,7 @@ class CarromGame(
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var nextStarter = 0
     private val history = SnapshotHistory()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var cachedReplay: Pair<Int, CarromSimResult>? = null
 
@@ -74,7 +74,7 @@ class CarromGame(
         history.clear()
         hintShot.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         cachedReplay = null
         if (isNetworked) registerNetworkListeners()
@@ -421,7 +421,7 @@ class CarromGame(
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(CarromNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(CarromNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -440,6 +440,7 @@ class CarromGame(
     private fun applyRemote(version: Int, net: CarromNetState) {
         if (version <= lastAppliedRemoteVersion) return
         if (!validNet(net)) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, 0, context.players)) return
         lastAppliedRemoteVersion = version
         state.value = fromNet(net)
         sessionWins.value = net.sessionWins

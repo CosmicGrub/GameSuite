@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Wave 5 S4: online/nearby lobby seat grid, computer seats, ready check, remove. Names are unique to this file (ls_). -->
+    <string name="ls_hosting_title">Hosting %1$s</string>
+    <string name="ls_connecting">Connecting to the server…</string>
+    <string name="ls_room_code">Room code</string>
+    <string name="ls_room_code_cd">Room code: %1$s</string>
+    <string name="ls_share_hint">Share this with other players</string>
+
+    <string name="ls_seat_host">Host</string>
+    <string name="ls_seat_ready">Ready</string>
+    <string name="ls_seat_not_ready">Not ready</string>
+    <string name="ls_seat_computer">Computer</string>
+    <string name="ls_seat_empty">Empty</string>
+    <string name="ls_seat_you">You</string>
+    <string name="ls_seat_cd_filled">Seat %1$d of %2$d: %3$s, %4$s</string>
+    <string name="ls_seat_cd_you">Seat %1$d of %2$d: %3$s (you), %4$s</string>
+    <string name="ls_seat_cd_empty">Seat %1$d of %2$d: empty</string>
+    <string name="ls_seat_cd_empty_can_add">Seat %1$d of %2$d: empty. Double tap to add a computer player</string>
+    <string name="ls_action_add_computer">Add a computer player</string>
+    <string name="ls_action_remove_computer">Remove computer player</string>
+    <string name="ls_action_remove_player">Remove player</string>
+    <string name="ls_computer_name">Computer %1$d</string>
+
+    <string name="ls_fill_computers">Fill with computers</string>
+    <string name="ls_clear_computers">Remove computers</string>
+
+    <string name="ls_status_full">The room is full (%1$d players).</string>
+    <string name="ls_status_ready_to_start">Ready to start. More players can still join.</string>
+    <string name="ls_status_waiting_ready">Waiting for everyone to get ready…</string>
+    <string name="ls_status_start_anyway_hint">Not everyone is ready, but you can start anyway.</string>
+    <plurals name="ls_status_need_players_or_computers">
+        <item quantity="one">Add 1 more player or a computer.</item>
+        <item quantity="other">Add %1$d more players or computers.</item>
+    </plurals>
+    <plurals name="ls_status_need_players">
+        <item quantity="one">Waiting for 1 more player…</item>
+        <item quantity="other">Waiting for %1$d more players…</item>
+    </plurals>
+
+    <string name="ls_start">Start game (%1$d players)</string>
+    <string name="ls_start_with_computers">Start game (%1$d players + %2$d computers)</string>
+    <string name="ls_start_anyway">Start anyway</string>
+    <string name="ls_cancel">Cancel</string>
+
+    <string name="ls_join_title_game">Join an online %1$s game</string>
+    <string name="ls_join_title">Join an online game</string>
+    <string name="ls_room_code_field">Room code</string>
+    <string name="ls_join">Join</string>
+    <string name="ls_watch">Watch</string>
+    <string name="ls_joining_game">Joining %1$s</string>
+    <string name="ls_connected">Connected!</string>
+    <string name="ls_watching_game">Watching %1$s</string>
+    <string name="ls_watching">Watching!</string>
+    <string name="ls_waiting_host">Waiting for the host to start the game…</string>
+    <string name="ls_waiting_host_spectator">Waiting for the host to start the game. You will watch, not play.</string>
+    <string name="ls_im_ready">I\'m ready</string>
+    <string name="ls_not_ready_yet">Not ready yet</string>
+    <string name="ls_cant_join">Can\'t join</string>
+    <string name="ls_refusal_full">This room is full.</string>
+    <string name="ls_refusal_started">This game has already started.</string>
+    <string name="ls_refusal_kicked">The host removed you from the room.</string>
+</resources>

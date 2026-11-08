@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -188,10 +189,11 @@ fun DartsScreen(
     var callout by remember { mutableStateOf<String?>(null) }
     var botThinking by remember { mutableStateOf(false) }
 
-    val sway = if (reduced) 0f else rememberInfiniteTransition(label = "darts-sway").animateFloat(
+    // A State read only in the draw pass and at throw time: `.value` in composition recomposed the whole screen every frame.
+    val swayState: State<Float> = if (reduced) remember { mutableStateOf(0f) } else rememberInfiniteTransition(label = "darts-sway").animateFloat(
         initialValue = 0f, targetValue = (2 * PI).toFloat(),
         animationSpec = infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Restart), label = "darts-sway-a"
-    ).value
+    )
 
     val txtBull = stringResource(R.string.dt_bull_short)
     val callBust = stringResource(R.string.dt_big_bust)
@@ -385,8 +387,11 @@ fun DartsScreen(
     }
 
     val swayAmp = sigma * 0.45f
-    val swayOffset = if (canAim) Offset(sin(sway * 1.0f) * swayAmp, cos(sway * 1.3f) * swayAmp * 0.8f) else Offset.Zero
-    val reticle = Offset(aim.x + swayOffset.x, aim.y + swayOffset.y)
+    fun swayOffsetNow(): Offset {
+        if (!canAim) return Offset.Zero
+        val sway = swayState.value
+        return Offset(sin(sway * 1.0f) * swayAmp, cos(sway * 1.3f) * swayAmp * 0.8f)
+    }
     val aimHit = DartsBoard.resolve(aim.x.toDouble(), aim.y.toDouble())
 
     val darts = shown.size + (if (flight != null) 1 else 0)
@@ -453,7 +458,7 @@ fun DartsScreen(
                         val measurer = rememberTextMeasurer()
                         val currentAim by rememberUpdatedState(aim)
                         val canAimNow by rememberUpdatedState(canAim)
-                        val sway2 by rememberUpdatedState(swayOffset)
+                        val swayNow by rememberUpdatedState(::swayOffsetNow)
                         Canvas(
                             Modifier
                                 .fillMaxSize()
@@ -492,7 +497,7 @@ fun DartsScreen(
                                                     val vy = tracker.calculateVelocity().y / density
                                                     if (vy < -FLICK_MIN_DP_PER_S && moved > 8f * density) {
                                                         val p = (0.35f + 0.65f * ((-vy - FLICK_MIN_DP_PER_S) / FLICK_RANGE_DP_PER_S).coerceIn(0f, 1f))
-                                                        doThrow(Offset(currentAim.x + sway2.x, currentAim.y + sway2.y), p)
+                                                        swayNow().let { sw -> doThrow(Offset(currentAim.x + sw.x, currentAim.y + sw.y), p) }
                                                     }
                                                 }
                                                 break
@@ -526,7 +531,7 @@ fun DartsScreen(
                                 drawCircle(Color(0xFFFFD21F), 11f * sc + 6f, c, style = Stroke(5f))
                                 drawCircle(Color(0xFFFFD21F).copy(alpha = 0.35f), 11f * sc + 14f, c, style = Stroke(3f))
                             }
-                            if (canAim) drawReticle(reticle, sigma, flightColor(s.current))
+                            if (canAim) swayOffsetNow().let { sw -> drawReticle(Offset(aim.x + sw.x, aim.y + sw.y), sigma, flightColor(s.current)) }
                             drawBurst(burst)
                         }
                         val co = callout

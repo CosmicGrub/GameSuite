@@ -112,6 +112,14 @@ class TennisNetworkedTest {
         assertEquals(court(t.host).score, court(t.guest).score)
     }
 
+    @Test fun aFloodOfGuestSwingsIsDroppedBeforeItCostsARewind() {
+        val t = table()
+        val contact = hostServes(t)
+        TennisKit.runUntil(t.host) { it.tick >= contact }
+        repeat(60) { t.ht.inject("g", enc(TennisNetMessage.SwingRequest(contact, 0.3, 0.6))) }
+        assertEquals("only the first of 60 same-tick swings may be judged", 1, t.host.guestSwingsJudged)
+    }
+
     @Test fun intentsFromTheHostSeatOrUnknownSendersAreIgnored() {
         val t = table()
         val contact = hostServes(t)

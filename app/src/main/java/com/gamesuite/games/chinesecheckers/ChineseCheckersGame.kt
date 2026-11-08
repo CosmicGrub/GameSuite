@@ -122,7 +122,7 @@ class ChineseCheckersGame(private val random: Random = Random.Default) : GameMod
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** Networked guest only: the host left, so nothing more will happen. Local state, never synced. */
@@ -156,7 +156,7 @@ class ChineseCheckersGame(private val random: Random = Random.Default) : GameMod
         history.clear()
         hintMove.value = null
         hostLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -608,7 +608,7 @@ class ChineseCheckersGame(private val random: Random = Random.Default) : GameMod
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(CCNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(CCNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return
         }
@@ -651,8 +651,11 @@ class ChineseCheckersGame(private val random: Random = Random.Default) : GameMod
             net.lastHops >= 0 && net.turnCount >= 0 &&
             (net.winnerPlayerId == null || roster.any { it.playerId == net.winnerPlayerId }) &&
             (net.endReason == null || net.endReason in listOf(CCEnd.GOAL, CCEnd.LIMIT, CCEnd.STUCK)) &&
-            (net.previous.isEmpty() || (net.previous.size == n && net.previous.all { it in -1 until CCBoard.CELLS * CCBoard.CELLS }))
+            (net.previous.isEmpty() || (net.previous.size == n && net.previous.all { it in -1 until CCBoard.CELLS * CCBoard.CELLS })) &&
+            (0 until n).all { seat -> net.cells.count { it == seat } == net.pieces } &&
+            (net.boardOver || CCRules.hasMove(IntArray(CCBoard.CELLS) { net.cells[it] ?: -1 }, net.currentPlayerIndex))
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         val homes = CCBoard.layout(n)
         state.value = CCState(

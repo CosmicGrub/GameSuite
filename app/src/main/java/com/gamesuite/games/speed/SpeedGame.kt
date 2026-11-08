@@ -175,7 +175,7 @@ class SpeedGame(
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
-    private val lock = Any()
+    private val lock: Any = this // one monitor for @Synchronized entry points and network callbacks alike
 
     // ---- the table (host / offline only; a guest has only [state]) ----
     private class Table {
@@ -218,7 +218,7 @@ class SpeedGame(
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -236,7 +236,7 @@ class SpeedGame(
             boardOver = false
             winnerPlayerId = null
             nextOpener = 0
-            stateVersion = 0
+            stateVersion = com.gamesuite.core.SyncEpoch.base()
             lastAppliedRemoteVersion = 0
             if (isNetworked) registerNetworkListeners()
         }

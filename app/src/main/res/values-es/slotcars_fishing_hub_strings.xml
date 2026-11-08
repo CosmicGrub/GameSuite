@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Slot Cars y Pesca: cadenas del hub y consejos (archivo propio). -->
+    <string name="hub_slot_cars">Coches de ranura</string>
+    <string name="hub_hold_to_speed_up_and_brake_before_the_bends">Mantén para acelerar y frena antes de las curvas.</string>
+    <string name="hub_laps_to_race">Vueltas de la carrera</string>
+    <string name="hub_how_many_laps_make_the_race">Cuántas vueltas dura la carrera.</string>
+    <string name="hub_3_laps">3 vueltas</string>
+    <string name="hub_5_laps">5 vueltas</string>
+    <string name="hub_10_laps">10 vueltas</string>
+    <string name="hub_track">Circuito</string>
+    <string name="hub_three_original_layouts_bends_ahead_are_marked_wi_fb9cda">Tres trazados originales. Las curvas se anuncian con señales ámbar.</string>
+    <string name="hub_meadow_oval">Óvalo del Prado</string>
+    <string name="hub_a_friendly_oval_with_one_bend_that_needs_care">Un óvalo amable con una curva que exige cuidado.</string>
+    <string name="hub_hairpin_hill">Colina Horquilla</string>
+    <string name="hub_long_straights_and_a_tight_hairpin">Rectas largas y una horquilla cerrada.</string>
+    <string name="hub_twister">El Retorcido</string>
+    <string name="hub_a_loop_of_s_bends">Un circuito de curvas en S.</string>
+    <string name="hub_race_speed">Velocidad de la carrera</string>
+    <string name="hub_for_players_who_can_t_play_in_real_time_slow_mot_9cd5c3">Para quienes no pueden jugar en tiempo real: la cámara lenta reduce la velocidad a la mitad y paso a paso te deja planear cada medio segundo.</string>
+    <string name="hub_real_time">Tiempo real</string>
+    <string name="hub_slow_motion">Cámara lenta</string>
+    <string name="hub_the_whole_race_runs_at_half_speed">Toda la carrera va a media velocidad.</string>
+    <string name="hub_step_by_step">Paso a paso</string>
+    <string name="hub_turn_based_choose_throttle_or_coast_for_each_hal_7e0fe4">Por turnos: elige acelerar o dejar rodar en cada medio segundo y pulsa Ir.</string>
+    <string name="hub_race_against_computer_drivers">Compite contra pilotos de la computadora.</string>
+    <string name="hub_two_to_four_drivers_share_this_device_one_pad_ea_294699">De dos a cuatro pilotos comparten este dispositivo, cada uno con su mando.</string>
+    <string name="hub_fishing">Pesca</string>
+    <string name="hub_cast_hook_and_reel_in_the_biggest_catch">Lanza, clava y recoge la captura más grande.</string>
+    <string name="hub_lake">Lago</string>
+    <string name="hub_where_you_fish_decides_which_fish_are_biting">El lugar donde pescas decide qué peces pican.</string>
+    <string name="hub_willow_pond">Estanque del Sauce</string>
+    <string name="hub_shallow_and_friendly_small_and_medium_fish">Poco profundo y amable: peces pequeños y medianos.</string>
+    <string name="hub_clear_lake">Lago Claro</string>
+    <string name="hub_a_bit_of_everything">Un poco de todo.</string>
+    <string name="hub_deep_reservoir">Embalse Profundo</string>
+    <string name="hub_deep_water_with_big_rare_fish">Aguas profundas con peces grandes y raros.</string>
+    <string name="hub_casts_each">Lanzamientos cada uno</string>
+    <string name="hub_how_many_casts_every_angler_gets_the_most_weight_7fc1cf">Cuántos lanzamientos tiene cada pescador. Gana el mayor peso.</string>
+    <string name="hub_3_casts">3 lanzamientos</string>
+    <string name="hub_5_casts">5 lanzamientos</string>
+    <string name="hub_8_casts">8 lanzamientos</string>
+    <string name="hub_relaxed_fishing">Pesca relajada</string>
+    <string name="hub_longer_bite_and_reel_windows_and_gentler_fish_fo_db8c48">Más tiempo para clavar y recoger, y peces más suaves, para quienes no reaccionan rápido.</string>
+    <string name="hub_solo_fishing">Pesca en solitario</string>
+    <string name="hub_fish_on_your_own_and_beat_your_best_haul">Pesca por tu cuenta y supera tu mejor captura.</string>
+    <string name="hub_a_fishing_contest_against_computer_anglers">Un concurso de pesca contra pescadores de la computadora.</string>
+    <string name="hub_anglers_take_turns_on_one_device">Los pescadores se turnan en un solo dispositivo.</string>
+    <string name="tip_slot_cars_1">Mantén tu mando para acelerar y suéltalo para frenar. Reduce antes de las señales ámbar.</string>
+    <string name="tip_slot_cars_2">Si entras muy rápido en una curva, el coche se sale de la ranura y pierde tiempo. Vigila la barra de agarre.</string>
+    <string name="tip_slot_cars_3">¿Demasiado rápido? Activa Cámara lenta o Paso a paso en la configuración.</string>
+    <string name="tip_fishing_1">Elige un punto, mantén el botón y suéltalo para lanzar. Cuanto más lejos, más grandes los peces.</string>
+    <string name="tip_fishing_2">Pulsa el botón cuando el flotador se hunda, no con los mordisqueos pequeños.</string>
+    <string name="tip_fishing_3">Mantén para recoger, suelta cuando el pez tire y mantén la barra de tensión en la zona Bien.</string>
+</resources>

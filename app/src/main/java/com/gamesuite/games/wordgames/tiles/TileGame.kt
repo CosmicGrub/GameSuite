@@ -179,7 +179,7 @@ class TileGame : GameModule, ResumableGame {
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** Counts committed plays (host) so a guest can fire the success feedback exactly once per play. */
@@ -202,7 +202,7 @@ class TileGame : GameModule, ResumableGame {
         opponentLeft.value = false
         sessionWins.value = context.players.associate { it.playerId to 0 }
         sessionDraws.value = 0
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         playSeq = 0
         lastSeenPlaySeq = 0
@@ -818,7 +818,7 @@ class TileGame : GameModule, ResumableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(TileNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(TileNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return // malformed or foreign payload
         }

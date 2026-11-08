@@ -68,7 +68,7 @@ class GolfGame(
     private var startedAtMs = 0L
     var finishedAtMs = 0L
         private set
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private val isNetworked: Boolean
@@ -86,7 +86,7 @@ class GolfGame(
         hintShot.value = null
         history.clear()
         sessionWins = IntArray(context.players.size)
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         finishedAtMs = 0L
         if (isNetworked) registerNetworkListeners()
@@ -335,6 +335,7 @@ class GolfGame(
     }
 
     override fun restore(snapshot: String): Boolean {
+        if (context.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC || context.activeMode == com.gamesuite.core.PlayMode.ONLINE) return false // a networked table is the host's, never a saved game
         return try {
             val snap = golfJson.decodeFromString(GolfSnap.serializer(), snapshot)
             val s = snap.state

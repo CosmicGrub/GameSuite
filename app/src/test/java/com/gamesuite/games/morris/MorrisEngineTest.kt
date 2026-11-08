@@ -227,6 +227,20 @@ class MorrisEngineTest {
     }
 
     @Test
+    fun `a search that times out still plays the best one-ply move rather than the first listed`() {
+        val e = MorrisEngine()
+        // Sente can close the mill 4-5-6 by placing on 6; the first legal placement is point 0.
+        val p = pos(p0 = listOf(4, 5), p1 = listOf(20, 22), hand0 = 7, hand1 = 7)
+        assertEquals(0, e.legalMoves(p).first().to)
+        for (level in listOf(CpuDifficulty.MEDIUM, CpuDifficulty.HARD)) {
+            val m = e.chooseMove(p, level, Random(1), timeBudgetMs = 0)!!
+            assertEquals("$level fell back to an arbitrary move", 6, m.to)
+            assertTrue(m.remove >= 0)
+        }
+        assertEquals(6, e.hint(p, timeBudgetMs = 0)!!.to)
+    }
+
+    @Test
     fun `hint is deterministic and legal`() {
         val e = MorrisEngine()
         val p = pos(p0 = listOf(0, 1), p1 = listOf(5, 6), hand0 = 7, hand1 = 7)

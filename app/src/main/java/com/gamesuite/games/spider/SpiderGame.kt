@@ -11,6 +11,9 @@ import com.gamesuite.core.ResumableGame
 import com.gamesuite.core.SnapshotHistory
 import com.gamesuite.core.UndoableGame
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -192,10 +195,27 @@ class SpiderGame(private val random: Random = Random.Default) : GameModule, Resu
         }
         val chosenSeed = dailySeed ?: random.nextLong()
         val suitCount = suits
-        val deal = withContext(Dispatchers.Default) { SpiderDealer.winnable(chosenSeed, suitCount) }
-        if (matchOver.value) return
-        commitNewDeal(deal.state, dailySeed ?: chosenSeed, dailySeed != null, deal.provenWinnable)
+        // One search at a time: a second tap while one runs would start a second search whose later finish
+        // overwrote the table. The search also polls this coroutine's job, so leaving the screen stops it.
+        if (!dealInFlight.compareAndSet(false, true)) return
+        try {
+            val deal = withContext(Dispatchers.Default) {
+                val job = coroutineContext[Job]
+                dealer(chosenSeed, suitCount) { job?.isActive == false }
+            }
+            currentCoroutineContext().ensureActive()
+            if (matchOver.value) return
+            commitNewDeal(deal.state, dailySeed ?: chosenSeed, dailySeed != null, deal.provenWinnable)
+        } finally {
+            dealInFlight.set(false)
+        }
     }
+
+    private val dealInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** The winnable-deal search; a test seam (a test swaps in a dealer it can block and watch for cancellation). */
+    internal var dealer: (seed: Long, suits: Int, isCancelled: () -> Boolean) -> SpiderDealer.Deal =
+        { seed, suits, isCancelled -> SpiderDealer.winnable(seed, suits, isCancelled = isCancelled) }
 
     private fun commitNewDeal(s: SpiderState, seed: Long, daily: Boolean, proven: Boolean) {
         this.seed = seed

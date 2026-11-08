@@ -81,7 +81,7 @@ class UnoGame : GameModule, ResumableGame {
      *  commit, redacted by [unoRedactForSpectator]. The relay does not tell a host about spectators, so a
      *  spectator announces itself by sending [UnoNetMessage.RequestState]. */
     private val spectatorIds = LinkedHashSet<String>()
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -699,9 +699,10 @@ class UnoGame : GameModule, ResumableGame {
 
     // ---- Bot driver ----
 
-    /** Call from the UI (e.g. a LaunchedEffect) when the current player is a bot. Never
-     *  fires in networked play — LOCAL_AD_HOC games are human-only (no shared "who runs
-     *  the bot" authority), enforced by the lobby never offering bot seats there.
+    /** Call from the UI (e.g. a LaunchedEffect) when the current player is a bot. In networked
+     *  play only the HOST's UI drives bot seats (the host is the single authority for "who runs
+     *  the bot"; the lobby's computer fill adds them), and a guest never calls this. See
+     *  docs/roadmap/WAVE-5-MULTIPLAYER-DESIGN.md section 11.
      *
      *  [chainDrawnPlay]: when the bot's draw turns up a playable card the turn stays with it (see below).
      *  True (the default) plays that card in the same call, so headless callers get a whole turn from one
@@ -709,6 +710,7 @@ class UnoGame : GameModule, ResumableGame {
      *  play are two separate states the table can animate -- rendered from one call, a bot's
      *  draw-then-play showed as a card popping onto the pile from a seat whose count never changed. */
     fun playBotTurn(chainDrawnPlay: Boolean = true) {
+        if (isNetworked && !isHost) return // only the host drives computer seats
         val s = state.value ?: return
         if (s.matchOver) return
 
@@ -880,7 +882,7 @@ class UnoGame : GameModule, ResumableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString<UnoNetMessage>(String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString<UnoNetMessage>(String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return // malformed or foreign payload — ignore rather than crash the match
         }

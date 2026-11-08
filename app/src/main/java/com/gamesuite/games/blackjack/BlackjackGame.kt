@@ -87,7 +87,7 @@ class BlackjackGame(private val random: Random = Random.Default) : GameModule, R
     private val shoe = ArrayDeque<Card>()
     private val discard = ArrayList<Card>()
     private var uid = 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     private val isNetworked: Boolean
@@ -101,7 +101,7 @@ class BlackjackGame(private val random: Random = Random.Default) : GameModule, R
         matchOver.value = false
         hostLeft.value = false
         hintAction.value = null
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         shoe.clear(); discard.clear(); uid = 0
         if (isNetworked) registerNetworkListeners()
@@ -198,7 +198,11 @@ class BlackjackGame(private val random: Random = Random.Default) : GameModule, R
     /** Chips a seat is worth against what it put in (starting stack plus rebuys). */
     fun netOf(s: BjState, seatIndex: Int): Int {
         val seat = s.seats[seatIndex]
-        return seat.stack - s.config.startingChips * (1 + seat.rebuys)
+        // Chips on the felt (bet, doubles, splits, insurance) are already out of the stack but not yet won or lost:
+        // count them as still the seat's until the round settles, or leaving mid-round scores them as lost.
+        val onTheFelt = if (s.phase == BjPhase.ROUND_OVER) 0 else
+            (if (seat.hands.isEmpty()) (if (seat.betPlaced) seat.bet else 0) else seat.hands.sumOf { it.bet }) + seat.insurance
+        return seat.stack + onTheFelt - s.config.startingChips * (1 + seat.rebuys)
     }
 
     // --- Lifecycle -------------------------------------------------------------------------
@@ -871,7 +875,7 @@ class BlackjackGame(private val random: Random = Random.Default) : GameModule, R
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(BjNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(BjNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return
         }

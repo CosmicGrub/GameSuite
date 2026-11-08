@@ -113,7 +113,7 @@ class SoccerWorld(val figuresPerTeam: Int) {
     fun index(team: Int, figure: Int): Int = 1 + team * figuresPerTeam + figure
     fun radius(i: Int): Double = if (i == 0) SoccerRules.BALL_R else if (isKeeper(i)) SoccerRules.KEEPER_R else SoccerRules.FIG_R
     private fun mass(i: Int): Double = if (i == 0) SoccerRules.BALL_MASS else if (isKeeper(i)) SoccerRules.KEEPER_MASS else SoccerRules.FIG_MASS
-    fun speed(i: Int): Double = hypot(vx[i], vy[i])
+    fun speed(i: Int): Double = StrictMath.hypot(vx[i], vy[i])
     fun isReady(i: Int): Boolean = i > 0 && cooldown[i] == 0 && speed(i) < SoccerRules.READY_SPEED
 
     /** True when nothing moves faster than [SoccerRules.SETTLE_SPEED]. */
@@ -170,7 +170,7 @@ class SoccerWorld(val figuresPerTeam: Int) {
      */
     fun flick(i: Int, px: Double, py: Double): Boolean {
         if (i <= 0 || i >= count || !px.isFinite() || !py.isFinite() || !isReady(i)) return false
-        val len = hypot(px, py)
+        val len = StrictMath.hypot(px, py)
         if (len < SoccerRules.MIN_PULL) return false
         val use = minOf(len, SoccerRules.MAX_PULL)
         val speed = use * SoccerRules.FLICK_GAIN

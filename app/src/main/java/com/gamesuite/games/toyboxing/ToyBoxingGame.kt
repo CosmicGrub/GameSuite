@@ -250,7 +250,7 @@ class ToyBoxingGame(
     private val isNetworked: Boolean
         get() = this::context.isInitialized && (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
     private var lastBroadcastSim = -1_000L
     private var lastBroadcastEvent = -1
@@ -270,7 +270,7 @@ class ToyBoxingGame(
             over = false
             winnerPlayerId = null
             nextOpener = 0
-            stateVersion = 0
+            stateVersion = com.gamesuite.core.SyncEpoch.base()
             lastAppliedRemoteVersion = 0
             if (isNetworked) registerNetworkListeners()
         }

@@ -218,12 +218,12 @@ class MorrisEngine(val men: Int = MorrisMen.NINE, val flying: Boolean = true) {
         return when (difficulty) {
             CpuDifficulty.EASY -> {
                 if (rng.nextInt(100) < 25) return moves[rng.nextInt(moves.size)]
-                val scored = scoreRoot(pos, moves, 1, Ctx(Long.MAX_VALUE)) ?: return moves[0]
+                val scored = scoreRoot(pos, moves, 1, Ctx(Long.MAX_VALUE)) ?: return quickBest(pos, moves, rng)
                 val best = scored.maxOf { it.second }
                 scored.filter { it.second >= best - 40 }.let { it[rng.nextInt(it.size)].first }
             }
             CpuDifficulty.MEDIUM -> {
-                val scored = scoreRoot(pos, ordered(moves), 3, ctx) ?: return moves[0]
+                val scored = scoreRoot(pos, ordered(moves), 3, ctx) ?: return quickBest(pos, moves, rng) // timed out: still a sensible move
                 val best = scored.maxOf { it.second }
                 scored.filter { it.second >= best - 3 }.let { it[rng.nextInt(it.size)].first }
             }
@@ -231,8 +231,16 @@ class MorrisEngine(val men: Int = MorrisMen.NINE, val flying: Boolean = true) {
         }
     }
 
+    /** The best one-ply move (uninterruptible and cheap): the fallback when a deeper search runs out of time. */
+    private fun quickBest(pos: MorrisPosition, moves: List<MorrisMove>, rng: Random?): MorrisMove {
+        val scored = scoreRoot(pos, moves, 1, Ctx(Long.MAX_VALUE)) ?: return moves[0]
+        val top = scored.maxOf { it.second }
+        val pool = scored.filter { it.second >= top }
+        return if (rng != null) pool[rng.nextInt(pool.size)].first else pool[0].first
+    }
+
     private fun deepest(pos: MorrisPosition, moves: List<MorrisMove>, maxDepth: Int, ctx: Ctx, rng: Random?): MorrisMove {
-        var best: MorrisMove = moves[0]
+        var best: MorrisMove = quickBest(pos, moves, rng) // what we play if even depth 2 is cut off
         var ordering = ordered(moves)
         for (depth in 2..maxDepth) {
             val scored = scoreRoot(pos, ordering, depth, ctx) ?: break

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Light-Trail Duel and Sumo Push (resource name = hubKey of the English text). -->
+    <string name="hub_light_trail_duel">Light-Trail Duel</string>
+    <string name="hub_glowing_walls_one_survivor_steer_left_or_right_a_11a097">Glowing walls, one survivor. Steer left or right and trap your rivals.</string>
+    <string name="hub_out_ride_the_computer_computers_fill_the_other_z_7b7bd6">Out-ride the computer. Computers fill the other zones.</string>
+    <string name="hub_2_to_4_people_on_one_screen_each_with_their_own_7d3525">2 to 4 people on one screen, each with their own pads. Computers can fill empty zones.</string>
+    <string name="hub_best_of_3_or_best_of_5_a_drawn_round_is_played_a_30e183">Best of 3 or best of 5. A drawn round is played again.</string>
+    <string name="hub_arena_size">Arena size</string>
+    <string name="hub_a_bigger_arena_gives_more_room_to_run_and_takes_456b44">A bigger arena gives more room to run and takes longer to fill.</string>
+    <string name="hub_small">Small</string>
+    <string name="hub_large">Large</string>
+    <string name="hub_glowing_orbs_gap_lets_you_slip_through_walls_for_ddd91c">Glowing orbs: Gap lets you slip through walls for a few cells, Boost doubles your speed for a moment.</string>
+    <string name="hub_slower_riders_a_wider_arena_and_the_game_steers_c1a5d0">Slower riders, a wider arena, and the game steers you away from a wall now and then. For players who find fast games hard.</string>
+    <string name="hub_controls">Controls</string>
+    <string name="hub_how_each_player_steers_one_button_is_for_players_a33631">How each player steers. One button is for players who cannot use two pads.</string>
+    <string name="hub_two_pads">Two pads</string>
+    <string name="hub_a_left_pad_and_a_right_pad_for_each_player">A Left pad and a Right pad for each player.</string>
+    <string name="hub_one_button">One button</string>
+    <string name="hub_one_button_per_player_it_turns_toward_the_side_s_99c151">One button per player. It turns toward the side shown on it, and the side switches every moment.</string>
+    <string name="hub_turn_each_player_s_controls_to_face_their_edge_o_ee335e">Turn each player\'s controls to face their edge of the screen. Switch off to share the bottom edge.</string>
+    <string name="hub_sumo_push">Sumo Push</string>
+    <string name="hub_round_toy_sumos_in_a_shrinking_ring_shove_everyo_60ca67">Round toy sumos in a shrinking ring. Shove everyone else out.</string>
+    <string name="hub_push_the_computer_out_of_the_ring_computers_fill_4441a3">Push the computer out of the ring. Computers fill the other zones.</string>
+    <string name="hub_2_to_4_people_on_one_screen_each_with_their_own_558e65">2 to 4 people on one screen, each with their own stick. Computers can fill empty zones.</string>
+    <string name="hub_a_bigger_ring_takes_more_pushing_to_clear">A bigger ring takes more pushing to clear.</string>
+    <string name="hub_orbs_in_the_ring_heavy_makes_you_hard_to_shove_s_bb5092">Orbs in the ring: Heavy makes you hard to shove, Sprint makes you quicker.</string>
+    <string name="hub_slower_sumos_a_bigger_ring_that_shrinks_slowly_a_813f86">Slower sumos, a bigger ring that shrinks slowly, and a rope grip that stops you steering off the edge. For players who find fast games hard.</string>
+    <string name="hub_how_each_player_steers_one_button_is_for_players_67f846">How each player steers. One button is for players who cannot use a stick.</string>
+    <string name="hub_stick">Stick</string>
+    <string name="hub_drag_a_thumb_stick_to_steer_your_sumo">Drag a thumb-stick to steer your sumo.</string>
+    <string name="hub_direction_pad">Direction pad</string>
+    <string name="hub_hold_a_direction_pad_to_steer_your_sumo">Hold a direction pad to steer your sumo.</string>
+    <string name="hub_your_sumo_steers_itself_toward_the_nearest_rival_34b048">Your sumo steers itself toward the nearest rival. You only press Dash.</string>
+</resources>

@@ -216,7 +216,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     private val isNetworked: Boolean
         get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -228,7 +228,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         firstOpenerIndex = null
         tileSet = DominoSet.DOUBLE_SIX
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         boneyard = mutableListOf()
         if (isNetworked) {
@@ -839,7 +839,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(DominoNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(DominoNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return // malformed or foreign payload
         }

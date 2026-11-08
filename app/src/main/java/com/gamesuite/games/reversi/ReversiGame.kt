@@ -416,7 +416,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** Networked only: the other seat left; no further moves or rematches. Local state, never synced. */
@@ -463,7 +463,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -842,7 +842,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(ReversiNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(ReversiNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return // malformed or foreign payload: ignore rather than crash the match
         }
@@ -884,6 +884,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
             net.currentPlayerIndex in 0..1 &&
             (net.winnerPlayerId == null || net.players.any { it.playerId == net.winnerPlayerId })
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         boardSize = net.size
         val rules = engine
