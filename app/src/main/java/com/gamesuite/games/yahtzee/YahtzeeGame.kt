@@ -134,6 +134,9 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
     /** Set by the screen from the launch options before [startMatch]. */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     /** The seat that opens the first game of a new session; consumed by [startMatch]. Null = seat 0. */
     var firstOpenerIndex: Int? = null
 
@@ -355,6 +358,12 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
     }
 
     /** Deals a new game within the same session (the tally is kept, the opener rotates). */
+    /** Computer Arena: deals the next game with [seat] opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        firstOpenerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (state.value?.gameOver != true) return
@@ -401,6 +410,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
     fun botStep(): Boolean {
         val s = state.value ?: return false
         if (matchOver.value || s.gameOver || !s.currentPlayer.isBot) return false
+        if (arena?.deferIfPaused { botStep() } == true) return true
         if (s.rollsLeft == 3) return doRoll(s)
         if (s.rollsLeft > 0 && botHoldsSet) return doRoll(s)
         val plan = botPlan(s)
@@ -429,7 +439,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
 
     private fun botPlan(s: YahtzeeState): YahtzeePlan {
         val card = s.currentPlayer.card
-        return when (difficulty) {
+        return when (arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty) {
             CpuDifficulty.HARD -> YahtzeeAdvisor(card, 1.0, 0.5, 2).plan(s.dice, s.rollsLeft)
             CpuDifficulty.MEDIUM -> YahtzeeAdvisor(card, 0.5, 0.0, 1).plan(s.dice, s.rollsLeft)
             CpuDifficulty.EASY -> easyPlan(s, card)

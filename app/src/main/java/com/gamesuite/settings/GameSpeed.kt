@@ -28,13 +28,18 @@ enum class GameSpeed(val label: String, val description: String, val delayScale:
     /** Scales a base delay in milliseconds; a positive delay never collapses to zero. */
     fun scale(baseMs: Long): Long {
         if (baseMs <= 0L) return 0L
-        return (baseMs * delayScale).toLong().coerceAtLeast(1L)
+        // Arena max still shows every step for at least one frame (about 16 ms) before the next one starts.
+        val floor = if (this == ARENA_MAX) MIN_FRAME_MS else 1L
+        return (baseMs * delayScale).toLong().coerceAtLeast(floor)
     }
 
     /** The next speed in the cycle Slow -> Relaxed -> Normal -> Quick -> Slow (for a one-tap menu item). */
     fun next(): GameSpeed = selectable[(selectable.indexOf(this) + 1).mod(selectable.size)]
 
     companion object {
+        /** One display frame at 60 Hz, rounded up: the shortest pause [ARENA_MAX] ever uses. */
+        const val MIN_FRAME_MS = 17L
+
         /** The speeds a player can choose in Settings (the Arena-only ones are left out). */
         val selectable: List<GameSpeed> get() = listOf(SLOW, RELAXED, NORMAL, QUICK)
 

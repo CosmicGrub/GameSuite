@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos del Game Hub del interruptor compartido "Ayuda al jugador pequeño" (nombres hubKey). Misma redacción en todos los juegos de dos jugadores. -->
+    <string name="hub_help_the_young_player">Ayudar al jugador pequeño</string>
+    <string name="hub_the_computer_plays_one_level_gentler">La computadora juega un nivel más suave.</string>
+</resources>

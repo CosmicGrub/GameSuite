@@ -123,6 +123,7 @@ fun ReversiScreen(
         // Per-launch Hub choices, read once before init/tryResume (a resumed game ignores the
         // first mover: its snapshot restores its own alternation).
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         // Board size ("small" 6x6 / "standard" 8x8 / "large" 10x10); a resumed save carries its own size.
         game.boardSize = ReversiBoardSizes.fromOptionId(sessionManager.launchOptions.extras["board"])

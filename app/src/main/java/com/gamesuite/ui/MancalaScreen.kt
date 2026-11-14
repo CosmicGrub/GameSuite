@@ -175,6 +175,7 @@ fun MancalaScreen(
         // Per-launch Hub choices (read once, before tryResume/startMatch; a resumed game's snapshot
         // overrides both): the CPU level and which roster seat sows first on the first board.
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex.coerceIn(0, 1)
         // Board variant from the Hub (stones / pits / capture); a resumed save brings its own.
         game.rules = MancalaRules.fromExtras(sessionManager.launchOptions.extras)

@@ -116,6 +116,9 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
     val sessionDraws = mutableStateOf(0)
     val matchOver = mutableStateOf(false)
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
     var firstOpenerIndex: Int = 0
 
     /** Seeds the Easy CPU's choice among near-best moves; tests fix it. */
@@ -198,6 +201,13 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
             val w = wins[it.playerId] ?: 0
             PlayerScore(it.playerId, w, best > 0 && w == best && leaders == 1)
         }))
+    }
+
+    /** Computer Arena: deals the next board with [seat] playing Sente (first). */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        nextStartingPlayerIndex = seat
+        playAgain()
     }
 
     fun playAgain() {
@@ -375,8 +385,8 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
     private fun botToMove(s: ShogiState): Boolean =
         !matchOver.value && !s.gameOver && s.players[s.currentPlayerIndex].isBot
 
-    private fun searchBot(position: ShogiPosition, canDeclare: Boolean): Int? {
-        val params = shogiSearchParams(variant, difficulty)
+    private fun searchBot(position: ShogiPosition, canDeclare: Boolean, level: CpuDifficulty): Int? {
+        val params = shogiSearchParams(variant, level)
         if (canDeclare) return DECLARE
         return rules.chooseMove(position, params.maxDepth, params.timeMs, params.noiseCp, random)
     }
@@ -384,7 +394,7 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
     fun playBotTurn() {
         val s = state.value ?: return
         if (!botToMove(s)) return
-        val m = searchBot(pos, s.canDeclareImpasse) ?: return
+        val m = searchBot(pos, s.canDeclareImpasse, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty) ?: return
         if (m == DECLARE) declareImpasse() else playMove(m)
     }
 
@@ -392,8 +402,10 @@ class ShogiGame(val variant: ShogiVariant = ShogiVariant.STANDARD) : GameModule,
         val s = state.value ?: return
         if (!botToMove(s)) return
         val snapshot = pos.copy()
-        val m = withContext(Dispatchers.Default) { searchBot(snapshot, s.canDeclareImpasse) } ?: return
+        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
+        val m = withContext(Dispatchers.Default) { searchBot(snapshot, s.canDeclareImpasse, level) } ?: return
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) { if (m == DECLARE) declareImpasse() else playMove(m) } } == true) return
         if (m == DECLARE) declareImpasse() else playMove(m)
     }
 

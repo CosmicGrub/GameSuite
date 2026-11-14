@@ -172,6 +172,7 @@ fun TicTacToeScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         game.misere = misere
         game.wild = wild

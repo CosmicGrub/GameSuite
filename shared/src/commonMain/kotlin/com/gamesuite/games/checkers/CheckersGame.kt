@@ -300,6 +300,12 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
     var arena: ArenaHook? = null
 
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: ExtraHelp = ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /**
      * The roster seat (0 or 1) that plays Light (side 1) and therefore takes the first turn of every
      * round: Light always moves first in this ruleset, so "who opens" is decided by which seat holds
@@ -1066,7 +1072,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || s.gameOver) return null
         val botSeat = s.currentPlayerIndex
         if (context.players.getOrNull(botSeat)?.isBot != true) return null
-        return CheckersBotJob(s, positionOf(s), sideOfSeat(botSeat), arena?.levelFor(botSeat, difficulty) ?: difficulty, this)
+        return CheckersBotJob(s, positionOf(s), sideOfSeat(botSeat), botLevelFor(botSeat), this)
     }
 
     /**

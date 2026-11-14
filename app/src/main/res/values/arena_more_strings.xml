@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_game_tic_tac_toe">Tic-Tac-Toe</string>
+    <string name="arena_game_mancala">Mancala</string>
+    <string name="arena_game_gomoku">Gomoku</string>
+    <string name="arena_game_dots_and_boxes">Dots and Boxes</string>
+    <string name="arena_game_hex">Hex</string>
+    <string name="arena_game_nine_mens_morris">Nine Men\'s Morris</string>
+    <string name="arena_game_shogi">Shogi</string>
+    <string name="arena_game_mini_shogi">Mini Shogi</string>
+    <string name="arena_game_dominoes">Dominoes</string>
+    <string name="arena_game_ludo">Ludo</string>
+    <string name="arena_game_backgammon">Backgammon</string>
+    <string name="arena_game_yahtzee">Yahtzee</string>
+
+    <string name="arena_note_ludo">Ludo has four seats: Computer A plays the 1st and 3rd, Computer B the 2nd and 4th. A win counts for the side whose token gets home first.</string>
+    <string name="arena_note_yahtzee">Yahtzee is a score race: each computer fills its own scorecard and the higher total wins.</string>
+    <string name="arena_note_stalls">If a game makes no progress for 20 seconds the watchdog ends it as stalled and the series carries on. A stalled game points at a bug in that game, not at the computers.</string>
+
+    <string name="arena_pick_speed">Speed</string>
+    <string name="arena_pick_mode">Mode</string>
+    <string name="arena_mode_series">One series</string>
+    <string name="arena_mode_tournament">Tournament</string>
+    <string name="arena_note_tournament">Round robin of Easy, Medium and Hard for this game: Easy vs Medium, Easy vs Hard and Medium vs Hard, with the number of games below played for each pairing. The two level pickers are not used.</string>
+    <string name="arena_tournament_coop">Bridge Builders is cooperative, so it has no tournament; it runs as one series.</string>
+    <string name="arena_strip_tournament">Pairing %1$d of %2$d: %3$s vs %4$s</string>
+    <string name="arena_strip_stalled">Stalled: %1$d</string>
+    <string name="arena_result_stalled">Game %1$d: stalled with no progress, ended by the watchdog.</string>
+
+    <string name="arena_rematch_swapped">Rematch, seats swapped</string>
+    <string name="arena_results_title">Series results</string>
+    <string name="arena_results_hide">Hide results</string>
+    <string name="arena_results_show">Show results</string>
+    <string name="arena_results_level">%1$s: won %2$d of %3$d (%4$d%%), drew %5$d</string>
+    <string name="arena_results_coop">Bridges built: %1$d of %2$d (%3$d%%)</string>
+    <string name="arena_results_avg">Average game: %1$s</string>
+    <string name="arena_results_longest">Longest game: %1$s</string>
+    <string name="arena_results_stalled">%1$d game(s) stalled. That points at a bug in the game, not at the computers.</string>
+    <string name="arena_table_title">Tournament table</string>
+    <string name="arena_table_row">%1$s: %2$d points, %3$d wins, %4$d draws, %5$d losses (%6$d%% wins)</string>
+    <string name="arena_table_head_to_head">%1$s vs %2$s: %3$d wins, %4$d draws, %5$d losses</string>
+    <string name="arena_table_not_played">%1$s vs %2$s: not played yet</string>
+    <string name="arena_past_title">Past results</string>
+    <string name="arena_past_none">No finished series yet.</string>
+    <string name="arena_past_line">%1$s: A %2$s %3$d - %4$d B %5$s, draws %6$d, average game %7$s</string>
+    <string name="arena_past_line_coop">%1$s: built %2$d, washed out %3$d, average game %4$s</string>
+    <string name="arena_past_tournament">%1$s (tournament pairing)</string>
+    <string name="arena_duration_s">%1$d s</string>
+    <string name="arena_duration_ms">%1$d min %2$d s</string>
+</resources>

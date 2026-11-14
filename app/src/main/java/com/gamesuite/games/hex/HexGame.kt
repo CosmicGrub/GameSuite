@@ -138,6 +138,9 @@ class HexGame : GameModule, ResumableGame, UndoableGame {
 
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     /** Tests can seed the CPU's randomness. */
     var random: Random = Random.Default
 
@@ -366,6 +369,13 @@ class HexGame : GameModule, ResumableGame, UndoableGame {
         )
     }
 
+    /** Computer Arena: deals the next board with [seat] opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        nextStartingPlayerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (isNetworked) {
@@ -571,7 +581,7 @@ class HexGame : GameModule, ResumableGame, UndoableGame {
     fun playBotTurn() {
         val s = state.value ?: return
         if (!botToMove(s)) return
-        decide(engine, s, difficulty, random, deadlineNanos = Long.MAX_VALUE).let { perform(it) }
+        decide(engine, s, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty, random, deadlineNanos = Long.MAX_VALUE).let { perform(it) }
     }
 
     /** [playBotTurn] with the search on [Dispatchers.Default], capped at about [BOT_TIME_CAP_MS]; dropped if the position changed. */
@@ -579,11 +589,12 @@ class HexGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val level = difficulty
+        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
         val rng = random
         val deadline = System.nanoTime() + BOT_TIME_CAP_MS * 1_000_000L
         val choice = withContext(Dispatchers.Default) { decide(rules, s, level, rng, deadline) }
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) perform(choice) } == true) return
         perform(choice)
     }
 

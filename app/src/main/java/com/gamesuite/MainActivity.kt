@@ -501,7 +501,8 @@ class MainActivity : ComponentActivity() {
                                 sessionManager.endActiveGame(com.gamesuite.core.GameResult(wasAborted = true))
                                 navController.popBackStack("menu", inclusive = false)
                             },
-                            onAgain = { startArena(arena.config, arena.speed) }
+                            onAgain = { startArena(arena.startConfig, arena.speed) },
+                            onRematchSwapped = { startArena(arena.startConfig.swapped(), arena.speed) }
                         )
                     }
                     Box(modifier = Modifier.weight(1f).fillMaxSize()) {
@@ -527,7 +528,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("arena") {
                             com.gamesuite.arena.ArenaSetupScreen(
-                                onStart = { cfg -> startArena(cfg, com.gamesuite.arena.ArenaSpeed.X1) },
+                                onStart = { cfg, speed -> startArena(cfg, speed) },
                                 onBack = { navController.popBackStack() }
                             )
                         }

@@ -99,14 +99,17 @@ object GameHubSpecs {
         tagline: String,
         extraOptions: List<HubOption> = emptyList(),
         routeFor: (HubChoices) -> String = { gameId },
-        extraRoutes: List<String> = emptyList()
+        extraRoutes: List<String> = emptyList(),
+        /** Adds the shared "Help the young player" switch to the vs Computer setup (see [HubOptions.extraHelp]). */
+        extraHelp: Boolean = false
     ) = GameHubSpec(
         gameId = gameId, title = title, tagline = tagline, family = HubFamily.BOARD,
         modes = listOf(
             HubMode(
                 id = "cpu", kind = HubModeKind.VS_CPU, title = "vs Computer", blurb = "Play against the computer.",
                 route = gameId, start = HubStart.IMMEDIATE, defaultCpus = 1,
-                options = extraOptions + listOf(HubOptions.difficulty(), HubOptions.firstMover("The computer")),
+                options = extraOptions + (if (extraHelp) listOf(HubOptions.extraHelp()) else emptyList()) +
+                    listOf(HubOptions.difficulty(), HubOptions.firstMover("The computer")),
                 routeFor = routeFor, extraRoutes = extraRoutes
             ),
             HubMode(
@@ -275,7 +278,8 @@ object GameHubSpecs {
                         HubChoice("15+10", "15+10")
                     )
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "checkers", "Checkers", "Jump to capture. Mandatory captures and multi-jumps.",
@@ -284,7 +288,8 @@ object GameHubSpecs {
                     key = "mandatoryCapture", label = "Mandatory capture", default = true,
                     help = "On: you must jump when you can. Off: jumping is optional, but a jump you start must finish."
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "reversi", "Reversi", "Flank your opponent's discs to flip them.",
@@ -298,7 +303,8 @@ object GameHubSpecs {
                         HubChoice("large", "Large (10x10)", "A long game.")
                     )
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "mancala", "Mancala", "Sow stones around the board and capture the most.",
@@ -318,7 +324,8 @@ object GameHubSpecs {
                     help = "Opposite: end in an empty pit of yours to take the pit across. None: no captures, only the extra turn.",
                     choices = listOf(HubChoice("opposite", "Opposite pit"), HubChoice("none", "None"))
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "connect-four", "Connect Four", "Drop discs and line up four.",
@@ -332,7 +339,8 @@ object GameHubSpecs {
                         HubChoice("big", "Big", "9 by 7, connect 5.")
                     )
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "dots-and-boxes", "Dots and Boxes", "Draw lines, close boxes, take another turn.",
@@ -345,7 +353,8 @@ object GameHubSpecs {
                         HubChoice("standard", "5 x 5"), HubChoice("large", "6 x 6")
                     )
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "tic-tac-toe", "Tic-Tac-Toe", "Three in a row, with Misere and Wild twists.",
@@ -373,7 +382,8 @@ object GameHubSpecs {
                     else -> "tic-tac-toe"
                 }
             },
-            extraRoutes = listOf("tic-tac-toe-misere", "tic-tac-toe-wild")
+            extraRoutes = listOf("tic-tac-toe-misere", "tic-tac-toe-wild"),
+            extraHelp = true
         ),
         twoSeat(
             "dominoes", "Dominoes", "Match the ends of the chain and go out first.",
@@ -571,7 +581,8 @@ object GameHubSpecs {
                         HubChoice("exact", "Exactly five", "Six or more in a row does not count.")
                     )
                 )
-            )
+            ),
+            extraHelp = true
         ),
         twoSeat(
             "hex", "Hex", "Join your two sides of the board before your opponent does.",

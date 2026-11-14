@@ -321,6 +321,16 @@ object HubOptions {
         default = HubKeys.DIFFICULTY_DEFAULT
     )
 
+    /**
+     * "Help the young player": the one shared switch of the two-player games (same wording and place in each
+     * setup, right after the game's own options). On: the computer plays one level gentler (see [ExtraHelp]).
+     * Only offered against the computer; the value reaches the game as the `extraHelp` extra.
+     */
+    fun extraHelp() = HubOption.Toggle(
+        key = ExtraHelp.KEY, label = "Help the young player", default = false,
+        help = "The computer plays one level gentler."
+    )
+
     /** "Who moves first". [opponentLabel] reads "The computer" in a CPU mode and "Player 2" in pass and play. */
     fun firstMover(opponentLabel: String, youLabel: String = "You") = HubOption.Choice(
         key = HubKeys.FIRST,

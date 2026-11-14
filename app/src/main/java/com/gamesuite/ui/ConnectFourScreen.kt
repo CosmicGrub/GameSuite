@@ -178,6 +178,7 @@ fun ConnectFourScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         game.init(ctx)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         // The Hub's "size" choice (classic when absent). Over the network the engine forces classic;

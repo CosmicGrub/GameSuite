@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of the shared "Help the young player" switch (hubKey names). Same wording in every two-player game. -->
+    <string name="hub_help_the_young_player">Help the young player</string>
+    <string name="hub_the_computer_plays_one_level_gentler">The computer plays one level gentler.</string>
+</resources>

@@ -129,6 +129,9 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
     val matchOver = mutableStateOf(false)
 
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
     var firstOpenerIndex: Int = 0
 
     private lateinit var context: GameContext
@@ -428,6 +431,13 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
         endMatch(GameResult(scores = scores))
     }
 
+    /** Computer Arena: deals the next board with [seat] rolling first. */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        nextStartingPlayerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (isNetworked) {
@@ -528,7 +538,8 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
     }
 
     private fun chooseBot(s: LudoState): Int? = LudoBot.choose(
-        positions(s), colors(s), s.currentPlayerIndex, s.dice, s.needSix, s.exactFinish, difficulty, random
+        positions(s), colors(s), s.currentPlayerIndex, s.dice, s.needSix, s.exactFinish,
+        arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty, random
     )
 
     /** One bot action: roll when it has not rolled yet, otherwise move (the choice runs off the main thread). */
@@ -536,11 +547,13 @@ class LudoGame(private val random: Random = Random.Default) : GameModule, Resuma
         val s = state.value ?: return
         if (!botToMove(s)) return
         if (!s.awaitingMove) {
+            if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) doRoll() } == true) return
             doRoll()
             return
         }
         val token = withContext(Dispatchers.Default) { chooseBot(s) } ?: return
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) doMove(token) } == true) return
         doMove(token)
     }
 

@@ -228,6 +228,7 @@ fun DotsAndBoxesScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         // Hub's first-mover choice: the named roster seat opens the first board (a resumed game
         // overwrites it from its snapshot).
         // Networked play has no first-mover choice: the host opens the first board.

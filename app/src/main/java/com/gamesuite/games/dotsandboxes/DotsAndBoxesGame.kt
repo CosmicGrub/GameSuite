@@ -173,6 +173,15 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
+    /** The Hub's "Help the young player" rule; [com.gamesuite.core.ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: com.gamesuite.core.ExtraHelp = com.gamesuite.core.ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /**
      * The roster seat that draws the FIRST line of the FIRST board (Game Hub's first-mover option).
      * Set by the screen before [init]; [init] seeds the next-opener field from it, so the usual
@@ -596,6 +605,13 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * running session tally and deals a fresh board within the same
      * session. Reuses [startMatch] itself, same as DominoGame.playAgain().
      */
+    /** Computer Arena: deals the next board with [seat] opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworkedMode) return
+        nextStartingPlayerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (isNetworkedMode) {
@@ -760,6 +776,12 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         }
     }
 
+    /** After a parked move runs at resume: plays on while a bot keeps the turn (a claimed box), since the screen only re-keys on a turn change. */
+    private fun continueBotChain() {
+        val after = state.value ?: return
+        if (!after.boardOver && !matchOver.value && after.players[after.currentPlayerIndex].isBot) playBotTurn()
+    }
+
     /**
      * The pure half of one bot move: the edge the bot would draw in position [s], or null when it
      * is not a bot's turn / the board or session is over. Touches no state (it only reads
@@ -769,6 +791,8 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      */
     fun computeBotMove(s: DotsAndBoxesState): DotsAndBoxesHintEdge? {
         if (matchOver.value || s.boardOver) return null
+        // Paused arena: nothing new is started (a move already computed is parked by applyBotMove).
+        if (arena?.paused == true) return null
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot != true) return null
         val move = chooseBotMove(s) ?: return null
         return DotsAndBoxesHintEdge(move.first, move.second, move.third)
@@ -783,6 +807,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     fun applyBotMove(expected: DotsAndBoxesState, move: DotsAndBoxesHintEdge): Boolean {
         if (state.value !== expected || matchOver.value || expected.boardOver) return false
         if (!expected.players[expected.currentPlayerIndex].isBot) return false
+        if (arena?.deferIfPaused { if (state.value === expected && !matchOver.value) { applyBotMove(expected, move); continueBotChain() } } == true) return false
         drawEdge(move.horizontal, move.row, move.col)
         return state.value !== expected
     }
@@ -807,7 +832,8 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     private fun chooseBotMove(s: DotsAndBoxesState): Triple<Boolean, Int, Int>? {
         val candidates = allUndrawnEdges(s)
         if (candidates.isEmpty()) return null
-        if (difficulty == CpuDifficulty.EASY) return candidates.random()
+        val level = botLevelFor(s.currentPlayerIndex)
+        if (level == CpuDifficulty.EASY) return candidates.random()
 
         val completing = candidates.filter { boxesCompletedIfDrawn(s, it) > 0 }
         if (completing.isNotEmpty()) return completing.maxByOrNull { boxesCompletedIfDrawn(s, it) }!!
@@ -815,7 +841,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
         val safe = candidates.filter { isSafeMove(s, it) }
         if (safe.isNotEmpty()) return safe.random()
 
-        return when (difficulty) {
+        return when (level) {
             CpuDifficulty.HARD -> candidates.minByOrNull { chainSizeIfOpened(s, it) }!!
             else -> candidates.random()
         }

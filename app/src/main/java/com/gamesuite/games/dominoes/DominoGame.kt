@@ -190,6 +190,12 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
+    /** The level the computer at [seat] plays at (the arena can give each seat its own). */
+    private fun botLevel(seat: Int): CpuDifficulty = arena?.levelFor(seat, difficulty) ?: difficulty
+
     /**
      * Hub "who plays first" override: the roster seat that opens the FIRST hand of the session
      * (consumed by the first [startMatch]; later hands, resumes and null use the standard rule
@@ -457,6 +463,13 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         endMatch(GameResult(scores = scores))
     }
 
+    /** Computer Arena: deals the next hand with [seat] opening it (instead of the highest double). */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        firstOpenerIndex = seat
+        playAgain()
+    }
+
     /**
      * Called from the hand-over panel's "Play Again" button -- keeps the
      * running session score and deals a fresh hand within the same session.
@@ -654,16 +667,17 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         val botIndex = s.currentPlayerIndex
         val bot = s.players[botIndex]
         if (!bot.isBot) return
+        if (arena?.deferIfPaused { playBotTurn() } == true) return
 
         if (s.chain.isEmpty()) {
-            val best = chooseOpeningPlay(bot.hand)
+            val best = chooseOpeningPlay(bot.hand, botLevel(botIndex))
             if (best != null) { playDomino(botIndex, best, attachToLeft = true); return }
         }
 
         val legalLeft = bot.hand.filter { it.a == s.leftEnd || it.b == s.leftEnd }.map { it to true }
         val legalRight = bot.hand.filter { it.a == s.rightEnd || it.b == s.rightEnd }.map { it to false }
         val legalPlays = legalLeft + legalRight
-        val chosen = chooseBotPlay(legalPlays)
+        val chosen = chooseBotPlay(legalPlays, botLevel(botIndex))
         when {
             chosen != null -> playDomino(botIndex, chosen.first, attachToLeft = chosen.second)
             boneyard.isNotEmpty() -> {
@@ -678,7 +692,7 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
         }
     }
 
-    private fun chooseOpeningPlay(hand: List<Domino>): Domino? = when (difficulty) {
+    private fun chooseOpeningPlay(hand: List<Domino>, level: CpuDifficulty): Domino? = when (level) {
         CpuDifficulty.EASY -> hand.randomOrNull()
         CpuDifficulty.MEDIUM, CpuDifficulty.HARD -> hand.maxByOrNull { if (it.isDouble) it.a + 10 else it.a + it.b }
     }
@@ -696,9 +710,9 @@ class DominoGame : GameModule, ResumableGame, UndoableGame {
      * tiles early minimizes that liability later, same reasoning as the
      * opening-move heuristic already used for MEDIUM/HARD above.
      */
-    private fun chooseBotPlay(options: List<Pair<Domino, Boolean>>): Pair<Domino, Boolean>? {
+    private fun chooseBotPlay(options: List<Pair<Domino, Boolean>>, level: CpuDifficulty): Pair<Domino, Boolean>? {
         if (options.isEmpty()) return null
-        return when (difficulty) {
+        return when (level) {
             CpuDifficulty.EASY -> options.random()
             CpuDifficulty.MEDIUM -> options.first()
             CpuDifficulty.HARD -> options.maxByOrNull { (d, _) -> (if (d.isDouble) 100 else 0) + d.a + d.b }

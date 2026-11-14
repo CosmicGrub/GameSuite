@@ -161,6 +161,9 @@ class BackgammonGame(
     /** Pre-set by the UI from the settings / Hub before [startMatch]. */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     /**
      * The seat that takes the first turn of the FIRST game (the Hub's "who moves first"), set by the
      * screen before [startMatch] and consumed by it. Null = the opening roll decides. Every later
@@ -220,6 +223,12 @@ class BackgammonGame(
     }
 
     /** Called from the result panel's "Play Again": keeps the session tally and deals a new game. */
+    /** Computer Arena: deals the next game with [seat] rolling first (no opening roll). */
+    fun playAgainOpenedBy(seat: Int) {
+        firstOpenerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (state.value?.phase != BackgammonPhase.OVER) return
@@ -558,7 +567,7 @@ class BackgammonGame(
             s = state.value ?: return
         }
         if (s.phase != BackgammonPhase.MOVING) return
-        val moves = BackgammonBot.chooseTurn(s.board, s.currentPlayerIndex, s.remaining, difficulty, random, nanoClock)
+        val moves = BackgammonBot.chooseTurn(s.board, s.currentPlayerIndex, s.remaining, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty, random, nanoClock)
         for (move in moves) if (!playMove(move)) return
         if (state.value?.phase == BackgammonPhase.MOVING) endTurn()
     }
@@ -570,10 +579,15 @@ class BackgammonGame(
      * is exactly the one searched (no undo, leave or restart in between).
      */
     suspend fun playBotTurnAsync(pace: suspend () -> Unit = {}) {
+        // A paused Computer Arena holds the turn at its next step (the turn is several steps, so it waits here).
+        val paced: suspend () -> Unit = {
+            pace()
+            while (arena?.paused == true) kotlinx.coroutines.delay(50)
+        }
         var s = state.value ?: return
         if (matchOver.value || !isBotToAct(s)) return
         if (s.phase == BackgammonPhase.TO_ROLL) {
-            pace()
+            paced()
             if (state.value != s || matchOver.value) return
             rollDice()
             s = state.value ?: return
@@ -583,19 +597,19 @@ class BackgammonGame(
         val moves = withContext(Dispatchers.Default) {
             BackgammonBot.chooseTurn(
                 plan.position.board, plan.position.currentPlayerIndex, plan.position.remaining,
-                difficulty, random, nanoClock
+                arena?.levelFor(plan.position.currentPlayerIndex, difficulty) ?: difficulty, random, nanoClock
             )
         }
         if (!isCurrent(plan)) return
         var expected = s
         for (move in moves) {
-            pace()
+            paced()
             if (matchOver.value || plan.epoch != positionEpoch || state.value != expected) return
             if (!playMove(move)) return
             expected = state.value ?: return
             if (expected.phase != BackgammonPhase.MOVING) return
         }
-        pace()
+        paced()
         if (!matchOver.value && plan.epoch == positionEpoch && state.value == expected) endTurn()
     }
 

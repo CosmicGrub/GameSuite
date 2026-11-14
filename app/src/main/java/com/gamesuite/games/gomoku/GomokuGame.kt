@@ -132,6 +132,15 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set from the Hub's CPU level before [init]. */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
+    /** The Hub's "Help the young player" rule; [com.gamesuite.core.ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: com.gamesuite.core.ExtraHelp = com.gamesuite.core.ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /** Tests can seed the EASY level's randomness. */
     var random: Random = Random.Default
 
@@ -356,6 +365,13 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
         )
     }
 
+    /** Computer Arena: deals the next board with [seat] opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        nextStartingPlayerIndex = seat
+        playAgain()
+    }
+
     /** Deals a fresh board in the same session (a guest asks the host). */
     fun playAgain() {
         if (matchOver.value) return
@@ -521,7 +537,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
     fun playBotTurn() {
         val s = state.value ?: return
         if (!botToMove(s)) return
-        val index = engine.chooseMove(engine.toBoard(s.cells), s.currentPlayerIndex, difficulty, random = random) ?: return
+        val index = engine.chooseMove(engine.toBoard(s.cells), s.currentPlayerIndex, botLevelFor(s.currentPlayerIndex), random = random) ?: return
         botPlace(index)
     }
 
@@ -537,13 +553,14 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val level = difficulty
+        val level = botLevelFor(s.currentPlayerIndex)
         val rng = random
         val deadline = System.nanoTime() + BOT_TIME_CAP_MS * 1_000_000L
         val index = withContext(Dispatchers.Default) {
             rules.chooseMove(rules.toBoard(s.cells), s.currentPlayerIndex, level, deadline, rng)
         } ?: return
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) botPlace(index) } == true) return
         botPlace(index)
     }
 

@@ -955,6 +955,12 @@ class ChessGame(
     /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
     var arena: ArenaHook? = null
 
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: ExtraHelp = ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /**
      * Which roster seat (0 or 1) plays White and therefore moves first. Set by the screen before
      * [startMatch] (from the Hub's first-mover choice); anything but 1 is treated as 0. Restored
@@ -1558,7 +1564,7 @@ class ChessGame(
         if (s.roundOver || matchOver.value) return null
         val botPlayerIndex = seatForColor(s.sideToMove)
         if (context.players.getOrNull(botPlayerIndex)?.isBot != true) return null
-        return ChessBotRequest(s, botPlayerIndex, arena?.levelFor(botPlayerIndex, difficulty) ?: difficulty)
+        return ChessBotRequest(s, botPlayerIndex, botLevelFor(botPlayerIndex))
     }
 
     /**

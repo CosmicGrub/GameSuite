@@ -43,11 +43,16 @@ enum class ArenaSpeed(val label: String, val gameSpeed: GameSpeed, val betweenGa
     }
 }
 
-/** What a finished game was: a winning seat, a draw, or (cooperative games) the team built the bridge or not. */
+/**
+ * What a finished game was: a winning seat, a draw, or (cooperative games) the team built the bridge or not.
+ * [Stalled] is a game the watchdog ended because nothing changed for too long (see [ArenaWatchdog]); it is
+ * counted apart from wins and draws and points at an engine or screen bug rather than at a strength.
+ */
 sealed interface ArenaOutcome {
     data class Winner(val seat: Int) : ArenaOutcome
     data object Draw : ArenaOutcome
     data class Team(val succeeded: Boolean) : ArenaOutcome
+    data object Stalled : ArenaOutcome
 }
 
 /** What an adapter reports on each poll of the live game. */
@@ -66,14 +71,16 @@ data class ArenaScoreboard(
     val bWins: Int = 0,
     val draws: Int = 0,
     val teamBuilt: Int = 0,
-    val teamFailed: Int = 0
+    val teamFailed: Int = 0,
+    val stalled: Int = 0
 ) {
-    val played: Int get() = aWins + bWins + draws + teamBuilt + teamFailed
+    val played: Int get() = aWins + bWins + draws + teamBuilt + teamFailed + stalled
 
     fun after(outcome: ArenaOutcome): ArenaScoreboard = when (outcome) {
         is ArenaOutcome.Winner -> if (ArenaSeries.sideOf(outcome.seat) == 0) copy(aWins = aWins + 1) else copy(bWins = bWins + 1)
         ArenaOutcome.Draw -> copy(draws = draws + 1)
         is ArenaOutcome.Team -> if (outcome.succeeded) copy(teamBuilt = teamBuilt + 1) else copy(teamFailed = teamFailed + 1)
+        ArenaOutcome.Stalled -> copy(stalled = stalled + 1)
     }
 }
 
@@ -82,12 +89,17 @@ data class ArenaConfig(
     val gameId: String,
     val levelA: ArenaLevel = ArenaLevel.HARD,
     val levelB: ArenaLevel = ArenaLevel.EASY,
-    val games: Int = 5
+    val games: Int = 5,
+    /** Round-robin of Easy / Medium / Hard for [gameId] instead of one pairing ([levelA] and [levelB] are then ignored). */
+    val tournament: Boolean = false
 ) {
     val endless: Boolean get() = games <= 0
 
     /** The level of [seat]: Computer A holds the even seats, Computer B the odd ones. */
     fun levelOfSeat(seat: Int): ArenaLevel = if (ArenaSeries.sideOf(seat) == 0) levelA else levelB
+
+    /** The same series with the two computers' levels exchanged ("Rematch with seats swapped"). */
+    fun swapped(): ArenaConfig = copy(levelA = levelB, levelB = levelA)
 }
 
 /** Pure series rules (seat swap, completion, game counter). */

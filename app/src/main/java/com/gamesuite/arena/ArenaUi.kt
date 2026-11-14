@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,18 @@ internal fun arenaGameName(context: Context, gameId: String): String = context.g
         "checkers" -> R.string.arena_game_checkers
         "reversi" -> R.string.arena_game_reversi
         "connect-four" -> R.string.arena_game_connect_four
+        "tic-tac-toe" -> R.string.arena_game_tic_tac_toe
+        "mancala" -> R.string.arena_game_mancala
+        "gomoku" -> R.string.arena_game_gomoku
+        "dots-and-boxes" -> R.string.arena_game_dots_and_boxes
+        "hex" -> R.string.arena_game_hex
+        "nine-mens-morris" -> R.string.arena_game_nine_mens_morris
+        "shogi" -> R.string.arena_game_shogi
+        "mini-shogi" -> R.string.arena_game_mini_shogi
+        "dominoes" -> R.string.arena_game_dominoes
+        "ludo" -> R.string.arena_game_ludo
+        "backgammon" -> R.string.arena_game_backgammon
+        "yahtzee" -> R.string.arena_game_yahtzee
         else -> R.string.arena_title
     }
 )
@@ -74,6 +87,15 @@ internal fun arenaLevelName(context: Context, level: ArenaLevel): String = conte
     }
 )
 
+/** "45 s" or "2 min 5 s". */
+internal fun arenaDuration(context: Context, ms: Long): String {
+    val total = (ms / 1000L).toInt()
+    return if (total < 60) context.getString(R.string.arena_duration_s, total)
+    else context.getString(R.string.arena_duration_ms, total / 60, total % 60)
+}
+
+private fun percent(rate: Double): Int = Math.round(rate * 100.0).toInt()
+
 private fun computerName(context: Context, side: Int): String =
     context.getString(if (side == 0) R.string.arena_computer_a else R.string.arena_computer_b)
 
@@ -83,10 +105,18 @@ private fun computerName(context: Context, side: Int): String =
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ArenaStrip(session: ArenaSession, sessionManager: GameSessionManager, onStop: () -> Unit, onAgain: () -> Unit) {
+fun ArenaStrip(
+    session: ArenaSession,
+    sessionManager: GameSessionManager,
+    onStop: () -> Unit,
+    onAgain: () -> Unit,
+    onRematchSwapped: (() -> Unit)? = null
+) {
+    var showResults by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
     val cfg = session.config
     val b = session.board
+    val tournament = session.tournament
     val lvA = arenaLevelName(context, cfg.levelA)
     val lvB = arenaLevelName(context, cfg.levelB)
     Column(
@@ -102,6 +132,15 @@ fun ArenaStrip(session: ArenaSession, sessionManager: GameSessionManager, onStop
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(arenaGameName(context, cfg.gameId), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            if (tournament != null) {
+                Text(
+                    stringResource(
+                        R.string.arena_strip_tournament,
+                        (session.fixtureIndex + 1).coerceAtMost(tournament.fixtures.size), tournament.fixtures.size, lvA, lvB
+                    ),
+                    fontSize = 14.sp
+                )
+            }
             if (session.cooperative) {
                 Text(stringResource(R.string.arena_strip_robots, lvA, lvB), fontSize = 14.sp)
                 Text(stringResource(R.string.arena_strip_built, b.teamBuilt), fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -111,6 +150,9 @@ fun ArenaStrip(session: ArenaSession, sessionManager: GameSessionManager, onStop
                 SeatScore(ArenaColorB, stringResource(R.string.arena_strip_b, lvB, b.bWins))
                 Text(stringResource(R.string.arena_strip_draws, b.draws), fontSize = 14.sp)
             }
+            if (b.stalled > 0) {
+                Text(stringResource(R.string.arena_strip_stalled, b.stalled), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
             Text(
                 if (cfg.endless) stringResource(R.string.arena_strip_game_endless, session.gameNumber)
                 else stringResource(R.string.arena_strip_game, session.gameNumber, cfg.games),
@@ -119,6 +161,10 @@ fun ArenaStrip(session: ArenaSession, sessionManager: GameSessionManager, onStop
             if (session.paused) Text(stringResource(R.string.arena_paused), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             if (session.done) {
                 StripButton(stringResource(R.string.arena_again), onAgain)
+                if (onRematchSwapped != null && tournament == null && !session.cooperative) {
+                    StripButton(stringResource(R.string.arena_rematch_swapped), onRematchSwapped)
+                }
+                StripButton(stringResource(if (showResults) R.string.arena_results_hide else R.string.arena_results_show)) { showResults = !showResults }
                 StripButton(stringResource(R.string.arena_close), onStop)
             } else {
                 StripButton(stringResource(if (session.paused) R.string.arena_resume else R.string.arena_pause)) {
@@ -135,6 +181,64 @@ fun ArenaStrip(session: ArenaSession, sessionManager: GameSessionManager, onStop
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
             )
         }
+        if (session.done && showResults) ArenaResultsPanel(session)
+    }
+}
+
+/**
+ * The results of a finished series (and of a tournament): per-level win rates, the average game length and the
+ * stalled games; for a tournament the round-robin table. Static text, so Reduced Motion needs nothing here.
+ * Stays on screen (scrollable, capped in height so the board remains visible) until the arena is closed.
+ */
+@Composable
+fun ArenaResultsPanel(session: ArenaSession) {
+    val context = LocalContext.current
+    val summary = session.summary
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(max = 220.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(stringResource(R.string.arena_results_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.semantics { heading() })
+        if (session.cooperative) {
+            val b = summary.board
+            Text(stringResource(R.string.arena_results_coop, b.teamBuilt, b.played, percent(summary.teamBuiltRate)), fontSize = 14.sp)
+        } else {
+            summary.levelStats().forEach { st ->
+                Text(
+                    stringResource(R.string.arena_results_level, arenaLevelName(context, st.level), st.wins, st.games, percent(st.winRate), st.draws),
+                    fontSize = 14.sp
+                )
+            }
+        }
+        Text(stringResource(R.string.arena_results_avg, arenaDuration(context, summary.averageGameMs)), fontSize = 14.sp)
+        Text(stringResource(R.string.arena_results_longest, arenaDuration(context, summary.longestGameMs)), fontSize = 14.sp)
+        if (session.stalls.isNotEmpty()) {
+            Text(stringResource(R.string.arena_results_stalled, session.stalls.size), color = MaterialTheme.colorScheme.error, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            session.stalls.forEach { Text(it, fontSize = 12.sp) }
+        }
+        if (session.tournament != null) {
+            Text(stringResource(R.string.arena_table_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.semantics { heading() })
+            ArenaTournament.standings(session.fixtureResults).forEach { st ->
+                Text(
+                    stringResource(R.string.arena_table_row, arenaLevelName(context, st.level), st.points, st.wins, st.draws, st.losses, percent(st.winRate)),
+                    fontSize = 14.sp
+                )
+            }
+            session.tournament.fixtures.forEach { f ->
+                val h = ArenaTournament.headToHead(session.fixtureResults, f.levelA, f.levelB)
+                val a = arenaLevelName(context, f.levelA)
+                val b = arenaLevelName(context, f.levelB)
+                Text(
+                    if (h == null) stringResource(R.string.arena_table_not_played, a, b)
+                    else stringResource(R.string.arena_table_head_to_head, a, b, h.first, h.second, h.third),
+                    fontSize = 13.sp
+                )
+            }
+        }
     }
 }
 
@@ -148,6 +252,7 @@ private fun resultLine(context: Context, s: ArenaSession): String? {
         )
         ArenaOutcome.Draw -> context.getString(R.string.arena_result_draw, n)
         is ArenaOutcome.Team -> context.getString(if (out.succeeded) R.string.arena_result_built else R.string.arena_result_failed, n)
+        ArenaOutcome.Stalled -> context.getString(R.string.arena_result_stalled, n)
     }
     if (s.done) {
         val b = s.board
@@ -190,12 +295,15 @@ fun ArenaEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 /** Setup: pick a game, the two computer levels and the number of games, then Start. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ArenaSetupScreen(onStart: (ArenaConfig) -> Unit, onBack: () -> Unit) {
+fun ArenaSetupScreen(onStart: (ArenaConfig, ArenaSpeed) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     var gameId by rememberSaveable { mutableStateOf(ArenaGames.specs.first().gameId) }
     var a by rememberSaveable { mutableStateOf(ArenaLevel.HARD.name) }
     var b by rememberSaveable { mutableStateOf(ArenaLevel.EASY.name) }
     var games by rememberSaveable { mutableStateOf(5) }
+    var speed by rememberSaveable { mutableStateOf(ArenaSpeed.X1.name) }
+    var tournament by rememberSaveable { mutableStateOf(false) }
+    val past = remember { ArenaResultsStore.load(context) }
     val spec = ArenaGames.specs.first { it.gameId == gameId }
     Box(Modifier.fillMaxSize().statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -216,9 +324,25 @@ fun ArenaSetupScreen(onStart: (ArenaConfig) -> Unit, onBack: () -> Unit) {
             }
             if (spec.cooperative) Text(stringResource(R.string.arena_note_coop), style = MaterialTheme.typography.bodyMedium)
             if (spec.gameId == "chutes-race") Text(stringResource(R.string.arena_note_slide), style = MaterialTheme.typography.bodyMedium)
+            if (spec.gameId == "ludo") Text(stringResource(R.string.arena_note_ludo), style = MaterialTheme.typography.bodyMedium)
+            if (spec.gameId == "yahtzee") Text(stringResource(R.string.arena_note_yahtzee), style = MaterialTheme.typography.bodyMedium)
 
-            LevelPicker(stringResource(R.string.arena_pick_a), ArenaColorA, a) { a = it }
-            LevelPicker(stringResource(R.string.arena_pick_b), ArenaColorB, b) { b = it }
+            Text(stringResource(R.string.arena_pick_mode), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilterChip(selected = !tournament, onClick = { tournament = false }, label = { Text(stringResource(R.string.arena_mode_series)) }, modifier = Modifier.heightIn(min = 48.dp))
+                FilterChip(selected = tournament, onClick = { tournament = true }, label = { Text(stringResource(R.string.arena_mode_tournament)) }, modifier = Modifier.heightIn(min = 48.dp))
+            }
+            val tournamentOn = tournament && !spec.cooperative
+            if (tournament) {
+                Text(
+                    stringResource(if (spec.cooperative) R.string.arena_tournament_coop else R.string.arena_note_tournament),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (!tournamentOn) {
+                LevelPicker(stringResource(R.string.arena_pick_a), ArenaColorA, a) { a = it }
+                LevelPicker(stringResource(R.string.arena_pick_b), ArenaColorB, b) { b = it }
+            }
 
             Text(stringResource(R.string.arena_pick_games), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -230,15 +354,41 @@ fun ArenaSetupScreen(onStart: (ArenaConfig) -> Unit, onBack: () -> Unit) {
                     )
                 }
             }
+            Text(stringResource(R.string.arena_pick_speed), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ArenaSpeed.entries.forEach { sp ->
+                    FilterChip(selected = speed == sp.name, onClick = { speed = sp.name }, label = { Text(sp.label) }, modifier = Modifier.heightIn(min = 48.dp))
+                }
+            }
+            Text(stringResource(R.string.arena_note_stalls), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { onStart(ArenaConfig(gameId, ArenaLevel.valueOf(a), ArenaLevel.valueOf(b), games)) },
+                    onClick = {
+                        onStart(
+                            ArenaConfig(gameId, ArenaLevel.valueOf(a), ArenaLevel.valueOf(b), games, tournament = tournamentOn),
+                            ArenaSpeed.valueOf(speed)
+                        )
+                    },
                     modifier = Modifier.heightIn(min = 52.dp)
                 ) { Text(stringResource(R.string.arena_start)) }
                 TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.arena_back)) }
             }
+
+            Text(stringResource(R.string.arena_past_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            if (past.isEmpty()) Text(stringResource(R.string.arena_past_none), style = MaterialTheme.typography.bodyMedium)
+            past.forEach { r -> Text(pastLine(context, r), style = MaterialTheme.typography.bodyMedium) }
         }
     }
+}
+
+private fun pastLine(context: Context, r: ArenaSeriesRecord): String {
+    val name = arenaGameName(context, r.gameId).let { if (r.tournament) context.getString(R.string.arena_past_tournament, it) else it }
+    val avg = arenaDuration(context, r.averageGameMs)
+    val coop = r.teamBuilt + r.teamFailed > 0
+    if (coop) return context.getString(R.string.arena_past_line_coop, name, r.teamBuilt, r.teamFailed, avg)
+    val a = ArenaLevel.parse(r.levelA)?.let { arenaLevelName(context, it) } ?: r.levelA
+    val b = ArenaLevel.parse(r.levelB)?.let { arenaLevelName(context, it) } ?: r.levelB
+    return context.getString(R.string.arena_past_line, name, a, r.aWins, r.bWins, b, r.draws, avg)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -264,5 +414,11 @@ private fun LevelPicker(title: String, color: Color, selected: String, onSelect:
 /** Runs the series loop for [session] while composed. */
 @Composable
 fun ArenaDriver(session: ArenaSession, sessionManager: GameSessionManager) {
+    val appContext = LocalContext.current.applicationContext
+    // Each finished series goes to the arena's own persistent results log (and nowhere else).
+    DisposableEffect(appContext) {
+        ArenaHost.recorder = { record -> ArenaResultsStore.append(appContext, record) }
+        onDispose { ArenaHost.recorder = null }
+    }
     LaunchedEffect(session) { ArenaHost.drive(session, sessionManager) }
 }

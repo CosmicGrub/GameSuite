@@ -170,6 +170,9 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
 
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var nextStartingPlayerIndex = 0
@@ -450,6 +453,13 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
         endMatch(GameResult(scores = scores))
     }
 
+    /** Computer Arena: deals the next board with [seat] opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        if (isNetworked) return
+        nextStartingPlayerIndex = seat
+        playAgain()
+    }
+
     fun playAgain() {
         if (matchOver.value) return
         if (isNetworked) {
@@ -632,7 +642,7 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
     fun playBotTurn(rng: Random = Random.Default) {
         val s = state.value ?: return
         if (!botToMove(s)) return
-        val move = engine.chooseMove(toPosition(s), difficulty, rng, BOT_TIME_CAP_MS) ?: return
+        val move = engine.chooseMove(toPosition(s), arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty, rng, BOT_TIME_CAP_MS) ?: return
         play(move)
     }
 
@@ -641,10 +651,11 @@ class NineMensMorrisGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val level = difficulty
+        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
         val pos = toPosition(s)
         val move = withContext(Dispatchers.Default) { rules.chooseMove(pos, level, Random.Default, BOT_TIME_CAP_MS) } ?: return
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) play(move) } == true) return
         play(move)
     }
 

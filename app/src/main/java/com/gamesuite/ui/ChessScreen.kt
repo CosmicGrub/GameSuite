@@ -228,6 +228,7 @@ fun ChessScreen(
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         game.init(ctx)
         // Hub first-mover choice: the chosen roster seat plays White and moves first. Local modes
         // only (online, seat 0 = White always); a resume below overwrites this from the snapshot.

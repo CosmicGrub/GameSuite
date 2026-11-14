@@ -127,6 +127,15 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: ArenaHook? = null
+
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: ExtraHelp = ExtraHelp.NONE
+
+    /** The level the computer at [seat] (0-based) plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /** Pre-set by the UI (see TicTacToeScreen's `misere` param) before startMatch(). Reverse-win rules: false = standard. */
     var misere: Boolean = false
 
@@ -487,6 +496,12 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         applyPlayAgain()
     }
 
+    /** Computer Arena: deals the next round with [seat] (0 = X, 1 = O) opening it. */
+    fun playAgainOpenedBy(seat: Int) {
+        startingPlayer = if (seat == 0) 2 else 1 // applyPlayAgain flips it
+        playAgain()
+    }
+
     private fun applyPlayAgain() {
         if (matchOver.value) return
         history.clear()
@@ -752,6 +767,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      */
     fun finishBotTurn(request: TicTacToeSearchRequest, move: Pair<Int, Int>): Boolean {
         if (!isStillCurrent(request)) return false
+        if (arena?.deferIfPaused { finishBotTurn(request, move) } == true) return true
         // Route through the same [selectedSymbol] the human's toggle writes
         // to, so cellClicked() doesn't need a bot-specific placement path.
         selectedSymbol.value = move.second
@@ -772,7 +788,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      * tier now returns a (cell, symbol) pair rather than just a cell, since
      * under [wild] the bot has to decide both — see [availableSymbols].
      */
-    private fun chooseBotMove(b: IntArray, player: Int): Pair<Int, Int>? = when (difficulty) {
+    private fun chooseBotMove(b: IntArray, player: Int): Pair<Int, Int>? = when (botLevelFor(player - 1)) {
         CpuDifficulty.HARD -> searchMove(b, player)
         CpuDifficulty.MEDIUM -> heuristicMove(b, player)
         CpuDifficulty.EASY -> if (Random.nextFloat() < 0.35f) heuristicMove(b, player) else randomMove(b, player)

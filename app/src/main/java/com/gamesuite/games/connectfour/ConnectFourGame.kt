@@ -193,6 +193,12 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
     var arena: com.gamesuite.core.ArenaHook? = null
 
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: com.gamesuite.core.ExtraHelp = com.gamesuite.core.ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /**
      * The roster seat that opens the FIRST board of a new match (the Hub's "who goes first"). Set by
      * the screen before [startMatch]; consumed (and cleared) by the first [startMatch], after which
@@ -724,7 +730,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || s.boardOver) return null
         val bot = s.players[s.currentPlayerIndex]
         if (!bot.isBot) return null
-        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
+        val level = botLevelFor(s.currentPlayerIndex)
         val depth = difficultySearchDepth[level] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
         return ConnectFourSearchPlan(s, positionEpoch, depth)
     }

@@ -355,6 +355,15 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: ArenaHook? = null
+
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: ExtraHelp = ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     /**
      * The roster seat (0 or 1) that takes the first sowing of the session's FIRST board. Set by the
      * UI from the Hub's first-mover choice before [startMatch]. Values outside 0..1 count as 0.
@@ -825,6 +834,12 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         dealBoard(0)
     }
 
+    /** Computer Arena: deals the next board with [seat] opening it (the same guards as [playAgain]). */
+    fun playAgainOpenedBy(seat: Int) {
+        if (matchOver.value || isNetworkedPlay) return
+        dealBoard(seat.coerceIn(0, 1))
+    }
+
     /**
      * A local tap on pit [pitIndex] for seat [playerIndex]. Networked: only the local seat may sow;
      * the host applies it, a guest just asks the host and waits for the resulting StateSync.
@@ -974,12 +989,13 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         if (s.roundOver) return null
         val botIndex = s.currentPlayerIndex
         if (context.players.getOrNull(botIndex)?.isBot != true) return null
-        return MancalaMovePlan(s, botIndex, rules, difficulty)
+        return MancalaMovePlan(s, botIndex, rules, botLevelFor(botIndex))
     }
 
     /** Second half: sows [move] unless the position changed since the plan was made (undo, a new board, the session ending). */
     fun applyBotMove(plan: MancalaMovePlan, move: Int?) {
         if (move == null || matchOver.value || state.value !== plan.position) return
+        if (arena?.deferIfPaused { applyBotMove(plan, move) } == true) return
         sow(plan.playerIndex, move)
     }
 

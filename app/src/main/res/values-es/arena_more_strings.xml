@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_game_tic_tac_toe">Tres en raya</string>
+    <string name="arena_game_mancala">Mancala</string>
+    <string name="arena_game_gomoku">Gomoku</string>
+    <string name="arena_game_dots_and_boxes">Puntos y cajas</string>
+    <string name="arena_game_hex">Hex</string>
+    <string name="arena_game_nine_mens_morris">Molino</string>
+    <string name="arena_game_shogi">Shogi</string>
+    <string name="arena_game_mini_shogi">Mini Shogi</string>
+    <string name="arena_game_dominoes">Dominó</string>
+    <string name="arena_game_ludo">Parchís</string>
+    <string name="arena_game_backgammon">Backgammon</string>
+    <string name="arena_game_yahtzee">Yahtzee</string>
+
+    <string name="arena_note_ludo">El parchís tiene cuatro asientos: la computadora A juega el 1.º y el 3.º, la B el 2.º y el 4.º. La victoria cuenta para el bando cuya ficha llega primero a casa.</string>
+    <string name="arena_note_yahtzee">Yahtzee es una carrera de puntos: cada computadora rellena su propia hoja y gana el total más alto.</string>
+    <string name="arena_note_stalls">Si una partida no avanza en 20 segundos, el vigilante la termina como atascada y la serie continúa. Una partida atascada señala un fallo de ese juego, no de las computadoras.</string>
+
+    <string name="arena_pick_speed">Velocidad</string>
+    <string name="arena_pick_mode">Modo</string>
+    <string name="arena_mode_series">Una serie</string>
+    <string name="arena_mode_tournament">Torneo</string>
+    <string name="arena_note_tournament">Todos contra todos entre Fácil, Medio y Difícil en este juego: Fácil contra Medio, Fácil contra Difícil y Medio contra Difícil, con el número de partidas de abajo en cada enfrentamiento. Los dos selectores de nivel no se usan.</string>
+    <string name="arena_tournament_coop">Constructores de puentes es cooperativo, así que no tiene torneo; se juega como una sola serie.</string>
+    <string name="arena_strip_tournament">Enfrentamiento %1$d de %2$d: %3$s contra %4$s</string>
+    <string name="arena_strip_stalled">Atascadas: %1$d</string>
+    <string name="arena_result_stalled">Partida %1$d: atascada sin avanzar, terminada por el vigilante.</string>
+
+    <string name="arena_rematch_swapped">Revancha con asientos cambiados</string>
+    <string name="arena_results_title">Resultados de la serie</string>
+    <string name="arena_results_hide">Ocultar resultados</string>
+    <string name="arena_results_show">Mostrar resultados</string>
+    <string name="arena_results_level">%1$s: ganó %2$d de %3$d (%4$d%%), empató %5$d</string>
+    <string name="arena_results_coop">Puentes construidos: %1$d de %2$d (%3$d%%)</string>
+    <string name="arena_results_avg">Partida media: %1$s</string>
+    <string name="arena_results_longest">Partida más larga: %1$s</string>
+    <string name="arena_results_stalled">%1$d partida(s) atascada(s). Eso señala un fallo del juego, no de las computadoras.</string>
+    <string name="arena_table_title">Tabla del torneo</string>
+    <string name="arena_table_row">%1$s: %2$d puntos, %3$d victorias, %4$d empates, %5$d derrotas (%6$d%% de victorias)</string>
+    <string name="arena_table_head_to_head">%1$s contra %2$s: %3$d victorias, %4$d empates, %5$d derrotas</string>
+    <string name="arena_table_not_played">%1$s contra %2$s: aún sin jugar</string>
+    <string name="arena_past_title">Resultados anteriores</string>
+    <string name="arena_past_none">Todavía no hay series terminadas.</string>
+    <string name="arena_past_line">%1$s: A %2$s %3$d - %4$d B %5$s, empates %6$d, partida media %7$s</string>
+    <string name="arena_past_line_coop">%1$s: construidos %2$d, arrasados %3$d, partida media %4$s</string>
+    <string name="arena_past_tournament">%1$s (enfrentamiento de torneo)</string>
+    <string name="arena_duration_s">%1$d s</string>
+    <string name="arena_duration_ms">%1$d min %2$d s</string>
+</resources>

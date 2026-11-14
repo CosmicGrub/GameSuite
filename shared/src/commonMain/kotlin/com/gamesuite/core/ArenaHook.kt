@@ -21,6 +21,11 @@ class ArenaHook(levels: Map<Int, CpuDifficulty>) {
 
     private var held: (() -> Unit)? = null
 
+    /** Replaces the per-seat levels (a tournament moves on to its next pairing on the same screen). */
+    fun setLevels(levels: Map<Int, CpuDifficulty>) {
+        seatLevels = levels
+    }
+
     fun levelFor(seat: Int, fallback: CpuDifficulty): CpuDifficulty = seatLevels[seat] ?: fallback
 
     /** True when [action] was parked because the arena is paused (it runs at resume); false means run it now. */

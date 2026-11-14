@@ -283,6 +283,7 @@ fun CheckersScreen(
         val ctx = context ?: return@LaunchedEffect
         // Per-launch Hub options (a Resume overrides both from its snapshot, inside tryResume).
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
+        game.extraHelp = com.gamesuite.core.ExtraHelp.fromExtras(sessionManager.launchOptions.extras)
         // The seat that opens plays Light (Light always moves first); the roster order is unchanged.
         game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex
         // Hub option "Mandatory capture" (default on); a Resume overrides it from its snapshot.

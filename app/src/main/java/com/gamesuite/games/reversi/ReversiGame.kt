@@ -436,6 +436,12 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
     var arena: com.gamesuite.core.ArenaHook? = null
 
+    /** The Hub's "Help the young player" rule; [ExtraHelp.NONE] (the default) changes nothing. */
+    var extraHelp: com.gamesuite.core.ExtraHelp = com.gamesuite.core.ExtraHelp.NONE
+
+    /** The level the computer at [seat] plays at: the arena's per-seat level or [difficulty], gentler under [extraHelp]. */
+    fun botLevelFor(seat: Int): CpuDifficulty = extraHelp.cpuLevel(arena?.levelFor(seat, difficulty) ?: difficulty, seat)
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -923,7 +929,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val index = rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, reversiSearchDepth(rules.n, difficulty)) ?: return
+        val index = rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, reversiSearchDepth(rules.n, botLevelFor(s.currentPlayerIndex))) ?: return
         placeDisc(index)
     }
 
@@ -936,7 +942,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val depth = reversiSearchDepth(rules.n, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty)
+        val depth = reversiSearchDepth(rules.n, botLevelFor(s.currentPlayerIndex))
         val deadline = System.nanoTime() + BOT_TIME_CAP_MS * 1_000_000L
         val index = withContext(Dispatchers.Default) {
             rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, depth, deadline)
