@@ -18,24 +18,28 @@ import com.gamesuite.core.HubStart
  * Every text below has a `hubKey(text)` string in res/values{,-es}/flick_rink_strings.xml, or already exists elsewhere (the
  * shared mode titles, the person and computer steppers, the first-mover choice, the difficulty words).
  *
- * Option keys reach the screen as `LaunchOptions.extras`: `style` (hidden: turns | coop | solo, set by the mode), `game`
+ * The play style (turns / co-op / solo) is NOT a hidden option: the Hub drops every option whose `visibleWhen` is false from
+ * `LaunchOptions.extras` (see `buildHubLaunch`: `hiddenKeys`), so a hidden `style` default would never arrive. Each style has its own
+ * route instead: `flick-rink` (cpu and same-screen modes: Turns), `flick-rink-coop`, `flick-rink-solo`; the screen passes the style
+ * of its route to the game.
+ *
+ * Option keys reach the screen as `LaunchOptions.extras`: `game`
  * (fishrun | bullseye), `band` (little | medium | big), `length` (quick | standard | long), `assistFor` (none | all | p1..p4),
  * `assist` (short | medium | long), `relaxed`, `dragAnywhere`, `switchAiming`, `budget` (plenty | normal | tight, co-op only),
  * `soloRink` (1..14, solo only). The person and computer counts become the roster (`humans` / `cpus`).
  */
 object FlickRinkHubSpecs {
+    /** The three nav routes (one per play style). */
+    const val ROUTE_TURNS = "flick-rink"
+    const val ROUTE_COOP = "flick-rink-coop"
+    const val ROUTE_SOLO = "flick-rink-solo"
+
     /** The menu glyph for `GameCatalog` (the integrator adds it). */
     const val GLYPH: String = "🐧"
 
     /** Proposed identity colours for `GameThemes.accents["flick-rink"]` (light, dark). GameThemeTest has the last word on contrast. */
     const val ACCENT_LIGHT: Long = 0xFF00607A
     const val ACCENT_DARK: Long = 0xFF7CD4EC
-
-    private fun style(id: String, label: String) = HubOption.Choice(
-        key = "style", label = "Play style", default = id,
-        choices = listOf(HubChoice(id, label)),
-        visibleWhen = { false }
-    )
 
     private val game = HubOption.Choice(
         key = "game", label = "Game", default = "fishrun",
@@ -128,7 +132,7 @@ object FlickRinkHubSpecs {
                 blurb = "Race 1 to 3 computer pals to bring home the fish.",
                 route = "flick-rink", start = HubStart.IMMEDIATE, defaultCpus = 1, minSeats = 2, maxSeats = 4,
                 options = listOf(
-                    style("turns", "Taking turns"), game, band, length, HubOptions.cpus(1, 3, 1), palLevel(),
+                    game, band, length, HubOptions.cpus(1, 3, 1), palLevel(),
                     assistFor, assist, relaxed, dragAnywhere, switchAiming, HubOptions.firstMover("The computer")
                 )
             ),
@@ -137,25 +141,25 @@ object FlickRinkHubSpecs {
                 blurb = "Take turns on one screen. Computer pals can join in.",
                 route = "flick-rink", start = HubStart.READY_SCREEN, minSeats = 2, maxSeats = 4,
                 options = listOf(
-                    style("turns", "Taking turns"), game, band, length, HubOptions.humans(2, 4, 2), HubOptions.cpus(0, 2, 0), palLevel(),
+                    game, band, length, HubOptions.humans(2, 4, 2), HubOptions.cpus(0, 2, 0), palLevel(),
                     assistFor, assist, relaxed, dragAnywhere, switchAiming, HubOptions.firstMover("Player 2", "Player 1")
                 )
             ),
             HubMode(
                 id = "coop", kind = HubModeKind.PASS_AND_PLAY, title = "Co-op Relay",
                 blurb = "Work as one team to bring home every fish.",
-                route = "flick-rink", start = HubStart.READY_SCREEN, minSeats = 2, maxSeats = 4,
+                route = "flick-rink-coop", start = HubStart.READY_SCREEN, minSeats = 2, maxSeats = 4,
                 options = listOf(
-                    style("coop", "Playing together"), game, band, length, HubOptions.humans(2, 4, 2), HubOptions.cpus(0, 2, 0), palLevel(),
+                    band, length, HubOptions.humans(2, 4, 2), HubOptions.cpus(0, 2, 0), palLevel(),
                     budget, assistFor, assist, relaxed, dragAnywhere, switchAiming
                 )
             ),
             HubMode(
                 id = "solo", kind = HubModeKind.SOLO, title = "Solo Practice",
                 blurb = "Flick at your own speed and earn stars.",
-                route = "flick-rink", start = HubStart.IMMEDIATE, minSeats = 1, maxSeats = 1,
+                route = "flick-rink-solo", start = HubStart.IMMEDIATE, minSeats = 1, maxSeats = 1,
                 options = listOf(
-                    style("solo", "Practising"), game, soloRink, assistForSolo, assist, relaxed, dragAnywhere, switchAiming
+                    game, soloRink, assistForSolo, assist, relaxed, dragAnywhere, switchAiming
                 )
             )
         )

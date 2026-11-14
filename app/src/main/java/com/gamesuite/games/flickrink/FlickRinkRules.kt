@@ -57,6 +57,22 @@ object FlickRinkRules {
     const val MID_R = 90.0
     const val OUT_R = 150.0
     const val DISCS_PER_PLAYER = 3
+    const val LAUNCH_Y = 860
+    const val LAUNCH_MIN_X = 80
+    const val LAUNCH_MAX_X = 520
+    const val LAUNCH_DEFAULT_X = 300
+    const val BOARD_COUNT = 6
+    const val RINK_COUNT = 14
+
+    // small details of the step loop
+    const val SPLASH_MARGIN = 12.0
+    const val RELAXED_BANK_SPEED = 300.0
+    /** Wall and pal bumps slower than this make no event (so resting contact never spams). */
+    const val BUMP_EVENT_MIN = 15.0
+    const val MAX_LOG = 400
+    const val MAX_COOP_RETRIES = 20
+    /** A helper this long (or longer) also shows one wall bounce. */
+    const val LONG_HELPER_UNITS = 560
 
     // match shape
     const val FISH_PER_RINK = 3
@@ -79,7 +95,8 @@ object FlickRinkRules {
         return Math.round(t * 100.0).toInt()
     }
 
-    fun isInRange(input: FlickInput): Boolean = input.angleDeci in 0..3599 && input.power in 0..100
+    fun isInRange(input: FlickInput): Boolean =
+        input.angleDeci in 0..3599 && input.power in 0..100 && input.launchX in LAUNCH_MIN_X..LAUNCH_MAX_X
 
     /** Flicks each player may use on one rink in a turn-taking match: 12, 8 and 6 for 2, 3 and 4 players (about 24 in all). */
     fun flickCapPerPlayer(players: Int): Int = when {
@@ -108,12 +125,45 @@ object FlickRinkRules {
         else -> 1
     }
 
-    /** Bullseye ring points for a disc resting with its centre [distance] from the target centre: 5, 3, 1 or 0. */
-    fun bullseyePoints(distance: Double): Int = when {
-        distance <= BULL_R -> 5
-        distance <= MID_R -> 3
-        distance <= OUT_R -> 1
+    /**
+     * Bullseye ring points for a disc resting with its centre [distance] from the target centre: 5, 3, 1 or 0.
+     * [scale] stretches the rings (little rinks 1.3, medium 1.0, big 0.8: see [FlickBand.bullScale]).
+     */
+    fun bullseyePoints(distance: Double, scale: Double = 1.0): Int = when {
+        distance <= BULL_R * scale -> 5
+        distance <= MID_R * scale -> 3
+        distance <= OUT_R * scale -> 1
         else -> 0
+    }
+
+    /** Solo bullseye stars for a board worth [points]: 3 at 11 or more, 2 at 7 or more, otherwise 1. */
+    fun bullseyeSoloStars(points: Int): Int = when {
+        points >= 11 -> 3
+        points >= 7 -> 2
+        else -> 1
+    }
+
+    /** Co-op stars for clearing a rink in [used] flicks of a [budget]: 3 with half the budget left, 2 with a quarter left, else 1. */
+    fun coopStars(used: Int, budget: Int): Int {
+        val left = (budget - used).coerceAtLeast(0)
+        return when {
+            left * 2 >= budget -> 3
+            left * 4 >= budget -> 2
+            else -> 1
+        }
+    }
+
+    /** The 1-based board (1..6) a Solo "rink number" 1..14 plays in Bullseye: `1 + (n - 1) * 6 / 14`. */
+    fun soloBoardFor(rinkNumber: Int): Int = 1 + (rinkNumber.coerceIn(1, RINK_COUNT) - 1) * BOARD_COUNT / RINK_COUNT
+
+    /** The 1-based boards of a Bullseye match: [length] consecutive boards starting at the band's first (2 per band), kept inside 1..6. */
+    fun boardsFor(band: FlickBand, length: FlickLength): List<Int> {
+        val first = when (band) {
+            FlickBand.LITTLE -> 1
+            FlickBand.MEDIUM -> 3
+            FlickBand.BIG -> 5
+        }.coerceAtMost(BOARD_COUNT - length.rinks + 1)
+        return (0 until length.rinks).map { first + it }
     }
 
     /** The seats that get the aim helper for an `assistFor` value ("none", "all", "p1".."p4"). */
@@ -122,5 +172,36 @@ object FlickRinkRules {
         assistFor.length == 2 && assistFor[0] == 'p' && assistFor[1] in '1'..'4' ->
             setOf(assistFor[1] - '1').filter { it < seatCount }.toSet()
         else -> emptySet()
+    }
+}
+
+/**
+ * SplitMix64: the frozen random stream of the engine and the bots (kotlin.random's algorithm is not contractually frozen).
+ * The physics never draws from it; only bot noise does, so a replay plays the same match.
+ */
+class SplitMix64(seed: Long) {
+    private var state: Long = seed
+
+    fun nextLong(): Long {
+        state += -0x61c8864680b583ebL
+        var z = state
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        return z xor (z ushr 31)
+    }
+
+    /** A double in [0, 1) with 53 random bits. */
+    fun nextDouble(): Double = (nextLong() ushr 11) * (1.0 / 9007199254740992.0)
+
+    /** A standard normal draw (Box-Muller with StrictMath, so it is the same on every device). */
+    fun nextGaussian(): Double {
+        val u1 = (1.0 - nextDouble()).coerceAtLeast(1e-12)
+        val u2 = nextDouble()
+        return StrictMath.sqrt(-2.0 * StrictMath.log(u1)) * StrictMath.cos(2.0 * StrictMath.PI * u2)
+    }
+
+    companion object {
+        /** The bot's stream for the flick numbered [turn] of a match seeded [seed]. */
+        fun forTurn(seed: Long, turn: Int): SplitMix64 = SplitMix64(seed xor (turn.toLong() * -0x61c8864680b583ebL))
     }
 }
