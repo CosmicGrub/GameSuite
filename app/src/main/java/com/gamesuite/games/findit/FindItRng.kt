@@ -46,3 +46,19 @@ class FindItRng(seed: Long) {
         const val MIX2: Long = -7723592293110705685L // 0x94D049BB133111EB
     }
 }
+
+private const val DERIVE_GOLD: Long = -7046029254386353131L
+private const val DERIVE_ADD: Long = 7109453100751455193L
+
+/**
+ * A new seed derived from [seed] and any number of integer [parts] (stream tag, round, seat ...). Pure and
+ * order-sensitive, so every stream of a game (deck, layout, scene, helper, hint) is reproducible and independent.
+ */
+fun findItDerive(seed: Long, vararg parts: Long): Long {
+    var s = seed
+    for (p in parts) s = FindItRng(s xor (p * DERIVE_GOLD + DERIVE_ADD)).nextLong()
+    return s
+}
+
+/** A seed that is never 0 (0 means "draw one" in the config). */
+fun findItNonZero(seed: Long): Long = if (seed == 0L) 1L else seed
