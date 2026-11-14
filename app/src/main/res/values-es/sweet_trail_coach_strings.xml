@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Sweet Trail (coach_sweet_trail_s1..s5 and _fact); only coach_ keys live in this file. -->
+    <string name="coach_sweet_trail_s1">Toca el montón de cartas. La carta de arriba muestra un color.</string>
+    <string name="coach_sweet_trail_s2">Tu ficha salta a la siguiente casilla de ese color.</string>
+    <string name="coach_sweet_trail_s3">Una carta doble salta a la segunda casilla de ese color.</string>
+    <string name="coach_sweet_trail_s4">Puentes, escaleras y tirolinas son atajos. El Charco Pegajoso te hace esperar un turno.</string>
+    <string name="coach_sweet_trail_s5">Gana quien llegue primero a la Mesa de la Fiesta. Los ordenadores pueden ocupar sitios vacíos.</string>
+    <string name="coach_sweet_trail_fact">Los juegos de sendero con cartas de color no necesitan leer ni contar, así que hasta un niño de tres años puede jugar.</string>
+</resources>

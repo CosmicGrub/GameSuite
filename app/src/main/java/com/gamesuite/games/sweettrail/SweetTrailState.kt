@@ -22,7 +22,12 @@ object SweetTrailEvent {
     val MOVES = setOf(MOVE, SHORTCUT, PUDDLE, PASSED, WIN)
 }
 
-enum class SweetTrailReject { NONE, OVER, NOT_YOUR_TURN, DECIDE_FIRST, NOTHING_TO_DECIDE, NO_WISH }
+enum class SweetTrailReject {
+    NONE, OVER, NOT_YOUR_TURN, DECIDE_FIRST, NOTHING_TO_DECIDE, NO_WISH,
+
+    /** A draw / keep / wish was accepted and the screen has not reported it settled yet (see [SweetTrailGame.holdInputUntilSettled]). */
+    BUSY
+}
 
 /** Seat colour and shape are both `seat` (the screen picks them by index), so identity never rests on hue alone. */
 data class SweetTrailPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
@@ -43,6 +48,11 @@ data class SweetTrailRules(
  * ids, next draw LAST) and [discard] the face-up discards; [card] is the card on the table while it is being
  * played. [pending] is true while the seat on turn holds a card it may still swap with a wish.
  * [drawSerial] / [moveSerial] only ever grow and key the screen's card and hop animations.
+ *
+ * [eventCard] is the card that produced the last event (the card in play for PENDING, the resolved card for a move,
+ * null for START and STUCK); [card] is only non-null while [pending]. Every card is in exactly one of [pile],
+ * [discard] and [card]. [boardSeed] and [reshuffles] let the engine replay a reshuffle without any global state.
+ * [turnsTaken] always equals [moveSerial] (a stuck wait is a turn too).
  */
 data class SweetTrailState(
     val rules: SweetTrailRules,
@@ -67,5 +77,8 @@ data class SweetTrailState(
     val puddleStops: List<Int> = emptyList(),
     val turnsTaken: Int = 0,
     val over: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    val eventCard: Int? = null,
+    val boardSeed: Long = 0L,
+    val reshuffles: Int = 0
 )

@@ -80,6 +80,15 @@
     <string name="sweet_trail_ann_win">¡%1$s llega a la Mesa de la Fiesta y gana!</string>
     <string name="sweet_trail_ann_win_you">¡Llegas a la Mesa de la Fiesta y ganas!</string>
 
+    <!-- Turn lines, board and shortcut descriptions (added with the screen) -->
+    <string name="sweet_trail_colour_pattern">%1$s, %2$s</string>
+    <string name="sweet_trail_turn_you">Te toca. Toca el montón de cartas.</string>
+    <string name="sweet_trail_turn_named">%1$s, te toca. Toca el montón de cartas.</string>
+    <string name="sweet_trail_thinking">%1$s está sacando una carta...</string>
+    <string name="sweet_trail_deciding">%1$s está decidiendo sobre el deseo...</string>
+    <string name="sweet_trail_board_desc">El sendero tiene 60 casillas desde la salida hasta la Mesa de la Fiesta. Fichas: %1$s. Atajos: %2$s.</string>
+    <string name="sweet_trail_shortcut_desc">%1$s de la casilla %2$d a la casilla %3$d</string>
+
     <!-- Why lines -->
     <string name="sweet_trail_why_wait">Todavía no es tu turno.</string>
     <string name="sweet_trail_why_cpu">El ordenador está jugando su turno.</string>
@@ -99,14 +108,6 @@
     <string name="sweet_trail_score_shortcuts">Atajos encontrados: %1$d</string>
     <string name="sweet_trail_score_puddles">Paradas en el charco: %1$d</string>
     <string name="sweet_trail_score_session">Sesión: %1$s</string>
-
-    <!-- Coach card -->
-    <string name="coach_sweet_trail_s1">Toca el montón de cartas. La carta de arriba muestra un color.</string>
-    <string name="coach_sweet_trail_s2">Tu ficha salta a la siguiente casilla de ese color.</string>
-    <string name="coach_sweet_trail_s3">Una carta doble salta a la segunda casilla de ese color.</string>
-    <string name="coach_sweet_trail_s4">Puentes, escaleras y tirolinas son atajos. El Charco Pegajoso te hace esperar un turno.</string>
-    <string name="coach_sweet_trail_s5">Gana quien llegue primero a la Mesa de la Fiesta. Los ordenadores pueden ocupar sitios vacíos.</string>
-    <string name="coach_sweet_trail_fact">Los juegos de sendero con cartas de color no necesitan leer ni contar, así que hasta un niño de tres años puede jugar.</string>
 
     <!-- Tips -->
     <string name="draft_tip_sweet_trail_1">Toca el montón para sacar una carta. Tu ficha se mueve sola.</string>

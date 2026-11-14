@@ -37,6 +37,9 @@ object SweetTrailDeck {
         return out
     }
 
+    // built once per length: the engine looks a card up on every draw and the self-play tests do so millions of times
+    private val cache: Map<TrailLength, List<TrailCard>> = TrailLength.values().associateWith { cards(it) }
+
     /** The card with [id] for [length], or null when [id] is not a card id. */
-    fun byId(id: Int, length: TrailLength): TrailCard? = cards(length).getOrNull(id)
+    fun byId(id: Int, length: TrailLength): TrailCard? = cache.getValue(length).getOrNull(id)
 }

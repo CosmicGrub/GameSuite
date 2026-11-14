@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sweet Trail (game id sweet-trail): screen, announcements, coach card, tips and Game Hub texts (hub_* names are hubKey(english text)). -->
+    <!-- Sweet Trail (game id sweet-trail): screen, announcements, tips and Game Hub texts (the coach card lives in sweet_trail_coach_strings.xml) (hub_* names are hubKey(english text)). -->
 
     <!-- Screen -->
     <string name="sweet_trail_help_title">Sweet Trail</string>
@@ -80,6 +80,15 @@
     <string name="sweet_trail_ann_win">%1$s reaches the Party Table and wins!</string>
     <string name="sweet_trail_ann_win_you">You reach the Party Table and win!</string>
 
+    <!-- Turn lines, board and shortcut descriptions (added with the screen) -->
+    <string name="sweet_trail_colour_pattern">%1$s, %2$s</string>
+    <string name="sweet_trail_turn_you">Your turn. Tap the card pile.</string>
+    <string name="sweet_trail_turn_named">%1$s, it is your turn. Tap the card pile.</string>
+    <string name="sweet_trail_thinking">%1$s is drawing a card...</string>
+    <string name="sweet_trail_deciding">%1$s is deciding about the wish...</string>
+    <string name="sweet_trail_board_desc">The trail has 60 squares from the start to the Party Table. Pieces: %1$s. Shortcuts: %2$s.</string>
+    <string name="sweet_trail_shortcut_desc">%1$s from square %2$d to square %3$d</string>
+
     <!-- Why lines -->
     <string name="sweet_trail_why_wait">It is not your turn yet.</string>
     <string name="sweet_trail_why_cpu">The computer is taking its turn.</string>
@@ -99,14 +108,6 @@
     <string name="sweet_trail_score_shortcuts">Shortcuts found: %1$d</string>
     <string name="sweet_trail_score_puddles">Puddle stops: %1$d</string>
     <string name="sweet_trail_score_session">Session: %1$s</string>
-
-    <!-- Coach card -->
-    <string name="coach_sweet_trail_s1">Tap the card pile. The top card shows a colour.</string>
-    <string name="coach_sweet_trail_s2">Your piece hops to the next square with that colour.</string>
-    <string name="coach_sweet_trail_s3">A double card hops to the second square of that colour.</string>
-    <string name="coach_sweet_trail_s4">Bridges, ladders and ziplines are shortcuts. The Gooey Puddle makes you wait one turn.</string>
-    <string name="coach_sweet_trail_s5">First to the Party Table wins. Computers can fill empty seats.</string>
-    <string name="coach_sweet_trail_fact">Colour-card trail games need no reading or counting, so even a three-year-old can play.</string>
 
     <!-- Tips -->
     <string name="draft_tip_sweet_trail_1">Tap the card pile to draw. Your piece moves for you.</string>

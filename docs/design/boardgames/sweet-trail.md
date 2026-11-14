@@ -1,6 +1,6 @@
 # Sweet Trail (`sweet-trail`): scope, script, scale, scaffold
 
-Status: design + compiling scaffold, nothing built or run (no Gradle, tests or emulator were used). Branch `session/wave-3`.
+Status: built. Real engine, computers, resume, screen, EN + ES strings and tests on branch `session/ws-sweet-trail` (from `session/wave-3` at 3d69c97); part 5 holds the measured Kotlin numbers. The design text below is the original spec; where the build decided something the spec left open it is listed in part 5. Never run on a device or emulator (owner's rule).
 Package `com.gamesuite.games.sweettrail`; strings `res/values{,-es}/sweet_trail_strings.xml`; tests `app/src/test/java/com/gamesuite/games/sweettrail/`.
 Simulation numbers below come from a throw-away Python prototype of these exact rules (20 000 boards per cell, scratchpad `st_sim.py`); the Kotlin property tests in the test plan must reproduce them within tolerance, and if they do not, the Kotlin result wins and this document is corrected.
 
@@ -225,7 +225,7 @@ Inputs: `gain` = squares the card would carry the piece (shortcut and puddle eff
 Without a wish the computer simply draws; there is no other choice in the game. The Hub hides "Computer level" until a wish is chosen.
 
 ## 2.5 Handicap rule
-Wish card, Hub row "Wish card": `none` (default), `all`, or one seat `1..4`. Each chosen seat holds one wish per board (see rule 13). Measured in the prototype (standard trail, medium-skill holder): two players, holder moves first: 58.0 % vs 54.4 % without a wish (+3.6 points); easy holder +0.5; hard-policy holder +6.2; four players, last seat holds the wish: 23.7 % vs 21.7 % (+2.0). Test `handicapWinRateDeltaIsBounded` asserts the delta stays between 0 and 8 points.
+Wish card, Hub row "Wish card" (one row per table size: keys `wish` for 2 seats, `wish3`, `wish4`, so the Hub never offers a seat that is not at the table): `none` (default), `all`, or one seat `1..seats`. Each chosen seat holds one wish per board (see rule 13). Measured in the prototype (standard trail, medium-skill holder): two players, holder moves first: 58.0 % vs 54.4 % without a wish (+3.6 points); easy holder +0.5; hard-policy holder +6.2; four players, last seat holds the wish: 23.7 % vs 21.7 % (+2.0). Test `handicapWinRateDeltaIsBounded` asserts the delta stays between 0 and 8 points.
 
 ## 2.6 UI states (mockup notes: warm cream, Baloo type, 56 dp+ targets, shape + colour tokens)
 | State | What is on screen |
@@ -472,7 +472,7 @@ Strings: `res/values/sweet_trail_strings.xml`, `res/values-es/sweet_trail_string
 Integration checklist for the coordinator (none of it done):
 1. `GameHubSpecs.baseSpecs()`: add `SweetTrailHubSpecs.sweetTrail` (BOARD section). Do not add `"sweet-trail"` to `networkedGames`.
 2. `GameCatalog` glyph `"sweet-trail" -> "🍬"` (`SweetTrailHubSpecs.GLYPH`).
-3. `GameThemes.accents["sweet-trail"] = GameAccent(0xFF9C1B52, 0xFFF08FB4)`; contrast against the reference surfaces computed as 7.6 / 6.0 (light) and 7.6 / 5.4 (dark), distinctness from the other accents NOT checked.
+3. `GameThemes.accents["sweet-trail"] = GameAccent(0xFF660027, 0xFFFF4BFF)` (changed from the scaffold's 0xFF9C1B52 / 0xFFF08FB4, which was only 16 / 10 RGB units from `hanafuda`); contrast against the reference surfaces 12.9 / 10.2 (light) and 6.3 / 4.5 (dark); nearest existing accent 53 (light, `texas-holdem`) and 42 (dark, `darts`). See `integration-notes.md`.
 4. Route and screen (`sweet-trail`, Phase 2), `GameTips`, `GameCoach` as in 2.7.
 5. `GameAudienceTable` needs no row (the spec's own tags win).
 6. Gate: run `HubLocalizationTest`, `GameTipsTest`, `GameCoachTest`, `GameThemeTest`, `GameAudienceTest` after registration; then un-ignore the Phase 0 tests.

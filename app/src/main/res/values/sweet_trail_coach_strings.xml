@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Sweet Trail (coach_sweet_trail_s1..s5 and _fact); only coach_ keys live in this file. -->
+    <string name="coach_sweet_trail_s1">Tap the card pile. The top card shows a colour.</string>
+    <string name="coach_sweet_trail_s2">Your piece hops to the next square with that colour.</string>
+    <string name="coach_sweet_trail_s3">A double card hops to the second square of that colour.</string>
+    <string name="coach_sweet_trail_s4">Bridges, ladders and ziplines are shortcuts. The Gooey Puddle makes you wait one turn.</string>
+    <string name="coach_sweet_trail_s5">First to the Party Table wins. Computers can fill empty seats.</string>
+    <string name="coach_sweet_trail_fact">Colour-card trail games need no reading or counting, so even a three-year-old can play.</string>
+</resources>

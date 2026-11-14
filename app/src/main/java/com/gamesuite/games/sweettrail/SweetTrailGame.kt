@@ -16,6 +16,7 @@ import kotlin.random.Random
 
 @Serializable
 private data class SweetTrailSnapshot(
+    val version: Int = SNAPSHOT_VERSION,
     val length: String,
     val sticky: Boolean,
     val players: List<SweetTrailSnapshotPlayer>,
@@ -31,10 +32,12 @@ private data class SweetTrailSnapshot(
     val eventSeat: Int? = null,
     val eventFrom: Int = 0,
     val eventTo: Int = 0,
+    val eventCard: Int? = null,
     val eventWished: Boolean = false,
     val eventReshuffled: Boolean = false,
     val drawSerial: Int = 0,
     val moveSerial: Int = 0,
+    val reshuffles: Int = 0,
     val shortcutsFound: List<Int> = emptyList(),
     val puddleStops: List<Int> = emptyList(),
     val turnsTaken: Int = 0,
@@ -49,6 +52,12 @@ private data class SweetTrailSnapshot(
 @Serializable
 private data class SweetTrailSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
 
+private const val SNAPSHOT_VERSION = 1
+
+/** A real snapshot is about 1.3 KB; anything this large is not ours and is not even parsed. */
+private const val MAX_SNAPSHOT_CHARS = 32_768
+private const val MAX_SESSION_WINS = 1_000_000
+
 private val sweetTrailJson = Json { ignoreUnknownKeys = true }
 
 /**
@@ -58,19 +67,21 @@ private val sweetTrailJson = Json { ignoreUnknownKeys = true }
  *
  * Options (set before [startMatch]; a restored save carries its own): [length], [sticky], [wishSeats].
  * All chance comes from the engine's board seed, drawn once per board from [random] (or [fixedSeed] in tests),
- * so a seeded [random] replays a whole session.
+ * so a seeded [random] replays a whole session. The computer's one decision (spend the wish or not) never touches
+ * that stream.
  *
- * Snapshot validation. [snapshotProblems] checks the roster, array sizes and ranges, the event name and that
- * pile + discard + card are exactly the 66 card ids. STILL TO DO in Phase 1 (each needs a test in
- * SweetTrailSnapshotTest): a stuck seat must stand on a puddle square of the saved rules; [pending] iff the event
- * is PENDING and then the seat on turn must hold a wish and a card; a MOVES event must replay (card, eventFrom)
- * to eventTo through the engine; exactly one piece on the Party Table iff [over], and it is the winner's;
- * positions never below the length's start square; shortcutsFound / puddleStops non-negative; turnsTaken
- * and serials within sane bounds; boardSeed unconstrained.
+ * Snapshot validation. A restore is refused (false, nothing changes) unless every one of these holds: the text is
+ * short enough and parses; the version, length id, roster ids and bot flags match; the engine's own
+ * [SweetTrailEngine.validate] accepts the rebuilt table (array sizes and ranges, positions never below the
+ * length's start square, a stuck seat stands on a puddle of the saved rules, pending iff the PENDING event and
+ * then the seat on turn holds a wish and the card, the last move replays through the rules to its eventTo, the
+ * turn follows the move, exactly one piece on the Party Table iff over and it is the winner's, the 66 card ids
+ * are covered exactly once, serials and counters bounded); the session wins name rostered players and are
+ * bounded; the next starter is a seat; the difficulty name is known. Names are taken from the live roster.
  */
 class SweetTrailGame(
     private val random: Random = Random.Default,
-    private val engine: SweetTrailEngine = StubSweetTrailEngine()
+    private val engine: SweetTrailEngine = StandardSweetTrailEngine()
 ) : GameModule, ResumableGame {
     override val gameId = "sweet-trail"
     override val displayName = "Sweet Trail"
@@ -83,6 +94,9 @@ class SweetTrailGame(
     val sessionWins = mutableStateOf<Map<String, Int>>(emptyMap())
     val matchOver = mutableStateOf(false)
 
+    /** True between [pause] and [resume]: the computer takes no step (the screen's bot loop restarts on resume). */
+    val paused = mutableStateOf(false)
+
     /** Rules for the NEXT board (the Hub's options). */
     var length: TrailLength = TrailLength.STANDARD
     var sticky: Boolean = true
@@ -92,6 +106,19 @@ class SweetTrailGame(
 
     /** Tests only: the board seed to use instead of one drawn from [random]. */
     var fixedSeed: Long? = null
+
+    /**
+     * The screen sets this so a second tap that arrives before it has even recomposed is refused: once a draw,
+     * keep or wish is accepted the game answers [SweetTrailReject.BUSY] until the screen calls [settled] (its
+     * animation finished). Off by default, so headless play (tests) is never held up.
+     */
+    var holdInputUntilSettled: Boolean = false
+    private var inFlight = false
+
+    /** The screen finished animating the last accepted action. */
+    fun settled() {
+        inFlight = false
+    }
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -122,6 +149,7 @@ class SweetTrailGame(
         val s = state.value ?: return SweetTrailReject.OVER
         return when {
             matchOver.value || s.over -> SweetTrailReject.OVER
+            holdInputUntilSettled && inFlight -> SweetTrailReject.BUSY
             !isMyTurn(s) -> SweetTrailReject.NOT_YOUR_TURN
             s.pending -> SweetTrailReject.DECIDE_FIRST
             else -> engine.explainDraw(s)
@@ -132,6 +160,7 @@ class SweetTrailGame(
         val s = state.value ?: return SweetTrailReject.OVER
         return when {
             matchOver.value || s.over -> SweetTrailReject.OVER
+            holdInputUntilSettled && inFlight -> SweetTrailReject.BUSY
             !isMyTurn(s) -> SweetTrailReject.NOT_YOUR_TURN
             else -> engine.explainDecision(s, wish)
         }
@@ -145,6 +174,7 @@ class SweetTrailGame(
         val seed = fixedSeed ?: random.nextLong()
         boardSeed = seed
         matchOver.value = false
+        inFlight = false
         val starter = nextStartingPlayerIndex % n
         state.value = engine.newBoard(
             players, SweetTrailRules(length, sticky), seed, wishSeats.filter { it in 0 until n }.toSet(), starter
@@ -152,8 +182,13 @@ class SweetTrailGame(
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % n
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    override fun pause() {
+        paused.value = true
+    }
+
+    override fun resume() {
+        paused.value = false
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -203,13 +238,21 @@ class SweetTrailGame(
 
     private fun applyDraw(): Boolean {
         val s = state.value ?: return false
-        commit(s, engine.draw(s))
+        if (matchOver.value || s.over || s.pending) return false
+        val after = engine.draw(s)
+        if (after === s) return false
+        inFlight = true // marked synchronously, before any recomposition can offer the next seat a tap
+        commit(s, after)
         return true
     }
 
     private fun applyDecision(wish: Boolean): Boolean {
         val s = state.value ?: return false
-        commit(s, engine.decide(s, wish))
+        if (matchOver.value || s.over || !s.pending) return false
+        val after = engine.decide(s, wish)
+        if (after === s) return false
+        inFlight = true
+        commit(s, after)
         return true
     }
 
@@ -229,22 +272,17 @@ class SweetTrailGame(
         !matchOver.value && !s.over && s.players[s.currentPlayerIndex].isBot
 
     /**
-     * One computer action: draw, or (holding a pending card) keep it or wish. With the real engine every call
-     * changes the state when [botToMove]; the scaffold engine does not, so do not drive this from a screen yet.
+     * One computer action: draw, or (holding a pending card) keep it or wish. Every call changes the state when
+     * [botToMove], so a computer seat can never stall the table.
      */
     fun playBotStep() {
         val s = state.value ?: return
-        if (!botToMove(s)) return
+        if (!botToMove(s) || paused.value) return
         if (!s.pending) {
             applyDraw()
             return
         }
-        // TODO Phase 1: derive gain / landsInPuddle / wins / takesShortcut from the pending card, then ask SweetTrailBot.
-        val seat = s.currentPlayerIndex
-        val coin = Random(s.drawSerial * 31L + s.positions[seat] + seat)
-        val wish = s.wishes[seat] > 0 &&
-            SweetTrailBot.wantsWish(0, landsInPuddle = false, wins = false, takesShortcut = false, difficulty = difficulty, coin = coin)
-        applyDecision(wish)
+        applyDecision(SweetTrailBot.decide(s, difficulty))
     }
 
     // --- Resume ----------------------------------------------------------------------------
@@ -259,45 +297,62 @@ class SweetTrailGame(
                 positions = s.positions, stuck = s.stuck, wishes = s.wishes,
                 currentPlayerIndex = s.currentPlayerIndex, pile = s.pile, discard = s.discard, card = s.card,
                 pending = s.pending, event = s.event, eventSeat = s.eventSeat, eventFrom = s.eventFrom,
-                eventTo = s.eventTo, eventWished = s.eventWished, eventReshuffled = s.eventReshuffled,
-                drawSerial = s.drawSerial, moveSerial = s.moveSerial, shortcutsFound = s.shortcutsFound,
-                puddleStops = s.puddleStops, turnsTaken = s.turnsTaken, over = s.over,
-                winnerPlayerId = s.winnerPlayerId, sessionWins = sessionWins.value,
-                nextStartingPlayerIndex = nextStartingPlayerIndex, difficulty = difficulty.name,
-                boardSeed = boardSeed
+                eventTo = s.eventTo, eventCard = s.eventCard, eventWished = s.eventWished,
+                eventReshuffled = s.eventReshuffled, drawSerial = s.drawSerial, moveSerial = s.moveSerial,
+                reshuffles = s.reshuffles, shortcutsFound = s.shortcutsFound, puddleStops = s.puddleStops,
+                turnsTaken = s.turnsTaken, over = s.over, winnerPlayerId = s.winnerPlayerId,
+                sessionWins = sessionWins.value, nextStartingPlayerIndex = nextStartingPlayerIndex,
+                difficulty = difficulty.name, boardSeed = boardSeed
             )
         )
     }
 
+    private fun stateOf(snap: SweetTrailSnapshot, roster: List<PlayerInfo>): SweetTrailState = SweetTrailState(
+        rules = SweetTrailRules(TrailLength.fromId(snap.length), snap.sticky),
+        // names come from the live roster (a renamed seat keeps its new name); ids and bot flags were checked against it
+        players = snap.players.mapIndexed { i, p -> SweetTrailPlayer(p.playerId, roster.getOrNull(i)?.displayName ?: p.displayName, p.isBot) },
+        positions = snap.positions, stuck = snap.stuck, wishes = snap.wishes,
+        currentPlayerIndex = snap.currentPlayerIndex, pile = snap.pile, discard = snap.discard, card = snap.card,
+        pending = snap.pending, event = snap.event, eventSeat = snap.eventSeat, eventFrom = snap.eventFrom,
+        eventTo = snap.eventTo, eventWished = snap.eventWished, eventReshuffled = snap.eventReshuffled,
+        drawSerial = snap.drawSerial, moveSerial = snap.moveSerial, shortcutsFound = snap.shortcutsFound,
+        puddleStops = snap.puddleStops, turnsTaken = snap.turnsTaken, over = snap.over,
+        winnerPlayerId = snap.winnerPlayerId, eventCard = snap.eventCard, boardSeed = snap.boardSeed,
+        reshuffles = snap.reshuffles
+    )
+
     private fun snapshotProblems(snap: SweetTrailSnapshot, roster: List<PlayerInfo>): List<String> {
         val out = ArrayList<String>()
         val n = roster.size
+        if (snap.version != SNAPSHOT_VERSION) out += "version"
         if (TrailLength.values().none { it.id == snap.length }) out += "length"
         if (snap.players.size != n ||
             snap.players.indices.any { snap.players[it].playerId != roster[it].playerId || snap.players[it].isBot != roster[it].isBot }
         ) out += "roster"
-        if (snap.positions.size != n || snap.positions.any { it !in 0..SweetTrailBoard.FINISH }) out += "positions"
-        if (snap.stuck.size != n || snap.stuck.any { it !in 0..1 }) out += "stuck"
-        if (snap.wishes.size != n || snap.wishes.any { it !in 0..1 }) out += "wishes"
-        if (snap.shortcutsFound.size != n || snap.puddleStops.size != n) out += "stats"
-        if (snap.currentPlayerIndex !in 0 until n || snap.nextStartingPlayerIndex !in 0 until n) out += "seat"
-        if (snap.eventSeat != null && snap.eventSeat !in 0 until n) out += "eventSeat"
-        if (snap.event !in SweetTrailEvent.ALL) out += "event"
-        val cards = snap.pile + snap.discard + listOfNotNull(snap.card)
-        if (cards.size != SweetTrailDeck.SIZE || cards.toSet() != (0 until SweetTrailDeck.SIZE).toSet()) out += "cards"
-        if (snap.sessionWins.any { (id, w) -> w < 0 || roster.none { it.playerId == id } }) out += "sessionWins"
-        if (snap.over != (snap.winnerPlayerId != null)) out += "winner"
-        if (snap.winnerPlayerId != null && roster.none { it.playerId == snap.winnerPlayerId }) out += "winnerId"
-        if (snap.drawSerial < 0 || snap.moveSerial < 0 || snap.turnsTaken < 0) out += "serials"
-        return out
+        if (snap.nextStartingPlayerIndex !in 0 until n) out += "nextStartingPlayerIndex"
+        if (snap.sessionWins.any { (id, w) -> w !in 0..MAX_SESSION_WINS || roster.none { it.playerId == id } }) out += "sessionWins"
+        if (CpuDifficulty.values().none { it.name == snap.difficulty }) out += "difficulty"
+        if (out.isNotEmpty()) return out
+        return engine.validate(stateOf(snap, roster))
     }
 
     private fun decodeSnapshot(text: String): SweetTrailSnapshot? {
+        if (text.length > MAX_SNAPSHOT_CHARS) return null
         return try {
             val snap = sweetTrailJson.decodeFromString(SweetTrailSnapshot.serializer(), text)
             if (snapshotProblems(snap, context.players).isEmpty()) snap else null
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /** The reasons a restore of [snapshot] would be refused (empty when it would be accepted); for tests. */
+    internal fun snapshotProblemsOf(snapshot: String): List<String> {
+        if (snapshot.length > MAX_SNAPSHOT_CHARS) return listOf("size")
+        return try {
+            snapshotProblems(sweetTrailJson.decodeFromString(SweetTrailSnapshot.serializer(), snapshot), context.players)
+        } catch (_: Exception) {
+            listOf("parse")
         }
     }
 
@@ -313,23 +368,14 @@ class SweetTrailGame(
     override fun restore(snapshot: String): Boolean {
         val snap = decodeSnapshot(snapshot) ?: return false
         matchOver.value = false
-        state.value = SweetTrailState(
-            rules = SweetTrailRules(TrailLength.fromId(snap.length), snap.sticky),
-            players = snap.players.map { SweetTrailPlayer(it.playerId, it.displayName, it.isBot) },
-            positions = snap.positions, stuck = snap.stuck, wishes = snap.wishes,
-            currentPlayerIndex = snap.currentPlayerIndex, pile = snap.pile, discard = snap.discard, card = snap.card,
-            pending = snap.pending, event = snap.event, eventSeat = snap.eventSeat, eventFrom = snap.eventFrom,
-            eventTo = snap.eventTo, eventWished = snap.eventWished, eventReshuffled = snap.eventReshuffled,
-            drawSerial = snap.drawSerial, moveSerial = snap.moveSerial, shortcutsFound = snap.shortcutsFound,
-            puddleStops = snap.puddleStops, turnsTaken = snap.turnsTaken, over = snap.over,
-            winnerPlayerId = snap.winnerPlayerId
-        )
+        inFlight = false
+        state.value = stateOf(snap, context.players)
         sessionWins.value = snap.sessionWins
         nextStartingPlayerIndex = snap.nextStartingPlayerIndex
         boardSeed = snap.boardSeed
         length = TrailLength.fromId(snap.length)
         sticky = snap.sticky
-        difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty
+        difficulty = CpuDifficulty.values().first { it.name == snap.difficulty }
         return true
     }
 }
@@ -340,4 +386,14 @@ fun parseSweetTrailWish(value: String?, seats: Int): Set<Int> {
     if (v.isEmpty() || v == "none") return emptySet()
     if (v == "all") return (0 until seats).toSet()
     return v.split(',').mapNotNull { it.trim().toIntOrNull() }.map { it - 1 }.filter { it in 0 until seats }.toSet()
+}
+
+/**
+ * The wish seats for [seats] seats from the launch extras. The Hub offers the choice under `wish` for 2 seats and
+ * under `wish3` / `wish4` for 3 and 4 seats (so it never offers a seat that is not at the table); the plain
+ * `wish` is the fallback for older saved launches. Seats that do not exist are dropped.
+ */
+fun sweetTrailWishFromExtras(extras: Map<String, String>, seats: Int): Set<Int> {
+    val key = if (seats <= 2) "wish" else "wish$seats"
+    return parseSweetTrailWish(extras[key] ?: extras["wish"], seats)
 }
