@@ -445,6 +445,7 @@ class SixBallGame(private val nowMillis: () -> Long = { System.nanoTime() / 1_00
 
     /** Next level: solo moves on; a race (host only over a network) starts the following campaign level. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (!isRace) {
             nextLevelId()?.let { startLevel(it) } ?: restartLevel()

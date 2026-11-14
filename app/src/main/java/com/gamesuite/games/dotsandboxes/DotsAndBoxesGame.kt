@@ -597,6 +597,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
      * session. Reuses [startMatch] itself, same as DominoGame.playAgain().
      */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworkedMode) {
             // Either seat may ask; only the host deals, and only once the board is over.

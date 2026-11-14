@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="draw_guess_need_two">Dibuja y Adivina necesita al menos dos personas. Vuelve y añade un jugador.</string>
+</resources>

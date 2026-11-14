@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="draw_guess_need_two">Draw and Guess needs at least two people. Go back and add a player.</string>
+</resources>

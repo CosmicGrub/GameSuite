@@ -7,6 +7,7 @@ import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
 import com.gamesuite.core.PlayMode
+import com.gamesuite.core.PlayerInfo
 import com.gamesuite.core.PlayerScore
 import com.gamesuite.core.ResumableGame
 import kotlinx.serialization.Serializable
@@ -27,7 +28,10 @@ private data class EchoSnapshot(
     val elimination: List<Int>,
     val completed: List<Int>,
     val sessionWins: Map<String, Int>,
-    val sessionBest: Int
+    val sessionBest: Int,
+    /** Added later; absent in older saves (then false). */
+    val pendingMiss: Boolean = false,
+    val retryUsed: Boolean = false
 )
 
 private val echoJson = Json { ignoreUnknownKeys = true }
@@ -75,15 +79,19 @@ class EchoPadsGame(
     private var pausedAt = -1L
     private val lock: Any = this
 
-    val players get() = context.players
+    /** The seats actually played: the roster, cut to the most the game seats ([EchoRules.MAX_PLAYERS]) so every index agrees with the engine. */
+    private var roster: List<PlayerInfo> = emptyList()
+
+    val players: List<PlayerInfo> get() = roster
 
     fun nowMs(): Long = clock()
 
     override fun init(context: GameContext) {
         synchronized(lock) {
             this.context = context
+            roster = rosterFor(context.players)
             matchOver.value = false
-            sessionWins.value = context.players.associate { it.playerId to 0 }
+            sessionWins.value = roster.associate { it.playerId to 0 }
             sessionBest.intValue = 0
             engine = null
             recorded = false
@@ -91,11 +99,16 @@ class EchoPadsGame(
         }
     }
 
+    internal companion object {
+        /** The seats played from a roster: never more than [EchoRules.MAX_PLAYERS] (a longer roster is cut, so the game and the screen index the same players). */
+        fun rosterFor(all: List<PlayerInfo>): List<PlayerInfo> = all.take(EchoRules.MAX_PLAYERS)
+    }
+
     fun setOnMatchEnd(listener: (GameResult) -> Unit) { onMatchEnd = listener }
 
     /** The mode actually played, which always fits the roster (a lone player is Solo, a duel needs exactly two). */
     fun effectiveMode(): EchoMode {
-        val n = context.players.size
+        val n = roster.size
         return when {
             n <= 1 -> EchoMode.SOLO
             mode == EchoMode.DUEL && n == EchoRules.DUEL_PLAYERS -> EchoMode.DUEL
@@ -105,7 +118,7 @@ class EchoPadsGame(
 
     private fun config(): EchoConfig {
         val m = effectiveMode()
-        val n = context.players.size.coerceIn(EchoRules.seatRange(m).first, EchoRules.seatRange(m).last)
+        val n = roster.size.coerceIn(EchoRules.seatRange(m).first, EchoRules.seatRange(m).last)
         return EchoConfig(m, n, speed, delayScale, forgiving)
     }
 
@@ -156,7 +169,7 @@ class EchoPadsGame(
         val over = e != null && e.phase == EchoPhase.OVER
         endMatch(
             GameResult(
-                scores = if (!over || e == null) emptyList() else context.players.mapIndexed { i, p ->
+                scores = if (!over || e == null) emptyList() else roster.mapIndexed { i, p ->
                     PlayerScore(p.playerId, e.completedBy(i), isWinner = i in e.winners && (e.config.mode != EchoMode.SOLO || e.completedBy(i) > 0))
                 }
             )
@@ -165,6 +178,7 @@ class EchoPadsGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (engine?.phase != EchoPhase.OVER) return
         startMatch()
@@ -218,7 +232,7 @@ class EchoPadsGame(
                 sessionBest.intValue = maxOf(sessionBest.intValue, e.completedBy(0))
             } else if (!e.isTie) {
                 e.winners.firstOrNull()?.let { w ->
-                    val id = context.players[w].playerId
+                    val id = roster[w].playerId
                     sessionWins.value = sessionWins.value + (id to ((sessionWins.value[id] ?: 0) + 1))
                 }
             }
@@ -241,11 +255,12 @@ class EchoPadsGame(
             echoJson.encodeToString(
                 EchoSnapshot.serializer(),
                 EchoSnapshot(
-                    mode = e.config.mode.id, players = context.players.map { it.playerId },
+                    mode = e.config.mode.id, players = roster.map { it.playerId },
                     speed = e.config.speed.id, forgiving = e.config.forgiving,
                     sequence = p.sequence, order = p.order, orderPos = p.orderPos, results = p.results,
                     out = p.out, elimination = p.elimination, completed = p.completed,
-                    sessionWins = sessionWins.value, sessionBest = sessionBest.intValue
+                    sessionWins = sessionWins.value, sessionBest = sessionBest.intValue,
+                    pendingMiss = p.pendingMiss, retryUsed = p.retryUsed
                 )
             )
         } catch (_: Exception) {
@@ -255,7 +270,6 @@ class EchoPadsGame(
 
     private fun decode(text: String): EchoSnapshot? = try {
         val s = echoJson.decodeFromString(EchoSnapshot.serializer(), text)
-        val roster = context.players
         val valid = s.mode == effectiveMode().id &&
             s.players.size == roster.size && roster.indices.all { s.players[it] == roster[it].playerId } &&
             EchoSpeed.entries.any { it.id == s.speed } &&
@@ -281,7 +295,7 @@ class EchoPadsGame(
         }
         val ok = e.resume(
             clock(),
-            EchoProgress(s.sequence, s.order, s.orderPos, s.results, s.out, s.elimination, s.completed)
+            EchoProgress(s.sequence, s.order, s.orderPos, s.results, s.out, s.elimination, s.completed, s.pendingMiss, s.retryUsed)
         )
         if (!ok) {
             speed = oldSpeed; forgiving = oldForgiving

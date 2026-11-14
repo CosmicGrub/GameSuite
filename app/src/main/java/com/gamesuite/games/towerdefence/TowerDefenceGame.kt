@@ -599,6 +599,7 @@ class TowerDefenceGame : GameModule {
      *  difficulty, keeps [bestWaveThisSession] running. A no-op unless the current run has
      *  actually ended, same idempotency guard every solo game's own `playAgain()` has. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || !state.value.runOver) return
         startMatch()
     }

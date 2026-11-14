@@ -120,6 +120,7 @@ class ActItOutGame(
 
     /** After a finished match: back to setup with the same choices, for another go. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         val e = engine ?: return
         // The finished match must not stay resumable (it would be played out and counted a second time).
         discardSave()

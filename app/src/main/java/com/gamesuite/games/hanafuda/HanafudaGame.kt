@@ -268,6 +268,7 @@ class HanafudaGame(private val random: Random = Random.Default) : GameModule, Re
 
     /** A fresh match once every round has been played. */
     fun playAgain(): Boolean {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return false
         val r = full ?: return false
         if (matchOver.value || !(r.over && roundNumber >= totalRounds)) return false
         if (isNetworked) {

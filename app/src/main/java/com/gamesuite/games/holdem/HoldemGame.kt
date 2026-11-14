@@ -130,6 +130,7 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
 
     /** After the tournament: a new one with the same table. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         val s = state.value ?: return
         if (!s.matchOver || ended) return
         if (isNetworked) {
@@ -228,6 +229,25 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
             HoldemEquity.estimate(v.hole, v.board, v.opponents, iters, rng)
         } else null
         return HoldemBot.decide(v, level, BotStyle.forSeat(cpuStyle, seat), rng, equity)
+    }
+
+    /**
+     * Idle-turn enforcement (host of a networked table only): the action played for a human seat that sat on
+     * its turn past [com.gamesuite.core.IdleTurnPolicy.TURN_LIMIT_MS] is a check when that is free, else a fold.
+     * Null when there is nothing to enforce (local game, guest, no human to act, hand over).
+     */
+    fun idleTimeoutAction(s: HoldemState): HoldemAction? {
+        if (ended || !isNetworked || !isHost) return null
+        if (s.handOver || s.matchOver || s.runout || s.toAct !in s.seats.indices || s.toAct == 0) return null
+        if (s.seats[s.toAct].isBot) return null
+        return if (HoldemRules.validate(s, s.toAct, HoldemAction.CHECK) == HoldemReject.NONE) HoldemAction.CHECK else HoldemAction.FOLD
+    }
+
+    /** Plays the idle-turn action for [expected] unless the table has moved on since the timer started. */
+    fun applyIdleTimeout(expected: HoldemState): Boolean {
+        if (state.value !== expected) return false
+        val action = idleTimeoutAction(expected) ?: return false
+        return applyAction(expected.toAct, action, human = false) == HoldemReject.NONE
     }
 
     /** A computer player's chosen action for the table [state] it was chosen against. */
@@ -475,7 +495,7 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
         val senderSeat = context.players.indexOfFirst { it.playerId == fromPlayerId }
         when (message) {
             is HoldemNetMessage.StateSync ->
-                if (!isHost && fromPlayerId == hostId) applyRemoteState(message.version, message.state)
+                if (!isHost && !ended && fromPlayerId == hostId) applyRemoteState(message.version, message.state)
             is HoldemNetMessage.RequestState -> {
                 if (!isHost) return
                 if (senderSeat < 0 && (fromPlayerId in spectatorIds || spectatorIds.size < HOLDEM_MAX_SPECTATORS)) spectatorIds.add(fromPlayerId)
@@ -483,6 +503,7 @@ class HoldemGame(private val random: Random = Random.Default) : GameModule, Resu
             }
             is HoldemNetMessage.Act -> {
                 val s = state.value ?: return
+                if (ended || s.matchOver) return // stale handler after the table closed (review item 23)
                 // The acting seat is whoever the transport says sent it; a seat that is being played by the computer ignores people.
                 if (isHost && senderSeat > 0 && !s.seats[senderSeat].isBot && s.toAct == senderSeat) {
                     applyAction(senderSeat, message.action, human = true)

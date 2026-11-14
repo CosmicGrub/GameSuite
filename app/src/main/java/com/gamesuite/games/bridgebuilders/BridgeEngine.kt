@@ -174,6 +174,8 @@ class BridgeEngine(
     private var event = BridgeEvent.START
     private var eventArg = 0
     private var eventSerial = 0
+    private var eventPriority = -1
+    private var pausedAt = -1L
     private var won = false
 
     private class Bot {
@@ -246,18 +248,45 @@ class BridgeEngine(
         phase = BridgePhase.COUNTDOWN
         phaseEnd = simT + BridgeRules.COUNTDOWN_MS
         paused = false
+        pausedAt = -1L
         lastSim = clock()
+        eventPriority = -1
         setEvent(BridgeEvent.START, 0)
     }
 
-    fun pause() { paused = true }
-
-    fun resume() {
-        lastSim = clock()
-        paused = false
+    /** Freezes the clock. Calling it again while already paused keeps the moment the pause began. */
+    fun pause() {
+        if (!paused) pausedAt = clock()
+        paused = true
     }
 
+    /**
+     * Unfreezes from "now". After a pause of [BridgeRules.RESUME_GRACE_AFTER_MS] or more in the middle of building, the
+     * friends get a short [BridgeRules.RESUME_COUNTDOWN_MS] "3-2-1" first (the water and carts stay frozen in it), so
+     * a kid coming back from a phone call does not find the cart already sliding.
+     */
+    fun resume() {
+        val now = clock()
+        if (paused && phase == BridgePhase.BUILD && pausedAt >= 0 && BridgeRules.needsResumeCountdown(now - pausedAt)) {
+            phase = BridgePhase.COUNTDOWN
+            phaseEnd = simT + BridgeRules.RESUME_COUNTDOWN_MS
+            eventPriority = -1
+            setEvent(BridgeEvent.START, 0)
+        }
+        lastSim = now
+        paused = false
+        pausedAt = -1L
+    }
+
+    /**
+     * Records a milestone. Several can happen inside one screen beat (one [tick] or [tap]); the screen only sees the last
+     * one, so within a beat the most important wins and a less important later one is dropped (a WATER_HIGH then LOSE
+     * reads LOSE; a ROW then CROSS reads CROSS).
+     */
     private fun setEvent(kind: String, arg: Int) {
+        val pr = BridgeRules.eventPriority(kind)
+        if (pr < eventPriority) return
+        eventPriority = pr
         event = kind; eventArg = arg; eventSerial++
     }
 
@@ -266,6 +295,7 @@ class BridgeEngine(
     /** Advances the simulation to the injected clock's now. Returns false when nothing is running. */
     fun tick(): Boolean {
         if (phase == BridgePhase.OVER) return false
+        eventPriority = -1
         advanceTo(clock())
         return true
     }
@@ -284,7 +314,11 @@ class BridgeEngine(
         if (lastSim + BridgeRules.STEP_MS <= now) lastSim = now
     }
 
-    private fun inputT(): Long = simT + (clock() - lastSim).coerceIn(0L, BridgeRules.STEP_MS - 1)
+    /**
+     * The moment a tap is scored at: the last simulated step, which is exactly what [state] (and so the screen) shows.
+     * It used to extrapolate up to 9 ms ahead, which made the scored marker lead the drawn one.
+     */
+    private fun inputT(): Long = simT
 
     private fun step() {
         when (phase) {
@@ -307,7 +341,7 @@ class BridgeEngine(
         if (riseWater(dt)) return
         if (minPlanks() >= spans) { startCross(); return }
         val v = speed() * dt
-        for (l in 0 until n) if (status(l, simT) == BridgeLaneStatus.MOVING) cartPhase[l] += v
+        for (l in 0 until n) if (slides(l, simT)) cartPhase[l] += v
         for (l in 0 until n) {
             botStep(l, simT)
             if (phase != BridgePhase.BUILD) return
@@ -344,8 +378,17 @@ class BridgeEngine(
         else -> BridgeLaneStatus.MOVING
     }
 
+    /**
+     * Does the cart of lane [l] slide? A lane that is WAITING for friends keeps sliding (it only cannot be tapped), so
+     * its cart is never frozen inside the green spot for a free perfect plank. A resting (stumbled) or finished lane is still.
+     */
+    private fun slides(l: Int, t: Long): Boolean {
+        val st = status(l, t)
+        return st == BridgeLaneStatus.MOVING || st == BridgeLaneStatus.WAITING
+    }
+
     private fun markerAt(l: Int, t: Long): Double {
-        val moving = status(l, simT) == BridgeLaneStatus.MOVING
+        val moving = slides(l, simT)
         val ph = cartPhase[l] + if (moving) speed() * (t - simT).coerceAtLeast(0L) else 0.0
         return BridgeRules.triangle(ph)
     }
@@ -355,6 +398,7 @@ class BridgeEngine(
     /** A person tapped lane [seat]. */
     fun tap(seat: Int): BridgeTapResult {
         if (phase == BridgePhase.OVER || paused) return BridgeTapResult.NOT_BUILDING
+        eventPriority = -1
         if (seat !in 0 until n) return BridgeTapResult.BAD_SEAT
         if (seats[seat].isBot) return BridgeTapResult.BOT_SEAT
         advanceTo(clock())

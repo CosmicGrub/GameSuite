@@ -79,7 +79,7 @@ object SlideClimbBot {
         val step = SlideClimbRules.step(position, roll, layout, exactFinish)
         val gain = step.to - position
         return when (difficulty) {
-            CpuDifficulty.EASY -> coin.nextBoolean()
+            CpuDifficulty.EASY -> !step.won && coin.nextBoolean()
             CpuDifficulty.MEDIUM -> !step.won && gain <= 0
             CpuDifficulty.HARD -> !step.won && gain < 2
         }

@@ -227,6 +227,7 @@ class WarGame(private val random: Random = Random.Default) : GameModule, Resumab
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || hostLeft.value) return
         val s = state.value ?: return
         if (s.phase != WarPhase.OVER) return

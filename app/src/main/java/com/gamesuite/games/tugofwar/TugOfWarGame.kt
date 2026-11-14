@@ -255,6 +255,7 @@ class TugOfWarGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

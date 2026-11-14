@@ -408,6 +408,7 @@ class FlowLinesGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** "New puzzle": deals a fresh random puzzle of the current tier, keeping the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

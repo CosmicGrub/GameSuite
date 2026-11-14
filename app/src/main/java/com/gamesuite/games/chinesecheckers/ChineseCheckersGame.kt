@@ -431,6 +431,7 @@ class ChineseCheckersGame(private val random: Random = Random.Default) : GameMod
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (hostLeft.value || state.value?.boardOver != true) return

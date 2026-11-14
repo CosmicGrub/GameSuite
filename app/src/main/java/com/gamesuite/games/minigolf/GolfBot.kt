@@ -145,9 +145,5 @@ object GolfBot {
         return best
     }
 
-    private fun gauss(random: Random): Double {
-        var s = 0.0
-        repeat(4) { s += random.nextDouble() - 0.5 }
-        return s * Math.sqrt(3.0)
-    }
+    private fun gauss(random: Random): Double = com.gamesuite.core.Gaussian.sum4(random)
 }

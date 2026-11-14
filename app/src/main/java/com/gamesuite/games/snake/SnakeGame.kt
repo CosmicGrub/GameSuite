@@ -171,6 +171,7 @@ class SnakeGame(private val randomSource: () -> Random = { Random.Default }) : G
 
     /** "Play Again" on the result panel. A no-op unless the current run has ended. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || phase.value != SnakePhase.OVER) return
         startMatch()
     }

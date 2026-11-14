@@ -209,12 +209,8 @@ object BilliardsBot {
         return score
     }
 
-    private fun gauss(random: Random): Double {
-        // sum of 4 uniforms: close enough to normal, no trig/log so it is cheap and deterministic
-        var s = 0.0
-        repeat(4) { s += random.nextDouble() - 0.5 }
-        return s * sqrt(3.0)
-    }
+    // sum of 4 uniforms: close enough to normal, no trig/log so it is cheap and deterministic
+    private fun gauss(random: Random): Double = com.gamesuite.core.Gaussian.sum4(random)
 
     /** A direction vector, for tests and the screens. */
     fun dir(angle: Double): Pair<Double, Double> = cos(angle) to sin(angle)

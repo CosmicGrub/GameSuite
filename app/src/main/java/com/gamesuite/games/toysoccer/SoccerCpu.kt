@@ -40,7 +40,7 @@ object SoccerCpu {
     /** The profile of a hint: perfect play, no blur. */
     val PERFECT = SoccerCpuProfile(0, 0.0, 0.0, 0.0, 1.0, 1.0, 1100.0, true)
 
-    private fun gauss(r: Random): Double = (r.nextDouble() + r.nextDouble() + r.nextDouble() - 1.5) * 2.0
+    private fun gauss(r: Random): Double = com.gamesuite.core.Gaussian.sum3(r)
 
     /** Folds an x position into the pitch the way a ball bouncing off the side walls would. */
     private fun fold(x: Double): Double {

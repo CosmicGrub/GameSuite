@@ -334,7 +334,7 @@ class G2048Game(private val random: Random = Random.Default) : GameModule, Resum
     }
 
     /** The finished-game panel's "Play again". */
-    fun playAgain() = newGame()
+    fun playAgain() { if (com.gamesuite.core.LaunchPolicy.requestNewRound()) newGame() }
 
     // --- Playing ----------------------------------------------------------------------------
 

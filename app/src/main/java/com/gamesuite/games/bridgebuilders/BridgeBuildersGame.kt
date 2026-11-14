@@ -100,10 +100,14 @@ class BridgeBuildersGame(
         onMatchEnd?.invoke(result)
     }
 
-    /** Ends the session. Anyone who built at least one bridge together counts as having won with the team. */
+    /**
+     * Ends the session. Anyone who built at least one bridge together counts as having won with the team. With no bridge
+     * built nobody "lost" (no one loses alone in this game), so it is an abort that is not recorded in anyone's stats.
+     */
     fun leaveSession() {
         if (!::context.isInitialized || matchOver.value) return
         val built = engine.state().bridgesBuilt
+        if (built == 0) { abortMatch(); return }
         endMatch(
             GameResult(scores = context.players.map { PlayerScore(it.playerId, built, isWinner = built > 0) })
         )
@@ -112,6 +116,7 @@ class BridgeBuildersGame(
     /** Another try (a fresh bridge, the session tally stays). */
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         configure()
         engine.start()

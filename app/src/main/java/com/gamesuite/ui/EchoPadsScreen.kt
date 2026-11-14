@@ -70,6 +70,7 @@ import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.games.cards.CardSounds
+import com.gamesuite.games.echopads.EchoCues
 import com.gamesuite.games.echopads.EchoEventKind
 import com.gamesuite.games.echopads.EchoMode
 import com.gamesuite.games.echopads.EchoOutcome
@@ -245,12 +246,14 @@ fun EchoPadsScreen(
     LaunchedEffect(engine, version) {
         for (ev in engine.eventsSince(lastSerial)) {
             lastSerial = max(lastSerial, ev.serial)
-            when (ev.kind) {
-                EchoEventKind.PAD_SHOWN -> { tone(ev.pad); haptics(HapticSignal.LIGHT_TICK) }
-                EchoEventKind.SEQUENCE_OK -> { if (soundOn) playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.SUCCESS) }
-                EchoEventKind.RETRY, EchoEventKind.MISS -> { if (soundOn) playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE) }
-                EchoEventKind.MATCH_OVER -> if (multi) { if (soundOn) playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.CELEBRATION) }
-                else -> {}
+            when (EchoCues.soundFor(ev.kind, multi)) {
+                EchoCues.Sound.TONE_PAD -> { tone(ev.pad); haptics(HapticSignal.LIGHT_TICK) }
+                EchoCues.Sound.SUCCESS -> { if (soundOn) playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.SUCCESS) }
+                // A free try is a gentle low thunk, never the miss buzz: listening alone must tell "again" from "out".
+                EchoCues.Sound.SOFT_RETRY -> { if (soundOn) playSfx(SfxKind.SOLID_THUNK); haptics(HapticSignal.NORMAL_ACTION) }
+                EchoCues.Sound.MISS_BUZZ -> { if (soundOn) playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE) }
+                EchoCues.Sound.WIN -> { if (soundOn) playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.CELEBRATION) }
+                EchoCues.Sound.NONE -> {}
             }
         }
         if (solo && engine.phase == EchoPhase.OVER && !recorded.value) {
@@ -294,6 +297,33 @@ fun EchoPadsScreen(
     }
     val roundLine = if (solo) stringResource(R.string.echo_pads_round, engine.round) else null
 
+    // The finished panel. In an oriented duel each player gets their own copy, turned to face them, inside their half.
+    val finishedPanel: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), contentAlignment = Alignment.Center) {
+            val sessionTally = players.joinToString(" · ") { "${seatName(players.indexOf(it))} ${game.sessionWins.value[it.playerId] ?: 0}" }
+            if (solo) {
+                val c = engine.completedBy(0)
+                ClFinishedPanel(
+                    title = stringResource(R.string.echo_pads_over_solo_title),
+                    subtitle = if (newBest.value) stringResource(R.string.echo_pads_over_new_best) else null,
+                    lines = listOf(
+                        if (c > 0) stringResource(R.string.echo_pads_over_solo_line, c) else stringResource(R.string.echo_pads_over_solo_none),
+                        stringResource(R.string.echo_pads_over_best, max(storedBest, c))
+                    ),
+                    canPlayAgain = true, onPlayAgain = { game.playAgain() }, onLeave = { game.leaveSession() }
+                )
+            } else {
+                val title = if (engine.isTie) stringResource(R.string.echo_pads_over_tie, engine.winners.joinToString(", ") { seatName(it) })
+                else stringResource(R.string.echo_pads_over_win, seatName(engine.winners.first()))
+                ClFinishedPanel(
+                    title = title, subtitle = null,
+                    lines = players.indices.map { stringResource(R.string.echo_pads_over_line, seatName(it), engine.completedBy(it)) } +
+                        stringResource(R.string.ccl_session, sessionTally),
+                    canPlayAgain = true, onPlayAgain = { game.playAgain() }, onLeave = { game.leaveSession() }
+                )
+            }
+        }
+    }
     val (_, openCoach) = rememberClCoach("echo-pads", ready = true)
     val finished = game.sessionWins.value.values.sum() + game.sessionBest.intValue
     GameChrome(
@@ -328,6 +358,7 @@ fun EchoPadsScreen(
                                     litProvider = litProvider, onTap = onPadTap, winnerNow = engine.phase == EchoPhase.OVER && zone.seat in engine.winners && !engine.isTie,
                                     compact = zone.contentHeight / density.density < EchoPadGrid.COMPACT_ZONE_BELOW_DP
                                 )
+                                if (engine.phase == EchoPhase.OVER && orient) finishedPanel()
                             }
                         }
                     }
@@ -361,32 +392,7 @@ fun EchoPadsScreen(
                         }
                     }
                 }
-                if (engine.phase == EchoPhase.OVER) {
-                    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), contentAlignment = Alignment.Center) {
-                        val sessionTally = players.joinToString(" · ") { "${seatName(players.indexOf(it))} ${game.sessionWins.value[it.playerId] ?: 0}" }
-                        if (solo) {
-                            val c = engine.completedBy(0)
-                            ClFinishedPanel(
-                                title = stringResource(R.string.echo_pads_over_solo_title),
-                                subtitle = if (newBest.value) stringResource(R.string.echo_pads_over_new_best) else null,
-                                lines = listOf(
-                                    if (c > 0) stringResource(R.string.echo_pads_over_solo_line, c) else stringResource(R.string.echo_pads_over_solo_none),
-                                    stringResource(R.string.echo_pads_over_best, max(storedBest, c))
-                                ),
-                                canPlayAgain = true, onPlayAgain = { game.playAgain() }, onLeave = { game.leaveSession() }
-                            )
-                        } else {
-                            val title = if (engine.isTie) stringResource(R.string.echo_pads_over_tie, engine.winners.joinToString(", ") { seatName(it) })
-                            else stringResource(R.string.echo_pads_over_win, seatName(engine.winners.first()))
-                            ClFinishedPanel(
-                                title = title, subtitle = null,
-                                lines = players.indices.map { stringResource(R.string.echo_pads_over_line, seatName(it), engine.completedBy(it)) } +
-                                    stringResource(R.string.ccl_session, sessionTally),
-                                canPlayAgain = true, onPlayAgain = { game.playAgain() }, onLeave = { game.leaveSession() }
-                            )
-                        }
-                    }
-                }
+                if (engine.phase == EchoPhase.OVER && !(duel && mode == EchoMode.DUEL && orient)) finishedPanel()
             }
         }
     }
@@ -588,12 +594,23 @@ private fun EpPadBoard(
                 )
             }
         }
+        // Underneath the pads: only a touch that lands in the gap between them reaches this layer (the pads sit
+        // above and take their own touches), and it snaps to the nearest pad so fast play next to the gap is not lost.
+        Box(
+            Modifier.fillMaxSize().pointerInput(seat, w, h, cols) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val pad = EchoPadGrid.nearestPad(down.position.x, down.position.y, w, h, cols)
+                    if (pad >= 0) tap(seat, pad)
+                    waitForUpOrCancellation()
+                }
+            }
+        )
         for (i in 0 until EchoPads.COUNT) {
             val r = EchoPadGrid.rect(i, w, h, cols)
             val pw = with(d) { (r[2] - r[0]).toDp() }
             val ph = with(d) { (r[3] - r[1]).toDp() }
             val name = stringResource(padNameRes(i))
-            val litName = stringResource(R.string.echo_pads_pad_lit, name)
             Box(
                 Modifier
                     .offset { IntOffset(r[0].roundToInt(), r[1].roundToInt()) }
@@ -606,7 +623,8 @@ private fun EpPadBoard(
                         }
                     }
                     .semantics {
-                        contentDescription = if (litProvider(seat, i)) litName else name
+                        // Static: reading the frame-driven lit state here would invalidate the node every frame under TalkBack.
+                        contentDescription = name
                         role = Role.Button
                         if (interactive) onClick(label = name) { tap(seat, i); true }
                     }

@@ -37,7 +37,15 @@ data class EchoProgress(
     /** Players in the order they went out. */
     val elimination: List<Int>,
     /** Per player: how many patterns they have copied. */
-    val completed: List<Int>
+    val completed: List<Int>,
+    /**
+     * True when the turn in progress had already ended in a miss that the feedback pause had not yet applied (the
+     * save was taken while the miss was showing). The restored turn shows the miss again and resolves it, so
+     * backgrounding on a sure miss is never a free retry or a way out of an elimination.
+     */
+    val pendingMiss: Boolean = false,
+    /** True when the turn in progress had already used its free try (Easy mode), so a restore never renews it. */
+    val retryUsed: Boolean = false
 ) {
     /** True when this progress is internally consistent and fits [config]. A corrupt or foreign save is not. */
     fun isValidFor(config: EchoConfig): Boolean {
@@ -47,6 +55,8 @@ data class EchoProgress(
         if (results.size != n || out.size != n || completed.size != n) return false
         if (order.isEmpty() || order.size > n || order.any { it !in 0 until n } || order.toSet().size != order.size) return false
         if (orderPos !in order.indices) return false
+        // A free try can only have been used when the match gives one.
+        if (retryUsed && !config.forgiving) return false
         if (results.any { it !in -1..1 }) return false
         if (completed.any { it !in 0..round }) return false
         if (elimination.any { it !in 0 until n } || elimination.toSet().size != elimination.size) return false
@@ -213,13 +223,23 @@ class EchoPadsEngine(val config: EchoConfig, private val random: Random = Random
         elim.clear(); elim.addAll(p.elimination)
         winners = emptyList(); isTie = false
         beginTurn(now)
+        retryUsed = p.retryUsed
+        if (p.pendingMiss) {
+            // The saved turn was already a miss: show it again and let the feedback pause apply it (never a free retry).
+            phase = EchoPhase.CHECKING
+            outcome = EchoOutcome.MISS
+            deadline = now + timing.missFeedbackMs
+            emit(EchoEventKind.MISS, currentPlayer)
+        }
         return true
     }
 
     /** The match as it stands, for saving (the turn in progress restarts when resumed). */
     fun progressSnapshot(): EchoProgress = EchoProgress(
         sequence = seq.toList(), order = order.toList(), orderPos = orderPos,
-        results = results.toList(), out = out.toList(), elimination = elim.toList(), completed = done.toList()
+        results = results.toList(), out = out.toList(), elimination = elim.toList(), completed = done.toList(),
+        pendingMiss = phase == EchoPhase.CHECKING && outcome == EchoOutcome.MISS,
+        retryUsed = retryUsed
     )
 
     private fun beginRound(now: Long) {

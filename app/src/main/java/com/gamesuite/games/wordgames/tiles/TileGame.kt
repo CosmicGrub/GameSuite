@@ -382,6 +382,7 @@ class TileGame : GameModule, ResumableGame {
      * next one in the same session. The guest only asks; the host re-checks and deals.
      */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (!isNetworked || matchEnded || opponentLeft.value) return
         if (!isHost) {
             if (state.value?.matchOver == true) sendToHost(TileNetMessage.PlayAgainRequest)

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 private val Context.echoPadsStatsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("echo_pads_stats")
 
@@ -20,11 +23,21 @@ object EchoPadsBest {
 
     private val serializer = MapSerializer(String.serializer(), Int.serializer())
 
-    /** A corrupt or foreign blob is an empty table, never a crash. Negative or absurd values are dropped. */
+    /**
+     * A corrupt or foreign blob is an empty table, never a crash. Entry by entry: one bad entry (a non-number, a
+     * negative or absurd value, a fractional number) is dropped on its own and never takes the good records with it.
+     */
     fun decode(raw: String?): Map<String, Int> {
         if (raw.isNullOrBlank()) return emptyMap()
-        return runCatching { Json.decodeFromString(serializer, raw) }.getOrDefault(emptyMap())
-            .filterValues { it in 0..EchoRules.MAX_LENGTH }
+        val obj = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return emptyMap()
+        val out = LinkedHashMap<String, Int>()
+        for ((key, value) in obj) {
+            val prim = value as? JsonPrimitive ?: continue
+            if (prim.isString) continue
+            val n = prim.intOrNull ?: continue
+            if (n in 0..EchoRules.MAX_LENGTH) out[key] = n
+        }
+        return out
     }
 
     fun encode(map: Map<String, Int>): String = Json.encodeToString(serializer, map)

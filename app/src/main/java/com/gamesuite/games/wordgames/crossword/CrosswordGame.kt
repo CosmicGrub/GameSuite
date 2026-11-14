@@ -532,6 +532,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame 
 
     /** Called from the puzzle-complete panel's "New Puzzle" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

@@ -273,12 +273,7 @@ object DartsAim {
 
     fun sag(power: Double): Double = (0.5 - power).coerceAtLeast(0.0) * 80.0
 
-    fun gauss2(rng: Random): Pair<Double, Double> {
-        val u1 = 1.0 - rng.nextDouble()
-        val u2 = rng.nextDouble()
-        val m = sqrt(-2.0 * ln(u1))
-        return (m * cos(2 * PI * u2)).coerceIn(-3.2, 3.2) to (m * sin(2 * PI * u2)).coerceIn(-3.2, 3.2)
-    }
+    fun gauss2(rng: Random): Pair<Double, Double> = com.gamesuite.core.Gaussian.boxMuller(rng, 3.2)
 
     private fun tenth(v: Double) = round(v * 10.0) / 10.0
 

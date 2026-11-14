@@ -356,6 +356,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
 
     /** Deals a new game within the same session (the tally is kept, the opener rotates). */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (state.value?.gameOver != true) return
         dealNewGame()

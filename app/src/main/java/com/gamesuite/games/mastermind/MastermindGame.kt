@@ -449,6 +449,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
 
     /** Called from the finished-round panel's "New Secret" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

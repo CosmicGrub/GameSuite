@@ -21,6 +21,23 @@ object LaunchPolicy {
     /** True when a new game may be started now (the kid's time is not up). */
     fun allowsNewGame(): Boolean = !timeUp
 
+    private val _blockedStarts = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /** Counts refused in-place restarts ("Play again" / result-panel buttons); the shell reacts to a change by ending the round. */
+    val blockedStarts: kotlinx.coroutines.flow.StateFlow<Int> = _blockedStarts
+
+    /**
+     * The one check an in-place restart ("Play again", "Next round", a result-panel button that begins a NEW round
+     * without going through [GameSessionManager.launchGame]) must make first. False when a kid's time is up: the
+     * caller does nothing, and [blockedStarts] ticks so the shell can show the time-up screen at once instead of
+     * waiting out the grace period.
+     */
+    fun requestNewRound(): Boolean {
+        if (allowsNewGame()) return true
+        _blockedStarts.value = _blockedStarts.value + 1
+        return false
+    }
+
     /** Whether launching [mode] as a new game is allowed right now. */
     fun allowsLaunch(mode: PlayMode): Boolean = allows(mode) && allowsNewGame()
 

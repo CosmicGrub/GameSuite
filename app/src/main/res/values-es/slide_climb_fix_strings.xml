@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Una tirada que se pasó de 100, rebotó y luego cayó en una cuerda o un tobogán -->
+    <string name="slide_climb_ann_bounce_climb">%1$s sacó %2$d, se pasó del final, rebotó, encontró una cuerda y subió a la casilla %3$d.</string>
+    <string name="slide_climb_ann_bounce_climb_you">Sacaste %1$d, te pasaste del final, rebotaste, encontraste una cuerda y subiste a la casilla %2$d.</string>
+    <string name="slide_climb_ann_bounce_slide">%1$s sacó %2$d, se pasó del final, rebotó sobre un tobogán y se deslizó hasta la casilla %3$d.</string>
+    <string name="slide_climb_ann_bounce_slide_you">Sacaste %1$d, te pasaste del final, rebotaste sobre un tobogán y te deslizaste hasta la casilla %2$d.</string>
+</resources>

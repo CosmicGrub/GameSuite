@@ -209,6 +209,7 @@ class ToyTennisGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         val v = state.value
         if (v == null || v.court.phase != TPhase.OVER) return
@@ -303,7 +304,7 @@ class ToyTennisGame(
         if (ts.phase == TPhase.POINT || ts.phase == TPhase.PREP) hint.value = null
     }
 
-    private fun gauss(): Double = (random.nextDouble() + random.nextDouble() + random.nextDouble() - 1.5) * 2.0
+    private fun gauss(): Double = com.gamesuite.core.Gaussian.sum3(random)
 
     private fun planSwing(side: Int) {
         val prof = TennisCpu.profile(cpuLevels[side] ?: difficulty)
