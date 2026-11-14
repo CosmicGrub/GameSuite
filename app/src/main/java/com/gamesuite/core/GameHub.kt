@@ -173,7 +173,11 @@ data class GameHubSpec(
     /** The mode the Play button uses the first time (before the player has chosen any). */
     val defaultModeId: String = modes.first().id,
     /** Whether the game saves and resumes (real-time games and utilities do not). */
-    val resumable: Boolean = true
+    val resumable: Boolean = true,
+    /** Who the game is for (profiles / kids mode). Default ADULTS; GameAudienceTable tags older games. */
+    val audience: GameAudience = GameAudience.ADULTS,
+    /** Youngest sensible age (years). A KID profile sees the game only if this is <= its age band's top age. */
+    val minAge: Int = 0
 ) {
     val hasDaily: Boolean get() = modes.any { it.kind == HubModeKind.DAILY }
     val isNetworked: Boolean get() = modes.any { it.kind == HubModeKind.NEARBY || it.kind == HubModeKind.ONLINE }

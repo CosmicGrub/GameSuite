@@ -1,0 +1,170 @@
+package com.gamesuite.games.liferoad
+
+/**
+ * Every content table of Life Road as data (generated from the design doc, sections 2.6 to 2.12). Names and card text are
+ * string resources keyed by id (`lr_job_<id>`, `lr_house_<id>`, `lr_ms_<id>`, `lr_event_<id>`, `lr_family_<id>`); no text lives here.
+ * Counts: 33 jobs, 12 homes, 12 milestones, 64 event cards, 16 family cards.
+ */
+object LifeRoadContent {
+    val jobs: List<JobDef> = listOf(
+        JobDef("bike_courier", 1, 20, Career.SERVICE, PayRule.FIXED, false),
+        JobDef("bakery_helper", 1, 22, Career.SERVICE, PayRule.FIXED, false),
+        JobDef("garden_hand", 1, 22, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("library_helper", 1, 24, Career.CARE, PayRule.FIXED, false),
+        JobDef("boat_deckhand", 1, 24, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("toy_shop_clerk", 1, 26, Career.CREATE, PayRule.FIXED, false),
+        JobDef("tram_driver", 2, 32, Career.SERVICE, PayRule.FIXED, false),
+        JobDef("care_aide", 2, 32, Career.CARE, PayRule.FIXED, false),
+        JobDef("greenhouse_grower", 2, 34, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("baker", 2, 34, Career.SERVICE, PayRule.FIXED, false),
+        JobDef("carpenter", 2, 36, Career.BUILD, PayRule.FIXED, false),
+        JobDef("puppet_maker", 2, 36, Career.CREATE, PayRule.FIXED, false),
+        JobDef("mural_painter", 2, 30, Career.CREATE, PayRule.TIPS, false),
+        JobDef("trail_ranger", 2, 40, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("beekeeper", 3, 45, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("clock_repairer", 3, 46, Career.BUILD, PayRule.FIXED, false),
+        JobDef("kite_designer", 3, 48, Career.CREATE, PayRule.FIXED, false),
+        JobDef("chef", 3, 50, Career.SERVICE, PayRule.TIPS, false),
+        JobDef("ferry_pilot", 3, 52, Career.OUTDOOR, PayRule.FIXED, false),
+        JobDef("electrician", 3, 54, Career.BUILD, PayRule.FIXED, false),
+        JobDef("robot_mechanic", 3, 58, Career.TECH, PayRule.FIXED, false),
+        JobDef("teacher", 4, 70, Career.CARE, PayRule.FIXED, true),
+        JobDef("weather_forecaster", 4, 74, Career.TECH, PayRule.FIXED, true),
+        JobDef("clinic_nurse", 4, 78, Career.CARE, PayRule.FIXED, true),
+        JobDef("app_maker", 4, 84, Career.TECH, PayRule.FIXED, true),
+        JobDef("bridge_engineer", 4, 86, Career.BUILD, PayRule.FIXED, true),
+        JobDef("architect", 4, 88, Career.BUILD, PayRule.FIXED, true),
+        JobDef("concert_conductor", 5, 90, Career.CREATE, PayRule.TIPS, true),
+        JobDef("harbor_master", 5, 98, Career.OUTDOOR, PayRule.FIXED, true),
+        JobDef("game_designer", 5, 104, Career.CREATE, PayRule.FIXED, true),
+        JobDef("research_scientist", 5, 108, Career.TECH, PayRule.FIXED, true),
+        JobDef("family_doctor", 5, 112, Career.CARE, PayRule.FIXED, true),
+        JobDef("space_engineer", 5, 115, Career.TECH, PayRule.FIXED, true),
+    )
+
+    val houses: List<HouseDef> = listOf(
+        HouseDef("tiny_flat", 80),
+        HouseDef("canal_boat", 90),
+        HouseDef("garden_cottage", 120),
+        HouseDef("treehouse_loft", 140),
+        HouseDef("brick_row", 180),
+        HouseDef("seaside_bungalow", 210),
+        HouseDef("hill_farmhouse", 240),
+        HouseDef("windmill_house", 260),
+        HouseDef("lakeside_lodge", 320),
+        HouseDef("clocktower_loft", 380),
+        HouseDef("garden_manor", 440),
+        HouseDef("glass_dome_villa", 520),
+    )
+
+    val milestones: List<MilestoneDef> = listOf(
+        MilestoneDef("swim"),
+        MilestoneDef("garden"),
+        MilestoneDef("fun_run"),
+        MilestoneDef("treehouse"),
+        MilestoneDef("sail"),
+        MilestoneDef("song"),
+        MilestoneDef("tree"),
+        MilestoneDef("far_town"),
+        MilestoneDef("ribbon"),
+        MilestoneDef("help_street"),
+        MilestoneDef("kite_fest"),
+        MilestoneDef("meteors"),
+    )
+
+    val events: List<EventCardDef> = listOf(
+        EventCardDef("coin_jar", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 20))),
+        EventCardDef("bake_sale", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 25))),
+        EventCardDef("raffle", EventTone.GOOD, null, listOf(EventEffect(EffectKind.SPIN_COINS, 5))),
+        EventCardDef("big_tip", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 15))),
+        EventCardDef("fair_ribbon", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 30))),
+        EventCardDef("old_bike", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 20))),
+        EventCardDef("shop_refund", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 10))),
+        EventCardDef("busker", EventTone.GOOD, null, listOf(EventEffect(EffectKind.SPIN_COINS, 3))),
+        EventCardDef("boss_notice", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 35))),
+        EventCardDef("busy_season", EventTone.GOOD, null, listOf(EventEffect(EffectKind.DOUBLE_NEXT_PAY))),
+        EventCardDef("shop_voucher", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 25))),
+        EventCardDef("scrap_art", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 20))),
+        EventCardDef("swap_meet", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 15))),
+        EventCardDef("cookbook", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 30))),
+        EventCardDef("small_rebate", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 20))),
+        EventCardDef("lucky_penny", EventTone.GOOD, null, listOf(EventEffect(EffectKind.LUCKY_COIN, 1))),
+        EventCardDef("leaky_roof", EventTone.SETBACK, CoverKind.HOME, listOf(EventEffect(EffectKind.COINS, -30))),
+        EventCardDef("storm_fence", EventTone.SETBACK, CoverKind.HOME, listOf(EventEffect(EffectKind.COINS, -25))),
+        EventCardDef("broken_pipe", EventTone.SETBACK, CoverKind.HOME, listOf(EventEffect(EffectKind.COINS, -35))),
+        EventCardDef("jammed_door", EventTone.SETBACK, CoverKind.HOME, listOf(EventEffect(EffectKind.COINS, -15))),
+        EventCardDef("sprained_ankle", EventTone.SETBACK, CoverKind.CARE, listOf(EventEffect(EffectKind.COINS, -20))),
+        EventCardDef("flu_season", EventTone.SETBACK, CoverKind.CARE, listOf(EventEffect(EffectKind.COINS, -25))),
+        EventCardDef("sore_tooth", EventTone.SETBACK, CoverKind.CARE, listOf(EventEffect(EffectKind.COINS, -30))),
+        EventCardDef("new_glasses", EventTone.SETBACK, CoverKind.CARE, listOf(EventEffect(EffectKind.COINS, -20))),
+        EventCardDef("quiet_season", EventTone.SETBACK, CoverKind.INCOME, listOf(EventEffect(EffectKind.HALVE_NEXT_PAY))),
+        EventCardDef("workshop_closed", EventTone.SETBACK, CoverKind.INCOME, listOf(EventEffect(EffectKind.SKIP_NEXT_PAY))),
+        EventCardDef("cancelled_orders", EventTone.SETBACK, CoverKind.INCOME, listOf(EventEffect(EffectKind.COINS, -20))),
+        EventCardDef("lost_wallet", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -15))),
+        EventCardDef("parking_fine", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -10))),
+        EventCardDef("dropped_phone", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -20))),
+        EventCardDef("bad_gadget", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -25))),
+        EventCardDef("flat_tire", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -15), EventEffect(EffectKind.MOVE_BACK, 1))),
+        EventCardDef("tailwind", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_FORWARD, 3))),
+        EventCardDef("shortcut", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_FORWARD, 2))),
+        EventCardDef("scenic_view", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_BACK, 2), EventEffect(EffectKind.MEMORY, 1))),
+        EventCardDef("extra_spin", EventTone.FUN, null, listOf(EventEffect(EffectKind.EXTRA_TURN))),
+        EventCardDef("park_picnic", EventTone.FUN, null, listOf(EventEffect(EffectKind.COINS, 10), EventEffect(EffectKind.MOVE_FORWARD, 1))),
+        EventCardDef("parade", EventTone.FUN, null, listOf(EventEffect(EffectKind.EACH_OTHER_PAYS, 5))),
+        EventCardDef("street_dance", EventTone.FUN, null, listOf(EventEffect(EffectKind.SPIN_COINS, 2))),
+        EventCardDef("stargazing", EventTone.FUN, null, listOf(EventEffect(EffectKind.MEMORY, 1))),
+        EventCardDef("museum_day", EventTone.FUN, null, listOf(EventEffect(EffectKind.MEMORY, 1), EventEffect(EffectKind.COINS, -5))),
+        EventCardDef("swim_day", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_FORWARD, 1), EventEffect(EffectKind.COINS, 5))),
+        EventCardDef("fireworks", EventTone.FUN, null, listOf(EventEffect(EffectKind.LUCKY_COIN, 1))),
+        EventCardDef("busy_bridge", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_BACK, 1))),
+        EventCardDef("charity_run", EventTone.FUN, null, listOf(EventEffect(EffectKind.COINS, -10), EventEffect(EffectKind.MEMORY, 1))),
+        EventCardDef("neighbour_help", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 15))),
+        EventCardDef("treat_friends", EventTone.FUN, null, listOf(EventEffect(EffectKind.PAY_EACH_OTHER, 5))),
+        EventCardDef("raise_chance", EventTone.GOOD, null, listOf(EventEffect(EffectKind.RAISE))),
+        EventCardDef("skills_class", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, -15), EventEffect(EffectKind.RAISE))),
+        EventCardDef("job_offer", EventTone.GOOD, null, listOf(EventEffect(EffectKind.JOB_FAIR))),
+        EventCardDef("helping_hand", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 10))),
+        EventCardDef("library_fine", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -5))),
+        EventCardDef("mentor", EventTone.GOOD, null, listOf(EventEffect(EffectKind.MOVE_FORWARD, 2), EventEffect(EffectKind.COINS, 10))),
+        EventCardDef("town_cup", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 20))),
+        EventCardDef("bridge_toll", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -10))),
+        EventCardDef("attic_sale", EventTone.GOOD, null, listOf(EventEffect(EffectKind.COINS, 25))),
+        EventCardDef("sunny_day", EventTone.GOOD, null, listOf(EventEffect(EffectKind.ALL_COLLECT, 5))),
+        EventCardDef("rainbow", EventTone.FUN, null, listOf(EventEffect(EffectKind.MEMORY, 1))),
+        EventCardDef("snow_day", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_BACK, 2), EventEffect(EffectKind.COINS, 10))),
+        EventCardDef("heatwave", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.COINS, -10))),
+        EventCardDef("strong_gust", EventTone.FUN, null, listOf(EventEffect(EffectKind.MOVE_FORWARD, 4))),
+        EventCardDef("thick_fog", EventTone.SETBACK, null, listOf(EventEffect(EffectKind.MOVE_BACK, 2))),
+        EventCardDef("cellar_flood", EventTone.SETBACK, CoverKind.HOME, listOf(EventEffect(EffectKind.COINS, -30))),
+        EventCardDef("harvest_moon", EventTone.GOOD, null, listOf(EventEffect(EffectKind.LUCKY_COIN, 1), EventEffect(EffectKind.COINS, 10))),
+    )
+
+    val familyCards: List<FamilyCardDef> = listOf(
+        FamilyCardDef("partner", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("baby", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("adopted", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("puppy", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("kitten", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("grandparent", listOf(EventEffect(EffectKind.FAMILY_PEG))),
+        FamilyCardDef("picnic", listOf(EventEffect(EffectKind.COINS, 10))),
+        FamilyCardDef("school_play", listOf(EventEffect(EffectKind.LUCKY_COIN, 1))),
+        FamilyCardDef("road_trip", listOf(EventEffect(EffectKind.SPIN_COINS, -3), EventEffect(EffectKind.MEMORY, 1))),
+        FamilyCardDef("birthday", listOf(EventEffect(EffectKind.EACH_OTHER_PAYS, 5))),
+        FamilyCardDef("homework", listOf(EventEffect(EffectKind.MOVE_FORWARD, 2))),
+        FamilyCardDef("movie_night", listOf(EventEffect(EffectKind.COINS, -10), EventEffect(EffectKind.MEMORY, 1))),
+        FamilyCardDef("garden_day", listOf(EventEffect(EffectKind.COINS, 15))),
+        FamilyCardDef("big_dinner", listOf(EventEffect(EffectKind.COINS, -20), EventEffect(EffectKind.LUCKY_COIN, 1))),
+        FamilyCardDef("reunion", listOf(EventEffect(EffectKind.ALL_COLLECT, 5))),
+        FamilyCardDef("bedtime", listOf(EventEffect(EffectKind.COINS, 5), EventEffect(EffectKind.MEMORY, 1))),
+    )
+
+    private val jobById = jobs.associateBy { it.id }
+    private val houseById = houses.associateBy { it.id }
+    private val eventById = events.associateBy { it.id }
+    private val familyById = familyCards.associateBy { it.id }
+
+    fun job(id: String): JobDef? = jobById[id]
+    fun house(id: String): HouseDef? = houseById[id]
+    fun event(id: String): EventCardDef? = eventById[id]
+    fun familyCard(id: String): FamilyCardDef? = familyById[id]
+}

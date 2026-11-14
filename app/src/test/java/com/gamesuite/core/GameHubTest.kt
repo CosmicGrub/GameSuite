@@ -322,9 +322,9 @@ class GameSpeedTest {
     fun nextCyclesThroughEverySpeedAndWraps() {
         var s = GameSpeed.SLOW
         val seen = mutableListOf(s)
-        repeat(GameSpeed.values().size) { s = s.next(); seen += s }
+        repeat(GameSpeed.selectable.size) { s = s.next(); seen += s }
         assertEquals(GameSpeed.SLOW, seen.last())
-        assertEquals(GameSpeed.values().toSet(), seen.toSet())
+        assertEquals(GameSpeed.selectable.toSet(), seen.toSet())
     }
 
     @Test

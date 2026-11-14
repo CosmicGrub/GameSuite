@@ -109,6 +109,17 @@ import com.gamesuite.games.taprace.TapRaceGame
 import com.gamesuite.ui.TapRaceScreen
 import com.gamesuite.games.tugofwar.TugOfWarGame
 import com.gamesuite.ui.TugOfWarScreen
+import com.gamesuite.ui.profiles.profileRoutes
+import com.gamesuite.games.slideclimb.SlideClimbGame
+import com.gamesuite.ui.SlideClimbScreen
+import com.gamesuite.games.drawguess.DrawGuessGame
+import com.gamesuite.ui.DrawGuessScreen
+import com.gamesuite.games.echopads.EchoPadsGame
+import com.gamesuite.ui.EchoPadsScreen
+import com.gamesuite.games.actitout.ActItOutGame
+import com.gamesuite.ui.ActItOutScreen
+import com.gamesuite.games.bridgebuilders.BridgeBuildersGame
+import com.gamesuite.ui.BridgeBuildersScreen
 import com.gamesuite.games.reactionduel.ReactionDuelGame
 import com.gamesuite.ui.ReactionDuelScreen
 import com.gamesuite.games.whackamole.WhackAMoleGame
@@ -247,6 +258,8 @@ class MainActivity : ComponentActivity() {
     private val statsViewModel: StatsViewModel by viewModels()
     /** The one shared Club profile (avatar, name, favourite, seen coach cards) for Home and every Hub. */
     private val clubViewModel: com.gamesuite.core.ClubViewModel by viewModels()
+    /** Profiles + parent controls (profiles feature). Activity-scoped; bootstrap runs in onCreate before it is first read. */
+    private val profilesViewModel: com.gamesuite.profiles.ProfilesViewModel by viewModels()
 
     /** De-duplicates the end-of-match win / loss / draw cue (one cue per outcome instance). */
     private val resultFeedbackGate = ResultFeedbackGate()
@@ -269,11 +282,42 @@ class MainActivity : ComponentActivity() {
         sessionManager.resumeActiveGame()
     }
 
+    /** A Computer Arena deep link waiting for the nav graph (debug builds only; see [readArenaIntent]). */
+    private var pendingArenaIntent by mutableStateOf<Pair<com.gamesuite.arena.ArenaConfig, com.gamesuite.arena.ArenaSpeed>?>(null)
+
+    private fun readArenaIntent(intent: android.content.Intent?) {
+        val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!debuggable || intent == null || !intent.hasExtra(com.gamesuite.arena.ArenaIntent.EXTRA_GAME)) return
+        val cfg = com.gamesuite.arena.ArenaIntent.parse(
+            game = intent.getStringExtra(com.gamesuite.arena.ArenaIntent.EXTRA_GAME),
+            a = intent.getStringExtra(com.gamesuite.arena.ArenaIntent.EXTRA_A),
+            b = intent.getStringExtra(com.gamesuite.arena.ArenaIntent.EXTRA_B),
+            games = if (intent.hasExtra(com.gamesuite.arena.ArenaIntent.EXTRA_GAMES)) intent.getIntExtra(com.gamesuite.arena.ArenaIntent.EXTRA_GAMES, 5) else null
+        ) ?: return
+        val speed = com.gamesuite.arena.ArenaSpeed.parse(intent.getStringExtra(com.gamesuite.arena.ArenaIntent.EXTRA_SPEED)) ?: com.gamesuite.arena.ArenaSpeed.X1
+        intent.removeExtra(com.gamesuite.arena.ArenaIntent.EXTRA_GAME) // a recreation must not start it again
+        pendingArenaIntent = cfg to speed
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readArenaIntent(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) readArenaIntent(intent)
         // Where resumable games are parked (see GameSessionManager.saveActiveProgress). The
         // ViewModel outlives the Activity, so this just re-points it at the same directory.
-        sessionManager.savedGames = SavedGameStore(File(filesDir, "saved_games"))
+        // Profiles: migrate the single user into the default profile on first run, then point the data scope
+        // at the stored active profile BEFORE any scoped store is read (blocking, one tiny DataStore read).
+        // Runs once per process (cached for an Activity re-creation), never throws and is capped by a timeout. Its
+        // result seeds the ViewModel so the very first frame already has the real profile and controls; if it could
+        // not read them the app stays FAIL-CLOSED (restricted kid-safe access, no network) until they load.
+        val profileBoot = com.gamesuite.profiles.ProfileStore.bootstrapBlocking(applicationContext)
+        profilesViewModel.seed(profileBoot)
+        sessionManager.savedGames = SavedGameStore(com.gamesuite.core.ProfileScope.savedGamesDir(filesDir))
         // The music player (library / other-apps modes) pauses while the whole app is in the
         // background and resumes when it returns. Activity-level start/stop is the right signal.
         lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -336,12 +380,18 @@ class MainActivity : ComponentActivity() {
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
+                    // Profiles: access rules for the active profile + the ONE shell observer (route guard, picker at
+                    // launch, play-time limiter / time-up screen, saved-games re-point, network switch).
+                    val profileAccess = com.gamesuite.ui.profiles.rememberProfileAccess(profilesViewModel)
+                    com.gamesuite.ui.profiles.ProfileShellObserver(profilesViewModel, profileAccess, navController, sessionManager)
                     // "Change setup" on a result panel marks the next match end as "go back to this game's Hub"
                     // instead of all the way to the menu. The Hub is not always on the back stack (a daily
                     // started from Home's Today row, or a lobby launch that cleared back to the menu), so
                     // pop to it when it is there and otherwise open it explicitly.
                     var changeSetupRequested by remember { mutableStateOf(false) }
                     val finishMatch: () -> Unit = {
+                        // Leaving an arena game by hand ends the arena series (nothing of it was recorded).
+                        com.gamesuite.arena.ArenaHost.stop(sessionManager)
                         val wantsHub = changeSetupRequested
                         changeSetupRequested = false
                         val gameId = if (wantsHub) {
@@ -383,8 +433,26 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // Computer Arena: starts a series (setup screen, deep link or Run again) on its game route.
+                    val startArena: (com.gamesuite.arena.ArenaConfig, com.gamesuite.arena.ArenaSpeed) -> Unit = { cfg, speed ->
+                        com.gamesuite.arena.ArenaHost.start(sessionManager, cfg, speed) { route ->
+                            navController.navigate(route) { popUpTo("menu") }
+                        }
+                    }
+                    // Debug builds only: `am start ... --es arena_game chutes-race --es arena_a hard --es arena_b easy --ei arena_games 10`.
+                    val arenaRequest = pendingArenaIntent
+                    LaunchedEffect(arenaRequest) {
+                        val (cfg, speed) = arenaRequest ?: return@LaunchedEffect
+                        kotlinx.coroutines.delay(600) // let the profile shell settle on the menu first
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            pendingArenaIntent = null
+                            startArena(cfg, speed)
+                        }
+                    }
+
                     CompositionLocalProvider(
                         LocalProgressSaver provides progressSaver,
+                        com.gamesuite.ui.profiles.LocalVisibleSpecs provides profileAccess.visibleSpecs,
                         LocalChangeSetup provides { changeSetupRequested = true },
                         LocalFoldState provides foldState,
                         LocalCardScale provides cardScale,
@@ -396,7 +464,7 @@ class MainActivity : ComponentActivity() {
                         LocalMusicEnabled provides (settings.musicSource == MusicSource.AMBIENCE),
                         LocalColorblindMode provides settings.colorblindMode,
                         LocalEnhancedAnimations provides settings.enhancedAnimationsEnabled,
-                        LocalGameSpeed provides settings.gameSpeed
+                        LocalGameSpeed provides (com.gamesuite.arena.ArenaHost.session?.speed?.gameSpeed ?: settings.gameSpeed)
                     ) {
                     // App shell: a bottom NavigationBar (a side NavigationRail at EXPANDED width) on
                     // the four top-level routes only. Game, Hub and lobby routes use the full screen.
@@ -423,6 +491,19 @@ class MainActivity : ComponentActivity() {
                         AppNavRail(selected = currentTab, onSelect = selectTab)
                     }
                     Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    com.gamesuite.arena.ArenaHost.session?.let { arena ->
+                        com.gamesuite.arena.ArenaDriver(arena, sessionManager)
+                        com.gamesuite.arena.ArenaStrip(
+                            session = arena,
+                            sessionManager = sessionManager,
+                            onStop = {
+                                com.gamesuite.arena.ArenaHost.stop(sessionManager)
+                                sessionManager.endActiveGame(com.gamesuite.core.GameResult(wasAborted = true))
+                                navController.popBackStack("menu", inclusive = false)
+                            },
+                            onAgain = { startArena(arena.config, arena.speed) }
+                        )
+                    }
                     Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                     NavHost(
                         navController = navController,
@@ -442,6 +523,12 @@ class MainActivity : ComponentActivity() {
                             GamesScreen(
                                 sessionManager = sessionManager,
                                 onNavigate = { route -> navController.navigate(route) }
+                            )
+                        }
+                        composable("arena") {
+                            com.gamesuite.arena.ArenaSetupScreen(
+                                onStart = { cfg -> startArena(cfg, com.gamesuite.arena.ArenaSpeed.X1) },
+                                onBack = { navController.popBackStack() }
                             )
                         }
                         composable(
@@ -465,11 +552,19 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                        profileRoutes(profilesViewModel, sessionManager, navController, profileAccess)
                         composable("settings") {
                             SettingsScreen(
                                 viewModel = settingsViewModel,
                                 onBack = { navController.popBackStack() },
-                                onOpenMusic = { navController.navigate("music") }
+                                onOpenMusic = { navController.navigate("music") },
+                                extraContent = {
+                                    com.gamesuite.ui.profiles.ProfilesSettingsSection(
+                                        vm = profilesViewModel,
+                                        onOpenPicker = { navController.navigate("profile-picker") },
+                                        onOpenParentGate = { navController.navigate("parent-gate") }
+                                    )
+                                }
                             )
                         }
                         composable("music") {
@@ -1155,6 +1250,30 @@ class MainActivity : ComponentActivity() {
                             val g = rememberActiveModule(sessionManager, "reaction-duel") { ReactionDuelGame() }
                             ReactionDuelScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
                         }
+                        composable("chutes-race") {
+                            val g = rememberActiveModule(sessionManager, "chutes-race") { SlideClimbGame() }
+                            SlideClimbScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("draw-guess") {
+                            val g = rememberActiveModule(sessionManager, "draw-guess") { DrawGuessGame() }
+                            DrawGuessScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("echo-pads") {
+                            val g = rememberActiveModule(sessionManager, "echo-pads") { EchoPadsGame() }
+                            EchoPadsScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, duel = false, onMatchEnded = finishMatch)
+                        }
+                        composable("echo-pads-duel") {
+                            val g = rememberActiveModule(sessionManager, "echo-pads-duel") { EchoPadsGame() }
+                            EchoPadsScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, duel = true, onMatchEnded = finishMatch)
+                        }
+                        composable("act-it-out") {
+                            val g = rememberActiveModule(sessionManager, "act-it-out") { ActItOutGame() }
+                            ActItOutScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("bridge-builders") {
+                            val g = rememberActiveModule(sessionManager, "bridge-builders") { BridgeBuildersGame() }
+                            BridgeBuildersScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
                         composable("whack-a-mole") {
                             val g = rememberActiveModule(sessionManager, "whack-a-mole") { WhackAMoleGame() }
                             WhackAMoleScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
@@ -1334,7 +1453,9 @@ private fun WithHubSpec(
     onMissing: () -> Unit,
     content: @Composable (GameHubSpec) -> Unit
 ) {
-    val spec = entry.arguments?.getString("gameId")?.let { GameHubSpecs.byId(it) }
+    // Profiles: look the game up among the specs this profile may see (kids: no network modes, hidden games gone).
+    val visible = com.gamesuite.ui.profiles.LocalVisibleSpecs.current
+    val spec = entry.arguments?.getString("gameId")?.let { id -> visible.firstOrNull { it.gameId == id } }
     if (spec == null) {
         LaunchedEffect(Unit) { onMissing() }
     } else {

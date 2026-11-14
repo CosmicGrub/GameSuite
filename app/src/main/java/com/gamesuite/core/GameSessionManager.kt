@@ -46,6 +46,17 @@ class GameSessionManager : ViewModel() {
      */
     private var activeModule: GameModule? = null
 
+    /** The module of the game screen on display (read-only; the Computer Arena drives it). */
+    val currentModule: GameModule? get() = activeModule
+
+    /**
+     * True while a Computer Arena series runs: nothing the computers play may reach the player's stats,
+     * achievements, streaks, result cues or saved games, so [endActiveGame] skips the match outcome and the save
+     * delete, and [saveActiveProgress] / [canSaveActiveProgress] write nothing.
+     */
+    @Volatile
+    var arenaActive: Boolean = false
+
     /** The nav route [activeModule] was launched on; the key its saved game lives under. */
     private var activeRoute: String? = null
 
@@ -124,7 +135,7 @@ class GameSessionManager : ViewModel() {
 
     /** True when the active game can be resumed right now: resumable, a store to keep it in, and a snapshot to write. */
     fun canSaveActiveProgress(): Boolean =
-        activeRoute != null && savedGames != null && _activeContext.value != null && currentSnapshot() != null
+        !arenaActive && activeRoute != null && savedGames != null && _activeContext.value != null && currentSnapshot() != null
 
     /**
      * Writes the active game's snapshot to the store. Returns true ONLY when it really reached
@@ -134,6 +145,7 @@ class GameSessionManager : ViewModel() {
      * not wipe the save the player is about to resume.
      */
     fun saveActiveProgress(): Boolean {
+        if (arenaActive) return false
         val store = savedGames ?: return false
         val route = activeRoute ?: return false
         val ctx = _activeContext.value ?: return false
@@ -171,6 +183,8 @@ class GameSessionManager : ViewModel() {
         val launch = saved.launch ?: legacyLaunchFromKey(saved.route, saved.navRoute) ?: return false
         val mode = runCatching { PlayMode.valueOf(launch.mode) }.getOrNull() ?: return false
         if (launch.seats.isEmpty()) return false
+        // A refused launch must not arm pendingResume (the next game would consume it and delete the save).
+        if (!LaunchPolicy.allowsLaunch(mode)) return false
         launchGame(
             mode = mode,
             players = launch.seats.map { PlayerInfo(it.id, it.name, it.isBot, it.teamId) },
@@ -229,6 +243,7 @@ class GameSessionManager : ViewModel() {
         localPlayerIndex: Int,
         options: LaunchOptions = LaunchOptions()
     ) {
+        if (!LaunchPolicy.allowsLaunch(mode)) return // profiles: network play blocked (kids / Online play off) or a kid's time is up
         val transport = createTransport(mode)
         transport.connect()
         launchOptions = options
@@ -257,6 +272,7 @@ class GameSessionManager : ViewModel() {
         /** Per-launch choices; a lobby host with computer seats passes the CPU level here. */
         options: LaunchOptions = LaunchOptions(),
     ) {
+        if (!LaunchPolicy.allowsLaunch(mode)) return // profiles: network play blocked (kids / Online play off) or a kid's time is up
         launchOptions = options
         _activeContext.value = GameContext(
             activeMode = mode,
@@ -282,7 +298,7 @@ class GameSessionManager : ViewModel() {
     fun endActiveGame(result: GameResult) {
         val ctx = _activeContext.value
         val module = activeModule
-        if (ctx != null && module != null && !result.wasAborted) {
+        if (ctx != null && module != null && !result.wasAborted && !arenaActive) {
             // Details first: an observer woken by the outcome must already find them.
             lastMatchDetails = buildMatchDetails(ctx, activeRoute, launchOptions)
             _lastMatchOutcome.value = MatchOutcome(
@@ -294,7 +310,7 @@ class GameSessionManager : ViewModel() {
         }
         // A finished match has nothing left to resume. An ABORT keeps whatever save exists: the
         // game chrome writes the save just before it aborts, so "Leave" parks the game for later.
-        if (!result.wasAborted) {
+        if (!result.wasAborted && !arenaActive) {
             val route = activeRoute
             if (route != null && ctx != null) savedGames?.delete(saveKey(route, ctx))
         }

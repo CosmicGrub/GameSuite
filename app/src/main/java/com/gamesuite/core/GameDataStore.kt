@@ -18,10 +18,16 @@ import kotlin.properties.ReadOnlyProperty
  * Usage: `private val Context.fooStore: DataStore<Preferences> by gameDataStore("foo")`.
  */
 fun gameDataStore(name: String): ReadOnlyProperty<Context, DataStore<Preferences>> =
-    preferencesDataStore(
-        name = name,
-        corruptionHandler = gameDataStoreCorruptionHandler()
-    )
+    if (name in ProfileScope.deviceLevelStores) {
+        preferencesDataStore(
+            name = name,
+            corruptionHandler = gameDataStoreCorruptionHandler()
+        )
+    } else {
+        // Per-profile: follows ProfileScope's active profile (see ProfileScope.kt); the default profile's
+        // file is the pre-profiles file, so existing data is untouched.
+        ProfileScopedDelegate(name)
+    }
 
 /** Exposed separately so it can be unit-tested and reused by non-delegate factories. */
 fun gameDataStoreCorruptionHandler(): ReplaceFileCorruptionHandler<Preferences> =

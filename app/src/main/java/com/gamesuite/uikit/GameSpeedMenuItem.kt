@@ -23,7 +23,7 @@ fun ColumnScope.GameSpeedMenuItem(current: GameSpeed, onChange: (GameSpeed) -> U
         GameSpeed.SLOW -> R.string.gamespeed_slow to R.string.gamespeed_slow_desc
         GameSpeed.RELAXED -> R.string.gamespeed_relaxed to R.string.gamespeed_relaxed_desc
         GameSpeed.NORMAL -> R.string.gamespeed_normal to R.string.gamespeed_normal_desc
-        GameSpeed.QUICK -> R.string.gamespeed_quick to R.string.gamespeed_quick_desc
+        GameSpeed.QUICK, GameSpeed.ARENA_X4, GameSpeed.ARENA_MAX -> R.string.gamespeed_quick to R.string.gamespeed_quick_desc
     }
     val label = stringResource(labelRes)
     val itemText = stringResource(R.string.gamespeed_menu_item, label)

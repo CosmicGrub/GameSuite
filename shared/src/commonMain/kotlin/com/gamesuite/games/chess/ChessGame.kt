@@ -952,6 +952,9 @@ class ChessGame(
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: ArenaHook? = null
+
     /**
      * Which roster seat (0 or 1) plays White and therefore moves first. Set by the screen before
      * [startMatch] (from the Hub's first-mover choice); anything but 1 is treated as 0. Restored
@@ -1555,7 +1558,7 @@ class ChessGame(
         if (s.roundOver || matchOver.value) return null
         val botPlayerIndex = seatForColor(s.sideToMove)
         if (context.players.getOrNull(botPlayerIndex)?.isBot != true) return null
-        return ChessBotRequest(s, botPlayerIndex, difficulty)
+        return ChessBotRequest(s, botPlayerIndex, arena?.levelFor(botPlayerIndex, difficulty) ?: difficulty)
     }
 
     /**
@@ -1586,6 +1589,7 @@ class ChessGame(
      */
     fun applyBotMove(request: ChessBotRequest, move: ChessHint): Boolean {
         if (state.value !== request.position || matchOver.value) return false
+        if (arena?.deferIfPaused { applyBotMove(request, move) } == true) return true
         val botPlayerIndex = request.seat
         // Routes through the public, network-aware playMove() rather than calling
         // applyPlayedMove directly (the real bug this fixes): a non-host device with a bot on

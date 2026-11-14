@@ -63,7 +63,7 @@ fun MainMenuScreen(
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val stats by statsViewModel.allStats.collectAsStateWithLifecycle()
     val progress by statsViewModel.progress.collectAsStateWithLifecycle()
-    val specs = GameHubSpecs.all
+    val specs = com.gamesuite.ui.profiles.LocalVisibleSpecs.current
     val favorites = rememberFavorites()
     val saves = rememberSavedGames(sessionManager)
     val reducedMotion = LocalReducedMotion.current
@@ -73,7 +73,7 @@ fun MainMenuScreen(
     val localize: (String) -> String = remember(context, configuration) { { text -> HubText.resolve(context, text) } }
 
     // Saved games that belong to a Hub game, newest first (a save from a retired route has no Hub and is skipped).
-    val continueItems = remember(saves) {
+    val continueItems = remember(saves, specs) {
         saves.mapNotNull { saved ->
             val gameId = gameIdForRoute(specs, saved.navRoute) ?: return@mapNotNull null
             val spec = specs.firstOrNull { it.gameId == gameId } ?: return@mapNotNull null
@@ -82,7 +82,8 @@ fun MainMenuScreen(
     }
     val favoriteSpecs = specs.filter { it.gameId in favorites.ids }
     val recentStats = stats.values
-        .filter { GameHubSpecs.byId(it.gameId) != null && !it.dismissedFromContinue }
+        // Only games this profile may see (age band, hidden, blocked, Online stripped): `specs` is the visible list.
+        .filter { s -> specs.any { it.gameId == s.gameId } && !s.dismissedFromContinue }
         .sortedByDescending { it.lastPlayedEpochMillis }
         .take(4)
     val dailySpecs = specs.filter { it.hasDaily }
@@ -202,7 +203,7 @@ fun MainMenuScreen(
             if (recentStats.isNotEmpty()) {
                 HomeRow(title = stringResource(R.string.home_recent)) {
                     recentStats.forEach { s ->
-                        val spec = GameHubSpecs.byId(s.gameId) ?: return@forEach
+                        val spec = specs.firstOrNull { it.gameId == s.gameId } ?: return@forEach
                         Box {
                             GameTile(
                                 glyph = gameGlyph(spec.gameId),

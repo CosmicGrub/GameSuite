@@ -375,6 +375,31 @@ object GameTips {
             "Tap a move to lock it in. Your neighbours only ever see a lock, never your pick. Tap Undo to change your mind.",
             "When everyone is locked in, a countdown runs and all moves flip face up together. Ties are played again.",
             "Against the computer, Hard learns your habits. Mix up your moves and do not repeat what just won."
+        ),
+        "chutes-race" to listOf(
+            "Tap the big die to roll. Your piece hops that many squares.",
+            "Land at the foot of a rope to climb up. Land at the top of a slide and down you go.",
+            "First to square 100 wins. A spare roll lets you swap one roll for a new one."
+        ),
+        "draw-guess" to listOf(
+            "The drawer picks one of three pictures, then holds the button to see the word. Everyone else looks away.",
+            "Think you know it? Tap your name to buzz in. The clock stops while you guess, and a wrong guess sits you out.",
+            "Stick figures are fine. Quick, clear drawings earn more points than perfect ones."
+        ),
+        "echo-pads" to listOf(
+            "Watch and listen while the pads light up, then tap the same pads in the same order.",
+            "Every pad has its own shape, colour and note, so you can learn them by sight or by ear.",
+            "Little ones? Turn on Easy mode and Slow speed in the setup for a free second try."
+        ),
+        "act-it-out" to listOf(
+            "The actor never speaks or points at words. Everyone else shouts out guesses!",
+            "Little kids can play from the picture. Choose Little kids for their team and turn on the bonus point.",
+            "Hold the big pad to start, then tap Correct or Skip. You get three skips in each turn."
+        ),
+        "bridge-builders" to listOf(
+            "Tap your lane when the sliding cart is inside the green spot. The nearer the middle, the sturdier the plank.",
+            "Nobody can build more than two planks ahead of the slowest lane, so wait for your friends: the rope is tight.",
+            "Finish every lane before the water covers the bridge, then everybody crosses together."
         )
     )
 

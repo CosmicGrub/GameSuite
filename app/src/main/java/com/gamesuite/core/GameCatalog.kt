@@ -125,5 +125,10 @@ fun gameGlyph(gameId: String): String = when (gameId) {
     "sumo-push" -> "🤼"
     "paddle-duel" -> "🏓"
     "rps-showdown" -> "✊"
+    "chutes-race" -> "🎢"
+    "draw-guess" -> "✏"
+    "echo-pads" -> "🎶"
+    "act-it-out" -> "🎭"
+    "bridge-builders" -> "🌉"
     else -> "🎲"
 }

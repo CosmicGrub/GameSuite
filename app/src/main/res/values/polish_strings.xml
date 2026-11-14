@@ -100,4 +100,16 @@
     <string name="tip_mahjong_solitaire_1">Tap two matching free tiles to remove them.</string>
     <string name="tip_mahjong_solitaire_2">A tile is free if nothing is on top and it has an open left or right side.</string>
     <string name="tip_mahjong_solitaire_3">Clear the whole pile to win; use a hint if you get stuck.</string>
+    <string name="tip_act_it_out_1">The actor never speaks or points at words. Everyone else shouts out guesses!</string>
+    <string name="tip_act_it_out_2">Little kids can play from the picture. Choose Little kids for their team and turn on the bonus point.</string>
+    <string name="tip_act_it_out_3">Hold the big pad to start, then tap Correct or Skip. You get three skips in each turn.</string>
+    <string name="tip_bridge_builders_1">Tap your lane when the sliding cart is inside the green spot. The nearer the middle, the sturdier the plank.</string>
+    <string name="tip_bridge_builders_2">Nobody can build more than two planks ahead of the slowest lane, so wait for your friends: the rope is tight.</string>
+    <string name="tip_bridge_builders_3">Finish every lane before the water covers the bridge, then everybody crosses together.</string>
+    <string name="tip_draw_guess_1">The drawer picks one of three pictures, then holds the button to see the word. Everyone else looks away.</string>
+    <string name="tip_draw_guess_2">Think you know it? Tap your name to buzz in. The clock stops while you guess, and a wrong guess sits you out.</string>
+    <string name="tip_draw_guess_3">Stick figures are fine. Quick, clear drawings earn more points than perfect ones.</string>
+    <string name="tip_chutes_race_1">Tap the big die to roll. Your piece hops that many squares.</string>
+    <string name="tip_chutes_race_2">Land at the foot of a rope to climb up. Land at the top of a slide and down you go.</string>
+    <string name="tip_chutes_race_3">First to square 100 wins. A spare roll lets you swap one roll for a new one.</string>
 </resources>

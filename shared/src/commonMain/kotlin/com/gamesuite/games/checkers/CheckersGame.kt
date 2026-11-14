@@ -297,6 +297,9 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: ArenaHook? = null
+
     /**
      * The roster seat (0 or 1) that plays Light (side 1) and therefore takes the first turn of every
      * round: Light always moves first in this ruleset, so "who opens" is decided by which seat holds
@@ -1063,7 +1066,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || s.gameOver) return null
         val botSeat = s.currentPlayerIndex
         if (context.players.getOrNull(botSeat)?.isBot != true) return null
-        return CheckersBotJob(s, positionOf(s), sideOfSeat(botSeat), difficulty, this)
+        return CheckersBotJob(s, positionOf(s), sideOfSeat(botSeat), arena?.levelFor(botSeat, difficulty) ?: difficulty, this)
     }
 
     /**
@@ -1073,6 +1076,7 @@ class CheckersGame : GameModule, ResumableGame, UndoableGame {
      */
     fun applyBotPlan(plan: CheckersBotPlan?): Boolean {
         if (plan == null || matchOver.value || state.value !== plan.baseState) return false
+        if (arena?.deferIfPaused { applyBotPlan(plan) } == true) return true
         commit(plan.finalPosition, plan.summary, plan.hops)
         return true
     }

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Perfiles, inicio infantil, control parental, tiempo agotado -->
+    <string name="prof_whos_playing">¿Quién juega?</string>
+    <string name="prof_add_profile">Añadir perfil</string>
+    <string name="prof_manage">Gestionar perfiles</string>
+    <string name="prof_done">Listo</string>
+    <string name="prof_save">Guardar</string>
+    <string name="prof_cancel">Cancelar</string>
+    <string name="prof_back">Atrás</string>
+    <string name="prof_kind_adult">Adulto</string>
+    <string name="prof_kind_kid">Niño</string>
+    <string name="prof_kind_label">Tipo de perfil</string>
+    <string name="prof_name_label">Nombre</string>
+    <string name="prof_name_hint">Usa un apodo, no tu nombre real</string>
+    <string name="prof_age_label">Edad</string>
+    <string name="prof_age_4_6">De 4 a 6 años</string>
+    <string name="prof_age_7_9">De 7 a 9 años</string>
+    <string name="prof_age_10_12">De 10 a 12 años</string>
+    <string name="prof_character_label">Elige un personaje</string>
+    <string name="prof_color_label">Elige un color</string>
+    <string name="prof_cd_profile">%1$s, perfil de %2$s</string>
+    <string name="prof_cd_selected">Seleccionado</string>
+
+    <string name="prof_err_empty">Escribe un nombre</string>
+    <string name="prof_err_long">Máximo 16 caracteres</string>
+    <string name="prof_err_chars">Solo letras, números y espacios</string>
+    <string name="prof_err_link">Los nombres no pueden parecer enlaces</string>
+    <string name="prof_err_dup">Ese nombre ya se usa</string>
+    <string name="prof_err_too_many">Se alcanzó el límite de perfiles</string>
+
+    <string name="prof_rename">Cambiar nombre</string>
+    <string name="prof_delete">Eliminar</string>
+    <string name="prof_delete_title">¿Eliminar a %1$s?</string>
+    <string name="prof_delete_body">Se borrarán para siempre sus estadísticas, partidas guardadas y favoritos.</string>
+    <string name="prof_err_delete_default">El primer perfil no se puede eliminar.</string>
+    <string name="prof_err_delete_active">Cambia primero a otro perfil.</string>
+    <string name="prof_err_delete_last_adult">Debe quedar al menos un perfil de adulto.</string>
+
+    <string name="prof_kids_hi">¡Hola, %1$s!</string>
+    <string name="prof_kids_stickers">%1$d pegatinas</string>
+    <string name="prof_kids_time_left">Quedan %1$d min</string>
+    <string name="prof_kids_play">Jugar</string>
+    <string name="prof_kids_lock">Mantén pulsado para abrir el control parental</string>
+    <string name="prof_kids_lock_holding">Sigue pulsando</string>
+    <string name="prof_kids_empty">Aún no hay juegos. Pide ayuda a un adulto.</string>
+
+    <string name="prof_gate_title">Solo para adultos</string>
+    <string name="prof_gate_prompt">Resuelve esto para continuar</string>
+    <string name="prof_gate_answer">Respuesta</string>
+    <string name="prof_gate_check">Comprobar</string>
+    <string name="prof_gate_wrong">No es correcto. Quedan %1$d intentos.</string>
+    <string name="prof_gate_locked">Demasiados intentos. Espera %1$d segundos.</string>
+    <string name="prof_gate_not_number">Escribe un número</string>
+    <string name="prof_gate_prompt_word">Escribe este número con cifras</string>
+    <string name="prof_gate_prompt_pin">Escribe tu PIN de 4 cifras</string>
+    <string name="prof_gate_prompt_phone">Usa el bloqueo de pantalla del teléfono</string>
+    <string name="prof_gate_phone_button">Desbloquear con el bloqueo del teléfono</string>
+    <string name="prof_gate_phone_failed">No se confirmó el bloqueo del teléfono. Inténtalo de nuevo.</string>
+    <string name="prof_gate_pin_label">PIN</string>
+    <string name="prof_gate_pin_again">PIN otra vez</string>
+    <string name="prof_gate_pin_incomplete">Escribe las 4 cifras</string>
+    <string name="prof_gate_pin_mismatch">Los dos PIN no coinciden</string>
+    <string name="prof_gate_pin_set">Crear o cambiar PIN</string>
+    <string name="prof_gate_pin_remove">Quitar PIN</string>
+    <string name="prof_gate_pin_setup_hint">Elige 4 cifras que solo sepa un adulto. El control parental aceptará este PIN.</string>
+    <string name="prof_gate_other_way">Probar de otra forma</string>
+    <string name="prof_gate_style_title">Forma de desbloqueo</string>
+    <string name="prof_gate_method_auto">Automática</string>
+    <string name="prof_gate_method_auto_desc">Empieza con %1$s</string>
+    <string name="prof_gate_method_phone">Bloqueo del teléfono</string>
+    <string name="prof_gate_method_phone_desc">El PIN, patrón, contraseña o huella de tu teléfono</string>
+    <string name="prof_gate_method_word">Código en palabras</string>
+    <string name="prof_gate_method_word_desc">Un número escrito con palabras, que se teclea con cifras</string>
+    <string name="prof_gate_method_pin">PIN</string>
+    <string name="prof_gate_method_pin_desc">Un PIN de 4 cifras que eliges tú</string>
+    <string name="prof_gate_method_sums">Sumas</string>
+    <string name="prof_gate_method_sums_desc">Una pregunta de matemáticas</string>
+    <string name="prof_gate_phone_unavailable">Requiere un bloqueo de pantalla en este teléfono</string>
+    <string name="prof_gate_phone_hint">El bloqueo del teléfono usa la misma huella o PIN que para desbloquear tu dispositivo.</string>
+    <string-array name="prof_gate_digit_words">
+        <item>cero</item>
+        <item>uno</item>
+        <item>dos</item>
+        <item>tres</item>
+        <item>cuatro</item>
+        <item>cinco</item>
+        <item>seis</item>
+        <item>siete</item>
+        <item>ocho</item>
+        <item>nueve</item>
+    </string-array>
+
+    <string name="prof_dash_title">Control parental</string>
+    <string name="prof_dash_for">Ajustes de %1$s</string>
+    <string name="prof_dash_no_kids">Añade un perfil infantil para fijar límites.</string>
+    <string name="prof_dash_play_time">Tiempo de juego</string>
+    <string name="prof_dash_daily">Límite diario</string>
+    <string name="prof_dash_minutes">%1$d min</string>
+    <string name="prof_dash_no_limit">Sin límite</string>
+    <string name="prof_dash_today">Jugado hoy: %1$d min</string>
+    <string name="prof_dash_week">Esta semana</string>
+    <string name="prof_dash_quiet">Horas de descanso</string>
+    <string name="prof_dash_quiet_desc">Sin juego entre estas horas</string>
+    <string name="prof_dash_quiet_from">Desde</string>
+    <string name="prof_dash_quiet_to">Hasta</string>
+    <string name="prof_dash_online">Juego en línea</string>
+    <string name="prof_dash_online_locked">Bloqueado para niños. Los perfiles infantiles nunca pueden jugar en línea ni cerca.</string>
+    <string name="prof_dash_games">Juegos visibles</string>
+    <string name="prof_dash_switch">Cambiar de perfil</string>
+    <string name="prof_dash_hour_up">Más tarde</string>
+    <string name="prof_dash_hour_down">Más temprano</string>
+
+    <string name="prof_timeup_title">¡Se acabó el tiempo de hoy!</string>
+    <string name="prof_timeup_quiet_title">Es hora de descansar</string>
+    <string name="prof_timeup_body">¡Qué bien has jugado! Hasta la próxima.</string>
+    <string name="prof_timeup_quiet_body">Los juegos vuelven a las %1$s.</string>
+    <string name="prof_timeup_parent">¿Eres adulto? Abre el control parental</string>
+    <string name="prof_warn_toast">Quedan 5 minutos. ¡Termina tu partida!</string>
+
+    <string name="prof_settings_section">Perfiles y familia</string>
+    <string name="prof_settings_current">Jugando como %1$s</string>
+    <string name="prof_settings_switch">Cambiar o añadir perfil</string>
+    <string name="prof_settings_parent">Control parental</string>
+    <string name="prof_settings_online">Juego en línea</string>
+    <string name="prof_settings_online_desc">Desactívalo para ocultar y bloquear el juego en línea y la partida rápida en este dispositivo.</string>
+</resources>

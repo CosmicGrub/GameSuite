@@ -54,7 +54,9 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onOpenMusic: () -> Unit = {}
+    onOpenMusic: () -> Unit = {},
+    /** Extra section rendered before About (profiles / parent controls / Online play switch). */
+    extraContent: @Composable () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var showResetConfirmation by remember { mutableStateOf(false) }
@@ -413,6 +415,8 @@ fun SettingsScreen(
                 }
             }
 
+            extraContent()
+
             // ---------------- About ----------------
             if (showAbout) {
                 SettingsSection(secAbout) {
@@ -644,7 +648,7 @@ private fun GameSpeedSelector(selected: GameSpeed, onSelect: (GameSpeed) -> Unit
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.focusGroup()
     ) {
-        GameSpeed.values().forEach { speed ->
+        GameSpeed.selectable.forEach { speed ->
             FilterChip(
                 selected = selected == speed,
                 onClick = { onSelect(speed) },
@@ -676,7 +680,7 @@ private fun speedLabel(speed: GameSpeed): String = stringResource(
         GameSpeed.SLOW -> R.string.settings_speed_slow
         GameSpeed.RELAXED -> R.string.settings_speed_relaxed
         GameSpeed.NORMAL -> R.string.settings_speed_normal
-        GameSpeed.QUICK -> R.string.settings_speed_quick
+        GameSpeed.QUICK, GameSpeed.ARENA_X4, GameSpeed.ARENA_MAX -> R.string.settings_speed_quick
     }
 )
 
@@ -686,7 +690,7 @@ private fun speedDescription(speed: GameSpeed): String = stringResource(
         GameSpeed.SLOW -> R.string.settings_speed_slow_desc
         GameSpeed.RELAXED -> R.string.settings_speed_relaxed_desc
         GameSpeed.NORMAL -> R.string.settings_speed_normal_desc
-        GameSpeed.QUICK -> R.string.settings_speed_quick_desc
+        GameSpeed.QUICK, GameSpeed.ARENA_X4, GameSpeed.ARENA_MAX -> R.string.settings_speed_quick_desc
     }
 )
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Act It Out: Game Hub texts (hubKey names) -->
+<resources>
+    <string name="hub_act_it_out">Mímica</string>
+    <string name="hub_charades_for_the_whole_family_act_out_the_card_y_12efc4">Mímica para toda la familia: representa la carta y tu equipo adivina.</string>
+    <string name="hub_family_party">Fiesta familiar</string>
+    <string name="hub_one_device_deals_the_cards_and_keeps_the_time_pa_3280ff">Un dispositivo reparte las cartas y controla el tiempo. Pásalo a cada actor por turnos.</string>
+    <string name="hub_how_to_group_the_players">Cómo agrupar a los jugadores</string>
+    <string name="hub_two_fair_teams_take_turns_or_everybody_acts_in_t_a2c707">Dos equipos equilibrados juegan por turnos, o todos actúan por turnos y juegan por su cuenta.</string>
+    <string name="hub_two_teams">Dos equipos</string>
+    <string name="hub_players_are_split_into_two_teams_of_nearly_equal_10323f">Los jugadores se reparten en dos equipos casi iguales. Puedes cambiar quién va en cada equipo antes de jugar.</string>
+    <string name="hub_everyone_for_themselves">Cada uno por su cuenta</string>
+    <string name="hub_each_player_acts_in_turn_and_plays_for_their_own_f6ef64">Cada jugador actúa por turnos y juega para su propia puntuación.</string>
+    <string name="hub_seconds_per_turn">Segundos por turno</string>
+    <string name="hub_how_long_each_actor_has_to_get_their_team_guessi_f2d399">Cuánto tiempo tiene cada actor para que su equipo adivine.</string>
+    <string name="hub_rounds_to_play">Rondas que jugar</string>
+    <string name="hub_in_every_round_each_team_or_each_player_when_pla_259a0d">En cada ronda, cada equipo, o cada jugador si juegan por su cuenta, hace un turno.</string>
+    <string name="hub_card_level_to_start_with">Nivel de cartas inicial</string>
+    <string name="hub_you_can_pick_a_different_level_for_each_team_in_3a9730">Puedes elegir un nivel distinto para cada equipo en la preparación.</string>
+    <string name="hub_little_kids">Pequeños</string>
+    <string name="hub_easy_cards_that_each_have_their_own_picture_so_p_7cdb27">Cartas fáciles que tienen cada una su propio dibujo, para que jueguen quienes aún no leen.</string>
+    <string name="hub_everyone">Todos</string>
+    <string name="hub_easy_and_medium_cards">Cartas fáciles y medias.</string>
+    <string name="hub_grown_ups">Mayores</string>
+    <string name="hub_medium_and_hard_cards_with_no_pictures_to_lean_o_21db6a">Cartas medias y difíciles, sin dibujos en los que apoyarse.</string>
+    <string name="hub_little_kids_bonus">Bonus para pequeños</string>
+    <string name="hub_lets_you_give_a_team_with_little_kids_one_extra_39a232">Permite dar a un equipo con niños pequeños un punto extra por cada carta acertada. Eliges el equipo en la preparación.</string>
+    <string name="hub_buzzer_in_the_last_5_seconds">Zumbador en los últimos 5 segundos</string>
+    <string name="hub_a_tick_each_second_and_a_buzz_at_the_end_with_a_191a14">Un tic cada segundo y un zumbido al final, con una pequeña vibración.</string>
+    <string name="hub_hold_to_start_a_turn">Mantén pulsado para empezar el turno</string>
+    <string name="hub_the_actor_holds_a_big_pad_to_start_so_nobody_see_1004a1">El actor mantiene pulsado un botón grande para empezar, así nadie ve una carta por accidente. Desactívalo para empezar con un toque.</string>
+</resources>

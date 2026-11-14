@@ -101,4 +101,16 @@
     <string name="tip_mahjong_solitaire_1">Toca dos fichas libres iguales para quitarlas.</string>
     <string name="tip_mahjong_solitaire_2">Una ficha está libre si no tiene nada encima y su lado izquierdo o derecho está abierto.</string>
     <string name="tip_mahjong_solitaire_3">Quita todo el montón para ganar; usa una pista si te atascas.</string>
+    <string name="tip_act_it_out_1">El actor no habla ni señala palabras. ¡Los demás gritan sus ideas!</string>
+    <string name="tip_act_it_out_2">Los más pequeños pueden jugar con el dibujo. Elige Pequeños para su equipo y activa el punto extra.</string>
+    <string name="tip_act_it_out_3">Mantén pulsado el botón grande para empezar y toca Acertada o Pasar. Tienes tres pases por turno.</string>
+    <string name="tip_bridge_builders_1">Toca tu carril cuando el carrito esté dentro de la zona verde. Cuanto más cerca del centro, más firme la tabla.</string>
+    <string name="tip_bridge_builders_2">Nadie puede construir más de dos tablas por delante del carril más lento, así que espera a tus amigos: la cuerda está tensa.</string>
+    <string name="tip_bridge_builders_3">Terminen todos los carriles antes de que el agua cubra el puente y luego crucen todos juntos.</string>
+    <string name="tip_draw_guess_1">Quien dibuja elige una de tres imágenes y mantiene pulsado el botón para ver la palabra. Los demás miran a otro lado.</string>
+    <string name="tip_draw_guess_2">¿Crees que lo sabes? Toca tu nombre para pedir turno. El reloj se detiene mientras adivinas y un fallo te deja fuera.</string>
+    <string name="tip_draw_guess_3">Los monigotes valen. Los dibujos rápidos y claros dan más puntos que los perfectos.</string>
+    <string name="tip_chutes_race_1">Toca el dado grande para tirar. Tu ficha salta ese número de casillas.</string>
+    <string name="tip_chutes_race_2">Si caes al pie de una cuerda, subes. Si caes en lo alto de un tobogán, bajas.</string>
+    <string name="tip_chutes_race_3">Gana quien llegue primero a la casilla 100. Una tirada extra te deja cambiar una tirada por otra nueva.</string>
 </resources>

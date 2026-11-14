@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game Hub texts of Echo Pads (ES) -->
+<resources>
+    <string name="hub_pattern_speed">Velocidad del patrón</string>
+    <string name="hub_how_fast_the_pads_light_up_the_game_speed_in_set_94aeec">Qué tan rápido se encienden los pads. La velocidad de juego de Ajustes también la cambia.</string>
+    <string name="hub_slow">Lenta</string>
+    <string name="hub_long_gentle_flashes_best_for_little_ones">Destellos largos y suaves: lo mejor para los más pequeños.</string>
+    <string name="hub_normal">Normal</string>
+    <string name="hub_a_steady_pace">Un ritmo constante.</string>
+    <string name="hub_fast">Rápida</string>
+    <string name="hub_quick_flashes_for_sharp_memories">Destellos rápidos para memorias agudas.</string>
+    <string name="hub_easy_mode">Modo fácil</string>
+    <string name="hub_every_turn_gets_one_free_try_the_first_wrong_pad_c0eba0">Cada turno tiene un intento gratis: el primer pad equivocado solo vuelve a mostrar el patrón.</string>
+    <string name="hub_sound">Sonido</string>
+    <string name="hub_each_pad_plays_its_own_note_switch_off_to_play_w_cfeac7">Cada pad suena con su propia nota. Desactívalo para jugar solo con luces y formas.</string>
+    <string name="hub_turn_halves_to_face_players">Girar las mitades hacia los jugadores</string>
+    <string name="hub_each_player_s_half_turns_to_face_them_switch_off_bb2d01">Cada mitad se gira hacia su jugador. Desactívalo para mantener ambas mitades rectas.</string>
+    <string name="hub_echo_pads">Pads Eco</string>
+    <string name="hub_watch_the_lights_hear_the_notes_then_echo_the_pa_fe5e2b">Mira las luces, escucha las notas y repite el patrón.</string>
+    <string name="hub_copy_a_pattern_that_grows_by_one_every_round_how_e02ca9">Copia un patrón que crece en uno cada ronda. ¿Hasta dónde llegas?</string>
+    <string name="hub_pass_and_play">Pasar y jugar</string>
+    <string name="hub_take_turns_copying_the_pattern_miss_and_you_are_70716e">Por turnos, copiad el patrón. Si fallas, quedas fuera. Gana el último que quede.</string>
+    <string name="hub_head_to_head">Cara a cara</string>
+    <string name="hub_two_players_one_screen_a_half_each_copy_the_shar_039f0c">Dos jugadores, una pantalla, una mitad cada uno. Copiad el patrón compartido por turnos: pierde quien se equivoque.</string>
+</resources>

@@ -12,7 +12,8 @@ interface KeyValues {
 }
 
 class PrefsKeyValues(context: Context) : KeyValues {
-    private val prefs = context.applicationContext.getSharedPreferences("game_hub", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs get() = appContext.getSharedPreferences(ProfileScope.prefsName("game_hub"), Context.MODE_PRIVATE)
     override fun get(key: String): String? = prefs.getString(key, null)
     override fun put(key: String, value: String) { prefs.edit().putString(key, value).apply() }
 }

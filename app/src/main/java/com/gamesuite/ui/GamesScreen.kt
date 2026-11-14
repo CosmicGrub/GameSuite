@@ -111,7 +111,7 @@ fun GamesScreen(
     sessionManager: GameSessionManager,
     onNavigate: (route: String) -> Unit
 ) {
-    val specs = GameHubSpecs.all
+    val specs = com.gamesuite.ui.profiles.LocalVisibleSpecs.current
     val favorites = rememberFavorites()
     val saves = rememberSavedGames(sessionManager)
     val savedGameIds = remember(saves) { saves.mapNotNull { gameIdForRoute(specs, it.navRoute) }.toSet() }
@@ -150,6 +150,9 @@ fun GamesScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.semantics { heading() }
                 )
+            }
+            item(key = "arena") {
+                com.gamesuite.arena.ArenaEntryCard(onClick = { onNavigate("arena") })
             }
             item(key = "search") {
                 val clearLabel = stringResource(R.string.games_search_clear)

@@ -91,7 +91,9 @@ object GameCoach {
         "mahjong-solitaire" to CoachMotif.TILES, "dominoes" to CoachMotif.TILES, "lights-out" to CoachMotif.TILES,
         "sliding-puzzle" to CoachMotif.TILES, "color-flood" to CoachMotif.TILES, "edge-match" to CoachMotif.TILES,
         "breakout" to CoachMotif.BALL, "air-hockey" to CoachMotif.BALL, "tower-defence" to CoachMotif.PATH,
-        "snake" to CoachMotif.PATH, "flow-lines" to CoachMotif.PATH
+        "snake" to CoachMotif.PATH, "flow-lines" to CoachMotif.PATH,
+        "chutes-race" to CoachMotif.DICE, "draw-guess" to CoachMotif.PATH, "echo-pads" to CoachMotif.TILES,
+        "act-it-out" to CoachMotif.CARDS, "bridge-builders" to CoachMotif.PATH
     )
 
     private fun entry(id: String, steps: List<Int>, fact: Int) =
@@ -174,5 +176,10 @@ object GameCoach {
         entry("ludo", listOf(R.string.coach_ludo_s1, R.string.coach_ludo_s2, R.string.coach_ludo_s3, R.string.coach_ludo_s4), R.string.coach_ludo_fact),
         entry("shogi", listOf(R.string.coach_shogi_s1, R.string.coach_shogi_s2, R.string.coach_shogi_s3, R.string.coach_shogi_s4), R.string.coach_shogi_fact),
         entry("mini-shogi", listOf(R.string.coach_mini_shogi_s1, R.string.coach_mini_shogi_s2, R.string.coach_mini_shogi_s3, R.string.coach_mini_shogi_s4), R.string.coach_mini_shogi_fact),
+        entry("chutes-race", listOf(R.string.coach_chutes_race_s1, R.string.coach_chutes_race_s2, R.string.coach_chutes_race_s3, R.string.coach_chutes_race_s4, R.string.coach_chutes_race_s5), R.string.coach_chutes_race_fact),
+        entry("draw-guess", listOf(R.string.coach_draw_guess_s1, R.string.coach_draw_guess_s2, R.string.coach_draw_guess_s3, R.string.coach_draw_guess_s4, R.string.coach_draw_guess_s5), R.string.coach_draw_guess_fact),
+        entry("echo-pads", listOf(R.string.coach_echo_pads_s1, R.string.coach_echo_pads_s2, R.string.coach_echo_pads_s3, R.string.coach_echo_pads_s4), R.string.coach_echo_pads_fact),
+        entry("act-it-out", listOf(R.string.coach_act_it_out_s1, R.string.coach_act_it_out_s2, R.string.coach_act_it_out_s3, R.string.coach_act_it_out_s4, R.string.coach_act_it_out_s5), R.string.coach_act_it_out_fact),
+        entry("bridge-builders", listOf(R.string.coach_bridge_builders_s1, R.string.coach_bridge_builders_s2, R.string.coach_bridge_builders_s3, R.string.coach_bridge_builders_s4, R.string.coach_bridge_builders_s5), R.string.coach_bridge_builders_fact),
     )
 }

@@ -133,7 +133,12 @@ object GameThemes {
         "light-trail" to GameAccent(0xFF00669B, 0xFF5BD2FF),
         "sumo-push" to GameAccent(0xFFA6402B, 0xFFF5927A),
         "paddle-duel" to GameAccent(0xFF711F9E, 0xFFC779F2),
-        "rps-showdown" to GameAccent(0xFF9E1F78, 0xFFFF66D1)
+        "rps-showdown" to GameAccent(0xFF9E1F78, 0xFFFF66D1),
+        "chutes-race" to GameAccent(0xFF541380, 0xFFAF85CC),
+        "draw-guess" to GameAccent(0xFFB45309, 0xFFFCD34D),
+        "echo-pads" to GameAccent(0xFF5D4DB8, 0xFFB3A8F5),
+        "act-it-out" to GameAccent(0xFF8E2B6D, 0xFFF08CCB),
+        "bridge-builders" to GameAccent(0xFF8A5A00, 0xFFF2C46B)
     )
 
     /** What a game with no entry in [accents] (one added later) uses: a colour per family. */

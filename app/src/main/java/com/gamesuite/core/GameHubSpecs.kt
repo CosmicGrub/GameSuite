@@ -18,6 +18,11 @@ import com.gamesuite.games.ludo.ChineseLudoHubSpecs
 import com.gamesuite.games.president.PresidentSevensHubSpecs
 import com.gamesuite.games.speed.SpeedMatchingHubSpecs
 import com.gamesuite.games.spider.SpiderHanafudaHubSpecs
+import com.gamesuite.games.slideclimb.SlideClimbHubSpecs
+import com.gamesuite.games.drawguess.DrawGuessHubSpecs
+import com.gamesuite.games.echopads.EchoPadsHubSpecs
+import com.gamesuite.games.actitout.ActItOutHubSpecs
+import com.gamesuite.games.bridgebuilders.BridgeBuildersHubSpecs
 
 /**
  * The Game Hub spec of every game (docs/design/game-hub.md). A spec is data: adding a mode or an
@@ -420,6 +425,9 @@ object GameHubSpecs {
         PartyTrailSumoHubSpecs.sumoPush,
         PartyPaddleRpsHubSpecs.paddleDuel,
         PartyPaddleRpsHubSpecs.rpsShowdown,
+        EchoPadsHubSpecs.echoPads,
+        BridgeBuildersHubSpecs.spec,
+        ActItOutHubSpecs.actItOut,
         solo("solitaire", "Solitaire", "Klondike with drag and drop.", HubFamily.CARD),
 
         // Word games
@@ -427,6 +435,7 @@ object GameHubSpecs {
         puzzle("word-search", "Word Search", "Find the hidden words.", "Today's word search", HubFamily.WORD),
         solo("crossword", "Crossword", "Fill the grid from the clues.", HubFamily.WORD),
         puzzle("word-guess", "Word Guess", "Find the five-letter word in six tries.", "Today's word", HubFamily.WORD),
+        DrawGuessHubSpecs.drawGuess,
 
         // Arcade and puzzles
         puzzle("sudoku", "Sudoku", "Fill every row, column and box with 1 to 9."),
@@ -605,6 +614,7 @@ object GameHubSpecs {
         ),
         ChineseLudoHubSpecs.chineseCheckers,
         ChineseLudoHubSpecs.ludo,
+        SlideClimbHubSpecs.slideClimb,
         twoSeat("shogi", "Shogi", "Japanese chess: captured pieces join your side.", extraOptions = listOf(HubOption.Choice(
             key = "pieces", label = "Piece style", default = "kanji",
             help = "Kanji is the traditional look. Symbols draws arrows showing how each piece moves, so no kanji reading is needed.",

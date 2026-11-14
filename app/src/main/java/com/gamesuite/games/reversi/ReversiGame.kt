@@ -433,6 +433,9 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -933,12 +936,13 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         val s = state.value ?: return
         if (!botToMove(s)) return
         val rules = engine
-        val depth = reversiSearchDepth(rules.n, difficulty)
+        val depth = reversiSearchDepth(rules.n, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty)
         val deadline = System.nanoTime() + BOT_TIME_CAP_MS * 1_000_000L
         val index = withContext(Dispatchers.Default) {
             rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, depth, deadline)
         } ?: return
         if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) placeDisc(index) } == true) return
         placeDisc(index)
     }
 

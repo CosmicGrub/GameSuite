@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text (coach_chutes_race_s1..s5 and _fact) and first-run tips (tip_chutes_race_1..3) of Slide and Climb -->
+    <string name="coach_chutes_race_s1">Take turns tapping the big die. Your piece hops along the numbered track, one square for each dot, and then it is the next player\'s turn.</string>
+    <string name="coach_chutes_race_s2">Ropes: land at the foot of a rope and you climb up to a higher square. Look for the twisted vines with an arrow pointing up.</string>
+    <string name="coach_chutes_race_s3">Slides: land at the top of a slide and down you go. The wide striped ramps have an arrow pointing down.</string>
+    <string name="coach_chutes_race_s4">The first piece to reach square 100 wins. Go past 100 and you bounce back; with Exact roll to finish switched on you stay put until you roll the right number.</string>
+    <string name="coach_chutes_race_s5">A player with a spare roll gets two round buttons after rolling: the check keeps the roll, the die in an arrow rolls again, once per game. Computers can fill empty seats. Same device only: there is no Nearby or Online mode.</string>
+    <string name="coach_chutes_race_fact">Games like this go back to ancient India, where a board game called Moksha Patam used ladders for good deeds and snakes for bad ones.</string>
+</resources>

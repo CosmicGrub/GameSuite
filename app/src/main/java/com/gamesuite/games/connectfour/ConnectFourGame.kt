@@ -190,6 +190,9 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     /**
      * The roster seat that opens the FIRST board of a new match (the Hub's "who goes first"). Set by
      * the screen before [startMatch]; consumed (and cleared) by the first [startMatch], after which
@@ -711,6 +714,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     suspend fun playBotTurnAsync() {
         val plan = planBotMove() ?: return
         val col = withContext(Dispatchers.Default) { searchMove(plan) } ?: return
+        if (arena?.deferIfPaused { if (isCurrent(plan)) dropDisc(col) } == true) return
         if (isCurrent(plan)) dropDisc(col)
     }
 
@@ -720,7 +724,8 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         if (matchOver.value || s.boardOver) return null
         val bot = s.players[s.currentPlayerIndex]
         if (!bot.isBot) return null
-        val depth = difficultySearchDepth[difficulty] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
+        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
+        val depth = difficultySearchDepth[level] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
         return ConnectFourSearchPlan(s, positionEpoch, depth)
     }
 

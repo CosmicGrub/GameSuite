@@ -191,7 +191,8 @@ internal fun rememberClCoach(gameId: String, ready: Boolean): Pair<Boolean, () -
     var autoDone by remember(gameId) { mutableStateOf(false) }
     LaunchedEffect(profile, ready) {
         val p = profile
-        if (ready && p != null && !autoDone) {
+        // Computer Arena: no first-time coach card (it would cover the match and mark the card as seen).
+        if (ready && p != null && !autoDone && com.gamesuite.arena.ArenaHost.session == null) {
             autoDone = true
             if (p.shouldAutoCoach(gameId)) shown = true
         }

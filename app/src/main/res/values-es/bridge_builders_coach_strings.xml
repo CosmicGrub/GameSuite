@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda de Constructores de puentes y sus consejos de primera vez -->
+    <string name="coach_bridge_builders_s1">Todos construyen un puente juntos, cada uno desde su carril y al mismo tiempo. Ganan juntos o lo intentan otra vez juntos.</string>
+    <string name="coach_bridge_builders_s2">Un carrito se desliza de un lado a otro de tu carril. Toca cuando esté dentro de la zona verde (marcada con un marco y un rombo) para colocar una tabla.</string>
+    <string name="coach_bridge_builders_s3">Cuanto más cerca del centro toques, más firme será la tabla. Las tablas firmes hacen retroceder el agua y acortan el cruce final. Si fallas, tu carrito solo descansa un momento.</string>
+    <string name="coach_bridge_builders_s4">Nadie puede construir más de dos tablas por delante del carril más lento. Cuando la cuerda entre carriles esté tensa, espera a tus amigos.</string>
+    <string name="coach_bridge_builders_s5">Terminen todos los carriles antes de que el agua cubra el puente y luego crucen todos. Los robots ayudantes pueden ocupar carriles vacíos. La construcción relajada y una zona verde más grande para un constructor ayudan a jugar a edades distintas. Solo en la misma pantalla: no hay modo Cercano ni En línea.</string>
+    <string name="coach_bridge_builders_fact">Algunos de los puentes más antiguos que aún se usan son puentes de arcos de piedra construidos por los romanos, y unos pocos tienen casi dos mil años.</string>
+</resources>
