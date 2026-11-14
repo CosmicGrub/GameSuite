@@ -17,7 +17,6 @@
     <string name="trail_together_status_ready">Everybody ready? Let\'s light the trail!</string>
     <string name="trail_together_status_your_turn">%1$s, pick a card</string>
     <string name="trail_together_status_pick_pal">Tap a pal to hop</string>
-    <string name="trail_together_status_stone">The glowing spot lights up</string>
     <string name="trail_together_status_lantern">Lantern: light any stone, or hop one step</string>
     <string name="trail_together_status_no_hop">That card has no stone to hop to. Pick another or swap one.</string>
     <string name="trail_together_status_swap">Swap a card for a new one</string>
@@ -71,4 +70,40 @@
     <string name="trail_together_tutorial_6">When the fog cards come, the fog rolls closer. Watch the fog track!</string>
     <string name="trail_together_tutorial_7">Talk together. Which card helps a friend the most?</string>
     <string name="trail_together_tutorial_8">When every pal is home, we all win. Ready?</string>
+    <!-- Strings the finished screen needs beyond the design doc section 2.11 -->
+    <string name="trail_together_tutorial_open">Show the picture guide</string>
+    <string name="trail_together_tutorial_step">Step %1$d of %2$d</string>
+    <string name="trail_together_action_skip">Skip</string>
+    <string name="trail_together_action_go">Let\'s go!</string>
+    <string name="trail_together_action_cancel">Back</string>
+    <string name="trail_together_ann_hop">%1$s\'s pal hops to the %2$s stone</string>
+    <string name="trail_together_ann_hop_you">Your pal hops to the %1$s stone</string>
+    <string name="trail_together_ann_hop_home">%1$s\'s pal hops home to the burrow</string>
+    <string name="trail_together_ann_hop_home_you">Your pal hops home to the burrow</string>
+    <string name="trail_together_ann_stone">%1$s lights a %2$s stone</string>
+    <string name="trail_together_ann_stone_you">You light a %1$s stone</string>
+    <string name="trail_together_ann_swap">%1$s swaps a card</string>
+    <string name="trail_together_ann_swap_you">You swap a card</string>
+    <string name="trail_together_status_pick_colour">Pick a colour for the new stone</string>
+    <string name="trail_together_status_hint">Try the glowing card</string>
+    <string name="trail_together_status_hint_swap">Nothing fits. Try swapping the glowing card.</string>
+    <string name="trail_together_card_hop_label">Hop</string>
+    <string name="trail_together_card_stone_label">Stone</string>
+    <string name="trail_together_card_lantern_label">Lantern</string>
+    <string name="trail_together_card_state_selected">Selected</string>
+    <string name="trail_together_card_state_suggested">Suggested</string>
+    <string name="trail_together_card_state_no_hop">No stone to hop to</string>
+    <string name="trail_together_card_state_swap">Tap to swap this card</string>
+    <string name="trail_together_colour_pick_desc">Light a %1$s %2$s stone</string>
+    <string name="trail_together_pal_state_can_hop">Tap to hop</string>
+    <string name="trail_together_pal_desc_you">Your pal is on stone %1$d of %2$d</string>
+    <string name="trail_together_pal_home_you">Your pal is home</string>
+    <string name="trail_together_start_desc">Start: %1$s %2$s</string>
+    <string name="trail_together_burrow_open_desc">Burrow: the door is open</string>
+    <string name="trail_together_burrow_closed_desc">Burrow: the door is not open yet</string>
+    <string name="trail_together_seat_on_turn">On turn</string>
+    <!-- First-run tips (tip_trail_together_1..3). The coordinator moves these three to polish_strings.xml when GameTips is updated (GameTipsTest reads only that file). -->
+    <string name="tip_trail_together_1">A hop card sends a pal to the next stone of the same colour. A stone card lights a new stone at the end of the trail.</string>
+    <string name="tip_trail_together_2">Every colour has its own shape, so you can match stones and cards by shape too.</string>
+    <string name="tip_trail_together_3">Talk together before you pick a card: which one helps a friend the most?</string>
 </resources>

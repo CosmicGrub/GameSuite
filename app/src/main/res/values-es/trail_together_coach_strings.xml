@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda de Sendero en equipo -->
+    <string name="coach_trail_together_s1">Todos ayudan a los erizos a volver a casa por el sendero antes de que llegue la niebla. Ganan juntos o lo intentan otra vez juntos.</string>
+    <string name="coach_trail_together_s2">En tu turno juega una carta. Una carta de salto lleva a un erizo a la siguiente piedra encendida del mismo color y forma. Una carta de piedra enciende una piedra nueva al final del sendero.</string>
+    <string name="coach_trail_together_s3">Una carta de farol es una ayudante: enciende una piedra de cualquier color o mueve un erizo un paso. Si ninguna carta ayuda, pulsa Cambiar y cambia una.</string>
+    <string name="coach_trail_together_s4">Todas las cartas están boca arriba, así que hablen entre todos: ¿qué carta ayuda más a un amigo? Decide el dueño de la carta. Ayúdame a elegir hace brillar una buena carta, y una carta extra para un jugador permite jugar a edades distintas.</string>
+    <string name="coach_trail_together_s5">A veces sale una carta de niebla al robar. Cada una acerca la niebla un paso, así que mira la barra de niebla. Cuando el sendero está encendido hasta el final, la puerta de la madriguera se abre y cualquier carta puede llevar a un erizo a casa. Solo en la misma pantalla: no hay modo Cercano ni En línea.</string>
+    <string name="coach_trail_together_fact">Un erizo tiene miles de púas, y cuando se asusta se hace una bola apretada para que las púas apunten hacia todos lados.</string>
+</resources>

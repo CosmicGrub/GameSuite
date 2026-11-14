@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game Hub texts of Trail Together (hubKey names) -->
+<resources>
+    <string name="hub_trail_together">Trail Together</string>
+    <string name="hub_light_the_trail_and_get_home_before_the_fog">Light the trail and get home before the fog!</string>
+    <string name="hub_trail_size">Trail size</string>
+    <string name="hub_how_long_the_trail_is_how_many_colours_it_has_an_f4828f">How long the trail is, how many colours it has and how fast the fog comes.</string>
+    <string name="hub_little_trail">Little trail</string>
+    <string name="hub_a_short_trail_with_four_colours_great_for_the_yo_bb1e45">A short trail with four colours: great for the youngest players.</string>
+    <string name="hub_medium_trail">Medium trail</string>
+    <string name="hub_big_trail">Big trail</string>
+    <string name="hub_a_long_trail_with_six_colours_for_practised_play_b5c74c">A long trail with six colours for practised players.</string>
+    <string name="hub_helper_glow">Helper glow</string>
+    <string name="hub_a_soft_glow_on_a_good_card_the_help_me_choose_bu_c19dfb">A soft glow on a good card. The Help me choose button always works, whatever you pick here.</string>
+    <string name="hub_little_trail_only">Little trail only</string>
+    <string name="hub_the_glow_shows_on_the_little_trail_and_stays_off_c79723">The glow shows on the Little trail and stays off on the bigger ones.</string>
+    <string name="hub_always">Always</string>
+    <string name="hub_the_glow_shows_on_every_trail">The glow shows on every trail.</string>
+    <string name="hub_no_glow_use_help_me_choose_when_you_want_a_hint">No glow. Use Help me choose when you want a hint.</string>
+    <string name="hub_turn_the_far_hands_around">Turn the far hands around</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_af2f4f">Players sitting opposite each other read their own cards the right way up. Switch off for one person holding the device.</string>
+    <string name="hub_helper_pal_level">Helper pal level</string>
+    <string name="hub_helper_pals">Helper pals</string>
+    <string name="hub_helper_pals_take_their_own_turns_so_a_small_team_850e29">Helper pals take their own turns, so a small team always has a full table.</string>
+    <string name="hub_extra_card_for">Extra card for</string>
+    <string name="hub_give_one_player_a_fourth_card_so_different_ages_27e87b">Give one player a fourth card so different ages can play side by side.</string>
+    <string name="hub_play_on_my_own">Play on my own</string>
+    <string name="hub_you_move_two_hedgehog_pals_home_along_the_trail">You move two hedgehog pals home along the trail.</string>
+    <string name="hub_play_with_helper_pals">Play with helper pals</string>
+    <string name="hub_you_and_1_to_3_friendly_helper_pals_get_everyone_28260c">You and 1 to 3 friendly helper pals get everyone home together.</string>
+    <string name="hub_two_to_four_people_play_together_on_one_screen_h_3e5313">Two to four people play together on one screen. Helper pals can fill empty seats.</string>
+</resources>

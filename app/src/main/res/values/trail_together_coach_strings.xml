@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Trail Together (coach_trail_together_s1..s5 and _fact) -->
+    <string name="coach_trail_together_s1">Everybody helps the hedgehog pals hop home along the trail before the fog arrives. You win together or you try again together.</string>
+    <string name="coach_trail_together_s2">On your turn play one card. A hop card sends a pal to the next lit stone of the same colour and shape. A stone card lights a new stone at the end of the trail.</string>
+    <string name="coach_trail_together_s3">A lantern card is a helper: light a stone of any colour, or hop one pal one step. If no card helps, press Swap and trade one in.</string>
+    <string name="coach_trail_together_s4">Every card is face up, so talk together: which card helps a friend the most? The card owner decides. Help me choose glows a good card, and an extra card for one player lets different ages play side by side.</string>
+    <string name="coach_trail_together_s5">Fog cards sometimes come up when you draw. Each one rolls the fog one step closer, so watch the fog track. When the trail is lit all the way, the burrow door opens and any card can bring a pal home. Same screen only: there is no Nearby or Online mode.</string>
+    <string name="coach_trail_together_fact">A hedgehog has thousands of spines, and when it feels scared it curls into a tight ball so the spines point out in every direction.</string>
+</resources>

@@ -1,5 +1,6 @@
 package com.gamesuite.games.trailtogether
 
+import com.gamesuite.settings.CpuDifficulty
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -41,29 +42,112 @@ data class TrailSave(
 object TrailSaveCodec {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** A real save is under 4 KB; anything much larger is not ours. */
+    const val MAX_TEXT = 16_384
+
     fun encode(save: TrailSave): String = json.encodeToString(TrailSave.serializer(), save)
 
     fun decode(text: String, seats: List<TrailSeat>): TrailSave? = try {
-        val s = json.decodeFromString(TrailSave.serializer(), text)
-        if (isValid(s, seats)) s else null
+        if (text.length > MAX_TEXT) null
+        else {
+            val s = json.decodeFromString(TrailSave.serializer(), text)
+            if (isValid(s, seats)) s else null
+        }
     } catch (_: Exception) {
         null
     }
 
+    private fun counts(codes: Iterable<String>): Map<String, Int> {
+        val m = HashMap<String, Int>()
+        for (c in codes) m[c] = (m[c] ?: 0) + 1
+        return m
+    }
+
+    /** The whole deck of a band and pal count as code counts (stones, hops, lanterns, fog). */
+    fun deckCounts(band: TrailBand, pals: Int): Map<String, Int> {
+        val spec = TrailRules.deck(band, pals)
+        val m = HashMap<String, Int>()
+        for (c in TrailRules.coloursOf(band)) {
+            m[TrailCard(TrailCardKind.STONE, c).code] = spec.stonesPerColour
+            m[TrailCard(TrailCardKind.STEP, c).code] = spec.hopsPerColour
+        }
+        m[TrailCard(TrailCardKind.LANTERN).code] = spec.lanterns
+        m[TrailCard(TrailCardKind.FOG).code] = spec.fogCards
+        return m.filterValues { it > 0 }
+    }
+
     /**
-     * TODO(scaffold): implement. A save is valid only when ALL of these hold:
-     *  - version equals [TrailRules.SAVE_VERSION];
-     *  - 1..4 seats, [TrailSave.players] equals [seats] in order (id and isBot), hands.size equals seats.size;
-     *  - band and difficulty ids are known; handicap string is at most 40 characters;
-     *  - every card code parses with [TrailCard.fromCode]; hands hold exactly the hand size of their seat;
-     *  - hand + pile + discard cards, plus lit-trail stones that came from stone cards, equal the deck table for the
-     *    band and pal count (counts per kind and colour); no fog card in any hand;
-     *  - trail has builtAtStart..length stones, every colour belongs to the band, no two adjacent initial spots equal;
-     *  - pals.size equals [TrailRules.palsFor] of the seats, every position is 0..length, a pal beyond the lit trail
-     *    is only allowed on the Burrow when the trail is lit through length-1;
-     *  - 0 <= fog < the deck's fog count, and fog + fog cards left in the pile equals the deck's fog count;
-     *  - currentSeat in range, plays/tries/wins/eventSerial non-negative, wins <= tries.
-     * Until then this returns false, so a resume always falls back to a fresh start.
+     * A save is valid only when ALL of these hold: the version is ours; there are 1..4 seats and the players equal
+     * [seats] in order (id and isBot); band and difficulty ids are known; the handicap text is short; every card code is
+     * canonical; each hand holds exactly its seat's hand size and no fog; hands + pile + discard are EXACTLY the deck
+     * of the band and pal count (every played, swapped and revealed card sits in the discard); the trail holds
+     * builtAtStart..length stones of the band's colours with no two equal neighbours among the opening spots and no
+     * more lit-up extras than stone or lantern cards in the discard; the pal count is right and each pal stands on
+     * a lit spot or on the Burrow once the trail is lit through (and not all are home); the fog marker equals the fog
+     * cards in the discard and is below the track length; plays equals the non-fog cards in the discard; the seat on
+     * turn exists; the counters are non-negative, bounded and wins <= tries.
      */
-    fun isValid(s: TrailSave, seats: List<TrailSeat>): Boolean = false
+    fun isValid(s: TrailSave, seats: List<TrailSeat>): Boolean {
+        if (s.version != TrailRules.SAVE_VERSION) return false
+        val n = seats.size
+        if (n !in TrailRules.MIN_SEATS..TrailRules.MAX_SEATS) return false
+        if (s.players.size != n || s.hands.size != n) return false
+        for (i in 0 until n) {
+            if (s.players[i].playerId != seats[i].playerId || s.players[i].isBot != seats[i].isBot) return false
+        }
+        val band = TrailBand.parse(s.band) ?: return false
+        if (CpuDifficulty.entries.none { it.name == s.difficulty }) return false
+        if (s.handicap.length > TrailHandicap.MAX_SPEC_LENGTH) return false
+
+        val params = TrailRules.band(band)
+        val bandColours = TrailRules.coloursOf(band)
+        val palCount = TrailRules.palsFor(n)
+        val sizes = TrailHandicap.parse(s.handicap, n)
+
+        // cards
+        val handCards = ArrayList<TrailCard>()
+        for (i in 0 until n) {
+            val hand = s.hands[i]
+            if (hand.size != sizes[i]) return false
+            for (code in hand) {
+                val card = TrailCard.fromCode(code) ?: return false
+                if (card.kind == TrailCardKind.FOG) return false
+                handCards += card
+            }
+        }
+        val pileCards = s.pile.map { TrailCard.fromCode(it) ?: return false }
+        val discardCards = s.discard.map { TrailCard.fromCode(it) ?: return false }
+        val all = ArrayList<String>(handCards.size + pileCards.size + discardCards.size)
+        handCards.forEach { all += it.code }
+        pileCards.forEach { all += it.code }
+        discardCards.forEach { all += it.code }
+        if (counts(all) != deckCounts(band, palCount)) return false
+
+        // trail
+        if (s.trail.size !in params.builtAtStart..params.length) return false
+        val trail = s.trail.map { id -> TrailColour.fromId(id)?.takeIf { it in bandColours } ?: return false }
+        for (i in 1 until params.builtAtStart) if (trail[i] == trail[i - 1]) return false
+        val extras = trail.size - params.builtAtStart
+        val lightable = discardCards.count { it.kind == TrailCardKind.STONE || it.kind == TrailCardKind.LANTERN }
+        if (extras > lightable) return false
+
+        // pals
+        if (s.pals.size != palCount) return false
+        val open = trail.size >= params.length
+        for (p in s.pals) {
+            if (p < 0 || p > params.length) return false
+            if (p == params.length) { if (!open) return false } else if (p >= trail.size) return false
+        }
+        if (s.pals.all { it == params.length }) return false
+
+        // fog and counters
+        val fogDiscarded = discardCards.count { it.kind == TrailCardKind.FOG }
+        val spec = TrailRules.deck(band, palCount)
+        if (s.fog != fogDiscarded || s.fog < 0 || s.fog >= spec.fogCards) return false
+        if (s.plays != discardCards.size - fogDiscarded) return false
+        if (s.currentSeat !in 0 until n) return false
+        if (s.tries !in 0..TrailRules.MAX_TRIES || s.wins !in 0..s.tries) return false
+        if (s.eventSerial !in 0..TrailRules.MAX_EVENT_SERIAL) return false
+        return true
+    }
 }

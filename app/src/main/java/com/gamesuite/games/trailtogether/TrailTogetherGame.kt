@@ -17,11 +17,15 @@ import kotlin.random.Random
  * lifecycle, the Compose state the screen reads, and the resume snapshot. Same screen only: no Nearby, no Online.
  *
  * Set [band], [handicap], [difficulty] before [init] / [startMatch] (the screen does it from the Hub's launch options).
- * The engine is injectable so tests can pass a fake; the default is the stub until phase 0 lands the real one.
+ * The engine is injectable so tests can pass a fake; the default is the real one.
+ *
+ * [holdInputUntilSettled]: the screen sets it so a second tap that arrives before it has even recomposed is refused
+ * ([TrailMoveResult.BUSY]) until it calls [settled] (its animation of the accepted action finished). Off by default,
+ * so headless play (tests) is never held up. A helper pal's step is held the same way.
  */
 class TrailTogetherGame(
     private val random: Random = Random.Default,
-    internal val engine: TrailEngine = StubTrailEngine()
+    internal val engine: TrailEngine = RealTrailEngine()
 ) : GameModule, ResumableGame {
     override val gameId = "trail-together"
     override val displayName = "Trail Together"
@@ -33,14 +37,18 @@ class TrailTogetherGame(
     val state = mutableStateOf<TrailState?>(null)
     val matchOver = mutableStateOf(false)
 
+    /** True between [pause] and [resume]: no helper pal plays (the screen's helper loop restarts on resume). */
+    val paused = mutableStateOf(false)
+
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
     var band: TrailBand = TrailBand.MEDIUM
     var handicap: String = "none"
+    var holdInputUntilSettled: Boolean = false
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private val lock: Any = this
-    private var lastPhase: TrailPhase? = null
+    private var inFlight = false
 
     private fun seats(): List<TrailSeat> = context.players.map { TrailSeat(it.playerId, it.displayName, it.isBot) }
 
@@ -51,11 +59,12 @@ class TrailTogetherGame(
     }
 
     override fun init(context: GameContext) {
+        require(context.players.size in minPlayers..maxPlayers) { "Trail Together needs 1 to 4 seats" }
         synchronized(lock) {
             this.context = context
             matchOver.value = false
             state.value = null
-            lastPhase = null
+            inFlight = false
             configure()
             engine.setup(seats())
         }
@@ -63,19 +72,30 @@ class TrailTogetherGame(
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) { onMatchEnd = listener }
 
+    /** The screen finished animating the last accepted action. */
+    @Synchronized
+    fun settled() { inFlight = false }
+
     @Synchronized
     override fun startMatch() {
         matchOver.value = false
+        inFlight = false
         configure()
         engine.start(random.nextLong())
         commit()
     }
 
     @Synchronized
-    override fun pause() { engine.pause() }
+    override fun pause() {
+        engine.pause()
+        paused.value = true
+    }
 
     @Synchronized
-    override fun resume() { engine.resume() }
+    override fun resume() {
+        engine.resume()
+        paused.value = false
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -101,6 +121,7 @@ class TrailTogetherGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        inFlight = false
         configure()
         engine.start(random.nextLong())
         commit()
@@ -110,7 +131,9 @@ class TrailTogetherGame(
     @Synchronized
     fun playCard(seat: Int, handIndex: Int, target: TrailTarget): TrailMoveResult {
         if (state.value == null || matchOver.value) return TrailMoveResult.NOT_ACTIVE
+        if (holdInputUntilSettled && inFlight) return TrailMoveResult.BUSY
         val r = engine.playCard(seat, handIndex, target)
+        if (r == TrailMoveResult.OK) inFlight = true
         commit()
         return r
     }
@@ -119,16 +142,20 @@ class TrailTogetherGame(
     @Synchronized
     fun swap(seat: Int, handIndex: Int): TrailMoveResult {
         if (state.value == null || matchOver.value) return TrailMoveResult.NOT_ACTIVE
+        if (holdInputUntilSettled && inFlight) return TrailMoveResult.BUSY
         val r = engine.swap(seat, handIndex)
+        if (r == TrailMoveResult.OK) inFlight = true
         commit()
         return r
     }
 
-    /** The screen calls this after its 1.2 s pause when it is a helper pal's turn. True if a helper played. */
+    /** The screen calls this after its pause when it is a helper pal's turn. True if a helper played. */
     @Synchronized
     fun helperStep(): Boolean {
-        if (state.value == null || matchOver.value) return false
+        if (state.value == null || matchOver.value || paused.value) return false
+        if (holdInputUntilSettled && inFlight) return false
         val played = engine.helperStep()
+        if (played) inFlight = true
         commit()
         return played
     }
@@ -137,9 +164,12 @@ class TrailTogetherGame(
     @Synchronized
     fun hint(): TrailHint? = if (state.value == null || matchOver.value) null else engine.hint()
 
+    /** True when a person (not a helper pal) is to act. */
+    fun isPersonTurn(s: TrailState, seats: List<TrailSeat>): Boolean =
+        !matchOver.value && !s.over && seats.getOrNull(s.currentSeat)?.isBot == false
+
     private fun commit() {
         state.value = engine.state()
-        lastPhase = state.value?.phase
     }
 
     // ---- resume -----------------------------------------------------------------------------
@@ -158,12 +188,13 @@ class TrailTogetherGame(
     @Synchronized
     override fun restore(snapshot: String): Boolean {
         val save = TrailSaveCodec.decode(snapshot, seats()) ?: return false
-        configure()
+        // The engine takes band, handicap and difficulty from the save itself; a failed restore leaves everything as it was.
         if (!engine.restore(save)) return false
         band = engine.band
         handicap = engine.handicapSpec
         difficulty = engine.difficulty
         matchOver.value = false
+        inFlight = false
         commit()
         return true
     }

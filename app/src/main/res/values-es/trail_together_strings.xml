@@ -18,7 +18,6 @@
     <string name="trail_together_status_ready">¿Todos listos? ¡Encendamos el sendero!</string>
     <string name="trail_together_status_your_turn">%1$s, elige una carta</string>
     <string name="trail_together_status_pick_pal">Toca un erizo para saltar</string>
-    <string name="trail_together_status_stone">La piedra brillante se enciende</string>
     <string name="trail_together_status_lantern">Farol: enciende cualquier piedra o salta un paso</string>
     <string name="trail_together_status_no_hop">Esa carta no tiene piedra a la que saltar. Elige otra o cambia una.</string>
     <string name="trail_together_status_swap">Cambia una carta por una nueva</string>
@@ -72,4 +71,40 @@
     <string name="trail_together_tutorial_6">Cuando salen las cartas de niebla, la niebla se acerca. ¡Mira su camino!</string>
     <string name="trail_together_tutorial_7">Hablen entre todos. ¿Qué carta ayuda más a un amigo?</string>
     <string name="trail_together_tutorial_8">Cuando todos los erizos estén en casa, ganamos todos. ¿Listos?</string>
+    <!-- Textos que necesita la pantalla terminada además de la sección 2.11 del documento de diseño -->
+    <string name="trail_together_tutorial_open">Mostrar la guía con dibujos</string>
+    <string name="trail_together_tutorial_step">Paso %1$d de %2$d</string>
+    <string name="trail_together_action_skip">Omitir</string>
+    <string name="trail_together_action_go">¡Vamos!</string>
+    <string name="trail_together_action_cancel">Atrás</string>
+    <string name="trail_together_ann_hop">El erizo de %1$s salta a la piedra %2$s</string>
+    <string name="trail_together_ann_hop_you">Tu erizo salta a la piedra %1$s</string>
+    <string name="trail_together_ann_hop_home">El erizo de %1$s salta a casa, a la madriguera</string>
+    <string name="trail_together_ann_hop_home_you">Tu erizo salta a casa, a la madriguera</string>
+    <string name="trail_together_ann_stone">%1$s enciende una piedra %2$s</string>
+    <string name="trail_together_ann_stone_you">Enciendes una piedra %1$s</string>
+    <string name="trail_together_ann_swap">%1$s cambia una carta</string>
+    <string name="trail_together_ann_swap_you">Cambias una carta</string>
+    <string name="trail_together_status_pick_colour">Elige un color para la piedra nueva</string>
+    <string name="trail_together_status_hint">Prueba la carta que brilla</string>
+    <string name="trail_together_status_hint_swap">Nada encaja. Prueba a cambiar la carta que brilla.</string>
+    <string name="trail_together_card_hop_label">Salto</string>
+    <string name="trail_together_card_stone_label">Piedra</string>
+    <string name="trail_together_card_lantern_label">Farol</string>
+    <string name="trail_together_card_state_selected">Elegida</string>
+    <string name="trail_together_card_state_suggested">Sugerida</string>
+    <string name="trail_together_card_state_no_hop">No hay piedra a la que saltar</string>
+    <string name="trail_together_card_state_swap">Toca para cambiar esta carta</string>
+    <string name="trail_together_colour_pick_desc">Encender una piedra %1$s %2$s</string>
+    <string name="trail_together_pal_state_can_hop">Toca para saltar</string>
+    <string name="trail_together_pal_desc_you">Tu erizo está en la piedra %1$d de %2$d</string>
+    <string name="trail_together_pal_home_you">Tu erizo está en casa</string>
+    <string name="trail_together_start_desc">Salida: %1$s %2$s</string>
+    <string name="trail_together_burrow_open_desc">Madriguera: la puerta está abierta</string>
+    <string name="trail_together_burrow_closed_desc">Madriguera: la puerta todavía no está abierta</string>
+    <string name="trail_together_seat_on_turn">Su turno</string>
+    <!-- Consejos de primera vez (tip_trail_together_1..3); quien integre el juego los pasa a polish_strings.xml -->
+    <string name="tip_trail_together_1">Una carta de salto lleva a un erizo a la siguiente piedra del mismo color. Una carta de piedra enciende una piedra nueva al final del sendero.</string>
+    <string name="tip_trail_together_2">Cada color tiene su propia forma, así que también puedes emparejar piedras y cartas por la forma.</string>
+    <string name="tip_trail_together_3">Hablen antes de elegir una carta: ¿cuál ayuda más a un amigo?</string>
 </resources>

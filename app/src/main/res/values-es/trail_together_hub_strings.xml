@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos del Hub de Sendero en equipo (nombres hubKey) -->
+<resources>
+    <string name="hub_trail_together">Sendero en equipo</string>
+    <string name="hub_light_the_trail_and_get_home_before_the_fog">¡Enciendan el sendero y lleguen a casa antes de que llegue la niebla!</string>
+    <string name="hub_trail_size">Tamaño del sendero</string>
+    <string name="hub_how_long_the_trail_is_how_many_colours_it_has_an_f4828f">Cuánto mide el sendero, cuántos colores tiene y qué tan rápido llega la niebla.</string>
+    <string name="hub_little_trail">Sendero pequeño</string>
+    <string name="hub_a_short_trail_with_four_colours_great_for_the_yo_bb1e45">Un sendero corto con cuatro colores: ideal para los más pequeños.</string>
+    <string name="hub_medium_trail">Sendero mediano</string>
+    <string name="hub_big_trail">Sendero grande</string>
+    <string name="hub_a_long_trail_with_six_colours_for_practised_play_b5c74c">Un sendero largo con seis colores para jugadores con práctica.</string>
+    <string name="hub_helper_glow">Brillo de ayuda</string>
+    <string name="hub_a_soft_glow_on_a_good_card_the_help_me_choose_bu_c19dfb">Un brillo suave en una buena carta. El botón Ayúdame a elegir siempre funciona, elijas lo que elijas aquí.</string>
+    <string name="hub_little_trail_only">Solo sendero pequeño</string>
+    <string name="hub_the_glow_shows_on_the_little_trail_and_stays_off_c79723">El brillo aparece en el sendero pequeño y no en los más grandes.</string>
+    <string name="hub_always">Siempre</string>
+    <string name="hub_the_glow_shows_on_every_trail">El brillo aparece en todos los senderos.</string>
+    <string name="hub_no_glow_use_help_me_choose_when_you_want_a_hint">Sin brillo. Usa Ayúdame a elegir cuando quieras una pista.</string>
+    <string name="hub_turn_the_far_hands_around">Girar las manos del otro lado</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_af2f4f">Los jugadores sentados enfrente leen sus cartas al derecho. Desactívalo si una sola persona sostiene el dispositivo.</string>
+    <string name="hub_helper_pal_level">Nivel del erizo ayudante</string>
+    <string name="hub_helper_pals">Erizos ayudantes</string>
+    <string name="hub_helper_pals_take_their_own_turns_so_a_small_team_850e29">Los erizos ayudantes juegan sus propios turnos, así un equipo pequeño siempre tiene la mesa llena.</string>
+    <string name="hub_extra_card_for">Carta extra para</string>
+    <string name="hub_give_one_player_a_fourth_card_so_different_ages_27e87b">Da una cuarta carta a un jugador para que jueguen juntas edades distintas.</string>
+    <string name="hub_play_on_my_own">Jugar solo</string>
+    <string name="hub_you_move_two_hedgehog_pals_home_along_the_trail">Llevas a dos erizos a casa por el sendero.</string>
+    <string name="hub_play_with_helper_pals">Jugar con erizos ayudantes</string>
+    <string name="hub_you_and_1_to_3_friendly_helper_pals_get_everyone_28260c">Tú y de 1 a 3 erizos ayudantes llevan a todos a casa juntos.</string>
+    <string name="hub_two_to_four_people_play_together_on_one_screen_h_3e5313">Dos a cuatro personas juegan juntas en una pantalla. Los erizos ayudantes pueden ocupar los asientos vacíos.</string>
+</resources>
