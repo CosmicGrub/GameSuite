@@ -36,6 +36,10 @@ internal class ProfileScopedDataStore(
     @OptIn(ExperimentalCoroutinesApi::class)
     override val data: Flow<Preferences> = ProfileScope.activeId.flatMapLatest { storeFor(it).data }
 
+    /** Read-only view of another profile's file (the parent dashboard's weekly report). Same instance the active use gets. */
+    fun dataFor(profileId: String): Flow<Preferences> =
+        if (ProfileScope.isSafeId(profileId)) storeFor(profileId).data else kotlinx.coroutines.flow.flowOf(androidx.datastore.preferences.core.emptyPreferences())
+
     override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
         storeFor(ProfileScope.current()).updateData(transform)
 }

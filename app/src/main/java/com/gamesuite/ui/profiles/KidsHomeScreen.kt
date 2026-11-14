@@ -63,7 +63,7 @@ import kotlinx.coroutines.launch
 
 /**
  * The kid's home: big icon-first tiles for the games this profile may see, a time-left ring, a sticker count
- * (placeholder until the sticker system exists) and a lock that opens the parent gate only after a 1.5 s hold.
+ * (the real number from the sticker book; tapping it opens the book) and a lock that opens the parent gate only after a 1.5 s hold.
  * [timeLeftFraction] is 0..1 of today's budget left, [timeLeftMinutes] null = no daily limit.
  */
 @Composable
@@ -74,6 +74,7 @@ fun KidsHomeScreen(
     timeLeftMinutes: Int?,
     timeLeftFraction: Float,
     stickerCount: Int = 0,
+    onOpenStickers: () -> Unit = {},
     onNavigate: (String) -> Unit,
     onOpenParent: () -> Unit
 ) {
@@ -87,12 +88,19 @@ fun KidsHomeScreen(
                         style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f), maxLines = 1
                     )
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface) {
-                        Text(
-                            "⭐ " + stringResource(R.string.prof_kids_stickers, stickerCount),
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                    val stickersCd = stringResource(R.string.rw_book_open_cd, stickerCount)
+                    Surface(
+                        onClick = onOpenStickers,
+                        shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.heightIn(min = 56.dp).semantics { contentDescription = stickersCd; role = Role.Button }
+                    ) {
+                        Box(Modifier.heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "⭐ " + stringResource(R.string.prof_kids_stickers, stickerCount),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     }
                     TimeRing(timeLeftMinutes, timeLeftFraction)
                     HoldToOpenButton(onOpenParent)

@@ -260,6 +260,7 @@ class MainActivity : ComponentActivity() {
     private val clubViewModel: com.gamesuite.core.ClubViewModel by viewModels()
     /** Profiles + parent controls (profiles feature). Activity-scoped; bootstrap runs in onCreate before it is first read. */
     private val profilesViewModel: com.gamesuite.profiles.ProfilesViewModel by viewModels()
+    private val rewardsViewModel: com.gamesuite.rewards.RewardsViewModel by viewModels()
 
     /** De-duplicates the end-of-match win / loss / draw cue (one cue per outcome instance). */
     private val resultFeedbackGate = ResultFeedbackGate()
@@ -355,6 +356,12 @@ class MainActivity : ComponentActivity() {
                     val details = sessionManager.lastMatchDetails
                         ?.withDefaultDifficulty(settings.defaultCpuDifficulty)
                     statsViewModel.recordMatch(it, details)
+                    // Stickers: kid profiles only, never a Computer Arena match (see RewardsViewModel.onMatch).
+                    rewardsViewModel.onMatch(
+                        it,
+                        isKidProfile = profilesViewModel.profiles.value?.active?.isKid == true,
+                        arenaActive = sessionManager.arenaActive
+                    )
                     if (resultFeedbackGate.firstTime(it)) {
                         val plan = resultFeedbackPlanFor(
                             outcome = it,
@@ -384,6 +391,13 @@ class MainActivity : ComponentActivity() {
                     // launch, play-time limiter / time-up screen, saved-games re-point, network switch).
                     val profileAccess = com.gamesuite.ui.profiles.rememberProfileAccess(profilesViewModel)
                     com.gamesuite.ui.profiles.ProfileShellObserver(profilesViewModel, profileAccess, navController, sessionManager)
+                    // New-sticker pop-up for a kid profile (one tap collects it; Reduced Motion = no animation).
+                    val rewardBook by rewardsViewModel.book.collectAsStateWithLifecycle()
+                    if (profileAccess.profile.isKid) {
+                        com.gamesuite.ui.profiles.KidsTheme {
+                            com.gamesuite.rewards.RewardMomentHost(rewardBook, settings.reducedMotion) { id -> rewardsViewModel.collect(id) }
+                        }
+                    }
                     // "Change setup" on a result panel marks the next match end as "go back to this game's Hub"
                     // instead of all the way to the menu. The Hub is not always on the back stack (a daily
                     // started from Home's Today row, or a lobby launch that cleared back to the menu), so

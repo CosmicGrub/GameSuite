@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Álbum de cromos, momento de premio, "qué enseña", informe semanal -->
+    <string name="rw_book_title">Mis cromos</string>
+    <string name="rw_book_count">%1$d de %2$d cromos</string>
+    <string name="rw_book_locked_cd">Cromo bloqueado. Sigue jugando para encontrarlo.</string>
+    <string name="rw_book_sticker_cd">Cromo de %1$s</string>
+    <string name="rw_book_back">Volver a los juegos</string>
+    <string name="rw_book_open_cd">Álbum de cromos, %1$d cromos</string>
+    <string name="rw_book_set_cd">Cromos de %1$s, %2$d de %3$d</string>
+    <string name="rw_book_empty_hint">¡Juega una partida para conseguir tu primer cromo!</string>
+
+    <string name="rw_set_animals">Animales</string>
+    <string name="rw_set_space">Espacio</string>
+    <string name="rw_set_food">Comida</string>
+
+    <string name="rw_goal_today">¡Juega una partida hoy para conseguir un cromo!</string>
+    <plurals name="rw_goal_games">
+        <item quantity="one">¡Una partida más para conseguir un cromo!</item>
+        <item quantity="many">¡%1$d partidas más para conseguir un cromo!</item>
+        <item quantity="other">¡%1$d partidas más para conseguir un cromo!</item>
+    </plurals>
+    <plurals name="rw_goal_streak">
+        <item quantity="one">¡Juega mañana otra vez para un cromo de racha!</item>
+        <item quantity="many">¡Juega %1$d días seguidos para un cromo de racha!</item>
+        <item quantity="other">¡Juega %1$d días seguidos para un cromo de racha!</item>
+    </plurals>
+    <string name="rw_goal_complete">¡Guau! ¡Tu álbum de cromos está lleno!</string>
+
+    <string name="rw_reward_title">¡Tienes un cromo nuevo!</string>
+    <string name="rw_reward_cd">Cromo nuevo: %1$s. %2$s</string>
+    <string name="rw_collect">Pegarlo en mi álbum</string>
+
+    <string name="rw_reason_first_of_day">Primera partida de hoy</string>
+    <string name="rw_reason_finished">Terminaste una partida</string>
+    <string name="rw_reason_win">Ganaste</string>
+    <string name="rw_reason_first_win">Tu primera victoria</string>
+    <string name="rw_reason_games_3">3 partidas jugadas</string>
+    <string name="rw_reason_games_5">5 partidas jugadas</string>
+    <string name="rw_reason_games_10">10 partidas jugadas</string>
+    <string name="rw_reason_games_25">25 partidas jugadas</string>
+    <string name="rw_reason_streak_3">3 días seguidos</string>
+    <string name="rw_reason_streak_7">7 días seguidos</string>
+    <string name="rw_reason_first_time">Primera vez que juegas a este juego</string>
+    <string name="rw_reason_try_new">Probaste algo nuevo</string>
+
+    <string name="rw_st_animals_cat">Gato</string>
+    <string name="rw_st_animals_dog">Perro</string>
+    <string name="rw_st_animals_rabbit">Conejo</string>
+    <string name="rw_st_animals_frog">Rana</string>
+    <string name="rw_st_animals_owl">Búho</string>
+    <string name="rw_st_animals_fish">Pez</string>
+    <string name="rw_st_animals_bear">Oso</string>
+    <string name="rw_st_animals_penguin">Pingüino</string>
+    <string name="rw_st_space_rocket">Cohete</string>
+    <string name="rw_st_space_planet">Planeta con anillos</string>
+    <string name="rw_st_space_star">Estrella sonriente</string>
+    <string name="rw_st_space_moon">Luna</string>
+    <string name="rw_st_space_comet">Cometa</string>
+    <string name="rw_st_space_alien">Extraterrestre amistoso</string>
+    <string name="rw_st_space_helmet">Casco espacial</string>
+    <string name="rw_st_space_ufo">Platillo volante</string>
+    <string name="rw_st_food_apple">Manzana</string>
+    <string name="rw_st_food_banana">Plátano</string>
+    <string name="rw_st_food_cupcake">Magdalena</string>
+    <string name="rw_st_food_pizza">Trozo de pizza</string>
+    <string name="rw_st_food_icecream">Helado</string>
+    <string name="rw_st_food_strawberry">Fresa</string>
+    <string name="rw_st_food_cookie">Galleta</string>
+    <string name="rw_st_food_carrot">Zanahoria</string>
+
+    <string name="rw_skill_memory">Memoria</string>
+    <string name="rw_skill_counting">Contar</string>
+    <string name="rw_skill_planning">Planificar</string>
+    <string name="rw_skill_deduction">Descubrir respuestas</string>
+    <string name="rw_skill_turn_taking">Esperar el turno</string>
+    <string name="rw_skill_fine_motor">Dedos rápidos</string>
+    <string name="rw_skill_teamwork">Trabajo en equipo</string>
+    <string name="rw_skill_language">Palabras</string>
+    <string name="rw_skill_creativity">Creatividad</string>
+    <string name="rw_skill_memory_line">Ayuda a recordar lo que pasó antes.</string>
+    <string name="rw_skill_counting_line">Ayuda a practicar los números y a contar.</string>
+    <string name="rw_skill_planning_line">Ayuda a pensar unos pasos por adelantado.</string>
+    <string name="rw_skill_deduction_line">Ayuda a descubrir la respuesta con pistas.</string>
+    <string name="rw_skill_turn_taking_line">Ayuda a practicar la espera del turno.</string>
+    <string name="rw_skill_fine_motor_line">Ayuda a entrenar movimientos rápidos y cuidadosos de los dedos.</string>
+    <string name="rw_skill_teamwork_line">Ayuda a que los niños trabajen juntos.</string>
+    <string name="rw_skill_language_line">Ayuda a encontrar y usar palabras.</string>
+    <string name="rw_skill_creativity_line">Ayuda a la imaginación y a mostrar ideas.</string>
+    <string name="rw_teaches_label">Practica: %1$s</string>
+
+    <string name="rw_report_title">Últimos 7 días</string>
+    <string name="rw_report_minutes">%1$d min de juego</string>
+    <string name="rw_report_games">%1$d partidas jugadas</string>
+    <string name="rw_report_favs">Juegos favoritos</string>
+    <string name="rw_report_fav_row">%1$s (%2$d)</string>
+    <string name="rw_report_skills">Habilidades practicadas</string>
+    <string name="rw_report_stickers">%1$d cromos conseguidos</string>
+    <string name="rw_report_none">Todavía no se ha jugado esta semana.</string>
+    <string name="rw_report_day_cd">%1$s: %2$d minutos</string>
+</resources>

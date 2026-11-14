@@ -108,6 +108,7 @@ fun ParentDashboardScreen(
                     Text(stringResource(R.string.prof_dash_for, kid.name), style = MaterialTheme.typography.titleMedium)
                     val kc = controls.forKid(kid.id)
                     PlayTimeCard(viewModel, kid.id, kc)
+                    WeeklyReportCard(viewModel.limiter, kid.id, kc)
                     QuietHoursCard(viewModel, kid.id, kc)
                 }
 
@@ -137,7 +138,13 @@ fun ParentDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(gameGlyph(spec.gameId), modifier = Modifier.width(36.dp))
-                                Text(hubText(spec.title), Modifier.weight(1f))
+                                Column(Modifier.weight(1f)) {
+                                    Text(hubText(spec.title))
+                                    teachesLine(spec.gameId)?.let { line ->
+                                        Text(line, style = MaterialTheme.typography.labelMedium)
+                                        Text(teachesSentences(spec.gameId), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
                                 Switch(
                                     checked = shown,
                                     onCheckedChange = { on ->

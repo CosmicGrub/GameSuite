@@ -7,6 +7,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,6 +22,9 @@ import com.gamesuite.profiles.Profile
 import com.gamesuite.profiles.ProfileAccess
 import com.gamesuite.profiles.ProfileGuard
 import com.gamesuite.profiles.ProfilesViewModel
+import com.gamesuite.rewards.RewardsStore
+import com.gamesuite.rewards.StickerBook
+import com.gamesuite.rewards.StickerBookScreen
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -94,8 +100,18 @@ fun NavGraphBuilder.profileRoutes(
             val played = vm.limiter.playedToday(kc)
             val leftMinutes: Int? = if (total <= 0) null else (((total * 60_000L) - played).coerceAtLeast(0L) / 60_000L).toInt()
             val fraction = if (total <= 0) 1f else (leftMinutes ?: 0).toFloat() / total
-            KidsHomeScreen(
+            // Rewards: this kid's own sticker book (profile-scoped store) and the sticker book screen as a state of this
+            // route (so the kid allow-list in ProfileGuard needs no new route). The reward pop-up lives in MainActivity.
+            val rewardsStore = remember { RewardsStore(hostContext.applicationContext) }
+            val book by rewardsStore.book.collectAsStateWithLifecycle(initialValue = StickerBook())
+            var showBook by rememberSaveable { mutableStateOf(false) }
+            BackHandler(enabled = showBook) { showBook = false }
+            if (showBook) {
+                KidsTheme { StickerBookScreen(book = book, onBack = { showBook = false }) }
+            } else KidsHomeScreen(
                 profile = profile,
+                stickerCount = book.collectedCount,
+                onOpenStickers = { showBook = true },
                 specs = access.visibleSpecs,
                 sessionManager = sessionManager,
                 timeLeftMinutes = leftMinutes,

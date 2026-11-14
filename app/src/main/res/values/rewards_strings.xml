@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sticker book, reward moment, "what this teaches", weekly report -->
+    <string name="rw_book_title">My stickers</string>
+    <string name="rw_book_count">%1$d of %2$d stickers</string>
+    <string name="rw_book_locked_cd">Locked sticker. Keep playing to find it.</string>
+    <string name="rw_book_sticker_cd">%1$s sticker</string>
+    <string name="rw_book_back">Back to games</string>
+    <string name="rw_book_open_cd">Sticker book, %1$d stickers</string>
+    <string name="rw_book_set_cd">%1$s stickers, %2$d of %3$d</string>
+    <string name="rw_book_empty_hint">Play a game to get your first sticker!</string>
+
+    <string name="rw_set_animals">Animals</string>
+    <string name="rw_set_space">Space</string>
+    <string name="rw_set_food">Food</string>
+
+    <string name="rw_goal_today">Play one game today to get a sticker!</string>
+    <plurals name="rw_goal_games">
+        <item quantity="one">%1$d more game to get a sticker!</item>
+        <item quantity="other">%1$d more games to get a sticker!</item>
+    </plurals>
+    <plurals name="rw_goal_streak">
+        <item quantity="one">Play again tomorrow for a streak sticker!</item>
+        <item quantity="other">Play %1$d days in a row for a streak sticker!</item>
+    </plurals>
+    <string name="rw_goal_complete">Wow! Your sticker book is full!</string>
+
+    <string name="rw_reward_title">You got a new sticker!</string>
+    <string name="rw_reward_cd">New sticker: %1$s. %2$s</string>
+    <string name="rw_collect">Put it in my book</string>
+
+    <string name="rw_reason_first_of_day">First game today</string>
+    <string name="rw_reason_finished">You finished a game</string>
+    <string name="rw_reason_win">You won</string>
+    <string name="rw_reason_first_win">Your very first win</string>
+    <string name="rw_reason_games_3">3 games played</string>
+    <string name="rw_reason_games_5">5 games played</string>
+    <string name="rw_reason_games_10">10 games played</string>
+    <string name="rw_reason_games_25">25 games played</string>
+    <string name="rw_reason_streak_3">3 days in a row</string>
+    <string name="rw_reason_streak_7">7 days in a row</string>
+    <string name="rw_reason_first_time">First time playing this game</string>
+    <string name="rw_reason_try_new">You tried something new</string>
+
+    <!-- Sticker names (also read out by TalkBack) -->
+    <string name="rw_st_animals_cat">Cat</string>
+    <string name="rw_st_animals_dog">Dog</string>
+    <string name="rw_st_animals_rabbit">Rabbit</string>
+    <string name="rw_st_animals_frog">Frog</string>
+    <string name="rw_st_animals_owl">Owl</string>
+    <string name="rw_st_animals_fish">Fish</string>
+    <string name="rw_st_animals_bear">Bear</string>
+    <string name="rw_st_animals_penguin">Penguin</string>
+    <string name="rw_st_space_rocket">Rocket</string>
+    <string name="rw_st_space_planet">Ringed planet</string>
+    <string name="rw_st_space_star">Smiling star</string>
+    <string name="rw_st_space_moon">Moon</string>
+    <string name="rw_st_space_comet">Comet</string>
+    <string name="rw_st_space_alien">Friendly alien</string>
+    <string name="rw_st_space_helmet">Space helmet</string>
+    <string name="rw_st_space_ufo">Flying saucer</string>
+    <string name="rw_st_food_apple">Apple</string>
+    <string name="rw_st_food_banana">Banana</string>
+    <string name="rw_st_food_cupcake">Cupcake</string>
+    <string name="rw_st_food_pizza">Pizza slice</string>
+    <string name="rw_st_food_icecream">Ice cream</string>
+    <string name="rw_st_food_strawberry">Strawberry</string>
+    <string name="rw_st_food_cookie">Cookie</string>
+    <string name="rw_st_food_carrot">Carrot</string>
+
+    <!-- What this teaches: skill names and one friendly sentence each -->
+    <string name="rw_skill_memory">Memory</string>
+    <string name="rw_skill_counting">Counting</string>
+    <string name="rw_skill_planning">Planning</string>
+    <string name="rw_skill_deduction">Working things out</string>
+    <string name="rw_skill_turn_taking">Taking turns</string>
+    <string name="rw_skill_fine_motor">Quick fingers</string>
+    <string name="rw_skill_teamwork">Teamwork</string>
+    <string name="rw_skill_language">Words</string>
+    <string name="rw_skill_creativity">Creativity</string>
+    <string name="rw_skill_memory_line">Helps remember what came before.</string>
+    <string name="rw_skill_counting_line">Helps practise counting and numbers.</string>
+    <string name="rw_skill_planning_line">Helps think a few steps ahead.</string>
+    <string name="rw_skill_deduction_line">Helps work out the answer from clues.</string>
+    <string name="rw_skill_turn_taking_line">Helps practise waiting for a turn.</string>
+    <string name="rw_skill_fine_motor_line">Helps train quick, careful finger movements.</string>
+    <string name="rw_skill_teamwork_line">Helps children work together.</string>
+    <string name="rw_skill_language_line">Helps find and use words.</string>
+    <string name="rw_skill_creativity_line">Helps imagination and showing ideas.</string>
+    <string name="rw_teaches_label">Practises: %1$s</string>
+
+    <!-- Parent dashboard weekly report -->
+    <string name="rw_report_title">Last 7 days</string>
+    <string name="rw_report_minutes">%1$d min played</string>
+    <string name="rw_report_games">%1$d games played</string>
+    <string name="rw_report_favs">Favourite games</string>
+    <string name="rw_report_fav_row">%1$s (%2$d)</string>
+    <string name="rw_report_skills">Skills practised</string>
+    <string name="rw_report_stickers">%1$d stickers earned</string>
+    <string name="rw_report_none">Nothing played yet this week.</string>
+    <string name="rw_report_day_cd">%1$s: %2$d minutes</string>
+</resources>
