@@ -17,7 +17,7 @@ object ZooPhysics {
     const val GRAVITY = 9.81
     const val FALL_Y = -1.2          // a piece whose centre is below this is "fallen"
     const val REMOVE_Y = -6.0        // fallen bodies are dropped from the simulation below this
-    const val MAX_BODIES = 24        // pieces on the log at once (a bag never exceeds 40 but 20 or fewer stay on)
+    const val MAX_BODIES = 40        // one slot per piece id (a bag never exceeds 40); at most 24 stand at once in practice
     const val MAX_PARTS = 4
     const val MAX_CONTACTS = 128
 
@@ -35,6 +35,8 @@ object ZooPhysics {
     const val RELAXED_KEEL = 2.5
     const val BASE_DAMP_LOAD = 1.2       // extra damping per unit of that sum
     const val RELAXED_DAMP_LOAD = 3.0
+    const val RELAXED_FRICTION_BONUS = 0.2
+    const val LOG_SLEEP_SPIN = 0.02      // rad/s: the log counts as quiet below this
 
     // ---- contact solver (sequential impulses, warm started)
     const val VELOCITY_ITERATIONS = 10
@@ -56,6 +58,14 @@ object ZooPhysics {
     const val X_LIMIT = 4.0              // release x is clamped to +-4 u
     const val FLAT_SNAP_SMALL_DEG = 12.0
     const val FLAT_SNAP_LARGE_DEG = 25.0
+    const val FLAT_EDGE_MIN = 0.6        // hull edges at least this long can lie flat
+    const val PIVOT_Y = -0.2             // the log turns about the middle of the plank
+    const val CONTACT_MARGIN = 0.02      // speculative contact distance
+    const val SWEEP_STEP = 0.1
+    const val SWEEP_START = 3.0
+    const val ANGLE_LIMIT_Q = 3217       // +-pi in 1/1024 rad
+    const val X_LIMIT_Q = 4096
+    const val HOLD_STEPS_PER_TURN_RESULT = 144 // 1.2 s of cheering
 }
 
 /** Game rules numbers (see the SCRIPT section). */

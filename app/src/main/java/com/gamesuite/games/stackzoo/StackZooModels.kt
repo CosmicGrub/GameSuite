@@ -103,47 +103,86 @@ data class ZooReplay(
     val length: String = "standard",
     val assist: String = "none",
     val relaxed: Boolean = false,
+    val oneSwitch: Boolean = false,
     val seats: Int = 1,
     val releases: List<ZooReleaseEvent> = emptyList()
 )
 
-/** What the screen draws for one animal on the log. */
-data class ZooBodyView(
-    val pieceId: Int,
-    val animalIndex: Int,
-    val owner: Int,
-    val x: Double,
-    val y: Double,
-    val angle: Double,
-    val fallen: Boolean,
-    val asleep: Boolean
+/** What happened last, so the screen can play one sound or haptic per event ([ZooState.eventSerial] keys it). */
+enum class ZooEvent { NONE, BEGAN, CHOSE, PLACED, STEADY, FELL, HOLDING, WON, LOST, FINISHED }
+
+/** How a game ended. */
+enum class ZooOutcome { NONE, COOP_WON, COOP_LOST, SOLO_DONE, WINNER, TIE }
+
+data class ZooSeatState(
+    val name: String,
+    val isBot: Boolean,
+    val handCount: Int,
+    /** Animals this seat placed that are still standing. */
+    val stacked: Int,
+    /** Placements this seat made. */
+    val placements: Int = 0,
+    /** Placements without any animal falling. */
+    val clean: Int = 0
 )
 
-data class ZooSeatState(val name: String, val isBot: Boolean, val handCount: Int, val stacked: Int)
-
-/** Immutable view the screen reads every frame. [EMPTY] is what a stub engine returns. */
+/**
+ * Immutable, coarse view the screen reads in composition. It changes only at discrete events (a pick, a release, a turn
+ * result, the end), never every frame: the per-frame poses live in [ZooBodyBuffer].
+ */
 data class ZooState(
     val phase: ZooPhase = ZooPhase.READY,
     val mode: ZooMode = ZooMode.COOP_TOWER,
     val activeSeat: Int = 0,
     val seats: List<ZooSeatState> = emptyList(),
-    /** Piece ids the active seat may pick from (the offer of 3, or the hand in Take Turns). */
+    /** Piece ids the active seat may pick from (the offer of 3, or the hand in Take Turns), and their animals. */
     val offer: List<Int> = emptyList(),
+    val offerAnimals: List<Int> = emptyList(),
+    val chosen: Int = -1,
+    val chosenAnimal: Int = -1,
     val bagLeft: Int = 0,
+    val bagTotal: Int = 0,
     val goalHeight: Double = 0.0,
     val towerHeight: Double = 0.0,
-    val baseAngle: Double = 0.0,
     val livesLeft: Int = 0,
+    val lives: Int = 0,
     val fellLastTurn: Int = 0,
+    val standing: Int = 0,
     val stars: Int = 0,
-    val bodies: List<ZooBodyView> = emptyList(),
+    val holding: Boolean = false,
+    val outcome: ZooOutcome = ZooOutcome.NONE,
+    /** Bit i set: seat i won (Take Turns, or Co-op / Solo where everyone is a winner). */
+    val winnerMask: Int = 0,
+    val handSize: Int = 0,
+    val turnNumber: Int = 0,
+    val activeAssisted: Boolean = false,
     val paused: Boolean = false,
+    val event: ZooEvent = ZooEvent.NONE,
+    val eventArg: Int = 0,
     /** Only ever grows; keys animations and sounds. */
     val eventSerial: Int = 0
 ) {
     companion object {
         val EMPTY = ZooState()
     }
+}
+
+/**
+ * Reusable poses of every animal in the world, filled by [StackZooEngine.fillBodies]. The screen reads it in the draw
+ * phase only, so nothing is allocated per frame.
+ */
+class ZooBodyBuffer {
+    var count = 0
+    var baseAngle = 0.0
+    var baseOmega = 0.0
+    val pieceId = IntArray(ZooPhysics.MAX_BODIES)
+    val animalIndex = IntArray(ZooPhysics.MAX_BODIES)
+    val owner = IntArray(ZooPhysics.MAX_BODIES)
+    val x = DoubleArray(ZooPhysics.MAX_BODIES)
+    val y = DoubleArray(ZooPhysics.MAX_BODIES)
+    val angle = DoubleArray(ZooPhysics.MAX_BODIES)
+    val fallen = BooleanArray(ZooPhysics.MAX_BODIES)
+    val asleep = BooleanArray(ZooPhysics.MAX_BODIES)
 }
 
 /** One body in a snapshot. Doubles round-trip exactly through JSON. */
@@ -163,15 +202,14 @@ data class ZooBodySave(
 )
 
 /**
- * Resume snapshot (JSON via [StackZooSaveCodec]), taken at any moment except while a piece is being dragged
- * (state-exact; the contact warm-start cache is not saved, so a restored run matches an uninterrupted one only within
- * 1e-6, which the replay test accepts).
+ * Resume snapshot (JSON via [StackZooSaveCodec]). A drag in progress is saved as the turn start (the animal goes back
+ * to the shelf). The contact warm-start cache is not saved, so a restored run matches an uninterrupted one only within
+ * 1e-6; replay equality applies to uninterrupted sessions.
  *
- * VALIDATION TODO(stack-zoo) in [StackZooSaveCodec.validate]: version == 1 and physicsVersion == 1; every enum id
- * known; every double finite and |value| below 1000; baseAngle within +-BASE_MAX_ANGLE; animalIndex in 0 until 20;
- * pieceIds unique and below 64; bodies.size at most MAX_BODIES; each hand and the bag only hold known piece ids and
- * no id appears twice anywhere; owner in 0 until playerIds.size; activeSeat in range; lives 0..5; stepIndex >= 0;
- * playerIds match the live seats; reject anything else without throwing.
+ * Validation lives in [StackZooSaveCodec.validate] and [ZooEngine.restore]: versions, known enum ids, every double
+ * finite and bounded, animal indexes in 0..19, unique piece ids that each live in exactly one of bag, hand or world,
+ * counters inside their bounds, the replay log in order, and finally the state hash recomputed from the restored world
+ * must equal [stateHash]. Anything else is rejected without throwing and the shell starts a fresh game.
  */
 @Serializable
 data class ZooSave(
@@ -189,14 +227,29 @@ data class ZooSave(
     val stepIndex: Long = 0L,
     val baseAngle: Double = 0.0,
     val baseOmega: Double = 0.0,
+    val baseRest: Int = 0,
     val bodies: List<ZooBodySave> = emptyList(),
     /** Piece id to animal index for every piece in the game (hands, bag, bodies). */
     val pieceAnimals: List<Int> = emptyList(),
     val hands: List<List<Int>> = emptyList(),
     val bag: List<Int> = emptyList(),
+    val bagTotal: Int = 0,
     val activeSeat: Int = 0,
     val turnNumber: Int = 0,
     val lives: Int = 0,
     val holdSteps: Int = 0,
+    val phase: String = "CHOOSING",
+    val settleSteps: Int = 0,
+    val resultSteps: Int = 0,
+    val fellThisTurn: Int = 0,
+    val fellLastTurn: Int = 0,
+    val pendingFallen: List<Int> = emptyList(),
+    val placements: List<Int> = emptyList(),
+    val clean: List<Int> = emptyList(),
+    val tallestSeat: Int = -1,
+    val tallestHeight: Double = 0.0,
+    val pendingWinner: Int = -1,
+    val releases: List<ZooReleaseEvent> = emptyList(),
+    val stateHash: Long = 0L,
     val playerIds: List<String> = emptyList()
 )
