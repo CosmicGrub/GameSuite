@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coach cards (ES) -->
+<resources>
+    <string name="coach_reaction_duel_s1">Cada uno tiene una zona orientada hacia sí y todos juegan a la vez. Gana la ronda quien responda bien primero.</string>
+    <string name="coach_reaction_duel_s2">Clásico: espera a que el botón se ponga verde y diga YA, y entonces pulsa. Si pulsas antes, quedas fuera de la ronda.</string>
+    <string name="coach_reaction_duel_s3">Color y forma: pasan formas. Pulsa solo cuando salga la forma objetivo. Decide la forma y su nombre, nunca solo el color.</string>
+    <string name="coach_reaction_duel_s4">Eco: mira cómo se iluminan cuatro formas y sé el primero en repetir el patrón. Un toque equivocado te deja fuera.</string>
+    <string name="coach_reaction_duel_s5">¿Cuesta pulsar rápido? Activa Tranquila para tener más tiempo y sin penalizaciones, o el juego con un solo pulsador, donde Eco recorre los botones por ti. Esta versión es solo de la misma pantalla, con ordenadores en las zonas vacías: aún no hay modo Cercano ni En línea.</string>
+    <string name="coach_reaction_duel_fact">A un velocista se le pita salida falsa si se mueve menos de una décima de segundo después del disparo, porque nadie puede reaccionar tan rápido.</string>
+    <string name="coach_whack_a_mole_s1">Cada uno tiene una cuadrícula de agujeros orientada hacia sí, y todas muestran los mismos bichos a la vez. Consigue más puntos antes de que se acabe el tiempo.</string>
+    <string name="coach_whack_a_mole_s2">Toca a Moxi el topo para ganar 10 puntos. Goldie la ardilla de tierra, la de la estrella en el gorro, vale 30 pero se va rápido.</string>
+    <string name="coach_whack_a_mole_s3">No toques nunca al erizo de púas: resta 20 puntos y rompe tu racha. Tocar un agujero vacío también rompe la racha.</string>
+    <string name="coach_whack_a_mole_s4">Acierta seguido sin fallar para crear una racha: con cinco tus puntos cuentan doble y con diez, triple.</string>
+    <string name="coach_whack_a_mole_s5">¿Lo quieres más fácil? Tranquila quita las penalizaciones y frena a los bichos, y el juego con un solo pulsador recorre los agujeros con un cursor para que una pulsación lo haga todo. Esta versión es solo de la misma pantalla, con ordenadores en las zonas vacías: aún no hay modo Cercano ni En línea.</string>
+    <string name="coach_whack_a_mole_fact">Las recreativas de golpear topos datan de mediados de los años setenta, y golpear bichos que asoman es un clásico de las fiestas desde entonces.</string>
+</resources>

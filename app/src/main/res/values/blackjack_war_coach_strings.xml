@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card texts for Blackjack and War (the GameCoach.kt entries use these names) -->
+    <string name="coach_blackjack_s1">Tap chips to build your bet, then press Place bet.</string>
+    <string name="coach_blackjack_s2">Get closer to 21 than the dealer without going over. Face cards count 10; an Ace counts 1 or 11.</string>
+    <string name="coach_blackjack_s3">Hit takes a card. Stand stops. Double doubles your bet for one last card.</string>
+    <string name="coach_blackjack_s4">Split a pair into two hands. Surrender gives up a bad hand for half your bet back.</string>
+    <string name="coach_blackjack_s5">A blackjack pays extra. Out of chips? Rebuy and keep playing. These are play chips, never real money.</string>
+    <string name="coach_blackjack_fact">The name comes from a bonus once paid in some American casinos for an Ace of spades with a black Jack.</string>
+    <string name="coach_war_s1">Tap Flip. Every player turns over their top card.</string>
+    <string name="coach_war_s2">The highest card wins and takes all the cards in play. Aces are high.</string>
+    <string name="coach_war_s3">A tie means war: tied players put cards face down, then flip one more. Higher takes the whole pile.</string>
+    <string name="coach_war_s4">In Choose 3 you see your top three cards and pick one in secret. Win by holding every card.</string>
+    <string name="coach_war_fact">A game of classic War can last hundreds of flips, which is why this one has a round limit.</string>
+</resources>

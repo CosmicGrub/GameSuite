@@ -177,7 +177,7 @@ fun WordGuessScreen(
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
-        game.loadWordData(androidContext)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { game.loadWordData(androidContext) }
         game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
         game.setOnMatchEnd { result ->

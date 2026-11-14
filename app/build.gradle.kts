@@ -366,6 +366,9 @@ val uniffiAudioLibraryOverrideProperty = "uniffi.component.gamesuite_audio.libra
 tasks.withType<Test>().configureEach {
     dependsOn(cargoBuildAmbientAudioHost)
     systemProperty(uniffiAudioLibraryOverrideProperty, hostAudioSharedLib.absolutePath)
+    // Unit tests inject small literal StateSync versions; keep host counters starting at 0 there (see SyncEpoch).
+    // The epoch tests turn it back on explicitly.
+    systemProperty("gamesuite.syncEpoch", "off")
 }
 
 android.sourceSets.getByName("main") {

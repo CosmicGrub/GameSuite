@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Whack-a-Mole Race screen strings (wm_*) -->
+<resources>
+    <string name="wm_help_title">Whack-a-Mole Race</string>
+    <string name="wm_help_text">Every player has a grid of holes and everyone plays at once: tap a hole to whack what pops out of it. Moxie the mole scores 10, Goldie the gopher (a star on her cap) scores 30, and spiky Prickle costs 20 points and breaks your streak. Five hits in a row count double, ten count triple. Every grid gets the same critters at the same moments.</string>
+    <string name="wm_status_ready">Get ready! Tap the round-faced critters and spare the spiky ones.</string>
+    <string name="wm_grid_reduced">The grid was reduced to 3 x 3 so every hole is big enough to tap.</string>
+    <string name="wm_status_time">%1$d seconds left. %2$s</string>
+    <string name="wm_status_leader">%1$s leads with %2$d.</string>
+    <string name="wm_status_tied">Tied at %1$d.</string>
+    <string name="wm_time_left">%1$d:%2$02d</string>
+    <string name="wm_zone_desc">%1$s zone, %2$d points, streak %3$d.</string>
+    <string name="wm_scan_desc">One-switch play: press anywhere in the zone to whack the hole the cursor is on.</string>
+    <string name="wm_zone_whack">Whack</string>
+    <string name="wm_hole_desc">Hole %1$d of %2$d: %3$s</string>
+    <string name="wm_critter_none">Empty</string>
+    <string name="wm_critter_mole">Moxie the mole</string>
+    <string name="wm_critter_gold">Goldie the gopher, bonus</string>
+    <string name="wm_critter_decoy">Prickle the urchin, do not tap</string>
+    <string name="wm_combo">Streak %1$d (x%2$d)</string>
+    <string name="wm_countdown">%1$d</string>
+    <string name="wm_popup_plus">+%1$d</string>
+    <string name="wm_popup_minus">%1$d</string>
+    <string name="wm_score_line">%1$s: %2$d</string>
+    <string name="wm_over_title">%1$s wins the race!</string>
+    <string name="wm_over_title_you">You win the race!</string>
+    <string name="wm_over_line">%1$s: %2$d points · best streak %3$d · %4$d bonus · %5$d decoys hit</string>
+</resources>

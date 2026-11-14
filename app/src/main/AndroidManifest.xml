@@ -65,8 +65,11 @@
         android:minSdkVersion="33"
         android:usesPermissionFlags="neverForLocation" />
 
+    <!-- allowBackup=false: no Auto Backup / cloud backup of app data on any API level (26-34).
+         Profile name, relay URL, saved games and music-folder URIs are device-specific and
+         should not be restored onto another device. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="GameSuite"
@@ -78,6 +81,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.GameSuite"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|keyboard|keyboardHidden|navigation|layoutDirection|locale">
             <!-- uiMode/density/fontScale/locale added on top of the existing fold/rotation set:
                  each of those recreates the Activity by default (dark mode switching at sunset,

@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spider Solitaire and Hanafuda UI strings and Game Hub texts (own file; hub_* keys are hubKey(text) of the spec texts) -->
+    <string name="spd_help_title">Cómo jugar al Solitario Araña</string>
+    <string name="spd_help_text">Despeja la mesa formando ocho escaleras de un mismo palo, del Rey al As.\n\nForma las columnas hacia abajo con cualquier palo: una carta va sobre otra de rango inmediatamente superior. Mueve una escalera (cartas de UN solo palo en orden descendente) arrastrándola, o tócala y luego toca una columna.\n\nCuando ninguna columna esté vacía, reparte una fila nueva del mazo sobre todas las columnas. Una escalera completa del Rey al As en un palo sale de la mesa. Quita las ocho para ganar.\n\nDeshacer es ilimitado y la pista te muestra una buena jugada.</string>
+    <string name="spd_score">Puntos %1$d</string>
+    <string name="spd_moves">Movimientos %1$d</string>
+    <string name="spd_time">Tiempo %1$s</string>
+    <string name="spd_runs">Escaleras %1$d de %2$d</string>
+    <string name="spd_games_won">Repartos ganados: %1$d</string>
+    <string name="spd_badge_daily">Reparto de hoy</string>
+    <string name="spd_badge_winnable">Reparto ganable</string>
+    <string name="spd_dealing">Repartiendo una partida ganable…</string>
+    <string name="spd_loading">Cargando…</string>
+    <string name="spd_undo">Deshacer</string>
+    <string name="spd_hint">Pista</string>
+    <string name="spd_deal">Repartir una fila</string>
+    <string name="spd_deal_row">Repartir (%1$d)</string>
+    <string name="spd_new">Nuevo reparto</string>
+    <string name="spd_play_again">Jugar otra vez</string>
+    <string name="spd_leave">Volver al menú</string>
+    <string name="spd_leave_title">¿Salir de la partida?</string>
+    <string name="spd_leave_body">La partida sigue en curso. Si sales ahora, no cuenta como victoria ni derrota.</string>
+    <string name="spd_card_name">%1$s de %2$s</string>
+    <string name="spd_card_up">%1$s, columna %2$d</string>
+    <string name="spd_card_down">Carta boca abajo, columna %1$d</string>
+    <string name="spd_selected">seleccionada</string>
+    <string name="spd_suggested">jugada sugerida</string>
+    <string name="spd_empty_column">Columna %1$d vacía</string>
+    <string name="spd_action_pick">Coger esta escalera</string>
+    <string name="spd_action_drop">Soltar la escalera aquí</string>
+    <string name="spd_action_move_to">Mover a la columna %1$d</string>
+    <string name="spd_stock_empty">El mazo está vacío</string>
+    <string name="spd_ev_start">Toca una escalera y luego una columna, o arrástrala.</string>
+    <string name="spd_ev_new_deal">Reparto nuevo.</string>
+    <string name="spd_ev_new_daily">Reparto de hoy.</string>
+    <string name="spd_ev_new_winnable">Reparto nuevo, ganable.</string>
+    <string name="spd_ev_flipped">Se dio la vuelta a una carta.</string>
+    <string name="spd_ev_run_done">¡Escalera de %1$s completa!</string>
+    <string name="spd_ev_dealt">Repartiste una fila nueva.</string>
+    <string name="spd_ev_deselected">Soltaste la escalera.</string>
+    <string name="spd_ev_rej_face_down">Esa carta está boca abajo.</string>
+    <string name="spd_ev_rej_not_run">Solo se mueven juntas las cartas de un mismo palo en orden descendente.</string>
+    <string name="spd_ev_rej_bad_target">No encaja: la carta de abajo debe ser un rango superior.</string>
+    <string name="spd_ev_rej_deal_empty">Llena todas las columnas vacías antes de repartir.</string>
+    <string name="spd_ev_rej_no_stock">No quedan filas por repartir.</string>
+    <string name="spd_ev_undone">Jugada deshecha.</string>
+    <string name="spd_ev_hint_move">Pista: mueve %1$s de la columna %2$d a la columna %3$d.</string>
+    <string name="spd_ev_hint_deal">Pista: reparte una fila nueva.</string>
+    <string name="spd_ev_no_moves">No quedan jugadas. Deshaz o empieza un reparto nuevo.</string>
+    <string name="spd_ev_won">¡Has ganado!</string>
+    <string name="spd_ev_resumed">Partida reanudada.</string>
+    <string name="spd_stuck_title">No quedan jugadas</string>
+    <string name="spd_stuck_body">Deshaz algunas jugadas o empieza un reparto nuevo.</string>
+    <string name="spd_won_title">¡Resuelto!</string>
+    <string name="spd_won_stats">Puntos %1$d · %2$d movimientos · %3$s</string>
+    <string name="hf_help_title">Cómo jugar a Hanafuda (Koi-Koi)</string>
+    <string name="hf_help_text">Koi-Koi se juega en varias rondas, una por mes. Captura cartas para formar combinaciones (yaku) y consigue más puntos.\n\nEn tu turno, juega una carta de tu mano. Si hay en la mesa una carta del mismo mes, capturas las dos; si coinciden dos, eliges una; si no coincide ninguna, tu carta se queda en la mesa. Después toca el mazo para dar la vuelta a su primera carta y empareja del mismo modo.\n\nLas cartas son de cuatro clases: Luces, Animales, Cintas y Simples. Las combinaciones incluyen tres, cuatro o cinco Luces, Jabalí-Ciervo-Mariposas, cinco Animales, las Cintas rojas con poema o las azules, cinco Cintas y diez Simples. El conjunto completo añade las manos de contemplar y las Cintas rojas y azules.\n\nCuando formes una combinación nueva, elige: Koi-Koi para seguir jugando y ganar más, o Shobu para puntuar ya y terminar la ronda. Siete puntos o más valen el doble, y también los puntos ganados después de que el oponente dijera Koi-Koi. Si se acaban las cartas, quien dijo Koi-Koi la última vez conserva sus puntos.\n\nDeshacer anula una jugada de la mano hasta que des la vuelta a una carta del mazo.</string>
+    <string name="hf_round">Ronda %1$d de %2$d</string>
+    <string name="hf_score_line">%1$s %2$d · %3$s %4$d</string>
+    <string name="hf_undo">Deshacer</string>
+    <string name="hf_hint">Pista</string>
+    <string name="hf_koi">Koi-Koi</string>
+    <string name="hf_shobu">Shobu (%1$d)</string>
+    <string name="hf_next_round">Siguiente ronda</string>
+    <string name="hf_play_again">Jugar otra vez</string>
+    <string name="hf_leave">Volver al menú</string>
+    <string name="hf_leave_title">¿Salir de la partida?</string>
+    <string name="hf_leave_body">La partida sigue en curso. Si sales ahora, no cuenta como victoria ni derrota.</string>
+    <string name="hf_captured_mine">Tus cartas</string>
+    <string name="hf_captured_theirs">Sus cartas</string>
+    <string name="hf_cap_title_mine">Tus cartas capturadas</string>
+    <string name="hf_cap_title_theirs">Sus cartas capturadas</string>
+    <string name="hf_cap_empty">Aún no se ha capturado nada.</string>
+    <string name="hf_close">Cerrar</string>
+    <string name="hf_waiting_host">Esperando al anfitrión…</string>
+    <string name="hf_ready">Continuar</string>
+    <string name="hf_pass_title">Pasa el dispositivo a %1$s</string>
+    <string name="hf_pass_body">Mantén las cartas ocultas hasta que el siguiente jugador esté listo.</string>
+    <string name="hf_act_select">Seleccionar esta carta</string>
+    <string name="hf_act_play">Jugar esta carta</string>
+    <string name="hf_act_take">Llevarse esta carta</string>
+    <string name="hf_act_draw">Dar la vuelta a una carta</string>
+    <string name="hf_act_open_captured">Abrir las cartas capturadas</string>
+    <string name="hf_cd_in_hand">%1$s, en tu mano</string>
+    <string name="hf_cd_on_field">%1$s, en la mesa</string>
+    <string name="hf_cd_drawn">%1$s, carta del mazo</string>
+    <string name="hf_cd_selected">seleccionada</string>
+    <string name="hf_cd_can_take">se puede capturar</string>
+    <string name="hf_cd_captured">Cartas capturadas por %1$s: %2$d (%3$d luz, %4$d animal, %5$d cinta, %6$d simple)</string>
+    <string name="hf_card_special">%1$s, %2$s, %3$s</string>
+    <string name="hf_card_ribbon">%1$s, %2$s</string>
+    <string name="hf_card_plain">Carta simple, %1$s</string>
+    <string name="hf_prompt_play">Tu turno: toca una carta de tu mano.</string>
+    <string name="hf_prompt_selected_match">Toca una carta que brilla para llevártela, o vuelve a tocar tu carta.</string>
+    <string name="hf_prompt_selected_discard">Sin pareja: vuelve a tocar la carta para dejarla en la mesa.</string>
+    <string name="hf_prompt_selected_choose">Coinciden dos cartas: toca la que quieras.</string>
+    <string name="hf_prompt_draw">Toca el mazo para dar la vuelta a una carta.</string>
+    <string name="hf_prompt_choose">Elige qué carta de la mesa te llevas.</string>
+    <string name="hf_prompt_decide">¡Combinación nueva! Koi-Koi para seguir, o Shobu para puntuar.</string>
+    <string name="hf_prompt_other">Turno de %1$s…</string>
+    <string name="hf_ev_round">Ronda %1$d. Empieza: %2$s.</string>
+    <string name="hf_ev_round_special">Ronda %1$d: se repartió una mano especial.</string>
+    <string name="hf_ev_played_took">%1$s — jugada: %2$s; captura: %3$s.</string>
+    <string name="hf_ev_played_field">%1$s — jugada: %2$s; se queda en la mesa.</string>
+    <string name="hf_ev_drew_took">%1$s — carta del mazo: %2$s; captura: %3$s.</string>
+    <string name="hf_ev_drew_field">%1$s — carta del mazo: %2$s; se queda en la mesa.</string>
+    <string name="hf_ev_needs_choice">%1$s — carta del mazo: %2$s; elige una carta de la mesa.</string>
+    <string name="hf_ev_koi">%1$s — ¡Koi-Koi! La ronda continúa.</string>
+    <string name="hf_ev_shobu">%1$s — ¡Shobu! La ronda termina.</string>
+    <string name="hf_ev_rej_turn">No es tu turno.</string>
+    <string name="hf_ev_rej_not_in_hand">Esa carta no está en tu mano.</string>
+    <string name="hf_ev_rej_pick_field">Coinciden dos cartas de la mesa: elige cuál llevarte.</string>
+    <string name="hf_ev_rej_wrong_field">Esa carta no coincide.</string>
+    <string name="hf_ev_rej_phase">Ahora no.</string>
+    <string name="hf_ev_undone">Jugada deshecha.</string>
+    <string name="hf_ev_hint_play_on">Pista: juega %1$s sobre %2$s.</string>
+    <string name="hf_ev_hint_discard">Pista: deja %1$s en la mesa.</string>
+    <string name="hf_ev_hint_draw">Pista: toca el mazo.</string>
+    <string name="hf_ev_hint_take">Pista: llévate %1$s.</string>
+    <string name="hf_ev_hint_koi">Pista: di Koi-Koi.</string>
+    <string name="hf_ev_hint_shobu">Pista: di Shobu.</string>
+    <string name="hf_ev_resumed">Partida reanudada.</string>
+    <string name="hf_ev_opp_left">Tu oponente salió de la partida.</string>
+    <string name="hf_ev_opp_back">Tu oponente ha vuelto.</string>
+    <string name="hf_dec_title">¡Una combinación nueva!</string>
+    <string name="hf_dec_worth">Vale %1$d puntos si paras ahora</string>
+    <string name="hf_dec_multiplied">Combinaciones: %1$d puntos antes de duplicar.</string>
+    <string name="hf_dec_help">Koi-Koi sigue la ronda para ganar más puntos. Shobu puntúa ya y termina la ronda.</string>
+    <string name="hf_yaku_line">%1$s: %2$d</string>
+    <string name="hf_sum_title">Resultado de la ronda %1$d</string>
+    <string name="hf_sum_winner">Ronda para %1$s: %2$d puntos</string>
+    <string name="hf_sum_draw">La ronda termina en empate.</string>
+    <string name="hf_sum_dealt_both">A ambos jugadores les tocó una mano especial: sin puntos.</string>
+    <string name="hf_sum_dealt_four">Se repartió una mano con cuatro cartas de un mismo mes: 6 puntos.</string>
+    <string name="hf_sum_dealt_pairs">Se repartió una mano con cuatro parejas: 6 puntos.</string>
+    <string name="hf_sum_double7">Siete puntos o más: se duplica.</string>
+    <string name="hf_sum_koi_double">El oponente había dicho Koi-Koi: se duplica.</string>
+    <string name="hf_sum_exhausted">Se acabaron las cartas: quien dijo Koi-Koi la última vez conserva sus puntos.</string>
+    <string name="hf_final_title">Fin de la partida</string>
+    <string name="hf_final_winner">Partida para %1$s</string>
+    <string name="hf_final_draw">La partida termina en empate.</string>
+    <plurals name="spd_run_of">
+        <item quantity="one">escalera de %1$d carta</item>
+        <item quantity="other">escalera de %1$d cartas</item>
+    </plurals>
+    <plurals name="spd_stock_desc">
+        <item quantity="one">Mazo: queda %1$d reparto. Toca dos veces para repartir.</item>
+        <item quantity="other">Mazo: quedan %1$d repartos. Toca dos veces para repartir.</item>
+    </plurals>
+    <plurals name="spd_ev_moved">
+        <item quantity="one">Moviste %2$s a la columna %3$d.</item>
+        <item quantity="other">Moviste %1$d cartas, empezando por %2$s, a la columna %3$d.</item>
+    </plurals>
+    <plurals name="spd_ev_dealt_runs">
+        <item quantity="one">Repartiste una fila y completaste %1$d escalera.</item>
+        <item quantity="other">Repartiste una fila y completaste %1$d escaleras.</item>
+    </plurals>
+    <plurals name="spd_ev_selected">
+        <item quantity="one">Cogiste %2$s de la columna %3$d.</item>
+        <item quantity="other">Cogiste %1$d cartas, empezando por %2$s, de la columna %3$d.</item>
+    </plurals>
+    <plurals name="hf_cd_opp_hand">
+        <item quantity="one">%1$s: %2$d carta en la mano</item>
+        <item quantity="other">%1$s: %2$d cartas en la mano</item>
+    </plurals>
+    <plurals name="hf_cd_deck">
+        <item quantity="one">Mazo: %1$d carta</item>
+        <item quantity="other">Mazo: %1$d cartas</item>
+    </plurals>
+    <string-array name="spd_rank_names">
+        <item>As</item>
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+    </string-array>
+    <string-array name="spd_suit_names">
+        <item>picas</item>
+        <item>corazones</item>
+        <item>tréboles</item>
+        <item>diamantes</item>
+    </string-array>
+    <string-array name="hf_month_names">
+        <item>Pino</item>
+        <item>Ciruelo</item>
+        <item>Cerezo</item>
+        <item>Glicina</item>
+        <item>Lirio</item>
+        <item>Peonía</item>
+        <item>Trébol japonés</item>
+        <item>Miscanto</item>
+        <item>Crisantemo</item>
+        <item>Arce</item>
+        <item>Sauce</item>
+        <item>Paulonia</item>
+    </string-array>
+    <string-array name="hf_special_names">
+        <item>Simple</item>
+        <item>Grulla</item>
+        <item>Cortina</item>
+        <item>Luna</item>
+        <item>Hombre bajo la lluvia</item>
+        <item>Fénix</item>
+        <item>Pájaro cantor</item>
+        <item>Cuco</item>
+        <item>Puente</item>
+        <item>Mariposas</item>
+        <item>Jabalí</item>
+        <item>Gansos</item>
+        <item>Copa de sake</item>
+        <item>Ciervo</item>
+        <item>Golondrina</item>
+    </string-array>
+    <string-array name="hf_ribbon_names">
+        <item>Cinta</item>
+        <item>Cinta roja con poema</item>
+        <item>Cinta roja</item>
+        <item>Cinta azul</item>
+    </string-array>
+    <string-array name="hf_kind_names">
+        <item>Luz</item>
+        <item>Animal</item>
+        <item>Cinta</item>
+        <item>Simple</item>
+    </string-array>
+    <string-array name="hf_yaku_names">
+        <item>Cinco Luces (Goko)</item>
+        <item>Cuatro Luces (Shiko)</item>
+        <item>Cuatro Luces con lluvia (Ame-Shiko)</item>
+        <item>Tres Luces (Sanko)</item>
+        <item>Jabalí-Ciervo-Mariposas (Ino-Shika-Cho)</item>
+        <item>Animales (Tane)</item>
+        <item>Cintas rojas con poema (Akatan)</item>
+        <item>Cintas azules (Aotan)</item>
+        <item>Cintas (Tanzaku)</item>
+        <item>Simples (Kasu)</item>
+        <item>Contemplar las flores (Hanami-zake)</item>
+        <item>Contemplar la luna (Tsukimi-zake)</item>
+        <item>Cintas rojas y azules (Akatan-Aotan)</item>
+    </string-array>
+    <!-- Game Hub texts: only those not already defined elsewhere -->
+    <string name="hub_spider_solitaire">Solitario Araña</string>
+    <string name="hub_clear_the_table_with_king_to_ace_runs_in_ten_col_33d896">Despeja la mesa con escaleras del Rey al As en diez columnas.</string>
+    <string name="hub_today_s_deal">Reparto de hoy</string>
+    <string name="hub_the_same_deal_for_everyone_today_always_winnable">El mismo reparto para todos hoy, siempre ganable.</string>
+    <string name="hub_number_of_suits">Número de palos</string>
+    <string name="hub_fewer_suits_make_runs_easier_to_build">Con menos palos es más fácil formar escaleras.</string>
+    <string name="hub_one_suit">Un palo</string>
+    <string name="hub_the_easiest_game_every_card_is_a_spade">La partida más fácil: todas las cartas son picas.</string>
+    <string name="hub_two_suits">Dos palos</string>
+    <string name="hub_a_balanced_challenge">Un reto equilibrado.</string>
+    <string name="hub_four_suits">Cuatro palos</string>
+    <string name="hub_the_full_hard_game">La partida completa y difícil.</string>
+    <string name="hub_winnable_deals">Repartos ganables</string>
+    <string name="hub_on_the_deal_is_built_so_it_can_be_won_off_a_fair_31eac6">Activado: el reparto se construye para que se pueda ganar. Desactivado: una mezcla aleatoria justa.</string>
+    <string name="hub_hanafuda">Hanafuda</string>
+    <string name="hub_koi_koi_the_japanese_flower_card_game_match_mont_977dff">Koi-Koi, el juego japonés de cartas de flores: empareja meses y forma combinaciones.</string>
+    <string name="hub_match_length">Duración de la partida</string>
+    <string name="hub_a_match_lasts_this_many_rounds_one_month_each">La partida dura estas rondas, un mes cada una.</string>
+    <string name="hub_three_rounds">Tres rondas</string>
+    <string name="hub_a_short_match">Una partida corta.</string>
+    <string name="hub_six_rounds">Seis rondas</string>
+    <string name="hub_half_a_year">Medio año.</string>
+    <string name="hub_twelve_rounds">Doce rondas</string>
+    <string name="hub_a_full_year_one_round_per_month">Un año completo, una ronda por mes.</string>
+    <string name="hub_scoring_hands">Combinaciones que puntúan</string>
+    <string name="hub_which_card_combinations_score_points">Qué combinaciones de cartas suman puntos.</string>
+    <string name="hub_basic_set">Conjunto básico</string>
+    <string name="hub_lights_animals_ribbons_and_plain_cards">Luces, animales, cintas y cartas simples.</string>
+    <string name="hub_full_set">Conjunto completo</string>
+    <string name="hub_adds_the_viewing_hands_red_and_blue_ribbons_and_6ca38b">Añade las manos de contemplar, las cintas rojas y azules y las manos especiales repartidas.</string>
+</resources>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sumo Push screen texts and first-run tips. -->
+    <string name="sup_help_title">Sumo Push</string>
+    <string name="sup_help_text">Each player steers one round toy sumo with the stick or pad in their own zone. Shove the others out of the ring: the last sumo inside wins the round. Hold Dash to charge, release to shove, then wait for the cooldown. The ring shrinks as the round goes on.</string>
+    <string name="sup_dash">Dash</string>
+    <string name="sup_dash_ready">Ready</string>
+    <string name="sup_dash_charging">Charging</string>
+    <string name="sup_dash_wait">Wait</string>
+    <string name="sup_dash_desc">%1$s: dash button. Hold to charge, release to shove. %2$s.</string>
+    <string name="sup_stick_desc">%1$s: thumb-stick. Drag to steer. A screen reader cannot drag: choose One button in the setup.</string>
+    <string name="sup_dpad_desc">%1$s: direction pad. Hold a direction to steer. A screen reader cannot hold: choose One button in the setup.</string>
+    <string name="sup_ring_desc">Ring with %1$d sumos, %2$d still in.</string>
+    <string name="sup_ring_shrinking">The ring is shrinking!</string>
+    <string name="sup_ev_fell">%1$s was pushed out.</string>
+    <string name="sup_ev_fell_you">You were pushed out.</string>
+    <string name="sup_ev_pick_heavy">%1$s picked up Heavy.</string>
+    <string name="sup_ev_pick_heavy_you">You picked up Heavy.</string>
+    <string name="sup_ev_pick_sprint">%1$s picked up Sprint.</string>
+    <string name="sup_ev_pick_sprint_you">You picked up Sprint.</string>
+    <string name="tip_sumo_push_1">Hold Dash to charge, release to shove. A charged dash is heavy, but then you wait for the cooldown.</string>
+    <string name="tip_sumo_push_2">The ring shrinks over time. Stay near the middle and let rivals push each other out.</string>
+    <string name="tip_sumo_push_3">Hard to steer? Turn on Relaxed or One button in the setup.</string>
+</resources>

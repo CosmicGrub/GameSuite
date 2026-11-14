@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Six-Ball Puzzle and Pig: Game Hub catalog texts (name = hubKey(text)) and screen strings -->
+    <string name="hub_six_ball_puzzle">Six-Ball Puzzle</string>
+    <string name="hub_tilt_the_tray_and_roll_six_balls_onto_their_slot_e8b199">Tilt the tray and roll six balls onto their slots.</string>
+    <string name="hub_levels">Levels</string>
+    <string name="hub_48_trays_from_easy_to_fiendish_earn_stars_by_bea_b214b9">48 trays from easy to fiendish. Earn stars by beating par.</string>
+    <string name="hub_today_s_tray">Today\'s tray</string>
+    <string name="hub_the_same_tray_for_everyone_today">The same tray for everyone today.</string>
+    <string name="hub_race_the_same_tray_in_turns_the_fewest_tilts_win_036b99">Race the same tray in turns: the fewest tilts wins.</string>
+    <string name="hub_start_at">Start at</string>
+    <string name="hub_you_can_switch_to_any_level_from_the_level_picke_000841">You can switch to any level from the level picker once you are playing.</string>
+    <string name="hub_next_unsolved_level">Next unsolved level</string>
+    <string name="hub_opens_the_first_level_you_have_not_solved_yet">Opens the first level you have not solved yet.</string>
+    <string name="hub_level_1">Level 1</string>
+    <string name="hub_starts_from_the_very_beginning">Starts from the very beginning.</string>
+    <string name="hub_pig">Pig</string>
+    <string name="hub_push_your_luck_roll_or_hold_but_never_roll_a_one">Push your luck: roll or hold, but never roll a one.</string>
+    <string name="hub_race_1_to_5_computer_players_to_the_goal">Race 1 to 5 computer players to the goal.</string>
+    <string name="hub_game">Game</string>
+    <string name="hub_four_ways_to_push_your_luck">Four ways to push your luck.</string>
+    <string name="hub_classic_pig">Classic Pig</string>
+    <string name="hub_one_die_a_1_loses_your_turn_total">One die. A 1 loses your turn total.</string>
+    <string name="hub_big_pig">Big Pig</string>
+    <string name="hub_two_dice_one_1_busts_two_1s_score_25_doubles_cou_5e8d67">Two dice. One 1 busts, two 1s score 25, doubles count twice.</string>
+    <string name="hub_hog">Hog</string>
+    <string name="hub_one_roll_per_turn_you_choose_how_many_dice_and_a_d756a1">One roll per turn: you choose how many dice, and any 1 scores nothing.</string>
+    <string name="hub_twenty_one_plus">Twenty-One Plus</string>
+    <string name="hub_classic_but_a_turn_total_of_exactly_21_banks_its_84f795">Classic, but a turn total of exactly 21 banks itself with a 10-point bonus.</string>
+    <string name="hub_the_first_player_to_reach_the_goal_wins">The first player to reach the goal wins.</string>
+    <string name="hub_50_points">50 points</string>
+    <string name="hub_100_points">100 points</string>
+    <string name="hub_150_points">150 points</string>
+    <string name="hub_the_classic_goal">The classic goal.</string>
+    <string name="sbp_help_title">Six-Ball Puzzle</string>
+    <string name="sbp_help_text">Tilt the tray with the four arrow buttons or by swiping the board. Every ball rolls as far as it can until a post, the rail or another ball stops it. Put each ball on the slot with its own symbol and colour. Finish in par tilts or fewer for three stars. Undo is unlimited, and Hint shows the next tilt of a shortest solution.</string>
+    <string name="sbp_setting_up">Setting up the tray…</string>
+    <string name="sbp_level">Level %1$d</string>
+    <string name="sbp_daily">Today\'s tray</string>
+    <string name="sbp_counts">Tilts %1$d · par %2$d · %3$d of %4$d on slots</string>
+    <string name="sbp_best">best %1$d</string>
+    <string name="sbp_levels">Levels</string>
+    <string name="sbp_restart">Restart</string>
+    <string name="sbp_give_up">Give up</string>
+    <string name="sbp_next_level">Next level</string>
+    <string name="sbp_replay">Replay</string>
+    <string name="sbp_tilt_desc">Tilt %1$s</string>
+    <string name="sbp_suggested">(suggested)</string>
+    <string name="sbp_board_desc">Tray %1$d by %2$d. %3$s.</string>
+    <string name="sbp_ball_desc">%1$s %2$s ball, row %3$d, column %4$d%5$s</string>
+    <string name="sbp_on_slot">, on its slot</string>
+    <string name="sbp_ann_start">Put every ball on its slot. Par is %1$d tilts.</string>
+    <string name="sbp_ann_moved">Tilted %1$s. %2$d of 6 balls are on their slots.</string>
+    <string name="sbp_ann_undo">Took back a tilt. %1$d of 6 balls are on their slots.</string>
+    <string name="sbp_ann_restart">Back to the start of the tray.</string>
+    <string name="sbp_ann_solved">Solved in %1$d tilts, par is %2$d. Stars: %3$d.</string>
+    <string name="sbp_ann_solved_race">You solved the tray in %1$d tilts.</string>
+    <string name="sbp_hint_line">Hint: tilt %1$s.</string>
+    <string name="sbp_hint_dead">Hint: no solution from here. Undo a few tilts or restart.</string>
+    <string name="sbp_why_blocked">Nothing would move that way: every ball is already against a post, the rail or another ball.</string>
+    <string name="sbp_why_solved">This tray is solved. Choose Next level, Replay or Back to Menu.</string>
+    <string name="sbp_why_handoff">Pass the device on first.</string>
+    <string name="sbp_why_not_playing">You are not racing right now.</string>
+    <string name="sbp_solved_title">Tray solved!</string>
+    <string name="sbp_solved_line">%1$d tilts, par %2$d</string>
+    <string name="sbp_new_best">New best!</string>
+    <string name="sbp_assisted">A hint was used, so two stars is the most you can earn.</string>
+    <string name="sbp_stars_desc">%1$d of 3 stars</string>
+    <string name="sbp_status_solved">solved in %1$d</string>
+    <string name="sbp_status_gave_up">gave up</string>
+    <string name="sbp_status_left">left</string>
+    <string name="sbp_status_waiting">waiting</string>
+    <string name="sbp_status_playing">racing</string>
+    <string name="sbp_handoff_title">Pass the device to %1$s</string>
+    <string name="sbp_handoff_body">Everyone races the same tray. The fewest tilts wins.</string>
+    <string name="sbp_handoff_ready">%1$s is ready</string>
+    <string name="sbp_race_over">Race over</string>
+    <string name="sbp_race_line">%1$d. %2$s: %3$s</string>
+    <string name="sbp_race_winner">%1$s wins with %2$d tilts!</string>
+    <string name="sbp_race_winner_you">You win the race!</string>
+    <string name="sbp_race_nowinner">Nobody solved the tray.</string>
+    <string name="sbp_waiting_race">Waiting for the other players to finish…</string>
+    <string name="sbp_picker_title">Choose a level</string>
+    <string name="sbp_picker_stars">Stars: %1$d of %2$d</string>
+    <string name="sbp_level_tile">Level %1$d, par %2$d, %3$d stars</string>
+    <string name="sbp_close">Close</string>
+    <string name="sbp_leave_body">This tray is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="pig_help_title">Pig</string>
+    <string name="pig_help_text">Roll the die as often as you like; the numbers add up in the pot. Hold to bank the pot into your score. Roll a 1 and you lose the pot and the turn. First to the goal wins. Big Pig rolls two dice (one 1 busts, two 1s score 25, doubles count twice). Hog is one roll of as many dice as you choose (any 1 scores nothing). Twenty-One Plus banks a pot of exactly 21 for you with a 10-point bonus.</string>
+    <string name="pig_ann_roll">%1$s rolled %2$s for +%3$d. Turn total %4$d.</string>
+    <string name="yg_pig_ann_roll">You rolled %1$s for +%2$d. Turn total %3$d.</string>
+    <string name="pig_ann_bust">%1$s busted with %2$s and loses %3$d.</string>
+    <string name="yg_pig_ann_bust">You busted with %1$s and lose %2$d.</string>
+    <string name="pig_ann_bust_zero">%1$s busted with %2$s.</string>
+    <string name="yg_pig_ann_bust_zero">You busted with %1$s.</string>
+    <string name="pig_ann_snake">%1$s rolled snake eyes for +%2$d!</string>
+    <string name="yg_pig_ann_snake">You rolled snake eyes for +%1$d!</string>
+    <string name="pig_ann_doubles">%1$s rolled doubles (%2$s) for +%3$d.</string>
+    <string name="yg_pig_ann_doubles">You rolled doubles (%1$s) for +%2$d.</string>
+    <string name="pig_ann_exact">%1$s hit exactly 21 and banked %2$d with the bonus.</string>
+    <string name="yg_pig_ann_exact">You hit exactly 21 and bank %1$d with the bonus.</string>
+    <string name="pig_ann_hog">%1$s rolled %2$s and banked %3$d.</string>
+    <string name="yg_pig_ann_hog">You rolled %1$s and bank %2$d.</string>
+    <string name="pig_ann_hog_bust">%1$s rolled %2$s, including a 1, and scores nothing.</string>
+    <string name="yg_pig_ann_hog_bust">You rolled %1$s, including a 1, and score nothing.</string>
+    <string name="pig_ann_hold">%1$s held and banked %2$d.</string>
+    <string name="yg_pig_ann_hold">You hold and bank %1$d.</string>
+    <string name="pig_ann_win">%1$s wins with %2$d points!</string>
+    <string name="yg_pig_ann_win">You win with %1$d points!</string>
+    <string name="pig_ann_start">%1$s goes first. Race to %2$d.</string>
+    <string name="yg_pig_ann_start">You go first. Race to %1$d.</string>
+    <string name="pig_turn_roll">Your turn: roll or hold.</string>
+    <string name="pig_turn_hog">Your turn: choose how many dice, then roll.</string>
+    <string name="pig_turn_named_roll">%1$s: roll or hold.</string>
+    <string name="pig_turn_named">It is %1$s\'s turn.</string>
+    <string name="pig_thinking">%1$s is thinking…</string>
+    <string name="pig_chip_desc">%1$s: %2$d of %3$d points</string>
+    <string name="pig_chip_pot">%1$d points in the pot this turn.</string>
+    <string name="pig_dice_count">Dice: %1$d</string>
+    <string name="pig_fewer_dice">Roll one fewer die</string>
+    <string name="pig_more_dice">Roll one more die</string>
+    <string name="pig_dice_desc">Dice showing %1$s</string>
+    <string name="pig_dice_none">No dice rolled yet</string>
+    <string name="pig_dice_waiting">Roll the dice!</string>
+    <string name="pig_die_desc">Die %1$d shows %2$d</string>
+    <string name="pig_pot_line">In the pot: %1$d. Score if you hold: %2$d</string>
+    <string name="pig_roll">Roll</string>
+    <string name="pig_hold">Hold (+%1$d)</string>
+    <string name="pig_final_line">%1$s: %2$d points</string>
+    <string name="pig_wins">%1$s wins!</string>
+    <string name="pig_hint_roll">Hint: roll again. About %1$d%% chance to win.</string>
+    <string name="pig_hint_hold">Hint: hold. About %1$d%% chance to win.</string>
+    <string name="pig_hint_dice">Hint: roll %1$d dice. About %2$d%% chance to win.</string>
+    <string name="pig_why_nothing_to_hold">Roll at least once before you hold.</string>
+    <string name="pig_why_hog_no_hold">In Hog every turn is a single roll, so there is nothing to hold.</string>
+    <string-array name="sbp_dir_names">
+        <item>up</item>
+        <item>right</item>
+        <item>down</item>
+        <item>left</item>
+    </string-array>
+    <string-array name="sbp_color_names">
+        <item>orange</item>
+        <item>blue</item>
+        <item>yellow</item>
+        <item>green</item>
+        <item>pink</item>
+        <item>sky blue</item>
+    </string-array>
+</resources>

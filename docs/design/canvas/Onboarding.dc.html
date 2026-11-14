@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Who is playing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:radial-gradient(100% 45% at 50% 0%,#2A2F6E 0%,#0B0D1A 70%);color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.opt{display:flex;align-items:center;gap:16px;padding:18px;border-radius:24px;background:#141829;border:1px solid #232943;text-decoration:none;color:#F3F1EA}
+.opt.on{background:#1C2138;border:2px solid #FFB547}
+.ic{width:60px;height:60px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex:none}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:72px;display:flex;align-items:center;gap:10px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#FFB547,#C2410C)"></div><div style="font:700 20px Sora">GameSuite</div></div>
+<h1 style="font-size:36px;margin-top:36px;line-height:1.1">Who is playing today?</h1>
+<div class="mut" style="margin-top:10px;font-size:16px">You can add more people later. Each person keeps their own progress.</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;margin-top:30px">
+<a class="opt on" href="Home.dc.html"><div class="ic" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div><div style="flex:1"><div style="font:600 18px Sora">Just me</div><div class="mut" style="font-size:14px">All 75 games, online play, stats</div></div></a>
+<a class="opt" href="Home.dc.html"><div class="ic" style="background:linear-gradient(145deg,#4ADE9B,#0E7490)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M2 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 2-4 5-4s3 1 3 4"/></svg></div><div style="flex:1"><div style="font:600 18px Sora">Family and friends</div><div class="mut" style="font-size:14px">Party games, pass and play, profiles</div></div></a>
+<a class="opt" href="KidsHome.dc.html"><div class="ic" style="background:linear-gradient(145deg,#FFB547,#FF6B7A)"><svg width="30" height="30" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg></div><div style="flex:1"><div style="font:600 18px Sora">Kids</div><div class="mut" style="font-size:14px">Simple games, no chat, no strangers</div></div></a>
+</div>
+
+<div style="flex:1"></div>
+<div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px"><i style="width:22px;height:6px;border-radius:3px;background:#FFB547"></i><i style="width:6px;height:6px;border-radius:3px;background:#2E3558"></i><i style="width:6px;height:6px;border-radius:3px;background:#2E3558"></i></div>
+<a href="Home.dc.html" style="display:flex;align-items:center;justify-content:center;height:56px;border-radius:28px;font:600 17px Sora;background:#FFB547;color:#1A1203;text-decoration:none;box-shadow:0 10px 28px rgba(255,181,71,.3),inset 0 1px 0 rgba(255,255,255,.4)">Continue</a>
+<div class="mut" style="text-align:center;font-size:12px;margin:14px 0 34px">Kids profiles are protected by a parent gate. No ads, no tracking.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

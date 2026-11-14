@@ -28,7 +28,11 @@ private data class MancalaSnapshot(
     val draws: Int,
     val difficulty: String,
     /** Seat that opened the session's first board; defaulted so saves written before it existed still decode. */
-    val openingSeatIndex: Int = 0
+    val openingSeatIndex: Int = 0,
+    /** Variant settings; defaulted so saves written before the Hub options existed decode as the standard game. */
+    val pitsPerSide: Int = 6,
+    val stonesPerPit: Int = 4,
+    val captureRule: String = "opposite"
 )
 
 @Serializable
@@ -40,7 +44,8 @@ private data class MancalaSnapshotPlayer(val playerId: String, val isBot: Boolea
 private val mancalaSnapshotJson = Json { ignoreUnknownKeys = true }
 
 /**
- * Board layout (14 pits, index 0-13):
+ * Board layout for the standard game (14 pits, index 0-13); with n pits per side ([MancalaRules])
+ * the layout is the same shape with 2n+2 entries:
  *   0-5   = player 0's pits (left to right from player 0's perspective)
  *   6     = player 0's store
  *   7-12  = player 1's pits
@@ -102,14 +107,222 @@ data class MancalaState(
  */
 data class MancalaCapture(val landingPit: Int, val oppositePit: Int, val totalSwept: Int)
 
+/** Capture variant: the classic opposite-pit capture, or none at all (only the extra-turn rule). */
+enum class MancalaCaptureRule(val key: String) {
+    OPPOSITE("opposite"),
+    NONE("none");
+
+    companion object {
+        /** Null for an unknown key, so a corrupt save or message is rejected rather than guessed at. */
+        fun fromKey(key: String?): MancalaCaptureRule? = values().firstOrNull { it.key == key }
+    }
+}
+
 /**
- * Pure result of a hypothetical sow, used both by the HARD bot's minimax
- * search ([MancalaGame.simulateSow]) and by [MancalaGame.captureCandidates]'s
- * capture preview. [landingCursor] is the pit the last stone landed in --
- * exposing it lets a caller recognize a capture (see captureCandidates'
- * KDoc) without re-deriving the sow loop's own cursor math.
+ * The board shape and rules of one Mancala session. Board indexes: seat 0's pits are
+ * `0 until pitsPerSide`, then its store at `pitsPerSide`, seat 1's pits next and seat 1's store
+ * last (`2 * pitsPerSide + 1`); the pit opposite pit p is `2 * pitsPerSide - p`. The defaults are
+ * the standard game (6 pits, 4 stones, opposite-pit capture).
  */
-private data class SowResult(val pits: List<Int>, val extraTurn: Boolean, val landingCursor: Int)
+data class MancalaRules(
+    val pitsPerSide: Int = 6,
+    val stonesPerPit: Int = 4,
+    val capture: MancalaCaptureRule = MancalaCaptureRule.OPPOSITE
+) {
+    val boardSize: Int get() = 2 * pitsPerSide + 2
+    val store0: Int get() = pitsPerSide
+    val store1: Int get() = 2 * pitsPerSide + 1
+
+    /** The stones on the whole board, constant for the life of a game. */
+    val totalStones: Int get() = 2 * pitsPerSide * stonesPerPit
+
+    /** Only the combinations the Hub offers (and the screen can lay out) are playable. */
+    val isSupported: Boolean
+        get() = pitsPerSide in SUPPORTED_PITS && stonesPerPit in SUPPORTED_STONES
+
+    /** Longest sow path a legal board can hold: the picked-up pit plus at most every stone. */
+    val maxSowPathLength: Int get() = maxOf(60, totalStones + 1)
+
+    fun pitsOf(playerIndex: Int): IntRange =
+        if (playerIndex == 0) 0 until pitsPerSide else (pitsPerSide + 1)..(2 * pitsPerSide)
+
+    fun storeOf(playerIndex: Int): Int = if (playerIndex == 0) store0 else store1
+
+    fun oppositeOf(pit: Int): Int = 2 * pitsPerSide - pit
+
+    /** The opening board: [stonesPerPit] in every pit, empty stores. */
+    fun initialPits(): List<Int> = List(boardSize) { if (it == store0 || it == store1) 0 else stonesPerPit }
+
+    internal fun isTerminal(pits: IntArray): Boolean =
+        pitsOf(0).all { pits[it] == 0 } || pitsOf(1).all { pits[it] == 0 }
+
+    /**
+     * A pure copy of the sow rules (same capture / extra-turn logic as [MancalaGame]'s real sow, no
+     * state touched), used by the bot's search, the hint and the capture preview. [MancalaSim.landingCursor]
+     * is the pit the last stone landed in.
+     */
+    internal fun simulate(pits: IntArray, playerIndex: Int, pitIndex: Int): MancalaSim {
+        val size = boardSize
+        val ownPits = pitsOf(playerIndex)
+        val ownStore = storeOf(playerIndex)
+        val opponentStore = storeOf(1 - playerIndex)
+
+        val p = pits.copyOf()
+        var stones = p[pitIndex]
+        p[pitIndex] = 0
+        var cursor = pitIndex
+        while (stones > 0) {
+            cursor = (cursor + 1) % size
+            if (cursor == opponentStore) continue
+            p[cursor]++
+            stones--
+        }
+
+        var extraTurn = false
+        if (capture == MancalaCaptureRule.OPPOSITE && cursor in ownPits && p[cursor] == 1) {
+            val oppositeIndex = oppositeOf(cursor)
+            if (p[oppositeIndex] > 0) {
+                val captured = p[oppositeIndex] + p[cursor]
+                p[oppositeIndex] = 0
+                p[cursor] = 0
+                p[ownStore] += captured
+            }
+        } else if (cursor == ownStore) {
+            extraTurn = true
+        }
+        return MancalaSim(p, extraTurn, cursor)
+    }
+
+    companion object {
+        val SUPPORTED_PITS: List<Int> = listOf(5, 6)
+        val SUPPORTED_STONES: IntRange = 3..6
+
+        /** Reads the Hub's `pits` / `stones` / `capture` extras; anything missing or unsupported falls back to the standard game. */
+        fun fromExtras(extras: Map<String, String>): MancalaRules {
+            val pits = extras["pits"]?.toIntOrNull()?.takeIf { it in SUPPORTED_PITS } ?: 6
+            val stones = extras["stones"]?.toIntOrNull()?.takeIf { it in SUPPORTED_STONES } ?: 4
+            val capture = MancalaCaptureRule.fromKey(extras["capture"]) ?: MancalaCaptureRule.OPPOSITE
+            return MancalaRules(pits, stones, capture)
+        }
+    }
+}
+
+/** Result of a hypothetical sow; [landingCursor] is where the last stone landed. */
+internal class MancalaSim(val pits: IntArray, val extraTurn: Boolean, val landingCursor: Int)
+
+/** Hard cap on search depth (plies) and on visited positions, so a move takes well under a second on any board. */
+internal const val MANCALA_SEARCH_DEPTH = 8
+internal const val MANCALA_NODE_BUDGET = 1_500_000
+
+/**
+ * Depth-limited minimax with alpha-beta pruning over [MancalaRules.simulate], deepened one ply at a
+ * time until [MANCALA_SEARCH_DEPTH] or until the node budget is spent; the answer is always that
+ * of the deepest COMPLETED iteration. Pure: it reads plain int arrays, never any game state.
+ */
+internal class MancalaSearch(private val rules: MancalaRules, private val nodeBudget: Int = MANCALA_NODE_BUDGET) {
+    private var nodes = 0
+    private var aborted = false
+
+    private fun finalScore(pits: IntArray, maximizer: Int): Int {
+        val p = pits.copyOf()
+        val side0 = rules.pitsOf(0)
+        val side1 = rules.pitsOf(1)
+        if (side0.all { p[it] == 0 }) { for (i in side1) { p[rules.store1] += p[i]; p[i] = 0 } }
+        if (side1.all { p[it] == 0 }) { for (i in side0) { p[rules.store0] += p[i]; p[i] = 0 } }
+        val myStore = if (maximizer == 0) p[rules.store0] else p[rules.store1]
+        val oppStore = if (maximizer == 0) p[rules.store1] else p[rules.store0]
+        return myStore - oppStore
+    }
+
+    private fun minimax(pits: IntArray, playerIndex: Int, depth: Int, maximizer: Int, alpha: Int, beta: Int): Int {
+        if (aborted) return 0
+        nodes++
+        if (nodes > nodeBudget) {
+            aborted = true
+            return 0
+        }
+        if (depth == 0 || rules.isTerminal(pits)) return finalScore(pits, maximizer)
+
+        var a = alpha
+        var b = beta
+        var any = false
+        val maximizing = playerIndex == maximizer
+        var best = if (maximizing) Int.MIN_VALUE else Int.MAX_VALUE
+        for (m in rules.pitsOf(playerIndex)) {
+            if (pits[m] == 0) continue
+            any = true
+            val sim = rules.simulate(pits, playerIndex, m)
+            val nextPlayer = if (sim.extraTurn) playerIndex else 1 - playerIndex
+            val score = minimax(sim.pits, nextPlayer, depth - 1, maximizer, a, b)
+            if (maximizing) {
+                best = maxOf(best, score)
+                a = maxOf(a, best)
+            } else {
+                best = minOf(best, score)
+                b = minOf(b, best)
+            }
+            if (a >= b) break
+        }
+        return if (any) best else finalScore(pits, maximizer)
+    }
+
+    private fun searchRoot(pits: IntArray, playerIndex: Int, depth: Int): Int? {
+        var bestMove: Int? = null
+        var bestScore = Int.MIN_VALUE
+        for (m in rules.pitsOf(playerIndex)) {
+            if (pits[m] == 0) continue
+            val sim = rules.simulate(pits, playerIndex, m)
+            val nextPlayer = if (sim.extraTurn) playerIndex else 1 - playerIndex
+            val score = minimax(sim.pits, nextPlayer, depth - 1, playerIndex, Int.MIN_VALUE, Int.MAX_VALUE)
+            if (aborted) return null
+            if (score > bestScore) {
+                bestScore = score
+                bestMove = m
+            }
+        }
+        return bestMove
+    }
+
+    /** The best legal pit for [playerIndex], or null when there is none. */
+    fun bestMove(pits: IntArray, playerIndex: Int, maxDepth: Int = MANCALA_SEARCH_DEPTH): Int? {
+        var best: Int? = rules.pitsOf(playerIndex).firstOrNull { pits[it] > 0 } ?: return null
+        for (depth in 1..maxDepth) {
+            val found = searchRoot(pits, playerIndex, depth)
+            if (aborted) break
+            if (found != null) best = found
+        }
+        return best
+    }
+}
+
+/**
+ * One bot move or hint, split so the (possibly slow) search can run off the main thread: take the
+ * plan on the main thread ([MancalaGame.planBotTurn] / [MancalaGame.planHint]), call [chooseMove]
+ * anywhere (it reads only the copied position), then hand the answer back to
+ * [MancalaGame.applyBotMove] / [MancalaGame.applyHint], which drop it if the position has moved on.
+ */
+class MancalaMovePlan internal constructor(
+    internal val position: MancalaState,
+    val playerIndex: Int,
+    private val rules: MancalaRules,
+    private val difficulty: CpuDifficulty
+) {
+    /** The pit (absolute board index) to sow, or null when the seat has no legal pit. Thread-safe. */
+    fun chooseMove(): Int? {
+        val pits = position.pits.toIntArray()
+        val ownPits = rules.pitsOf(playerIndex)
+        return when (difficulty) {
+            CpuDifficulty.EASY -> ownPits.filter { pits[it] > 0 }.randomOrNull()
+            CpuDifficulty.MEDIUM -> {
+                // Prefer a move landing exactly in the store (extra turn); else first non-empty pit.
+                val ownStore = rules.storeOf(playerIndex)
+                val bonusMove = ownPits.firstOrNull { pit -> pits[pit] > 0 && (pit + pits[pit]) % rules.boardSize == ownStore }
+                bonusMove ?: ownPits.firstOrNull { pits[it] > 0 }
+            }
+            CpuDifficulty.HARD -> MancalaSearch(rules).bestMove(pits, playerIndex)
+        }
+    }
+}
 
 class MancalaGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "mancala"
@@ -150,13 +363,23 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      */
     var openingSeatIndex: Int = 0
 
+    /**
+     * The board shape and rules (pits per side, stones per pit, capture rule). Set by the UI from the
+     * Hub's options before [init]/[startMatch]; a restored save replaces it with the save's own. An
+     * unsupported value is replaced by the standard game. Defaults to the standard 6 x 4 game.
+     */
+    var rules: MancalaRules = MancalaRules()
+        set(value) {
+            field = if (value.isSupported) value else MancalaRules()
+        }
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
-    private val player0Pits = 0..5
-    private val player0Store = 6
-    private val player1Pits = 7..12
-    private val player1Store = 13
+    private val player0Pits: IntRange get() = rules.pitsOf(0)
+    private val player0Store: Int get() = rules.store0
+    private val player1Pits: IntRange get() = rules.pitsOf(1)
+    private val player1Store: Int get() = rules.store1
 
     /** Snapshots taken just BEFORE each human sowing, newest last; popping one is Undo. Per game: a new board starts empty. */
     private val history = SnapshotHistory()
@@ -273,18 +496,27 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         lastCapture = s.lastCapture?.let { MancalaNetCapture(it.landingPit, it.oppositePit, it.totalSwept) },
         scoreP1 = scoreP1.value,
         scoreP2 = scoreP2.value,
-        draws = draws.value
+        draws = draws.value,
+        pitsPerSide = rules.pitsPerSide,
+        stonesPerPit = rules.stonesPerPit,
+        captureRule = rules.capture.key
     )
 
+    /** A board is only adopted if it has THIS game's shape and rules (a mismatched host is ignored, not half-shown). */
     private fun isValidNetState(n: MancalaNetState): Boolean {
         val capture = n.lastCapture
-        return n.pits.size == 14 &&
+        val r = rules
+        val last = r.boardSize - 1
+        return n.pitsPerSide == r.pitsPerSide &&
+            n.stonesPerPit == r.stonesPerPit &&
+            n.captureRule == r.capture.key &&
+            n.pits.size == r.boardSize &&
             n.pits.all { it >= 0 } &&
-            n.pits.sum() == 48 &&
+            n.pits.sum() == r.totalStones &&
             n.currentPlayerIndex in 0..1 &&
             (n.winnerPlayerId == null || context.players.any { it.playerId == n.winnerPlayerId }) &&
-            n.lastSowPath.size <= 60 && n.lastSowPath.all { it in 0..13 } &&
-            (capture == null || (capture.landingPit in 0..13 && capture.oppositePit in 0..13 && capture.totalSwept >= 0)) &&
+            n.lastSowPath.size <= r.maxSowPathLength && n.lastSowPath.all { it in 0..last } &&
+            (capture == null || (capture.landingPit in 0..last && capture.oppositePit in 0..last && capture.totalSwept >= 0)) &&
             n.scoreP1 >= 0 && n.scoreP2 >= 0 && n.draws >= 0
     }
 
@@ -387,30 +619,45 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
                 scoreP2 = scoreP2.value,
                 draws = draws.value,
                 difficulty = difficulty.name,
-                openingSeatIndex = openingSeatIndex
+                openingSeatIndex = openingSeatIndex,
+                pitsPerSide = rules.pitsPerSide,
+                stonesPerPit = rules.stonesPerPit,
+                captureRule = rules.capture.key
             )
         )
     }
 
-    /** Decodes and sanity-checks a snapshot against THIS game's board shape and roster; null if unusable. */
+    /** The rules a snapshot was saved under; null when it names an unknown capture rule or an unsupported board. */
+    private fun snapshotRules(snap: MancalaSnapshot): MancalaRules? {
+        val capture = MancalaCaptureRule.fromKey(snap.captureRule) ?: return null
+        val r = MancalaRules(snap.pitsPerSide, snap.stonesPerPit, capture)
+        return if (r.isSupported) r else null
+    }
+
+    /**
+     * Decodes and sanity-checks a snapshot against its OWN saved board shape (a bad stone count or
+     * pit count is rejected) and THIS game's roster; null if unusable.
+     */
     private fun decodeSnapshot(text: String): MancalaSnapshot? {
         return try {
             val snap = mancalaSnapshotJson.decodeFromString(MancalaSnapshot.serializer(), text)
+            val r = snapshotRules(snap) ?: return null
             val roster = context.players
             val capture = snap.lastCapture
-            val valid = snap.pits.size == 14 &&
+            val last = r.boardSize - 1
+            val valid = snap.pits.size == r.boardSize &&
                 snap.pits.all { it >= 0 } &&
-                snap.pits.sum() == 48 &&
+                snap.pits.sum() == r.totalStones &&
                 snap.players.size == roster.size &&
                 snap.players.indices.all {
                     snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot
                 } &&
                 snap.currentPlayerIndex in 0..1 &&
                 (snap.winnerPlayerId == null || roster.any { it.playerId == snap.winnerPlayerId }) &&
-                snap.lastSowPath.size <= 60 && snap.lastSowPath.all { it in 0..13 } &&
-                (capture == null || (capture.landingPit in 0..13 && capture.oppositePit in 0..13 && capture.totalSwept >= 0)) &&
+                snap.lastSowPath.size <= r.maxSowPathLength && snap.lastSowPath.all { it in 0..last } &&
+                (capture == null || (capture.landingPit in 0..last && capture.oppositePit in 0..last && capture.totalSwept >= 0)) &&
                 snap.scoreP1 >= 0 && snap.scoreP2 >= 0 && snap.draws >= 0 &&
-                (snap.roundOver || (player0Pits.any { snap.pits[it] > 0 } && player1Pits.any { snap.pits[it] > 0 }))
+                (snap.roundOver || (r.pitsOf(0).any { snap.pits[it] > 0 } && r.pitsOf(1).any { snap.pits[it] > 0 }))
             if (valid) snap else null
         } catch (_: Exception) {
             null
@@ -418,6 +665,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     }
 
     private fun applySnapshot(snap: MancalaSnapshot, keepCounters: Boolean = false) {
+        snapshotRules(snap)?.let { rules = it }
         state.value = MancalaState(
             pits = snap.pits,
             currentPlayerIndex = snap.currentPlayerIndex,
@@ -486,11 +734,25 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      * records, so a hint costs nothing.
      */
     fun hint(): Int? {
+        val plan = planHint() ?: return null
+        return applyHint(plan, plan.chooseMove())
+    }
+
+    /**
+     * First half of an off-main-thread hint: a plan for the player to move (null in the cases where
+     * [hint] returns null). Run `plan.chooseMove()` on any thread, then pass the answer to [applyHint].
+     */
+    fun planHint(): MancalaMovePlan? {
         if (isNetworkedPlay) return null
         val s = state.value ?: return null
         if (matchOver.value || s.roundOver) return null
         if (context.players.getOrNull(s.currentPlayerIndex)?.isBot != false) return null
-        val pit = minimaxBestMove(s.pits, s.currentPlayerIndex, depth = HARD_SEARCH_DEPTH)
+        return MancalaMovePlan(s, s.currentPlayerIndex, rules, CpuDifficulty.HARD)
+    }
+
+    /** Second half: rings [pit] and returns it, unless the position changed since [planHint] (then nothing happens and null comes back). */
+    fun applyHint(plan: MancalaMovePlan, pit: Int?): Int? {
+        if (matchOver.value || state.value !== plan.position) return null
         hintPit.value = pit
         return pit
     }
@@ -510,9 +772,7 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
     }
 
     private fun dealBoard(openingSeat: Int) {
-        val pits = MutableList(14) { 0 }
-        for (i in player0Pits) pits[i] = 4
-        for (i in player1Pits) pits[i] = 4
+        val pits = rules.initialPits()
         // A new board starts a new undo history: undo never reaches back into the previous board.
         history.clear()
         hintPit.value = null
@@ -616,8 +876,9 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         // picked up from; the loop below is completely unchanged, it just also
         // appends each cursor it already visits.
         val sowPath = mutableListOf(pitIndex)
+        val boardSize = rules.boardSize
         while (stones > 0) {
-            cursor = (cursor + 1) % 14
+            cursor = (cursor + 1) % boardSize
             if (cursor == opponentStore) continue // skip opponent's store
             pits[cursor]++
             stones--
@@ -628,9 +889,9 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
         var captureMsg = ""
         var capture: MancalaCapture? = null
 
-        // Landed in own empty pit (was 0 before this sow, now 1) -> capture.
-        if (cursor in ownPits && pits[cursor] == 1) {
-            val oppositeIndex = 12 - cursor
+        // Landed in own empty pit (was 0 before this sow, now 1) -> capture (unless the variant has no captures).
+        if (rules.capture == MancalaCaptureRule.OPPOSITE && cursor in ownPits && pits[cursor] == 1) {
+            val oppositeIndex = rules.oppositeOf(cursor)
             if (pits[oppositeIndex] > 0) {
                 val captured = pits[oppositeIndex] + pits[cursor]
                 pits[oppositeIndex] = 0
@@ -698,81 +959,33 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      * non-empty pit.
      */
     fun playBotTurn() {
-        if (matchOver.value) return
-        val s = state.value ?: return
-        if (s.roundOver) return
+        val plan = planBotTurn() ?: return
+        applyBotMove(plan, plan.chooseMove())
+    }
+
+    /**
+     * First half of an off-main-thread bot turn: a plan for the bot on move (null when it is not a
+     * bot's turn, the board is over or the session ended). The screen calls `plan.chooseMove()` inside
+     * `withContext(Dispatchers.Default)` and hands the pit to [applyBotMove].
+     */
+    fun planBotTurn(): MancalaMovePlan? {
+        if (matchOver.value) return null
+        val s = state.value ?: return null
+        if (s.roundOver) return null
         val botIndex = s.currentPlayerIndex
-        if (context.players.getOrNull(botIndex)?.isBot != true) return
-
-        val ownPits = if (botIndex == 0) player0Pits else player1Pits
-        val ownStore = if (botIndex == 0) player0Store else player1Store
-
-        val move = when (difficulty) {
-            CpuDifficulty.EASY -> ownPits.filter { s.pits[it] > 0 }.randomOrNull()
-            CpuDifficulty.MEDIUM -> {
-                // Prefer a move landing exactly in the store (extra turn); else first non-empty pit.
-                val bonusMove = ownPits.firstOrNull { pit -> s.pits[pit] > 0 && (pit + s.pits[pit]) % 14 == ownStore }
-                bonusMove ?: ownPits.firstOrNull { s.pits[it] > 0 }
-            }
-            CpuDifficulty.HARD -> minimaxBestMove(s.pits, botIndex, depth = HARD_SEARCH_DEPTH)
-        }
-        if (move != null) sow(botIndex, move)
+        if (context.players.getOrNull(botIndex)?.isBot != true) return null
+        return MancalaMovePlan(s, botIndex, rules, difficulty)
     }
 
-    // ---- HARD: depth-limited minimax with alpha-beta pruning over a pure (side-effect-free)
-    // copy of the sow rules. Kept entirely separate from sow()/the real Compose state — this
-    // only ever reads/returns plain List<Int> boards, so exploring thousands of hypothetical
-    // moves per turn never touches (or risks corrupting) `state`.
-
-    private fun legalMoves(pits: List<Int>, playerIndex: Int): List<Int> {
-        val ownPits = if (playerIndex == 0) player0Pits else player1Pits
-        return ownPits.filter { pits[it] > 0 }
+    /** Second half: sows [move] unless the position changed since the plan was made (undo, a new board, the session ending). */
+    fun applyBotMove(plan: MancalaMovePlan, move: Int?) {
+        if (move == null || matchOver.value || state.value !== plan.position) return
+        sow(plan.playerIndex, move)
     }
 
-    private fun isTerminal(pits: List<Int>): Boolean =
-        player0Pits.all { pits[it] == 0 } || player1Pits.all { pits[it] == 0 }
-
-    /** Same end-of-game sweep as sow()'s roundOver branch, applied to a hypothetical board. */
-    private fun finalScoreFor(pits: List<Int>, maximizer: Int): Int {
-        val p = pits.toMutableList()
-        if (player0Pits.all { p[it] == 0 }) { for (i in player1Pits) { p[player1Store] += p[i]; p[i] = 0 } }
-        if (player1Pits.all { p[it] == 0 }) { for (i in player0Pits) { p[player0Store] += p[i]; p[i] = 0 } }
-        val myStore = if (maximizer == 0) p[player0Store] else p[player1Store]
-        val oppStore = if (maximizer == 0) p[player1Store] else p[player0Store]
-        return myStore - oppStore
-    }
-
-    /** A pure copy of sow()'s rules — same capture/extra-turn logic, no Compose state touched. */
-    private fun simulateSow(pits: List<Int>, playerIndex: Int, pitIndex: Int): SowResult {
-        val ownPits = if (playerIndex == 0) player0Pits else player1Pits
-        val ownStore = if (playerIndex == 0) player0Store else player1Store
-        val opponentStore = if (playerIndex == 0) player1Store else player0Store
-
-        val p = pits.toMutableList()
-        var stones = p[pitIndex]
-        p[pitIndex] = 0
-        var cursor = pitIndex
-        while (stones > 0) {
-            cursor = (cursor + 1) % 14
-            if (cursor == opponentStore) continue
-            p[cursor]++
-            stones--
-        }
-
-        var extraTurn = false
-        if (cursor in ownPits && p[cursor] == 1) {
-            val oppositeIndex = 12 - cursor
-            if (p[oppositeIndex] > 0) {
-                val captured = p[oppositeIndex] + p[cursor]
-                p[oppositeIndex] = 0
-                p[cursor] = 0
-                p[ownStore] += captured
-            }
-        } else if (cursor == ownStore) {
-            extraTurn = true
-        }
-        return SowResult(p, extraTurn, cursor)
-    }
+    // ---- HARD: the search itself lives in MancalaSearch / MancalaRules.simulate above, a pure copy
+    // of the sow rules over plain int arrays, so exploring hypothetical moves never touches (or risks
+    // corrupting) `state`, and it can run on any thread.
 
     /**
      * Read-only helper for MancalaScreen's capture-preview highlighting:
@@ -789,68 +1002,14 @@ class MancalaGame : GameModule, ResumableGame, UndoableGame {
      */
     fun captureCandidates(playerIndex: Int): Set<Int> {
         val s = state.value ?: return emptySet()
-        val ownPits = if (playerIndex == 0) player0Pits else player1Pits
-        return legalMoves(s.pits, playerIndex).filter { pit ->
-            val result = simulateSow(s.pits, playerIndex, pit)
-            result.landingCursor in ownPits && result.pits[result.landingCursor] == 0
+        // The no-capture variant never highlights anything.
+        if (rules.capture != MancalaCaptureRule.OPPOSITE) return emptySet()
+        val pits = s.pits.toIntArray()
+        val ownPits = rules.pitsOf(playerIndex)
+        return ownPits.filter { pit ->
+            pits[pit] > 0 && rules.simulate(pits, playerIndex, pit).let { result ->
+                result.landingCursor in ownPits && result.pits[result.landingCursor] == 0
+            }
         }.toSet()
-    }
-
-    private fun minimax(pits: List<Int>, playerIndex: Int, depth: Int, maximizer: Int, alpha: Int, beta: Int): Int {
-        if (depth == 0 || isTerminal(pits)) return finalScoreFor(pits, maximizer)
-        val moves = legalMoves(pits, playerIndex)
-        if (moves.isEmpty()) return finalScoreFor(pits, maximizer)
-
-        var a = alpha
-        var b = beta
-        if (playerIndex == maximizer) {
-            var best = Int.MIN_VALUE
-            for (m in moves) {
-                val (nextPits, extraTurn) = simulateSow(pits, playerIndex, m)
-                val nextPlayer = if (extraTurn) playerIndex else 1 - playerIndex
-                best = maxOf(best, minimax(nextPits, nextPlayer, depth - 1, maximizer, a, b))
-                a = maxOf(a, best)
-                if (a >= b) break
-            }
-            return best
-        } else {
-            var best = Int.MAX_VALUE
-            for (m in moves) {
-                val (nextPits, extraTurn) = simulateSow(pits, playerIndex, m)
-                val nextPlayer = if (extraTurn) playerIndex else 1 - playerIndex
-                best = minOf(best, minimax(nextPits, nextPlayer, depth - 1, maximizer, a, b))
-                b = minOf(b, best)
-                if (a >= b) break
-            }
-            return best
-        }
-    }
-
-    private fun minimaxBestMove(pits: List<Int>, playerIndex: Int, depth: Int): Int? {
-        val moves = legalMoves(pits, playerIndex)
-        var bestMove: Int? = null
-        var bestScore = Int.MIN_VALUE
-        for (m in moves) {
-            val (nextPits, extraTurn) = simulateSow(pits, playerIndex, m)
-            val nextPlayer = if (extraTurn) playerIndex else 1 - playerIndex
-            val score = minimax(nextPits, nextPlayer, depth - 1, playerIndex, Int.MIN_VALUE, Int.MAX_VALUE)
-            if (score > bestScore) {
-                bestScore = score
-                bestMove = m
-            }
-        }
-        return bestMove
-    }
-
-    companion object {
-        /**
-         * 8 plies deep. Kalah's branching factor is at most 6 (fewer as pits
-         * empty), so even fully unpruned this is ~6^8 ≈ 1.7M leaf boards in
-         * the worst case — alpha-beta cuts that drastically in practice —
-         * comfortably fast enough to run synchronously on the UI thread
-         * during the same bot-turn delay every other game's bot already
-         * uses, with no separate background dispatch needed.
-         */
-        private const val HARD_SEARCH_DEPTH = 8
     }
 }

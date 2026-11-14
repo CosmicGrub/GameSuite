@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos del catálogo del Hub de juegos (el nombre del recurso es hub_ + el slug del texto en inglés). -->
+    <string name="hub_backgammon">Backgammon</string>
+    <string name="hub_race_your_checkers_home_and_bear_them_off">Lleva tus fichas a casa y sácalas del tablero.</string>
+    <string name="hub_opening_roll">Tirada inicial</string>
+
+    <!-- Cómo se juega / salir -->
+    <string name="backgammon_help_title">Cómo se juega al Backgammon</string>
+    <string name="backgammon_help_body">Lleva tus 15 fichas alrededor del tablero y sácalas antes que tu rival.\n\nEn cada turno tiras dos dados y mueves fichas según esos números, un dado cada vez. Un doble te da cuatro movimientos. Toca una de tus fichas resaltadas y después un destino resaltado.\n\nUna casilla con dos o más fichas rivales está bloqueada. Una ficha rival sola (un blot) se captura y va a la barra, y una ficha en la barra debe volver a entrar antes de que puedas mover otra. Debes jugar los dos dados si puedes; si solo se puede jugar uno, debe ser el mayor.\n\nCuando tus 15 fichas estén en tu cuadrante de casa, puedes sacarlas con el número exacto o, si no queda ninguna ficha más atrás, con uno mayor.\n\nUna victoria normal vale 1 punto, un gammon (el perdedor no ha sacado ninguna ficha) 2 puntos y un backgammon (un gammon con una ficha del perdedor aún en la barra o en tu cuadrante de casa) 3 puntos. No hay cubo de doblar.\n\nAl empezar, cada bando tira un dado y la tirada más alta mueve primero, usando los dos números.</string>
+    <string name="backgammon_leave_title">¿Salir de esta partida?</string>
+    <string name="backgammon_leave_body">Esta partida sigue en curso. Si sales ahora, no contará como victoria ni como derrota.</string>
+    <string name="backgammon_leave_body_session">Esta partida sigue en curso y no contará, pero las partidas que ya terminaste se mantienen en tu historial.</string>
+
+    <!-- Bandos, lugares -->
+    <string name="backgammon_side_white">Blancas</string>
+    <string name="backgammon_side_black">Negras</string>
+    <string name="backgammon_bar">barra</string>
+    <string name="backgammon_off">fuera</string>
+
+    <!-- Línea de estado -->
+    <string name="backgammon_status_opening">Tira para ver quién empieza.</string>
+    <string name="backgammon_status_opening_tie">Empate, ambos sacaron %1$d. Tira otra vez.</string>
+    <string name="backgammon_status_opening_won">%1$s ganó la tirada inicial y juega %2$d y %3$d.</string>
+    <string name="backgammon_status_roll_you">Tu turno: tira los dados.</string>
+    <string name="backgammon_status_roll">%1$s (%2$s), tira los dados.</string>
+    <string name="backgammon_thinking">%1$s está pensando…</string>
+    <string name="backgammon_status_select">Toca una ficha resaltada y luego dónde moverla.</string>
+    <string name="backgammon_status_destination">Toca un destino resaltado.</string>
+    <string name="backgammon_status_enter">Primero entra con tu ficha desde la barra.</string>
+    <string name="backgammon_status_blocked">No hay jugada legal con los dados restantes.</string>
+    <string name="backgammon_status_turn_done">Dados jugados. Toca Hecho.</string>
+    <string name="backgammon_status_over">Fin de la partida</string>
+    <string name="backgammon_hint_text">Sugerencia: de %1$s a %2$s</string>
+
+    <!-- Controles -->
+    <string name="backgammon_roll_opening">Tirar para empezar</string>
+    <string name="backgammon_roll_dice">Tirar dados</string>
+    <string name="backgammon_make_move">Haz tus jugadas</string>
+    <string name="backgammon_done">Hecho</string>
+    <string name="backgammon_no_moves_pass">Sin jugadas, pasar</string>
+    <string name="backgammon_undo">Deshacer</string>
+    <string name="backgammon_hint">Pista</string>
+    <string name="backgammon_hint_unavailable">Pista no disponible</string>
+    <string name="backgammon_moves_left">Movimientos: %1$d</string>
+    <string name="backgammon_no_moves_left">Sin movimientos</string>
+    <string name="backgammon_die">Dado con %1$d</string>
+    <string name="backgammon_die_used">Dado con %1$d, ya usado</string>
+
+    <!-- Accesibilidad del tablero -->
+    <string name="backgammon_cd_point_empty">Casilla %1$d, vacía%2$s</string>
+    <string name="backgammon_cd_point">Casilla %1$d, %2$d %3$s%4$s</string>
+    <string name="backgammon_checker_white_one">ficha blanca</string>
+    <string name="backgammon_checker_white_many">fichas blancas</string>
+    <string name="backgammon_checker_black_one">ficha negra</string>
+    <string name="backgammon_checker_black_many">fichas negras</string>
+    <string name="backgammon_cd_suffix_movable">, se puede mover</string>
+    <string name="backgammon_cd_suffix_selected">, seleccionada</string>
+    <string name="backgammon_cd_suffix_destination">, destino legal</string>
+    <string name="backgammon_cd_suffix_hit">, destino legal, captura una ficha</string>
+    <string name="backgammon_cd_suffix_hint">, jugada sugerida</string>
+    <string name="backgammon_cd_bar">Barra, %1$d fichas blancas y %2$d negras%3$s</string>
+    <string name="backgammon_cd_tray">Bandeja de %1$s, %2$d fichas sacadas%3$s</string>
+    <string name="backgammon_click_select">Seleccionar ficha</string>
+    <string name="backgammon_click_move">Mover aquí</string>
+    <string name="backgammon_click_bear_off">Sacar ficha</string>
+
+    <!-- Panel de resultado -->
+    <string name="backgammon_result_wins">¡%1$s gana!</string>
+    <string name="backgammon_result_normal">Victoria normal: %1$d punto</string>
+    <string name="backgammon_result_gammon">¡Gammon! %1$d puntos</string>
+    <string name="backgammon_result_backgammon">¡Backgammon! %1$d puntos</string>
+    <string name="backgammon_result_session">Puntos de la sesión: %1$s</string>
+    <string name="backgammon_play_again">Jugar otra vez</string>
+    <string name="backgammon_back_to_menu">Volver al menú</string>
+</resources>

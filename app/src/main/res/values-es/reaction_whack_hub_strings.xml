@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game Hub texts (ES) -->
+<resources>
+    <string name="hub_reaction_duel">Duelo de reflejos</string>
+    <string name="hub_whack_a_mole_race">Carrera de topos</string>
+    <string name="hub_wait_for_the_signal_then_press_first_jump_the_gu_e2281e">Espera la señal y pulsa primero. Si te adelantas, quedas fuera de la ronda.</string>
+    <string name="hub_everyone_whacks_the_same_critters_at_once_spare_7b23dc">Todos golpean a los mismos bichos a la vez. Perdona a los de púas.</string>
+    <string name="hub_everyone_plays_at_once_on_this_screen_each_in_a_6d483f">Todos juegan a la vez en esta pantalla, cada uno en su zona. Los ordenadores ocupan las zonas vacías.</string>
+    <string name="hub_race_one_to_three_computers_each_in_a_zone_of_it_dc4bfe">Compite contra de uno a tres ordenadores, cada uno en su zona.</string>
+    <string name="hub_people_who_play_at_the_same_time_each_in_a_zone_23b4f6">Personas que juegan a la vez, cada una en su zona.</string>
+    <string name="hub_duel_type">Tipo de duelo</string>
+    <string name="hub_classic_press_when_go_appears_colour_match_press_79e113">Clásico: pulsa cuando aparezca YA. Color y forma: pulsa solo con la forma objetivo. Eco: repite antes el patrón.</string>
+    <string name="hub_classic_go_signal">Señal clásica</string>
+    <string name="hub_wait_then_press_the_moment_go_appears_pressing_e_9131d5">Espera y pulsa en cuanto aparezca YA. Si pulsas antes, quedas fuera de la ronda.</string>
+    <string name="hub_colour_match">Color y forma</string>
+    <string name="hub_shapes_flash_past_press_only_when_the_target_sha_f824f9">Pasan formas. Pulsa solo cuando salga la forma objetivo: la distingue la forma, no el color.</string>
+    <string name="hub_echo">Eco</string>
+    <string name="hub_watch_a_pattern_of_four_shapes_then_be_the_first_fea87d">Mira un patrón de cuatro formas y sé el primero en repetirlo sin errores.</string>
+    <string name="hub_duel_length">Duración del duelo</string>
+    <string name="hub_how_many_rounds_the_duel_is_played_over_the_firs_fb7894">A cuántas rondas se juega el duelo. Gana quien consiga más de la mitad.</string>
+    <string name="hub_best_of_3">Al mejor de 3</string>
+    <string name="hub_best_of_5">Al mejor de 5</string>
+    <string name="hub_best_of_7">Al mejor de 7</string>
+    <string name="hub_for_players_who_find_quick_presses_hard_longer_w_5849b6">Para quien tiene dificultad con pulsaciones rápidas: más tiempo y sin penalización por pulsar antes o equivocarse.</string>
+    <string name="hub_one_switch_play">Juego con un solo pulsador</string>
+    <string name="hub_echo_scans_the_four_pads_for_you_and_one_press_p_304704">Eco recorre los cuatro botones por ti y una pulsación elige el iluminado. Los demás duelos ya usan un solo botón.</string>
+    <string name="hub_turn_zones_to_face_players">Girar zonas hacia cada jugador</string>
+    <string name="hub_each_zone_turns_to_face_the_player_around_the_de_2ab9e0">Cada zona se gira hacia su jugador alrededor del dispositivo. Desactívalo para dejar todas las zonas derechas.</string>
+    <string name="hub_round_length">Duración de la ronda</string>
+    <string name="hub_the_round_ends_when_the_clock_runs_out_the_highe_601016">La ronda termina cuando se acaba el tiempo. Gana la mayor puntuación.</string>
+    <string name="hub_60_seconds">60 segundos</string>
+    <string name="hub_90_seconds">90 segundos</string>
+    <string name="hub_120_seconds">120 segundos</string>
+    <string name="hub_holes_per_zone">Agujeros por zona</string>
+    <string name="hub_every_zone_gets_the_same_critters_at_the_same_mo_84239c">Todas las zonas reciben los mismos bichos a la vez, así que la carrera es justa.</string>
+    <string name="hub_3_x_3_holes">3 x 3 agujeros</string>
+    <string name="hub_bigger_holes_easier_to_hit">Agujeros más grandes, más fáciles de tocar.</string>
+    <string name="hub_4_x_4_holes">4 x 4 agujeros</string>
+    <string name="hub_more_critters_at_once_on_a_small_screen_with_thr_1fc9e9">Más bichos a la vez. En una pantalla pequeña con tres o cuatro jugadores la cuadrícula se reduce para que cada agujero siga siendo lo bastante grande.</string>
+    <string name="hub_for_players_who_find_fast_taps_hard_slower_critt_7bd98d">Para quien tiene dificultad con toques rápidos: bichos más lentos que se quedan más tiempo, agujeros grandes de 3 x 3 y sin penalizaciones.</string>
+    <string name="hub_a_cursor_sweeps_over_your_holes_and_one_press_wh_d3998a">Un cursor recorre tus agujeros y una pulsación golpea el que marca. Los bichos se quedan mucho más tiempo.</string>
+</resources>

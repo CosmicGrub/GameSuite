@@ -68,7 +68,8 @@ class UnoNetworkedHostTest {
         }
     }
 
-    /** A spectator (localPlayerIndex -1) has no id to send as: init must not crash or send anything. */
+    /** A spectator (localPlayerIndex -1) must not crash init. Its one and only init send is the RequestState
+     *  that registers it with the host as a watcher (see UnoGame.handleNetworkMessage); no Intent, no state. */
     @Test
     fun `a spectator seat sends nothing at init`() {
         val s = try {
@@ -77,7 +78,10 @@ class UnoNetworkedHostTest {
             fail("a spectator must not crash init (sendToHost must bail out when the local seat has no id): $e")
             return
         }
-        assertTrue(s.transport.sent.isEmpty())
+        val only = s.transport.sent.single()
+        assertEquals("spectator", only.from)
+        assertEquals("p0", only.to)
+        assertEquals(UnoNetMessage.RequestState, kotlinx.serialization.json.Json.decodeFromString<UnoNetMessage>(String(only.payload, Charsets.UTF_8)))
     }
 
     // ---- Broadcast shape ----

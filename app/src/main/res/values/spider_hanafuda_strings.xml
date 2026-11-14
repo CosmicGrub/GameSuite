@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spider Solitaire and Hanafuda UI strings and Game Hub texts (own file; hub_* keys are hubKey(text) of the spec texts) -->
+    <string name="spd_help_title">How to Play Spider Solitaire</string>
+    <string name="spd_help_text">Clear the table by building eight runs of one suit, from King down to Ace.\n\nBuild columns downward in any suit: a card goes on a card one rank higher. Move a run (cards of ONE suit in descending order) by dragging it, or tap it and then tap a column.\n\nWhen no column is empty, deal a new row from the stock onto every column. A finished King-to-Ace run in one suit leaves the table. Clear all eight runs to win.\n\nUndo is unlimited, and Hint shows a good move.</string>
+    <string name="spd_score">Score %1$d</string>
+    <string name="spd_moves">Moves %1$d</string>
+    <string name="spd_time">Time %1$s</string>
+    <string name="spd_runs">Runs %1$d of %2$d</string>
+    <string name="spd_games_won">Deals won: %1$d</string>
+    <string name="spd_badge_daily">Today\'s deal</string>
+    <string name="spd_badge_winnable">Winnable deal</string>
+    <string name="spd_dealing">Dealing a winnable game…</string>
+    <string name="spd_loading">Loading…</string>
+    <string name="spd_undo">Undo</string>
+    <string name="spd_hint">Hint</string>
+    <string name="spd_deal">Deal a row</string>
+    <string name="spd_deal_row">Deal (%1$d)</string>
+    <string name="spd_new">New deal</string>
+    <string name="spd_play_again">Play again</string>
+    <string name="spd_leave">Back to menu</string>
+    <string name="spd_leave_title">Leave this game?</string>
+    <string name="spd_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="spd_card_name">%1$s of %2$s</string>
+    <string name="spd_card_up">%1$s, column %2$d</string>
+    <string name="spd_card_down">Face-down card, column %1$d</string>
+    <string name="spd_selected">selected</string>
+    <string name="spd_suggested">suggested move</string>
+    <string name="spd_empty_column">Empty column %1$d</string>
+    <string name="spd_action_pick">Pick up this run</string>
+    <string name="spd_action_drop">Drop the run here</string>
+    <string name="spd_action_move_to">Move to column %1$d</string>
+    <string name="spd_stock_empty">Stock is empty</string>
+    <string name="spd_ev_start">Tap a run, then a column. Or drag it.</string>
+    <string name="spd_ev_new_deal">New deal.</string>
+    <string name="spd_ev_new_daily">Today\'s deal.</string>
+    <string name="spd_ev_new_winnable">New winnable deal.</string>
+    <string name="spd_ev_flipped">A card turned face up.</string>
+    <string name="spd_ev_run_done">Run of %1$s complete!</string>
+    <string name="spd_ev_dealt">Dealt a new row.</string>
+    <string name="spd_ev_deselected">Put the run down.</string>
+    <string name="spd_ev_rej_face_down">That card is face down.</string>
+    <string name="spd_ev_rej_not_run">Only cards of one suit in descending order can move together.</string>
+    <string name="spd_ev_rej_bad_target">That does not fit: the card underneath must be one rank higher.</string>
+    <string name="spd_ev_rej_deal_empty">Fill every empty column before dealing.</string>
+    <string name="spd_ev_rej_no_stock">There are no more rows to deal.</string>
+    <string name="spd_ev_undone">Move undone.</string>
+    <string name="spd_ev_hint_move">Hint: move %1$s from column %2$d to column %3$d.</string>
+    <string name="spd_ev_hint_deal">Hint: deal a new row.</string>
+    <string name="spd_ev_no_moves">No moves left. Undo, or start a new deal.</string>
+    <string name="spd_ev_won">You won!</string>
+    <string name="spd_ev_resumed">Game resumed.</string>
+    <string name="spd_stuck_title">No moves left</string>
+    <string name="spd_stuck_body">Undo a few moves or start a new deal.</string>
+    <string name="spd_won_title">Solved!</string>
+    <string name="spd_won_stats">Score %1$d · %2$d moves · %3$s</string>
+    <string name="hf_help_title">How to Play Hanafuda (Koi-Koi)</string>
+    <string name="hf_help_text">Koi-Koi is played over several rounds, one per month. Capture cards to form combinations (yaku) and score the most points.\n\nEach turn, play one card from your hand. If a card of the same month is on the field, you capture both; if two match, you choose one; if none match, your card stays on the field. Then tap the deck to turn up its top card and match it the same way.\n\nThe cards have four classes: Brights, Animals, Ribbons and Plains. Combinations include three, four or five Brights, Boar-Deer-Butterflies, five Animals, red poetry or blue Ribbons, five Ribbons and ten Plains. The full set adds the viewing hands and red-and-blue Ribbons.\n\nWhen you make a new combination, choose: Koi-Koi to keep playing for more, or Shobu to score now and end the round. Seven points or more count double, and so do points won after the opponent called Koi-Koi. If the cards run out, the last player to call Koi-Koi keeps their points.\n\nUndo takes back a hand play until you turn up the deck.</string>
+    <string name="hf_round">Round %1$d of %2$d</string>
+    <string name="hf_score_line">%1$s %2$d · %3$s %4$d</string>
+    <string name="hf_undo">Undo</string>
+    <string name="hf_hint">Hint</string>
+    <string name="hf_koi">Koi-Koi</string>
+    <string name="hf_shobu">Shobu (%1$d)</string>
+    <string name="hf_next_round">Next round</string>
+    <string name="hf_play_again">Play again</string>
+    <string name="hf_leave">Back to menu</string>
+    <string name="hf_leave_title">Leave this match?</string>
+    <string name="hf_leave_body">This match is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="hf_captured_mine">Your cards</string>
+    <string name="hf_captured_theirs">Their cards</string>
+    <string name="hf_cap_title_mine">Your captured cards</string>
+    <string name="hf_cap_title_theirs">Their captured cards</string>
+    <string name="hf_cap_empty">Nothing captured yet.</string>
+    <string name="hf_close">Close</string>
+    <string name="hf_waiting_host">Waiting for the host…</string>
+    <string name="hf_ready">Continue</string>
+    <string name="hf_pass_title">Pass the device to %1$s</string>
+    <string name="hf_pass_body">Keep the cards hidden until the next player is ready.</string>
+    <string name="hf_act_select">Select this card</string>
+    <string name="hf_act_play">Play this card</string>
+    <string name="hf_act_take">Take this card</string>
+    <string name="hf_act_draw">Turn up a card</string>
+    <string name="hf_act_open_captured">Open the captured cards</string>
+    <string name="hf_cd_in_hand">%1$s, in your hand</string>
+    <string name="hf_cd_on_field">%1$s, on the field</string>
+    <string name="hf_cd_drawn">%1$s, turned up from the deck</string>
+    <string name="hf_cd_selected">selected</string>
+    <string name="hf_cd_can_take">can be taken</string>
+    <string name="hf_cd_captured">Cards captured by %1$s: %2$d (%3$d bright, %4$d animal, %5$d ribbon, %6$d plain)</string>
+    <string name="hf_card_special">%1$s, %2$s, %3$s</string>
+    <string name="hf_card_ribbon">%1$s, %2$s</string>
+    <string name="hf_card_plain">Plain card, %1$s</string>
+    <string name="hf_prompt_play">Your turn: tap a card in your hand.</string>
+    <string name="hf_prompt_selected_match">Tap a glowing card to take it, or tap your card again.</string>
+    <string name="hf_prompt_selected_discard">No match: tap the card again to leave it on the field.</string>
+    <string name="hf_prompt_selected_choose">Two cards match: tap the one you want.</string>
+    <string name="hf_prompt_draw">Tap the deck to turn up a card.</string>
+    <string name="hf_prompt_choose">Choose which field card to take.</string>
+    <string name="hf_prompt_decide">New combination! Koi-Koi to play on, or Shobu to score.</string>
+    <string name="hf_prompt_other">Turn: %1$s…</string>
+    <string name="hf_ev_round">Round %1$d. First to play: %2$s.</string>
+    <string name="hf_ev_round_special">Round %1$d: a special hand was dealt.</string>
+    <string name="hf_ev_played_took">%1$s — played %2$s, took %3$s.</string>
+    <string name="hf_ev_played_field">%1$s — played %2$s; it stays on the field.</string>
+    <string name="hf_ev_drew_took">%1$s — turned up %2$s, took %3$s.</string>
+    <string name="hf_ev_drew_field">%1$s — turned up %2$s; it stays on the field.</string>
+    <string name="hf_ev_needs_choice">%1$s — turned up %2$s: choose a field card.</string>
+    <string name="hf_ev_koi">%1$s — Koi-Koi! The round goes on.</string>
+    <string name="hf_ev_shobu">%1$s — Shobu! The round ends.</string>
+    <string name="hf_ev_rej_turn">It is not your turn.</string>
+    <string name="hf_ev_rej_not_in_hand">That card is not in your hand.</string>
+    <string name="hf_ev_rej_pick_field">Two field cards match: choose which one to take.</string>
+    <string name="hf_ev_rej_wrong_field">That card does not match.</string>
+    <string name="hf_ev_rej_phase">Not now.</string>
+    <string name="hf_ev_undone">Play taken back.</string>
+    <string name="hf_ev_hint_play_on">Hint: play %1$s on %2$s.</string>
+    <string name="hf_ev_hint_discard">Hint: play %1$s to the field.</string>
+    <string name="hf_ev_hint_draw">Hint: tap the deck.</string>
+    <string name="hf_ev_hint_take">Hint: take %1$s.</string>
+    <string name="hf_ev_hint_koi">Hint: call Koi-Koi.</string>
+    <string name="hf_ev_hint_shobu">Hint: call Shobu.</string>
+    <string name="hf_ev_resumed">Match resumed.</string>
+    <string name="hf_ev_opp_left">Your opponent left the match.</string>
+    <string name="hf_ev_opp_back">Your opponent is back.</string>
+    <string name="hf_dec_title">A new combination!</string>
+    <string name="hf_dec_worth">Worth %1$d points if you stop now</string>
+    <string name="hf_dec_multiplied">Combinations: %1$d points before doubling.</string>
+    <string name="hf_dec_help">Koi-Koi keeps the round going for more points. Shobu scores now and ends the round.</string>
+    <string name="hf_yaku_line">%1$s: %2$d</string>
+    <string name="hf_sum_title">Round %1$d result</string>
+    <string name="hf_sum_winner">Round won by %1$s: %2$d points</string>
+    <string name="hf_sum_draw">The round is a draw.</string>
+    <string name="hf_sum_dealt_both">Both players were dealt a special hand: no points.</string>
+    <string name="hf_sum_dealt_four">A hand with four cards of one month was dealt: 6 points.</string>
+    <string name="hf_sum_dealt_pairs">A hand with four pairs was dealt: 6 points.</string>
+    <string name="hf_sum_double7">Seven points or more: doubled.</string>
+    <string name="hf_sum_koi_double">The opponent had called Koi-Koi: doubled.</string>
+    <string name="hf_sum_exhausted">The cards ran out: the last Koi-Koi caller keeps their points.</string>
+    <string name="hf_final_title">Match over</string>
+    <string name="hf_final_winner">Match won by %1$s</string>
+    <string name="hf_final_draw">The match is a draw.</string>
+    <plurals name="spd_run_of">
+        <item quantity="one">run of %1$d card</item>
+        <item quantity="other">run of %1$d cards</item>
+    </plurals>
+    <plurals name="spd_stock_desc">
+        <item quantity="one">Stock: %1$d deal left. Double tap to deal.</item>
+        <item quantity="other">Stock: %1$d deals left. Double tap to deal.</item>
+    </plurals>
+    <plurals name="spd_ev_moved">
+        <item quantity="one">Moved %2$s to column %3$d.</item>
+        <item quantity="other">Moved %1$d cards, starting with %2$s, to column %3$d.</item>
+    </plurals>
+    <plurals name="spd_ev_dealt_runs">
+        <item quantity="one">Dealt a row and finished %1$d run!</item>
+        <item quantity="other">Dealt a row and finished %1$d runs!</item>
+    </plurals>
+    <plurals name="spd_ev_selected">
+        <item quantity="one">Picked up %2$s from column %3$d.</item>
+        <item quantity="other">Picked up %1$d cards, starting with %2$s, from column %3$d.</item>
+    </plurals>
+    <plurals name="hf_cd_opp_hand">
+        <item quantity="one">%1$s: %2$d card in hand</item>
+        <item quantity="other">%1$s: %2$d cards in hand</item>
+    </plurals>
+    <plurals name="hf_cd_deck">
+        <item quantity="one">Deck: %1$d card</item>
+        <item quantity="other">Deck: %1$d cards</item>
+    </plurals>
+    <string-array name="spd_rank_names">
+        <item>Ace</item>
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+    </string-array>
+    <string-array name="spd_suit_names">
+        <item>spades</item>
+        <item>hearts</item>
+        <item>clubs</item>
+        <item>diamonds</item>
+    </string-array>
+    <string-array name="hf_month_names">
+        <item>Pine</item>
+        <item>Plum</item>
+        <item>Cherry</item>
+        <item>Wisteria</item>
+        <item>Iris</item>
+        <item>Peony</item>
+        <item>Bush clover</item>
+        <item>Pampas</item>
+        <item>Chrysanthemum</item>
+        <item>Maple</item>
+        <item>Willow</item>
+        <item>Paulownia</item>
+    </string-array>
+    <string-array name="hf_special_names">
+        <item>Plain</item>
+        <item>Crane</item>
+        <item>Curtain</item>
+        <item>Moon</item>
+        <item>Rain man</item>
+        <item>Phoenix</item>
+        <item>Bush warbler</item>
+        <item>Cuckoo</item>
+        <item>Bridge</item>
+        <item>Butterflies</item>
+        <item>Boar</item>
+        <item>Geese</item>
+        <item>Sake cup</item>
+        <item>Deer</item>
+        <item>Swallow</item>
+    </string-array>
+    <string-array name="hf_ribbon_names">
+        <item>Ribbon</item>
+        <item>Red poetry ribbon</item>
+        <item>Red ribbon</item>
+        <item>Blue ribbon</item>
+    </string-array>
+    <string-array name="hf_kind_names">
+        <item>Bright</item>
+        <item>Animal</item>
+        <item>Ribbon</item>
+        <item>Plain</item>
+    </string-array>
+    <string-array name="hf_yaku_names">
+        <item>Five Brights (Goko)</item>
+        <item>Four Brights (Shiko)</item>
+        <item>Rainy Four Brights (Ame-Shiko)</item>
+        <item>Three Brights (Sanko)</item>
+        <item>Boar-Deer-Butterflies (Ino-Shika-Cho)</item>
+        <item>Animals (Tane)</item>
+        <item>Red Poetry Ribbons (Akatan)</item>
+        <item>Blue Ribbons (Aotan)</item>
+        <item>Ribbons (Tanzaku)</item>
+        <item>Plains (Kasu)</item>
+        <item>Flower Viewing (Hanami-zake)</item>
+        <item>Moon Viewing (Tsukimi-zake)</item>
+        <item>Red and Blue Ribbons (Akatan-Aotan)</item>
+    </string-array>
+    <!-- Game Hub texts: only those not already defined elsewhere -->
+    <string name="hub_spider_solitaire">Spider Solitaire</string>
+    <string name="hub_clear_the_table_with_king_to_ace_runs_in_ten_col_33d896">Clear the table with King-to-Ace runs in ten columns.</string>
+    <string name="hub_today_s_deal">Today\'s deal</string>
+    <string name="hub_the_same_deal_for_everyone_today_always_winnable">The same deal for everyone today, always winnable.</string>
+    <string name="hub_number_of_suits">Number of suits</string>
+    <string name="hub_fewer_suits_make_runs_easier_to_build">Fewer suits make runs easier to build.</string>
+    <string name="hub_one_suit">One suit</string>
+    <string name="hub_the_easiest_game_every_card_is_a_spade">The easiest game: every card is a spade.</string>
+    <string name="hub_two_suits">Two suits</string>
+    <string name="hub_a_balanced_challenge">A balanced challenge.</string>
+    <string name="hub_four_suits">Four suits</string>
+    <string name="hub_the_full_hard_game">The full, hard game.</string>
+    <string name="hub_winnable_deals">Winnable deals</string>
+    <string name="hub_on_the_deal_is_built_so_it_can_be_won_off_a_fair_31eac6">On: the deal is built so it can be won. Off: a fair random shuffle.</string>
+    <string name="hub_hanafuda">Hanafuda</string>
+    <string name="hub_koi_koi_the_japanese_flower_card_game_match_mont_977dff">Koi-Koi, the Japanese flower-card game: match months, make combinations.</string>
+    <string name="hub_match_length">Match length</string>
+    <string name="hub_a_match_lasts_this_many_rounds_one_month_each">A match lasts this many rounds, one month each.</string>
+    <string name="hub_three_rounds">Three rounds</string>
+    <string name="hub_a_short_match">A short match.</string>
+    <string name="hub_six_rounds">Six rounds</string>
+    <string name="hub_half_a_year">Half a year.</string>
+    <string name="hub_twelve_rounds">Twelve rounds</string>
+    <string name="hub_a_full_year_one_round_per_month">A full year, one round per month.</string>
+    <string name="hub_scoring_hands">Scoring hands</string>
+    <string name="hub_which_card_combinations_score_points">Which card combinations score points.</string>
+    <string name="hub_basic_set">Basic set</string>
+    <string name="hub_lights_animals_ribbons_and_plain_cards">Lights, animals, ribbons and plain cards.</string>
+    <string name="hub_full_set">Full set</string>
+    <string name="hub_adds_the_viewing_hands_red_and_blue_ribbons_and_6ca38b">Adds the viewing hands, red and blue ribbons and special dealt hands.</string>
+</resources>

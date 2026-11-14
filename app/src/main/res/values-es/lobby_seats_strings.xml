@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ls_hosting_title">Organizando %1$s</string>
+    <string name="ls_connecting">Conectando con el servidor…</string>
+    <string name="ls_room_code">Código de sala</string>
+    <string name="ls_room_code_cd">Código de sala: %1$s</string>
+    <string name="ls_share_hint">Comparte esto con los demás jugadores</string>
+
+    <string name="ls_seat_host">Anfitrión</string>
+    <string name="ls_seat_ready">Listo</string>
+    <string name="ls_seat_not_ready">No está listo</string>
+    <string name="ls_seat_computer">Computadora</string>
+    <string name="ls_seat_empty">Libre</string>
+    <string name="ls_seat_you">Tú</string>
+    <string name="ls_seat_cd_filled">Asiento %1$d de %2$d: %3$s, %4$s</string>
+    <string name="ls_seat_cd_you">Asiento %1$d de %2$d: %3$s (tú), %4$s</string>
+    <string name="ls_seat_cd_empty">Asiento %1$d de %2$d: libre</string>
+    <string name="ls_seat_cd_empty_can_add">Asiento %1$d de %2$d: libre. Toca dos veces para añadir un jugador de computadora</string>
+    <string name="ls_action_add_computer">Añadir un jugador de computadora</string>
+    <string name="ls_action_remove_computer">Quitar jugador de computadora</string>
+    <string name="ls_action_remove_player">Quitar jugador</string>
+    <string name="ls_computer_name">Computadora %1$d</string>
+
+    <string name="ls_fill_computers">Completar con computadoras</string>
+    <string name="ls_clear_computers">Quitar computadoras</string>
+
+    <string name="ls_status_full">La sala está llena (%1$d jugadores).</string>
+    <string name="ls_status_ready_to_start">Listo para empezar. Aún pueden unirse más jugadores.</string>
+    <string name="ls_status_waiting_ready">Esperando a que todos estén listos…</string>
+    <string name="ls_status_start_anyway_hint">No todos están listos, pero puedes empezar de todos modos.</string>
+    <plurals name="ls_status_need_players_or_computers">
+        <item quantity="one">Añade 1 jugador más o una computadora.</item>
+        <item quantity="many">Añade %1$d jugadores o computadoras más.</item>
+        <item quantity="other">Añade %1$d jugadores o computadoras más.</item>
+    </plurals>
+    <plurals name="ls_status_need_players">
+        <item quantity="one">Esperando a 1 jugador más…</item>
+        <item quantity="many">Esperando a %1$d jugadores más…</item>
+        <item quantity="other">Esperando a %1$d jugadores más…</item>
+    </plurals>
+
+    <string name="ls_start">Empezar partida (%1$d jugadores)</string>
+    <string name="ls_start_with_computers">Empezar partida (%1$d jugadores + %2$d computadoras)</string>
+    <string name="ls_start_anyway">Empezar de todos modos</string>
+    <string name="ls_cancel">Cancelar</string>
+
+    <string name="ls_join_title_game">Unirse a una partida en línea de %1$s</string>
+    <string name="ls_join_title">Unirse a una partida en línea</string>
+    <string name="ls_room_code_field">Código de sala</string>
+    <string name="ls_join">Unirse</string>
+    <string name="ls_watch">Mirar</string>
+    <string name="ls_joining_game">Uniéndote a %1$s</string>
+    <string name="ls_connected">¡Conectado!</string>
+    <string name="ls_watching_game">Mirando %1$s</string>
+    <string name="ls_watching">¡Mirando!</string>
+    <string name="ls_waiting_host">Esperando a que el anfitrión inicie la partida…</string>
+    <string name="ls_waiting_host_spectator">Esperando a que el anfitrión inicie la partida. Mirarás, no jugarás.</string>
+    <string name="ls_im_ready">Estoy listo</string>
+    <string name="ls_not_ready_yet">Aún no estoy listo</string>
+    <string name="ls_cant_join">No puedes unirte</string>
+    <string name="ls_refusal_full">Esta sala está llena.</string>
+    <string name="ls_refusal_started">Esta partida ya empezó.</string>
+    <string name="ls_refusal_kicked">El anfitrión te quitó de la sala.</string>
+</resources>

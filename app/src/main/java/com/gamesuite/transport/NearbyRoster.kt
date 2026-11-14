@@ -15,6 +15,9 @@ const val NEARBY_HOST_PLAYER_ID = "host"
 /** Shown to a guest whose join was refused because every seat is taken. */
 const val LOBBY_FULL_MESSAGE = "This room is full."
 
+/** Shown to a guest the host removed from the lobby (Online: sent as a host-stamped Rejected; the guest leaves). */
+const val LOBBY_KICKED_MESSAGE = "The host removed you from the room."
+
 /** Shown to a guest whose join arrived after the host tapped Start. */
 const val LOBBY_STARTED_MESSAGE = "This game has already started."
 
@@ -39,6 +42,20 @@ data class LobbySeatLimits(val minPlayers: Int, val maxPlayers: Int) {
     fun canStart(guestCount: Int): Boolean = guestCount in minGuests..maxGuests
 
     fun guestsNeeded(guestCount: Int): Int = (minGuests - guestCount).coerceAtLeast(0)
+
+    /**
+     * Start gating once the host may also fill seats with computers: [guestCount] human guests plus [cpuCount]
+     * computer seats must fit the game's seats, and at least one human guest is required (a table of one human and
+     * computers is a local game, not a lobby).
+     */
+    fun canStart(guestCount: Int, cpuCount: Int): Boolean =
+        guestCount >= 1 && cpuCount >= 0 && guestCount + cpuCount in minGuests..maxGuests
+
+    /** How many computer seats still fit beside [guestCount] human guests. */
+    fun maxCpus(guestCount: Int): Int = (maxGuests - guestCount).coerceAtLeast(0)
+
+    /** Seats still missing before Start is allowed, counting [cpuCount] computers as filled. */
+    fun seatsStillNeeded(guestCount: Int, cpuCount: Int): Int = (minGuests - guestCount - cpuCount).coerceAtLeast(0)
 
     /** "Waiting for 1 more player" / "Waiting for 2 more players", or null once Start is allowed. */
     fun waitingMessage(guestCount: Int): String? {
@@ -115,9 +132,10 @@ class NearbyRoster private constructor(
     val players: List<PlayerInfo>
         get() = playersFor("Host")
 
-    private fun playersFor(hostDisplayName: String): List<PlayerInfo> =
+    private fun playersFor(hostDisplayName: String, cpuSeats: List<PlayerInfo> = emptyList()): List<PlayerInfo> =
         listOf(PlayerInfo(playerId = NEARBY_HOST_PLAYER_ID, displayName = hostDisplayName)) +
-            guests.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) }
+            guests.map { PlayerInfo(playerId = it.playerId, displayName = it.displayName) } +
+            cpuSeats
 
     /** True when no further guest can be seated (all seats taken, or the roster is closed). */
     val isFull: Boolean
@@ -126,6 +144,9 @@ class NearbyRoster private constructor(
     /** True when the host's Start button may be enabled: enough guests for [LobbySeatLimits.minPlayers]. */
     val canStart: Boolean
         get() = !isClosed && limits.canStart(guests.size)
+
+    /** [canStart] when the host has also filled [cpuCount] seats with computers (at least one human guest still required). */
+    fun canStartWithCpus(cpuCount: Int): Boolean = !isClosed && limits.canStart(guests.size, cpuCount)
 
     /**
      * The refusal to send the guest on [endpointId] instead of seating it, or null when it is (or can be)
@@ -180,10 +201,11 @@ class NearbyRoster private constructor(
         gameRoute: String,
         gameDisplayName: String? = null,
         hostDisplayName: String = "Host",
+        cpuSeats: List<PlayerInfo> = emptyList(),
     ): NearbyLobbyMessage.GameStart =
         NearbyLobbyMessage.GameStart(
             gameRoute,
-            playersFor(cleanDisplayName(hostDisplayName, "Host")),
+            playersFor(cleanDisplayName(hostDisplayName, "Host"), cpuSeats),
             yourPlayerId = seat.playerId.takeIf { seat.idWasReplaced },
             gameDisplayName = gameDisplayName?.let { cleanDisplayName(it, "") }?.takeIf { it.isNotEmpty() },
         )
@@ -205,14 +227,21 @@ class NearbyRoster private constructor(
      * [NearbyLaunch.players] (what the host launches with, host = seat 0, so `localPlayerIndex` 0) is
      * the very list every guest's GameStart carries, host name included.
      */
-    fun launch(gameRoute: String, hostDisplayName: String = "Host", gameDisplayName: String? = null): NearbyLaunch {
+    fun launch(
+        gameRoute: String,
+        hostDisplayName: String = "Host",
+        gameDisplayName: String? = null,
+        /** Computer seats the host filled (ids "cpu-N", `isBot`), announced after the guests; see [cpuSeatsFor]. */
+        cpuSeats: List<PlayerInfo> = emptyList(),
+    ): NearbyLaunch {
         val frozen = close()
+        require(cpuSeats.all { it.isBot && isCpuPlayerId(it.playerId) }) { "cpuSeats must be bot seats with cpu- ids" }
         return NearbyLaunch(
             roster = frozen,
-            players = frozen.playersFor(frozen.cleanDisplayName(hostDisplayName, "Host")),
+            players = frozen.playersFor(frozen.cleanDisplayName(hostDisplayName, "Host"), cpuSeats),
             endpointToPlayerId = frozen.endpointToPlayerId,
             startMessages = frozen.guests.map {
-                it.endpointId to frozen.gameStartFor(it, gameRoute, gameDisplayName, hostDisplayName)
+                it.endpointId to frozen.gameStartFor(it, gameRoute, gameDisplayName, hostDisplayName, cpuSeats)
             },
         )
     }
@@ -230,6 +259,8 @@ class NearbyRoster private constructor(
     private fun isAcceptable(candidate: String, taken: Set<String>): Boolean =
         SEAT_ID_PATTERN.matches(candidate) &&
             !candidate.equals(NEARBY_HOST_PLAYER_ID, ignoreCase = true) &&
+            !isCpuPlayerId(candidate) && // "cpu-N" belongs to the computer seats the host may add
+
             candidate !in taken
 
     private companion object {

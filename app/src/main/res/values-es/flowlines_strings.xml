@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos del catálogo del Hub (nombre = hub_ + slug del texto en inglés) -->
+    <string name="hub_flow_lines">Flow Lines</string>
+    <string name="hub_join_each_pair_of_dots_and_fill_the_board">Une cada pareja de puntos y llena el tablero.</string>
+
+    <!-- Pantalla -->
+    <string name="flowlines_help_title">Cómo jugar a Flow Lines</string>
+    <string name="flowlines_help_text">Une cada pareja de puntos iguales con un camino. Arrastra desde un punto para dibujar; el camino sigue tu dedo casilla a casilla.\n\nLos caminos nunca pueden cruzarse. Si dibujas sobre otro camino, lo cortas, y no puedes atravesar un punto de otro color. Arrastra hacia atrás por tu camino para deshacerlo, o arrastra hasta una casilla anterior para acortarlo.\n\nEl puzle se resuelve cuando todas las parejas están unidas y todas las casillas cubiertas. Todos los puzles tienen solución.\n\nCada punto y cada camino lleva una letra o una forma además de un color. El reloj empieza con tu primer trazo, y tus mejores movimientos y tu mejor tiempo se guardan para cada tamaño. Una pista muestra parte de un camino correcto, y un puzle resuelto con pista no marca récord. El puzle diario es el mismo para todos los jugadores del mismo tamaño.</string>
+    <string name="flowlines_leave_title">¿Salir de este puzle?</string>
+    <string name="flowlines_leave_body">Este puzle aún no está resuelto. Salir ahora no cuenta como victoria ni como derrota.</string>
+    <string name="flowlines_leave_body_keeps">Este puzle aún no está resuelto y no contará, pero los puzles que ya resolviste siguen en tu registro.</string>
+    <string name="flowlines_daily_tag">Puzle diario</string>
+
+    <string name="flowlines_tier_label">%1$d×%1$d</string>
+    <string name="flowlines_tier_desc">Cuadrícula de %1$d por %1$d</string>
+    <string name="flowlines_tier_group">Tamaño del puzle</string>
+
+    <string name="flowlines_moves">Movimientos: %1$d</string>
+    <string name="flowlines_flows">Caminos: %1$d/%2$d</string>
+    <string name="flowlines_filled">Lleno: %1$d%%</string>
+    <string name="flowlines_status_desc">%1$d movimientos, %2$d de %3$d caminos conectados, %4$d por ciento lleno</string>
+
+    <string name="flowlines_new_puzzle_desc">Nuevo puzle</string>
+    <string name="flowlines_new_puzzle_action">Repartir un puzle nuevo</string>
+    <string name="flowlines_undo">Deshacer</string>
+    <string name="flowlines_undo_ready">Deshace tu último trazo</string>
+    <string name="flowlines_undo_none">Nada que deshacer</string>
+    <string name="flowlines_hint">Pista</string>
+    <string name="flowlines_hint_ready">Muestra parte de un camino correcto. Si usas una pista, este puzle no marcará récord.</string>
+    <string name="flowlines_hint_none">Nada que sugerir, el puzle está resuelto</string>
+
+    <string name="flowlines_board_desc">Tablero de Flow Lines, %1$d por %1$d</string>
+    <string name="flowlines_cell_empty">Fila %1$d, columna %2$d, vacía</string>
+    <string name="flowlines_cell_path">Fila %1$d, columna %2$d, camino %3$s</string>
+    <string name="flowlines_cell_dot">Fila %1$d, columna %2$d, punto %3$s</string>
+    <string name="flowlines_cell_suggested">, sugerida</string>
+    <string name="flowlines_cell_action">Seleccionar este color o prolongar su camino aquí</string>
+    <string name="flowlines_color_with_letter">%1$s, letra %2$s</string>
+    <string name="flowlines_letter_only">letra %1$s</string>
+
+    <string name="flowlines_color_red">rojo</string>
+    <string name="flowlines_color_blue">azul</string>
+    <string name="flowlines_color_green">verde</string>
+    <string name="flowlines_color_yellow">amarillo</string>
+    <string name="flowlines_color_orange">naranja</string>
+    <string name="flowlines_color_purple">morado</string>
+    <string name="flowlines_color_cyan">cian</string>
+    <string name="flowlines_color_pink">rosa</string>
+
+    <!-- Panel de resuelto -->
+    <string name="flowlines_solved_title">¡Puzle resuelto!</string>
+    <string name="flowlines_result_hint_one">Resuelto con 1 pista</string>
+    <string name="flowlines_result_hint_many">Resuelto con %1$d pistas</string>
+    <string name="flowlines_result_assisted">Los puzles con ayuda no marcan récord.</string>
+    <string name="flowlines_result_time">Tiempo: %1$s</string>
+    <string name="flowlines_new_best_moves">¡Nuevo récord de movimientos!</string>
+    <string name="flowlines_best_moves">Mejores movimientos: %1$d</string>
+    <string name="flowlines_new_best_time">¡Nuevo mejor tiempo!</string>
+    <string name="flowlines_best_time">Mejor tiempo: %1$s</string>
+    <string name="flowlines_new_puzzle_button">Nuevo puzle</string>
+    <string name="flowlines_back_to_menu">Volver al menú</string>
+</resources>

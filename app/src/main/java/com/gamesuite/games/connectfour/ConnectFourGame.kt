@@ -3,6 +3,8 @@ package com.gamesuite.games.connectfour
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -14,8 +16,10 @@ import kotlinx.serialization.json.Json
  */
 @Serializable
 private data class ConnectFourSnapshot(
-    val rows: Int,
-    val cols: Int,
+    /** Board shape; an old save (written before the size options existed) has none of the three and is the classic 7 x 6 connect-4 board. */
+    val rows: Int = ConnectFourBoardSpec.CLASSIC.rows,
+    val cols: Int = ConnectFourBoardSpec.CLASSIC.columns,
+    val winLength: Int = ConnectFourBoardSpec.CLASSIC.winLength,
     val cells: List<Int?>,
     val players: List<ConnectFourSnapshotPlayer>,
     val currentPlayerIndex: Int,
@@ -33,6 +37,48 @@ private data class ConnectFourSnapshot(
 private data class ConnectFourSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
 
 private val connectFourSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * The shape of a Connect Four board: [columns] x [rows], and how many discs in a line win
+ * ([winLength]). Immutable. Only the three shapes in [ALL] exist: a restored or synced board of any
+ * other shape is rejected (see [forDims]), so a corrupt or hostile state can never size the engine.
+ */
+data class ConnectFourBoardSpec(val columns: Int, val rows: Int, val winLength: Int) {
+    val cellCount: Int get() = columns * rows
+
+    /** The Hub option id of this shape ("classic" / "wide" / "big"). */
+    val id: String
+        get() = when (this) {
+            WIDE -> "wide"
+            BIG -> "big"
+            else -> "classic"
+        }
+
+    companion object {
+        /** The standard game: 7 columns x 6 rows, connect 4. */
+        val CLASSIC = ConnectFourBoardSpec(columns = 7, rows = 6, winLength = 4)
+        /** 8 columns x 7 rows, connect 4. */
+        val WIDE = ConnectFourBoardSpec(columns = 8, rows = 7, winLength = 4)
+        /** 9 columns x 7 rows, connect 5. */
+        val BIG = ConnectFourBoardSpec(columns = 9, rows = 7, winLength = 5)
+
+        val ALL: List<ConnectFourBoardSpec> = listOf(CLASSIC, WIDE, BIG)
+
+        /** The shape for a Hub "size" choice id; anything unknown or missing is the classic board. */
+        fun fromId(id: String?): ConnectFourBoardSpec = ALL.firstOrNull { it.id == id } ?: CLASSIC
+
+        /** The known shape with exactly these dimensions, or null for anything else. */
+        fun forDims(columns: Int, rows: Int, winLength: Int): ConnectFourBoardSpec? =
+            ALL.firstOrNull { it.columns == columns && it.rows == rows && it.winLength == winLength }
+    }
+}
+
+/** A frozen position handed to a background search (see [ConnectFourGame.planBotMove]). */
+class ConnectFourSearchPlan internal constructor(
+    internal val position: ConnectFourState,
+    internal val epoch: Int,
+    internal val depth: Int
+)
 
 /** A player's identity + bot flag — mirrors DotsAndBoxesPlayerState's own shape, kept as a list even though this game is always exactly 2 players, for consistency with that established idiom. */
 data class ConnectFourPlayerState(
@@ -60,8 +106,12 @@ data class ConnectFourState(
     /** The winning playerId once [boardOver], or null for a draw. */
     val winnerPlayerId: String? = null,
     /** Every connected cell index that made up the winning four-plus-in-a-row, so the UI can highlight it. Null while in progress or on a draw. May hold more than 4 indices if the winning move happened to complete a longer run. */
-    val winningLine: List<Int>? = null
-)
+    val winningLine: List<Int>? = null,
+    /** Discs in a line that win this board (4 on the classic board, 5 on the big one). */
+    val winLength: Int = 4
+) {
+    val spec: ConnectFourBoardSpec get() = ConnectFourBoardSpec(cols, rows, winLength)
+}
 
 /**
  * Connect Four: players alternate dropping a disc into one of [ConnectFourState.cols]
@@ -140,12 +190,28 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
+
     /**
      * The roster seat that opens the FIRST board of a new match (the Hub's "who goes first"). Set by
      * the screen before [startMatch]; consumed (and cleared) by the first [startMatch], after which
      * the usual alternation applies. A resumed game ignores it ([restore] clears it). Null = seat 0.
      */
     var firstOpenerIndex: Int? = null
+
+    /**
+     * The board shape the NEXT [startMatch] deals (the Hub's "size" choice; the screen sets it before
+     * startMatch). Always the classic board over the network. A restored game sets it to the saved
+     * board's shape, so Play Again keeps the size.
+     */
+    var boardSpec: ConnectFourBoardSpec = ConnectFourBoardSpec.CLASSIC
+
+    /**
+     * Bumped whenever the position is replaced wholesale (new board, restore, undo), so a background
+     * search started before that can tell its answer is stale and must not be applied.
+     */
+    private var positionEpoch = 0
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -163,7 +229,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     private val isNetworked: Boolean
         get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -175,7 +241,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintColumn.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) {
             // A guest renders only what the host sends; drop any board left over from an earlier game.
@@ -194,6 +260,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             ConnectFourSnapshot(
                 rows = s.rows,
                 cols = s.cols,
+                winLength = s.winLength,
                 cells = s.cells,
                 players = s.players.map { ConnectFourSnapshotPlayer(it.playerId, it.displayName, it.isBot) },
                 currentPlayerIndex = s.currentPlayerIndex,
@@ -217,9 +284,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             return null
         }
         val roster = context.players
-        val valid = snap.rows == ROWS && snap.cols == COLS &&
-            snap.cells.size == ROWS * COLS &&
+        // Only a known board shape whose cell count matches its dimensions is accepted.
+        val spec = ConnectFourBoardSpec.forDims(snap.cols, snap.rows, snap.winLength) ?: return null
+        val valid = snap.cells.size == spec.cellCount &&
             snap.cells.all { it == null || it in snap.players.indices } &&
+            (snap.winningLine?.all { it in 0 until spec.cellCount } ?: true) &&
             snap.players.size == roster.size &&
             snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
             snap.currentPlayerIndex in snap.players.indices &&
@@ -237,8 +306,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             lastAction = snap.lastAction,
             boardOver = snap.boardOver,
             winnerPlayerId = snap.winnerPlayerId,
-            winningLine = snap.winningLine
+            winningLine = snap.winningLine,
+            winLength = snap.winLength
         )
+        ConnectFourBoardSpec.forDims(snap.cols, snap.rows, snap.winLength)?.let { boardSpec = it }
+        positionEpoch++
         sessionWins.value = snap.sessionWins
         sessionDraws.value = snap.sessionDraws
         nextStartingPlayerIndex = snap.nextStartingPlayerIndex
@@ -287,14 +359,35 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * human's turn or the board is over. Connect Four keeps no records, so a hint costs nothing.
      */
     fun hint(): Int? {
+        val plan = planHint() ?: return null
+        val col = searchMove(plan)
+        return if (applyHint(plan, col)) col else null
+    }
+
+    /** [hint] for the UI: the search runs off the main thread and is dropped if the position moved on meanwhile. */
+    suspend fun hintAsync(): Int? {
+        val plan = planHint() ?: return null
+        val col = withContext(Dispatchers.Default) { searchMove(plan) }
+        return if (applyHint(plan, col)) col else null
+    }
+
+    private fun planHint(): ConnectFourSearchPlan? {
         val s = state.value ?: return null
         if (matchOver.value || s.boardOver) return null
         if (isNetworked) return null // no hints against a human opponent
         if (s.players[s.currentPlayerIndex].isBot) return null
-        val col = chooseBotMove(s, depthOverride = HINT_SEARCH_DEPTH)
-        hintColumn.value = col
-        return col
+        return ConnectFourSearchPlan(s, positionEpoch, HINT_SEARCH_DEPTH)
     }
+
+    private fun applyHint(plan: ConnectFourSearchPlan, col: Int?): Boolean {
+        if (col == null || !isCurrent(plan)) return false
+        hintColumn.value = col
+        return true
+    }
+
+    /** True when nothing has changed since [plan] was taken: same epoch, same position, session still open. */
+    private fun isCurrent(plan: ConnectFourSearchPlan): Boolean =
+        !matchOver.value && plan.epoch == positionEpoch && state.value == plan.position
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) {
         onMatchEnd = listener
@@ -317,13 +410,18 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         // A new board starts a new undo history: undo never reaches back into the previous board.
         history.clear()
         hintColumn.value = null
+        // The size choice is a vs-CPU / pass-and-play option; a networked board is always classic.
+        if (isNetworked) boardSpec = ConnectFourBoardSpec.CLASSIC
+        val spec = boardSpec
+        positionEpoch++
         state.value = ConnectFourState(
-            rows = ROWS,
-            cols = COLS,
-            cells = List(ROWS * COLS) { null },
+            rows = spec.rows,
+            cols = spec.columns,
+            cells = List(spec.cellCount) { null },
             players = players,
             currentPlayerIndex = nextStartingPlayerIndex % players.size,
-            lastAction = "Game started"
+            lastAction = "Game started",
+            winLength = spec.winLength
         )
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % players.size
         publishIfHost()
@@ -424,7 +522,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         val index = row * s.cols + col
         newCells[index] = s.currentPlayerIndex
 
-        val winningLine = findWinningLine(newCells, s.rows, s.cols, index, s.currentPlayerIndex)
+        val winningLine = findWinningLine(newCells, s.rows, s.cols, s.winLength, index, s.currentPlayerIndex)
         val boardFull = winningLine == null && newCells.none { it == null }
         val boardOver = winningLine != null || boardFull
         val mover = s.players[s.currentPlayerIndex]
@@ -445,7 +543,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             winnerPlayerId = winnerId,
             winningLine = winningLine,
             lastAction = when {
-                winningLine != null -> "${mover.displayName} connects four and wins!"
+                winningLine != null -> "${mover.displayName} connects ${winLengthWord(s.winLength)} and wins!"
                 boardFull -> "It's a tie!"
                 else -> "${mover.displayName} dropped a disc in column ${col + 1}"
             }
@@ -497,7 +595,10 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         winnerPlayerId = s.winnerPlayerId,
         winningLine = s.winningLine,
         sessionWins = sessionWins.value,
-        sessionDraws = sessionDraws.value
+        sessionDraws = sessionDraws.value,
+        columns = s.cols,
+        rows = s.rows,
+        winLength = s.winLength
     )
 
     /** Host: bumps the version and sends the authoritative state to every other seat. */
@@ -527,7 +628,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(ConnectFourNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(ConnectFourNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (_: Exception) {
             return // malformed or foreign payload
         }
@@ -564,15 +665,21 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
     private fun applyRemoteState(version: Int, net: ConnectFourNetState) {
         if (version <= lastAppliedRemoteVersion) return
         val n = context.players.size
-        val valid = net.cells.size == ROWS * COLS &&
+        // An old peer sends no dimensions: they default to the classic board. Any other shape must
+        // be one we know, and the cell count must match it.
+        val spec = ConnectFourBoardSpec.forDims(net.columns, net.rows, net.winLength) ?: return
+        val valid = net.cells.size == spec.cellCount &&
             net.cells.all { it == null || it in 0 until n } &&
             net.currentPlayerIndex in 0 until n &&
-            (net.winningLine?.all { it in 0 until ROWS * COLS } ?: true)
+            (net.winningLine?.all { it in 0 until spec.cellCount } ?: true)
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
+        positionEpoch++
         state.value = ConnectFourState(
-            rows = ROWS,
-            cols = COLS,
+            rows = spec.rows,
+            cols = spec.columns,
+            winLength = spec.winLength,
             cells = net.cells,
             players = context.players.map { ConnectFourPlayerState(it.playerId, it.displayName, it.isBot) },
             currentPlayerIndex = net.currentPlayerIndex,
@@ -594,13 +701,32 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * player isn't actually a bot, so it's safe to call speculatively.
      */
     fun playBotTurn() {
-        val s = state.value ?: return
-        if (matchOver.value || s.boardOver) return
-        val bot = s.players[s.currentPlayerIndex]
-        if (!bot.isBot) return
-
-        val col = chooseBotMove(s) ?: return
+        val plan = planBotMove() ?: return
+        val col = searchMove(plan) ?: return
         dropDisc(col)
+    }
+
+    /**
+     * [playBotTurn] for the UI: the search runs on [Dispatchers.Default], then the move is applied on
+     * the caller's thread only if the position is exactly the one that was searched (no undo, leave,
+     * restart or restore in between); otherwise the answer is dropped.
+     */
+    suspend fun playBotTurnAsync() {
+        val plan = planBotMove() ?: return
+        val col = withContext(Dispatchers.Default) { searchMove(plan) } ?: return
+        if (arena?.deferIfPaused { if (isCurrent(plan)) dropDisc(col) } == true) return
+        if (isCurrent(plan)) dropDisc(col)
+    }
+
+    /** Freezes the position for a search, or null when it is not a live bot turn. */
+    private fun planBotMove(): ConnectFourSearchPlan? {
+        val s = state.value ?: return null
+        if (matchOver.value || s.boardOver) return null
+        val bot = s.players[s.currentPlayerIndex]
+        if (!bot.isBot) return null
+        val level = arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty
+        val depth = difficultySearchDepth[level] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
+        return ConnectFourSearchPlan(s, positionEpoch, depth)
     }
 
     /** Search depth (in plies) per [CpuDifficulty] tier — see this class's own KDoc for why this is depth-scaled rather than a full solve. */
@@ -631,25 +757,54 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * no better — which correctly still loses the `score > bestScore`
      * comparison either way).
      */
-    private fun chooseBotMove(s: ConnectFourState, depthOverride: Int? = null): Int? {
-        val depth = depthOverride ?: difficultySearchDepth[difficulty] ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
+    /**
+     * Picks the move for a frozen [plan]. Touches no engine state, so it is safe to run on a
+     * background thread. The classic board searches straight to the tier's depth (exactly the old
+     * behaviour). The bigger boards use iterative deepening under a [SEARCH_BUDGET_MS] time budget:
+     * depth 2 always completes (enough to take a win and block a loss), each deeper pass replaces the
+     * answer only if it finishes in time, so the bot never thinks much longer than a second.
+     */
+    private fun searchMove(plan: ConnectFourSearchPlan): Int? {
+        val s = plan.position
+        if (s.spec == ConnectFourBoardSpec.CLASSIC) return chooseBotMove(s, plan.depth, null)
+        var best = chooseBotMove(s, minOf(plan.depth, 2), null)
+        val budget = SearchBudget(System.nanoTime() + SEARCH_BUDGET_MS * 1_000_000L)
+        var depth = 3
+        while (depth <= plan.depth && !budget.aborted) {
+            val candidate = chooseBotMove(s, depth, budget)
+            if (budget.aborted) break // that pass did not finish: keep the last complete answer
+            best = candidate
+            depth++
+        }
+        return best
+    }
+
+    /** A wall-clock cut-off shared by one iterative-deepening search; [aborted] latches once it passes. */
+    private class SearchBudget(val deadlineNanos: Long) {
+        var aborted = false
+        var nodes = 0
+    }
+
+    private fun chooseBotMove(s: ConnectFourState, depth: Int, budget: SearchBudget?): Int? {
         val bot = s.currentPlayerIndex
         val opponent = (bot + 1) % s.players.size
         val cells = s.cells.toTypedArray()
+        val order = columnOrder(s.cols)
 
         var alpha = Int.MIN_VALUE
         var bestScore = Int.MIN_VALUE
         var bestCol: Int? = null
-        for (col in columnSearchOrder) {
+        for (col in order) {
             val row = lowestEmptyRow(cells.asList(), col, s.rows, s.cols) ?: continue
             val index = row * s.cols + col
             cells[index] = bot
             val score = minimax(
-                cells, s.rows, s.cols, depth = depth - 1,
+                cells, s.rows, s.cols, s.winLength, order, budget, depth = depth - 1,
                 alpha = alpha, beta = Int.MAX_VALUE, maximizing = false,
                 bot = bot, opponent = opponent, lastMoveIndex = index, lastMover = bot
             )
             cells[index] = null
+            if (budget?.aborted == true) return bestCol
             if (score > bestScore) {
                 bestScore = score
                 bestCol = col
@@ -673,20 +828,28 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * counter.
      */
     private fun minimax(
-        cells: Array<Int?>, rows: Int, cols: Int, depth: Int,
+        cells: Array<Int?>, rows: Int, cols: Int, winLength: Int, order: List<Int>, budget: SearchBudget?, depth: Int,
         alpha: Int, beta: Int, maximizing: Boolean,
         bot: Int, opponent: Int, lastMoveIndex: Int, lastMover: Int
     ): Int {
-        if (findWinningLine(cells.asList(), rows, cols, lastMoveIndex, lastMover) != null) {
+        if (budget != null) {
+            if (budget.aborted) return 0
+            // Check the clock every 512 nodes; once past the deadline the whole pass is abandoned.
+            if ((++budget.nodes and 511) == 0 && System.nanoTime() > budget.deadlineNanos) {
+                budget.aborted = true
+                return 0
+            }
+        }
+        if (findWinningLine(cells.asList(), rows, cols, winLength, lastMoveIndex, lastMover) != null) {
             return if (lastMover == bot) WIN_SCORE + depth else -WIN_SCORE - depth
         }
         // Each legal column's landing row is computed exactly once here (not
         // once to build a "which columns are legal" list and then AGAIN per
         // column in the search loop below) -- already in center-first order
         // since columnSearchOrder is iterated to build it.
-        val legalMoves = columnSearchOrder.mapNotNull { col -> lowestEmptyRow(cells.asList(), col, rows, cols)?.let { row -> col to row } }
+        val legalMoves = order.mapNotNull { col -> lowestEmptyRow(cells.asList(), col, rows, cols)?.let { row -> col to row } }
         if (legalMoves.isEmpty()) return 0 // board full with no winner -- a draw
-        if (depth == 0) return evaluate(cells, rows, cols, bot, opponent)
+        if (depth == 0) return evaluate(cells, rows, cols, winLength, bot, opponent)
 
         val player = if (maximizing) bot else opponent
         var a = alpha
@@ -695,8 +858,9 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
         for ((col, row) in legalMoves) {
             val index = row * cols + col
             cells[index] = player
-            val score = minimax(cells, rows, cols, depth - 1, a, b, !maximizing, bot, opponent, index, player)
+            val score = minimax(cells, rows, cols, winLength, order, budget, depth - 1, a, b, !maximizing, bot, opponent, index, player)
             cells[index] = null
+            if (budget != null && budget.aborted) return 0
             if (maximizing) {
                 best = maxOf(best, score)
                 a = maxOf(a, best)
@@ -721,7 +885,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * Lights Out's difficulty-scaled boards), since [minimax] can visit
      * many thousands of nodes at HARD's depth.
      */
-    private val columnSearchOrder: List<Int> = (0 until COLS).sortedBy { kotlin.math.abs(it - COLS / 2) }
+    private fun columnOrder(cols: Int): List<Int> = (0 until cols).sortedBy { kotlin.math.abs(2 * it - (cols - 1)) }
 
     /**
      * Non-terminal position estimate for [minimax]'s depth cutoff: a flat
@@ -731,38 +895,51 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * diagonals) on the board — the standard, well-known Connect Four
      * heuristic. Always from [bot]'s own perspective (see [minimax]'s KDoc).
      */
-    private fun evaluate(cells: Array<Int?>, rows: Int, cols: Int, bot: Int, opponent: Int): Int {
+    private fun evaluate(cells: Array<Int?>, rows: Int, cols: Int, winLength: Int, bot: Int, opponent: Int): Int {
         var score = 0
-        val centerCol = cols / 2
-        score += (0 until rows).count { cells[it * cols + centerCol] == bot } * CENTER_COLUMN_WEIGHT
+        // The centre column (both middle columns on an even-width board) sits on the most lines.
+        val centreCols = if (cols % 2 == 1) listOf(cols / 2) else listOf(cols / 2 - 1, cols / 2)
+        for (centerCol in centreCols) {
+            score += (0 until rows).count { cells[it * cols + centerCol] == bot } * CENTER_COLUMN_WEIGHT
+        }
 
-        for (r in 0 until rows) for (c in 0..cols - WIN_LENGTH) {
-            score += scoreWindow((0 until WIN_LENGTH).map { cells[r * cols + c + it] }, bot, opponent)
+        // Every possible winLength-cell window: across, down and both diagonals. Counted in place
+        // (no per-window lists) because this runs at every leaf of the search.
+        for (r in 0 until rows) for (c in 0..cols - winLength) {
+            score += scoreLine(cells, r * cols + c, 1, winLength, bot, opponent)
         }
-        for (c in 0 until cols) for (r in 0..rows - WIN_LENGTH) {
-            score += scoreWindow((0 until WIN_LENGTH).map { cells[(r + it) * cols + c] }, bot, opponent)
+        for (c in 0 until cols) for (r in 0..rows - winLength) {
+            score += scoreLine(cells, r * cols + c, cols, winLength, bot, opponent)
         }
-        for (r in 0..rows - WIN_LENGTH) for (c in 0..cols - WIN_LENGTH) {
-            score += scoreWindow((0 until WIN_LENGTH).map { cells[(r + it) * cols + c + it] }, bot, opponent)
+        for (r in 0..rows - winLength) for (c in 0..cols - winLength) {
+            score += scoreLine(cells, r * cols + c, cols + 1, winLength, bot, opponent)
         }
-        for (r in WIN_LENGTH - 1 until rows) for (c in 0..cols - WIN_LENGTH) {
-            score += scoreWindow((0 until WIN_LENGTH).map { cells[(r - it) * cols + c + it] }, bot, opponent)
+        for (r in winLength - 1 until rows) for (c in 0..cols - winLength) {
+            score += scoreLine(cells, r * cols + c, 1 - cols, winLength, bot, opponent)
         }
         return score
     }
 
-    /** How good a single 4-cell [window] is for [bot] — more of [bot]'s own discs with the rest empty is good, more of [opponent]'s discs with the rest empty is bad (weighted slightly higher than the equivalent bot threat, since leaving an opponent's 3-with-a-gap unblocked is usually more urgent than building one's own). A window already containing BOTH players' discs can never become a line for either, so it scores 0 — this is only ever reached for a genuinely non-terminal position ([minimax] checks for an actual 4-in-a-row separately), so a 4-of-bot's/4-of-opponent's window can't actually occur here in practice, but the cases are handled defensively anyway. */
-    private fun scoreWindow(window: List<Int?>, bot: Int, opponent: Int): Int {
-        val botCount = window.count { it == bot }
-        val opponentCount = window.count { it == opponent }
+    /** Tallies the [winLength] cells from [start] stepping by [step], then scores that window via [scoreWindow]. */
+    private fun scoreLine(cells: Array<Int?>, start: Int, step: Int, winLength: Int, bot: Int, opponent: Int): Int {
+        var botCount = 0
+        var opponentCount = 0
+        for (k in 0 until winLength) {
+            val owner = cells[start + k * step]
+            if (owner == bot) botCount++ else if (owner == opponent) opponentCount++
+        }
+        return scoreWindow(botCount, opponentCount, winLength - botCount - opponentCount, winLength)
+    }
+
+    /** How good a single [winLength]-cell window is for the bot — more of the bot's own discs with the rest empty is good, more of the opponent's discs with the rest empty is bad (weighted slightly higher than the equivalent bot threat, since leaving an opponent's one-short-with-a-gap unblocked is usually more urgent than building one's own). A window already containing BOTH players' discs can never become a line for either, so it scores 0 — this is only ever reached for a genuinely non-terminal position ([minimax] checks for an actual winning line separately), so a full window can't actually occur here in practice, but the cases are handled defensively anyway. */
+    private fun scoreWindow(botCount: Int, opponentCount: Int, emptyCount: Int, winLength: Int): Int {
         if (botCount > 0 && opponentCount > 0) return 0 // window is dead -- can never complete for either side
-        val emptyCount = window.count { it == null }
         return when {
-            botCount == 4 -> WIN_SCORE
-            botCount == 3 && emptyCount == 1 -> 50
-            botCount == 2 && emptyCount == 2 -> 5
-            opponentCount == 3 && emptyCount == 1 -> -80
-            opponentCount == 4 -> -WIN_SCORE
+            botCount == winLength -> WIN_SCORE
+            botCount == winLength - 1 && emptyCount == 1 -> 50
+            botCount == winLength - 2 && emptyCount == 2 -> 5
+            opponentCount == winLength - 1 && emptyCount == 1 -> -80
+            opponentCount == winLength -> -WIN_SCORE
             else -> 0
         }
     }
@@ -786,7 +963,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * already-long run) once any direction reaches at least [WIN_LENGTH]
      * cells, or null if none do.
      */
-    private fun findWinningLine(cells: List<Int?>, rows: Int, cols: Int, placedIndex: Int, player: Int): List<Int>? {
+    private fun findWinningLine(cells: List<Int?>, rows: Int, cols: Int, winLength: Int, placedIndex: Int, player: Int): List<Int>? {
         val placedRow = placedIndex / cols
         val placedCol = placedIndex % cols
         val directions = listOf(0 to 1, 1 to 0, 1 to 1, 1 to -1)
@@ -804,16 +981,21 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
                 line += r * cols + c
                 r -= dr; c -= dc
             }
-            if (line.size >= WIN_LENGTH) return line
+            if (line.size >= winLength) return line
         }
         return null
     }
 
     private companion object {
         const val OPPONENT_DISCONNECTED = "Opponent disconnected"
-        const val ROWS = 6
-        const val COLS = 7
-        const val WIN_LENGTH = 4
+        /** Wall-clock budget (ms) of one bot or hint search on the larger boards (the classic board is fast enough to need none). */
+        const val SEARCH_BUDGET_MS = 850L
+
+        fun winLengthWord(winLength: Int): String = when (winLength) {
+            4 -> "four"
+            5 -> "five"
+            else -> winLength.toString()
+        }
         /** Search depth (plies) a hint uses: the HARD tier's, whatever difficulty the CPU opponent is set to. */
         const val HINT_SEARCH_DEPTH = 6
         const val CENTER_COLUMN_WEIGHT = 3

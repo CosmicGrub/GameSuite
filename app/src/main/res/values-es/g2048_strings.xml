@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 2048: textos de la pantalla -->
+    <string name="g2048_help_title">Cómo jugar a 2048</string>
+    <string name="g2048_help_text">Desliza el tablero, pulsa los botones de flecha o usa las teclas de flecha para mover todas las fichas hasta donde lleguen. Cuando dos fichas con el mismo número chocan, se unen en una sola con el doble de valor. Una ficha creada por una unión no puede volver a unirse en el mismo movimiento.\n\nTras cada movimiento que cambia el tablero aparece una ficha nueva: casi siempre un 2, a veces un 4. Tu puntuación es la suma de todas las fichas que creas al unirlas.\n\nConsigue la ficha %1$d para ganar y, si quieres, sigue jugando para lograr más puntos. La partida termina cuando el tablero está lleno y no queda ningún movimiento.\n\nDeshacer anula un movimiento y Pista sugiere uno, pero una partida en la que uses cualquiera de los dos es asistida y no puede batir tu mejor puntuación.</string>
+
+    <string name="g2048_score">Puntos</string>
+    <string name="g2048_best">Récord</string>
+    <string name="g2048_score_desc">Puntuación %1$d</string>
+    <string name="g2048_best_desc">Mejor puntuación %1$d</string>
+    <string name="g2048_moves_line">Cuadrícula de %1$d por %1$d · %2$d movimientos · meta %3$d</string>
+
+    <string name="g2048_status_ready">Desliza el tablero o usa las flechas.</string>
+    <string name="g2048_status_hint">Pista: desliza hacia %1$s</string>
+    <string name="g2048_status_over">Fin de la partida. No quedan movimientos.</string>
+    <string name="g2048_status_won">¡Has hecho %1$d! Sigue jugando o empieza otra.</string>
+    <string name="g2048_status_gain">+%1$d</string>
+    <string name="g2048_assist_note">Partida asistida: no puede batir tu mejor puntuación.</string>
+    <string name="g2048_assist_caption">Deshacer y Pista hacen que la partida sea asistida y no pueda batir tu mejor puntuación.</string>
+
+    <string name="g2048_dir_left">la izquierda</string>
+    <string name="g2048_dir_right">la derecha</string>
+    <string name="g2048_dir_up">arriba</string>
+    <string name="g2048_dir_down">abajo</string>
+    <string name="g2048_move_left">Deslizar a la izquierda</string>
+    <string name="g2048_move_right">Deslizar a la derecha</string>
+    <string name="g2048_move_up">Deslizar hacia arriba</string>
+    <string name="g2048_move_down">Deslizar hacia abajo</string>
+    <string name="g2048_suggested_move">Movimiento sugerido</string>
+    <string name="g2048_pad_left">Izquierda</string>
+    <string name="g2048_pad_right">Derecha</string>
+    <string name="g2048_pad_up">Arriba</string>
+    <string name="g2048_pad_down">Abajo</string>
+
+    <string name="g2048_undo">Deshacer</string>
+    <string name="g2048_hint">Pista</string>
+    <string name="g2048_new_game">Nueva partida</string>
+    <string name="g2048_undo_last">Deshacer último movimiento</string>
+
+    <string name="g2048_new_title">¿Empezar una partida nueva?</string>
+    <string name="g2048_new_body">Tu partida actual sigue en curso. Si empiezas otra, se descarta y no se cuenta.</string>
+    <string name="g2048_new_confirm">Empezar otra partida</string>
+    <string name="g2048_new_cancel">Seguir jugando</string>
+
+    <string name="g2048_leave_title">¿Salir de esta partida?</string>
+    <string name="g2048_leave_body">Esta partida sigue en curso. Si sales ahora, no contará como victoria ni como derrota.</string>
+    <string name="g2048_leave_body_session">Esta partida sigue en curso y no contará, pero las partidas que ya terminaste se quedan en tu historial.</string>
+
+    <string name="g2048_over_title">Fin de la partida</string>
+    <string name="g2048_won_title">¡Has hecho %1$d!</string>
+    <string name="g2048_result_line">Puntos %1$d · Ficha más alta %2$d</string>
+    <string name="g2048_new_best">¡Nuevo récord!</string>
+    <string name="g2048_keep_going">Seguir jugando</string>
+    <string name="g2048_play_again">Jugar otra vez</string>
+    <string name="g2048_back_to_menu">Volver al menú</string>
+
+    <string name="g2048_board_desc">Tablero de 2048, %1$d por %1$d. %2$s</string>
+    <string name="g2048_row_desc">Fila %1$d: %2$s.</string>
+    <string name="g2048_cell_empty">vacía</string>
+    <string name="g2048_board_pan_note">El tablero se desplaza. Usa los botones de flecha para mover.</string>
+
+    <!-- 2048: textos del catálogo del Hub -->
+    <string name="hub_2048">2048</string>
+    <string name="hub_slide_and_merge_tiles_to_reach_2048">Desliza y une fichas hasta llegar a 2048.</string>
+    <string name="hub_swipe_to_merge_tiles_for_as_long_as_you_like">Desliza para unir fichas todo el tiempo que quieras.</string>
+    <string name="hub_grid_size">Tamaño de la cuadrícula</string>
+    <string name="hub_small_wins_at_512_classic_and_big_win_at_2048">Pequeña gana con 512. Clásica y Grande ganan con 2048.</string>
+    <string name="hub_small_3_x_3">Pequeña 3 x 3</string>
+    <string name="hub_classic_4_x_4">Clásica 4 x 4</string>
+    <string name="hub_big_5_x_5">Grande 5 x 5</string>
+    <string name="hub_quick_and_tight">Rápida y ajustada.</string>
+    <string name="hub_the_original_game">El juego original.</string>
+    <string name="hub_room_to_build_big_tiles">Espacio para crear fichas grandes.</string>
+</resources>

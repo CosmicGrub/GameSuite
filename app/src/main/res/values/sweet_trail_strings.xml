@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sweet Trail (game id sweet-trail): screen, announcements, coach card, tips and Game Hub texts (hub_* names are hubKey(english text)). -->
+
+    <!-- Screen -->
+    <string name="sweet_trail_help_title">Sweet Trail</string>
+    <string name="sweet_trail_help_text">Tap the card pile to draw a card. Your piece hops to the next square with the card\'s colour. A double card hops to the second square of that colour. A landmark card jumps you forward to that place. Reach the Party Table first to win!</string>
+    <string name="sweet_trail_tap_pile">Tap the card pile</string>
+    <string name="sweet_trail_pile_label">Card pile, %1$d cards left</string>
+    <string name="sweet_trail_last_card">Last card: %1$s</string>
+    <string name="sweet_trail_keep">Keep card</string>
+    <string name="sweet_trail_wish_button">Use wish</string>
+    <string name="sweet_trail_wish_left">%1$s has a wish left.</string>
+    <string name="sweet_trail_wish_none">No wish left.</string>
+    <string name="sweet_trail_square_label">Square %1$d, %2$s</string>
+    <string name="sweet_trail_card_label">Card: %1$s</string>
+    <string name="sweet_trail_pawn_label">%1$s, %2$s piece, on square %3$d</string>
+    <string name="sweet_trail_pawn_label_start">%1$s, %2$s piece, at the start</string>
+    <string name="sweet_trail_leave_title">Leave this game?</string>
+    <string name="sweet_trail_leave_body">The game is still going. Leaving now does not count as a win or a loss.</string>
+
+    <!-- Colour names -->
+    <string name="sweet_trail_colour_cherry">Cherry red</string>
+    <string name="sweet_trail_colour_tangerine">Tangerine orange</string>
+    <string name="sweet_trail_colour_lemon">Lemon yellow</string>
+    <string name="sweet_trail_colour_lime">Lime green</string>
+    <string name="sweet_trail_colour_blueberry">Blueberry blue</string>
+    <string name="sweet_trail_colour_grape">Grape purple</string>
+
+    <!-- Colour patterns (every colour also has a pattern, so colour is never the only cue) -->
+    <string name="sweet_trail_pattern_cherry">dots</string>
+    <string name="sweet_trail_pattern_tangerine">stripes</string>
+    <string name="sweet_trail_pattern_lemon">rings</string>
+    <string name="sweet_trail_pattern_lime">waves</string>
+    <string name="sweet_trail_pattern_blueberry">checks</string>
+    <string name="sweet_trail_pattern_grape">diamonds</string>
+
+    <!-- Player shapes -->
+    <string name="sweet_trail_shape_circle">circle</string>
+    <string name="sweet_trail_shape_square">square</string>
+    <string name="sweet_trail_shape_triangle">triangle</string>
+    <string name="sweet_trail_shape_diamond">diamond</string>
+
+    <!-- Card names -->
+    <string name="sweet_trail_card_double">Double %1$s</string>
+
+    <!-- Landmark names (also the landmark card names) -->
+    <string name="sweet_trail_landmark_cookie_hill">Cookie Hill</string>
+    <string name="sweet_trail_landmark_lemonade_lake">Lemonade Lake</string>
+    <string name="sweet_trail_landmark_cupcake_tower">Cupcake Tower</string>
+    <string name="sweet_trail_landmark_honeycomb_cave">Honeycomb Cave</string>
+    <string name="sweet_trail_landmark_marshmallow_meadow">Marshmallow Meadow</string>
+    <string name="sweet_trail_landmark_cake_gate">Cake Gate</string>
+
+    <!-- Place names -->
+    <string name="sweet_trail_jelly_bridge">Jelly Bridge</string>
+    <string name="sweet_trail_pretzel_ladder">Pretzel Ladder</string>
+    <string name="sweet_trail_cloud_zipline">Cloud Zipline</string>
+    <string name="sweet_trail_puddle">Gooey Puddle</string>
+    <string name="sweet_trail_place_start">Start</string>
+    <string name="sweet_trail_place_finish">Party Table</string>
+
+    <!-- Announcements -->
+    <string name="sweet_trail_ann_start">%1$s goes first. Tap the card pile.</string>
+    <string name="sweet_trail_ann_start_you">You go first. Tap the card pile.</string>
+    <string name="sweet_trail_ann_move">%1$s drew %2$s and hopped to square %3$d.</string>
+    <string name="sweet_trail_ann_move_you">You drew %1$s and hopped to square %2$d.</string>
+    <string name="sweet_trail_ann_shortcut">%1$s drew %2$s, found the shortcut %3$s and zoomed to square %4$d!</string>
+    <string name="sweet_trail_ann_shortcut_you">You drew %1$s, found the shortcut %2$s and zoomed to square %3$d!</string>
+    <string name="sweet_trail_ann_puddle">%1$s drew %2$s and fell into the Gooey Puddle. Waits one turn.</string>
+    <string name="sweet_trail_ann_puddle_you">You drew %1$s and fell into the Gooey Puddle. You wait one turn.</string>
+    <string name="sweet_trail_ann_stuck">%1$s pulls free of the Gooey Puddle. Next player!</string>
+    <string name="sweet_trail_ann_stuck_you">You pull free of the Gooey Puddle. Next player!</string>
+    <string name="sweet_trail_ann_passed">%1$s drew %2$s but is already past it. Happy dance!</string>
+    <string name="sweet_trail_ann_passed_you">You drew %1$s but you are already past it. Happy dance!</string>
+    <string name="sweet_trail_ann_pending">%1$s drew %2$s. Keep it or use the wish.</string>
+    <string name="sweet_trail_ann_pending_you">You drew %1$s. Keep it or use your wish.</string>
+    <string name="sweet_trail_ann_wish_used">Wish used. Drawing a new card.</string>
+    <string name="sweet_trail_ann_reshuffle">The pile is empty. Shuffling the cards.</string>
+    <string name="sweet_trail_ann_win">%1$s reaches the Party Table and wins!</string>
+    <string name="sweet_trail_ann_win_you">You reach the Party Table and win!</string>
+
+    <!-- Why lines -->
+    <string name="sweet_trail_why_wait">It is not your turn yet.</string>
+    <string name="sweet_trail_why_cpu">The computer is taking its turn.</string>
+    <string name="sweet_trail_why_decide">Keep the card or use your wish first.</string>
+    <string name="sweet_trail_why_over">The game is over.</string>
+
+    <!-- Post-game -->
+    <string name="sweet_trail_result_win">%1$s wins!</string>
+    <string name="sweet_trail_result_win_you">You win!</string>
+    <string name="sweet_trail_play_again">Play again</string>
+    <string name="sweet_trail_back_to_menu">Back to menu</string>
+
+    <!-- Score card -->
+    <string name="sweet_trail_score_title">Trail report</string>
+    <string name="sweet_trail_score_line">%1$s: square %2$d of %3$d</string>
+    <string name="sweet_trail_score_turns">Turns taken: %1$d</string>
+    <string name="sweet_trail_score_shortcuts">Shortcuts found: %1$d</string>
+    <string name="sweet_trail_score_puddles">Puddle stops: %1$d</string>
+    <string name="sweet_trail_score_session">Session: %1$s</string>
+
+    <!-- Coach card -->
+    <string name="coach_sweet_trail_s1">Tap the card pile. The top card shows a colour.</string>
+    <string name="coach_sweet_trail_s2">Your piece hops to the next square with that colour.</string>
+    <string name="coach_sweet_trail_s3">A double card hops to the second square of that colour.</string>
+    <string name="coach_sweet_trail_s4">Bridges, ladders and ziplines are shortcuts. The Gooey Puddle makes you wait one turn.</string>
+    <string name="coach_sweet_trail_s5">First to the Party Table wins. Computers can fill empty seats.</string>
+    <string name="coach_sweet_trail_fact">Colour-card trail games need no reading or counting, so even a three-year-old can play.</string>
+
+    <!-- Tips -->
+    <string name="draft_tip_sweet_trail_1">Tap the card pile to draw. Your piece moves for you.</string>
+    <string name="draft_tip_sweet_trail_2">Look for shortcuts: bridges, ladders and ziplines!</string>
+    <string name="draft_tip_sweet_trail_3">Gooey Puddle: wait one turn. A wish lets you swap one card.</string>
+
+    <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
+    <string name="hub_sweet_trail">Sweet Trail</string>
+    <string name="hub_draw_a_colour_card_and_race_along_the_trail">Draw a colour card and race along the trail.</string>
+    <string name="hub_trail_length">Trail length</string>
+    <string name="hub_a_shorter_or_longer_race">A shorter or longer race.</string>
+    <string name="hub_short_trail">Short trail</string>
+    <string name="hub_start_part_way_along">Start part-way along.</string>
+    <string name="hub_full_trail">Full trail</string>
+    <string name="hub_the_whole_trail">The whole trail.</string>
+    <string name="hub_long_trail">Long trail</string>
+    <string name="hub_no_shortcuts_and_one_extra_puddle">No shortcuts and one extra puddle.</string>
+    <string name="hub_gooey_puddle">Gooey Puddle</string>
+    <string name="hub_on_landing_in_it_means_waiting_one_turn_off_it_i_71053c">On: landing in it means waiting one turn. Off: it is a plain square.</string>
+    <string name="hub_wish_card">Wish card</string>
+    <string name="hub_one_wish_per_game_lets_a_player_swap_a_card_they_95093e">One wish per game lets a player swap a card they drew.</string>
+    <string name="hub_no_wish">No wish</string>
+    <string name="hub_wish_for_everyone">Wish for everyone</string>
+    <string name="hub_wish_player_1">Wish: Player 1</string>
+    <string name="hub_wish_player_2">Wish: Player 2</string>
+    <string name="hub_wish_player_3">Wish: Player 3</string>
+    <string name="hub_wish_player_4">Wish: Player 4</string>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Act It Out: Game Hub texts (hubKey names) -->
+<resources>
+    <string name="hub_act_it_out">Act It Out</string>
+    <string name="hub_charades_for_the_whole_family_act_out_the_card_y_12efc4">Charades for the whole family: act out the card, your team guesses.</string>
+    <string name="hub_family_party">Family party</string>
+    <string name="hub_one_device_deals_the_cards_and_keeps_the_time_pa_3280ff">One device deals the cards and keeps the time. Pass it to each actor in turn.</string>
+    <string name="hub_how_to_group_the_players">How to group the players</string>
+    <string name="hub_two_fair_teams_take_turns_or_everybody_acts_in_t_a2c707">Two fair teams take turns, or everybody acts in turn and plays alone.</string>
+    <string name="hub_two_teams">Two teams</string>
+    <string name="hub_players_are_split_into_two_teams_of_nearly_equal_10323f">Players are split into two teams of nearly equal size. You can change who is on which team before the game.</string>
+    <string name="hub_everyone_for_themselves">Everyone for themselves</string>
+    <string name="hub_each_player_acts_in_turn_and_plays_for_their_own_f6ef64">Each player acts in turn and plays for their own score.</string>
+    <string name="hub_seconds_per_turn">Seconds per turn</string>
+    <string name="hub_how_long_each_actor_has_to_get_their_team_guessi_f2d399">How long each actor has to get their team guessing.</string>
+    <string name="hub_rounds_to_play">Rounds to play</string>
+    <string name="hub_in_every_round_each_team_or_each_player_when_pla_259a0d">In every round each team, or each player when playing alone, takes one turn.</string>
+    <string name="hub_card_level_to_start_with">Card level to start with</string>
+    <string name="hub_you_can_pick_a_different_level_for_each_team_in_3a9730">You can pick a different level for each team in the setup.</string>
+    <string name="hub_little_kids">Little kids</string>
+    <string name="hub_easy_cards_that_each_have_their_own_picture_so_p_7cdb27">Easy cards that each have their own picture, so pre-readers can play.</string>
+    <string name="hub_everyone">Everyone</string>
+    <string name="hub_easy_and_medium_cards">Easy and medium cards.</string>
+    <string name="hub_grown_ups">Grown-ups</string>
+    <string name="hub_medium_and_hard_cards_with_no_pictures_to_lean_o_21db6a">Medium and hard cards, with no pictures to lean on.</string>
+    <string name="hub_little_kids_bonus">Little kids bonus</string>
+    <string name="hub_lets_you_give_a_team_with_little_kids_one_extra_39a232">Lets you give a team with little kids one extra point for every correct card. You pick the team in the setup.</string>
+    <string name="hub_buzzer_in_the_last_5_seconds">Buzzer in the last 5 seconds</string>
+    <string name="hub_a_tick_each_second_and_a_buzz_at_the_end_with_a_191a14">A tick each second and a buzz at the end, with a little vibration.</string>
+    <string name="hub_hold_to_start_a_turn">Hold to start a turn</string>
+    <string name="hub_the_actor_holds_a_big_pad_to_start_so_nobody_see_1004a1">The actor holds a big pad to start, so nobody sees a card by accident. Switch off to start with a tap.</string>
+</resources>

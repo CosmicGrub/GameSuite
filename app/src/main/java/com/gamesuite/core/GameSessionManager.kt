@@ -32,6 +32,12 @@ class GameSessionManager : ViewModel() {
     private val _lastMatchOutcome = MutableStateFlow<MatchOutcome?>(null)
     val lastMatchOutcome: StateFlow<MatchOutcome?> = _lastMatchOutcome.asStateFlow()
 
+    /** Mode / difficulty / daily facts for [lastMatchOutcome], set in the same step and cleared by
+     *  [acknowledgeMatchOutcome]. Read it when handling the outcome (achievements, feedback). */
+    @Volatile
+    var lastMatchDetails: MatchDetails? = null
+        private set
+
     /**
      * The GameModule instance backing the currently displayed game screen,
      * if any. The shell only ever tracks GameContext (players/transport/
@@ -39,6 +45,17 @@ class GameSessionManager : ViewModel() {
      * actually have something to call.
      */
     private var activeModule: GameModule? = null
+
+    /** The module of the game screen on display (read-only; the Computer Arena drives it). */
+    val currentModule: GameModule? get() = activeModule
+
+    /**
+     * True while a Computer Arena series runs: nothing the computers play may reach the player's stats,
+     * achievements, streaks, result cues or saved games, so [endActiveGame] skips the match outcome and the save
+     * delete, and [saveActiveProgress] / [canSaveActiveProgress] write nothing.
+     */
+    @Volatile
+    var arenaActive: Boolean = false
 
     /** The nav route [activeModule] was launched on; the key its saved game lives under. */
     private var activeRoute: String? = null
@@ -118,7 +135,7 @@ class GameSessionManager : ViewModel() {
 
     /** True when the active game can be resumed right now: resumable, a store to keep it in, and a snapshot to write. */
     fun canSaveActiveProgress(): Boolean =
-        activeRoute != null && savedGames != null && _activeContext.value != null && currentSnapshot() != null
+        !arenaActive && activeRoute != null && savedGames != null && _activeContext.value != null && currentSnapshot() != null
 
     /**
      * Writes the active game's snapshot to the store. Returns true ONLY when it really reached
@@ -128,6 +145,7 @@ class GameSessionManager : ViewModel() {
      * not wipe the save the player is about to resume.
      */
     fun saveActiveProgress(): Boolean {
+        if (arenaActive) return false
         val store = savedGames ?: return false
         val route = activeRoute ?: return false
         val ctx = _activeContext.value ?: return false
@@ -165,6 +183,8 @@ class GameSessionManager : ViewModel() {
         val launch = saved.launch ?: legacyLaunchFromKey(saved.route, saved.navRoute) ?: return false
         val mode = runCatching { PlayMode.valueOf(launch.mode) }.getOrNull() ?: return false
         if (launch.seats.isEmpty()) return false
+        // A refused launch must not arm pendingResume (the next game would consume it and delete the save).
+        if (!LaunchPolicy.allowsLaunch(mode)) return false
         launchGame(
             mode = mode,
             players = launch.seats.map { PlayerInfo(it.id, it.name, it.isBot, it.teamId) },
@@ -223,6 +243,7 @@ class GameSessionManager : ViewModel() {
         localPlayerIndex: Int,
         options: LaunchOptions = LaunchOptions()
     ) {
+        if (!LaunchPolicy.allowsLaunch(mode)) return // profiles: network play blocked (kids / Online play off) or a kid's time is up
         val transport = createTransport(mode)
         transport.connect()
         launchOptions = options
@@ -243,8 +264,16 @@ class GameSessionManager : ViewModel() {
      * zero-transport overload above for every mode where the transport can just be
      * created fresh at launch time.
      */
-    fun launchGame(mode: PlayMode, players: List<PlayerInfo>, localPlayerIndex: Int, transport: MultiplayerTransport) {
-        launchOptions = LaunchOptions()
+    fun launchGame(
+        mode: PlayMode,
+        players: List<PlayerInfo>,
+        localPlayerIndex: Int,
+        transport: MultiplayerTransport,
+        /** Per-launch choices; a lobby host with computer seats passes the CPU level here. */
+        options: LaunchOptions = LaunchOptions(),
+    ) {
+        if (!LaunchPolicy.allowsLaunch(mode)) return // profiles: network play blocked (kids / Online play off) or a kid's time is up
+        launchOptions = options
         _activeContext.value = GameContext(
             activeMode = mode,
             players = players,
@@ -269,17 +298,19 @@ class GameSessionManager : ViewModel() {
     fun endActiveGame(result: GameResult) {
         val ctx = _activeContext.value
         val module = activeModule
-        if (ctx != null && module != null && !result.wasAborted) {
+        if (ctx != null && module != null && !result.wasAborted && !arenaActive) {
+            // Details first: an observer woken by the outcome must already find them.
+            lastMatchDetails = buildMatchDetails(ctx, activeRoute, launchOptions)
             _lastMatchOutcome.value = MatchOutcome(
                 gameId = module.gameId,
                 gameDisplayName = module.displayName,
                 result = result,
-                localOutcome = localOutcomeFor(ctx, result)
+                localOutcome = deriveLocalOutcome(ctx.players, ctx.localPlayerIndex, result, module.category)
             )
         }
         // A finished match has nothing left to resume. An ABORT keeps whatever save exists: the
         // game chrome writes the save just before it aborts, so "Leave" parks the game for later.
-        if (!result.wasAborted) {
+        if (!result.wasAborted && !arenaActive) {
             val route = activeRoute
             if (route != null && ctx != null) savedGames?.delete(saveKey(route, ctx))
         }
@@ -304,20 +335,7 @@ class GameSessionManager : ViewModel() {
      */
     fun acknowledgeMatchOutcome() {
         _lastMatchOutcome.value = null
-    }
-
-    /** Resolves [result] to this device's own win/loss/draw — null for a spectator
-     *  (localPlayerIndex == -1) or a result with nothing to score. */
-    private fun localOutcomeFor(ctx: GameContext, result: GameResult): LocalOutcome? {
-        val localPlayer = ctx.players.getOrNull(ctx.localPlayerIndex) ?: return null
-        if (result.scores.isEmpty()) return null
-        val myScore = result.scores.firstOrNull { it.playerId == localPlayer.playerId } ?: return null
-        val anyoneWon = result.scores.any { it.isWinner }
-        return when {
-            myScore.isWinner -> LocalOutcome.WIN
-            !anyoneWon -> LocalOutcome.DRAW
-            else -> LocalOutcome.LOSS
-        }
+        lastMatchDetails = null
     }
 
     private fun createTransport(mode: PlayMode): MultiplayerTransport {

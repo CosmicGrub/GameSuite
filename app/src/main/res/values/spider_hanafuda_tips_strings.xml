@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips for Spider Solitaire and Hanafuda. GameTipsTest requires GameTips.tips to list these exact lines -->
+    <string name="tip_spider_solitaire_1">Drag a run, or tap it and then a column. A card goes on one rank higher, in any suit.</string>
+    <string name="tip_spider_solitaire_2">Only same-suit runs move together, so build each run in one suit and uncover face-down cards early.</string>
+    <string name="tip_spider_solitaire_3">Fill empty columns before dealing. A King-to-Ace run in one suit clears itself. Undo is unlimited.</string>
+    <string name="tip_hanafuda_1">Tap a card in your hand: matching field cards glow. Same month matches; with no match the card stays on the field.</string>
+    <string name="tip_hanafuda_2">After playing, tap the deck to turn up a card. Collect brights, animals, ribbons and plains to form combinations.</string>
+    <string name="tip_hanafuda_3">With a combination, call Koi-Koi to play on for more, or Shobu to score now. Seven points or more count double.</string>
+</resources>

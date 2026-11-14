@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design system</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.root{width:1200px;height:1040px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.45 Inter,sans-serif;padding:56px 64px;display:flex;flex-direction:column;gap:36px}
+h1,h2,h3,.d{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.lab{font:600 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8;margin-bottom:14px}
+.row{display:flex;gap:16px}
+.sw{flex:1;border-radius:16px;padding:14px;height:96px;display:flex;flex-direction:column;justify-content:flex-end;font:500 12px Inter}
+.card{background:#141829;border:1px solid #232943;border-radius:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:52px;padding:0 28px;border-radius:26px;font:600 16px Sora;border:0;background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.btn.sec{background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558}
+.btn.ghost{background:transparent;color:#FFB547;box-shadow:none}
+.chip{height:36px;padding:0 14px;border-radius:18px;display:inline-flex;align-items:center;background:#1C2138;color:#C9CDE0;font:500 13px Inter}
+.chip.on{background:#F3F1EA;color:#0B0D1A;font-weight:600}
+.tile{width:150px;height:150px;border-radius:24px;position:relative;overflow:hidden;padding:14px;display:flex;align-items:flex-end;font:600 15px Sora;color:#fff}
+.mut{color:#9AA0B8}
+</style>
+</helmet>
+<div class="root">
+<div style="display:flex;justify-content:space-between;align-items:flex-end">
+<div><div class="lab" style="margin:0 0 8px">GameSuite design system v1</div><h1 style="font-size:52px;line-height:1.05">Midnight Club</h1><div class="mut" style="margin-top:8px;max-width:640px;font-size:17px">A calm ink-dark table with warm ivory type and one saffron call to action. Each game brings its own accent; the chrome never competes with it.</div></div>
+<div class="mut" style="text-align:right;font-size:13px">Android, Jetpack Compose<br>Dark default, light and high-contrast variants<br>Original art only</div>
+</div>
+
+<div>
+<div class="lab">Colour</div>
+<div class="row">
+<div class="sw" style="background:#0B0D1A;box-shadow:inset 0 0 0 1px #2A3050">Ink 950<br><span class="mut">#0B0D1A ground</span></div>
+<div class="sw" style="background:#141829">Ink 900<br><span class="mut">#141829 card</span></div>
+<div class="sw" style="background:#1C2138">Ink 800<br><span class="mut">#1C2138 raised</span></div>
+<div class="sw" style="background:#F3F1EA;color:#0B0D1A">Ivory<br>#F3F1EA text</div>
+<div class="sw" style="background:#9AA0B8;color:#0B0D1A">Mist<br>#9AA0B8 muted</div>
+<div class="sw" style="background:#FFB547;color:#1A1203">Saffron<br>#FFB547 primary</div>
+<div class="sw" style="background:#8B7CFF;color:#0B0D1A">Iris<br>#8B7CFF social</div>
+<div class="sw" style="background:#4ADE9B;color:#06281A">Mint<br>#4ADE9B win</div>
+<div class="sw" style="background:#FF6B7A;color:#2A050A">Coral<br>#FF6B7A alert</div>
+</div>
+<div class="mut" style="font-size:13px;margin-top:10px">Text on Ink 900: ivory 15.9:1, mist 7.0:1. Saffron button with Ink text 10.6:1. Win and alert never rely on hue alone: they carry an icon and a word.</div>
+</div>
+
+<div style="display:flex;gap:48px">
+<div style="flex:1">
+<div class="lab">Type: Sora for voice, Inter for reading</div>
+<div class="d" style="font-size:40px;font-weight:700;line-height:1.1">Display 40 / 700</div>
+<div class="d" style="font-size:28px;font-weight:600;margin-top:10px">Title 28 / 600</div>
+<div class="d" style="font-size:20px;font-weight:600;margin-top:10px">Heading 20 / 600</div>
+<div style="font-size:16px;margin-top:10px">Body 16 / 400. Plain, readable, scales to 200 percent.</div>
+<div class="mut" style="font-size:13px;margin-top:6px">Caption 13 / 500. Never below 12.</div>
+<div class="mut" style="font-size:13px;margin-top:14px">Score and timer figures use Sora with tabular numerals so digits never jitter.</div>
+</div>
+<div style="flex:1.3">
+<div class="lab">Components</div>
+<div class="row" style="align-items:center;flex-wrap:wrap">
+<button class="btn">Play now</button><button class="btn sec">Pass and play</button><button class="btn ghost">See all</button>
+</div>
+<div class="row" style="margin-top:16px;flex-wrap:wrap"><span class="chip on">All games</span><span class="chip">Board</span><span class="chip">Cards</span><span class="chip">Puzzle</span><span class="chip">Party</span></div>
+<div class="row" style="margin-top:16px">
+<div class="tile" style="background:linear-gradient(145deg,#4A55A2,#1E2350)"><svg width="86" height="86" viewBox="0 0 86 86" style="position:absolute;right:-10px;top:-6px;opacity:.9" aria-hidden="true"><rect x="10" y="10" width="30" height="30" fill="#ffffff22"/><rect x="40" y="40" width="30" height="30" fill="#ffffff22"/><circle cx="55" cy="25" r="13" fill="#FFB547"/></svg>Chess</div>
+<div class="tile" style="background:linear-gradient(145deg,#D1495B,#6A1B2C)"><svg width="90" height="90" viewBox="0 0 90 90" style="position:absolute;right:-6px;top:0" aria-hidden="true"><rect x="14" y="12" width="40" height="56" rx="7" fill="#fff" transform="rotate(-14 34 40)"/><rect x="34" y="14" width="40" height="56" rx="7" fill="#FFB547" transform="rotate(10 54 42)"/></svg>UNO</div>
+<div class="tile" style="background:linear-gradient(145deg,#0E7490,#0B2F3D)"><svg width="90" height="90" viewBox="0 0 90 90" style="position:absolute;right:-6px;top:0" aria-hidden="true"><circle cx="45" cy="42" r="26" fill="none" stroke="#4FC3DC" stroke-width="6"/><circle cx="45" cy="42" r="8" fill="#fff"/></svg>Darts</div>
+</div>
+<div class="mut" style="font-size:13px;margin-top:10px">Game tile: 24 radius, accent gradient, one geometric motif, no photo, label in Sora 15.</div>
+</div>
+</div>
+
+<div style="display:flex;gap:48px">
+<div style="flex:1">
+<div class="lab">Shape and depth</div>
+<div class="row"><div class="card" style="width:90px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:14px">14</div><div class="card" style="width:90px;height:64px;display:flex;align-items:center;justify-content:center">20</div><div class="card" style="width:90px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:28px">28</div><div class="card" style="width:90px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:32px">pill</div></div>
+<div class="mut" style="font-size:13px;margin-top:10px">Cards are flat with a 1 px line and a top inner highlight. Shadows only lift things you can drag or that float.</div>
+</div>
+<div style="flex:1">
+<div class="lab">Motion and feel</div>
+<div class="mut" style="font-size:14px;line-height:1.7">Standard 220 ms ease-out, hero 420 ms spring (damping 0.8).<br>Press: scale 0.97 + light tick. Win: confetti of 24 shapes + double pulse.<br>Reduced Motion: crossfades only, no confetti, no parallax.<br>Game speed setting scales every game animation, not the chrome.</div>
+</div>
+<div style="flex:1">
+<div class="lab">Rules for every screen</div>
+<div class="mut" style="font-size:14px;line-height:1.7">48 dp minimum targets, 56 dp for kids.<br>One primary action per screen.<br>Safe-area aware: cutouts, fold hinge, gesture bar.<br>Every icon has a text label or a content description.<br>Colour-blind safe: shape plus colour on all game pieces.</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

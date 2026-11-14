@@ -216,6 +216,9 @@ fun UnoScreen(
 
     val s = state ?: return
     val activeContext = context ?: return
+    // A watcher (Online "Watch"): no seat, no hand, no actions -- the table is drawn from the host's redacted state.
+    val isSpectator = (activeContext.activeMode == com.gamesuite.core.PlayMode.ONLINE ||
+        activeContext.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC) && activeContext.localPlayerIndex < 0
 
     // CELEBRATION timed to the match actually ending -- the matchOver early
     // return just below exits before any of this file's other LaunchedEffects
@@ -230,7 +233,7 @@ fun UnoScreen(
     }
 
     if (s.roundOver) {
-        UnoBackground { RoundOverContent(state = s, onNextRound = { game.startNextRound() }, enhanced = enhanced, targetScore = game.targetScore) }
+        UnoBackground { RoundOverContent(state = s, onNextRound = { game.startNextRound() }, enhanced = enhanced, targetScore = game.targetScore, watching = isSpectator) }
         return
     }
 
@@ -1024,7 +1027,8 @@ fun UnoScreen(
                             }
 
                             Spacer(Modifier.height(12.dp))
-                            Row(
+                            // No Draw / UNO! / Keep buttons for a watcher: it has no seat to act for.
+                            if (!isSpectator) Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1212,6 +1216,12 @@ fun UnoScreen(
                                     else -> "${turnPrompt(s)} — drag a card up to play it"
                                 }
                             )
+                        } else if (isSpectator) {
+                            Text(
+                                androidx.compose.ui.res.stringResource(com.gamesuite.R.string.uno_spectate_banner),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
                         } else {
                             Text("Your hand", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
@@ -1221,6 +1231,20 @@ fun UnoScreen(
                             Spacer(Modifier.width(8.dp))
                             PendingDrawBadge(count = s.pendingDraw)
                         }
+                    }
+
+                    if (isSpectator) {
+                        Text(
+                            androidx.compose.ui.res.stringResource(com.gamesuite.R.string.uno_spectate_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        // Leaving a watch session records nothing: abortMatch is a never-scored abort.
+                        OutlinedButton(
+                            onClick = { game.abortMatch() },
+                            modifier = Modifier.heightIn(min = 44.dp).pointerHoverIcon(PointerIcon.Hand)
+                        ) { Text(androidx.compose.ui.res.stringResource(com.gamesuite.R.string.uno_spectate_leave)) }
                     }
 
                     // Edge cards in the fan rise above its top line, so leave room for them.
@@ -1551,7 +1575,7 @@ private fun ChallengeDialog(playedByName: String, onAccept: () -> Unit, onChalle
 }
 
 @Composable
-private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRound: () -> Unit, enhanced: Boolean = false, targetScore: Int = 500) {
+private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRound: () -> Unit, enhanced: Boolean = false, targetScore: Int = 500, watching: Boolean = false) {
     // Confirmed real gap: a round win got the confetti/ConfettiOverlay visual
     // beat and (for a match win specifically) a CELEBRATION haptic from the
     // caller, but literally no sound at all -- SUCCESS_CHIME is exactly the
@@ -1571,7 +1595,14 @@ private fun RoundOverContent(state: com.gamesuite.games.uno.UnoState, onNextRoun
             // button off the bottom of the screen.
             Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { UnoScoreboard(state, targetScore) }
             Spacer(Modifier.height(18.dp))
-            Button(
+            if (watching) {
+                Text(
+                    androidx.compose.ui.res.stringResource(com.gamesuite.R.string.uno_spectate_round_over),
+                    color = Color.White.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            } else Button(
                 onClick = onNextRound,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7), contentColor = Color.White),
                 modifier = Modifier.heightIn(min = 46.dp)

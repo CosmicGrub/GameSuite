@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reaction Duel screen strings (rd_*) -->
+<resources>
+    <string name="rd_help_title">Reaction Duel</string>
+    <string name="rd_help_text">Every player has a zone and everyone plays at once: press your zone with any finger. Classic: wait for GO, and pressing early puts you out of the round. Colour match: press only when the target shape shows. Echo: tap the pattern back first. The first right answer wins the round; a dead heat is replayed.</string>
+    <string name="rd_status_ready">Get ready. Hands off the buttons until the signal.</string>
+    <string name="rd_status_wait_classic">Wait for GO. Pressing early puts you out of the round.</string>
+    <string name="rd_status_wait_colour">Watch the shapes. Press only on the target: %1$s.</string>
+    <string name="rd_status_watch">Watch the pattern.</string>
+    <string name="rd_status_go">GO! Press now!</string>
+    <string name="rd_status_your_turn">Your turn. Tap the pattern back.</string>
+    <string name="rd_ann_false">%1$s jumped the gun and is out of the round.</string>
+    <string name="rd_ann_false_you">You jumped the gun and are out of the round.</string>
+    <string name="rd_ann_wrong">%1$s tapped the wrong pad and is out of the round.</string>
+    <string name="rd_ann_wrong_you">You tapped the wrong pad and are out of the round.</string>
+    <string name="rd_ann_win">%1$s wins the round in %2$d ms.</string>
+    <string name="rd_ann_win_you">You win the round in %1$d ms.</string>
+    <string name="rd_ann_default">%1$s wins the round: everyone else is out.</string>
+    <string name="rd_ann_default_you">You win the round: everyone else is out.</string>
+    <string name="rd_ann_dead_heat">Dead heat! The round is replayed.</string>
+    <string name="rd_ann_too_slow">Nobody answered in time. The round is replayed.</string>
+    <string name="rd_ann_match">%1$s wins the duel!</string>
+    <string name="rd_ann_match_you">You win the duel!</string>
+    <string name="rd_ann_match_draw">The duel ends level.</string>
+    <string name="rd_best_ms">Best %1$d ms</string>
+    <string name="rd_pad_get_ready">Get ready</string>
+    <string name="rd_pad_wait">Wait…</string>
+    <string name="rd_pad_go">GO!</string>
+    <string name="rd_pad_out_early">Too soon!</string>
+    <string name="rd_pad_out_wrong">Wrong pad!</string>
+    <string name="rd_pad_done">Done!</string>
+    <string name="rd_pad_done_ms">%1$d ms</string>
+    <string name="rd_pad_fastest">Fastest!</string>
+    <string name="rd_pad_dash">—</string>
+    <string name="rd_pad_not_it">Not it</string>
+    <string name="rd_pad_progress">%1$d of %2$d</string>
+    <string name="rd_hint_one_switch">Press anywhere in your zone when the ring is on the pad you want.</string>
+    <string name="rd_round_banner">Round %1$d · first to %2$d wins</string>
+    <string name="rd_score_line">%1$s: %2$d of %3$d</string>
+    <string name="rd_zone_desc">%1$s zone. %2$d of %3$d rounds won. %4$s</string>
+    <string name="rd_zone_press">Press</string>
+    <string name="rd_target_label">Target: %1$s</string>
+    <string name="rd_symbol_desc">%1$s %2$s</string>
+    <string name="rd_shape_circle">Circle</string>
+    <string name="rd_shape_square">Square</string>
+    <string name="rd_shape_triangle">Triangle</string>
+    <string name="rd_shape_diamond">Diamond</string>
+    <string name="rd_shape_star">Star</string>
+    <string name="rd_colour_orange">Orange</string>
+    <string name="rd_colour_blue">Blue</string>
+    <string name="rd_colour_yellow">Yellow</string>
+    <string name="rd_colour_green">Green</string>
+    <string name="rd_over_title">%1$s wins the duel!</string>
+    <string name="rd_over_title_you">You win the duel!</string>
+    <string name="rd_over_summary">Rounds won: %1$s</string>
+</resources>

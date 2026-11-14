@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Light-Trail Duel and Sumo Push (resource name = hubKey of the English text). -->
+    <string name="hub_light_trail_duel">Duelo de estelas de luz</string>
+    <string name="hub_glowing_walls_one_survivor_steer_left_or_right_a_11a097">Muros brillantes, un solo superviviente. Gira a izquierda o derecha y atrapa a tus rivales.</string>
+    <string name="hub_out_ride_the_computer_computers_fill_the_other_z_7b7bd6">Supera en pista al ordenador. Los ordenadores ocupan las otras zonas.</string>
+    <string name="hub_2_to_4_people_on_one_screen_each_with_their_own_7d3525">De 2 a 4 personas en una pantalla, cada una con sus propios botones. Los ordenadores pueden ocupar las zonas vacías.</string>
+    <string name="hub_best_of_3_or_best_of_5_a_drawn_round_is_played_a_30e183">Al mejor de 3 o de 5. Una ronda empatada se repite.</string>
+    <string name="hub_arena_size">Tamaño de la arena</string>
+    <string name="hub_a_bigger_arena_gives_more_room_to_run_and_takes_456b44">Una arena más grande da más espacio para correr y tarda más en llenarse.</string>
+    <string name="hub_small">Pequeña</string>
+    <string name="hub_large">Grande</string>
+    <string name="hub_glowing_orbs_gap_lets_you_slip_through_walls_for_ddd91c">Orbes brillantes: Hueco te deja atravesar muros unas casillas e Impulso duplica tu velocidad un momento.</string>
+    <string name="hub_slower_riders_a_wider_arena_and_the_game_steers_c1a5d0">Pilotos más lentos, una arena más ancha y el juego te desvía de un muro de vez en cuando. Para quien encuentra difíciles los juegos rápidos.</string>
+    <string name="hub_controls">Controles</string>
+    <string name="hub_how_each_player_steers_one_button_is_for_players_a33631">Cómo dirige cada jugador. Un botón es para quien no puede usar dos botones.</string>
+    <string name="hub_two_pads">Dos botones</string>
+    <string name="hub_a_left_pad_and_a_right_pad_for_each_player">Un botón Izquierda y un botón Derecha para cada jugador.</string>
+    <string name="hub_one_button">Un botón</string>
+    <string name="hub_one_button_per_player_it_turns_toward_the_side_s_99c151">Un botón por jugador. Gira hacia el lado que muestra, y el lado cambia cada instante.</string>
+    <string name="hub_turn_each_player_s_controls_to_face_their_edge_o_ee335e">Gira los controles de cada jugador hacia su borde de la pantalla. Desactívalo para compartir el borde inferior.</string>
+    <string name="hub_sumo_push">Empuje de sumo</string>
+    <string name="hub_round_toy_sumos_in_a_shrinking_ring_shove_everyo_60ca67">Sumos de juguete en un anillo que se encoge. Empuja a todos los demás fuera.</string>
+    <string name="hub_push_the_computer_out_of_the_ring_computers_fill_4441a3">Empuja al ordenador fuera del anillo. Los ordenadores ocupan las otras zonas.</string>
+    <string name="hub_2_to_4_people_on_one_screen_each_with_their_own_558e65">De 2 a 4 personas en una pantalla, cada una con su propia palanca. Los ordenadores pueden ocupar las zonas vacías.</string>
+    <string name="hub_a_bigger_ring_takes_more_pushing_to_clear">Un anillo más grande cuesta más de despejar.</string>
+    <string name="hub_orbs_in_the_ring_heavy_makes_you_hard_to_shove_s_bb5092">Orbes en el anillo: Pesado te hace difícil de empujar y Velocidad te hace más rápido.</string>
+    <string name="hub_slower_sumos_a_bigger_ring_that_shrinks_slowly_a_813f86">Sumos más lentos, un anillo más grande que se encoge despacio y un agarre a la cuerda que evita que te salgas del borde. Para quien encuentra difíciles los juegos rápidos.</string>
+    <string name="hub_how_each_player_steers_one_button_is_for_players_67f846">Cómo dirige cada jugador. Un botón es para quien no puede usar una palanca.</string>
+    <string name="hub_stick">Palanca</string>
+    <string name="hub_drag_a_thumb_stick_to_steer_your_sumo">Arrastra una palanca con el pulgar para dirigir a tu sumo.</string>
+    <string name="hub_direction_pad">Cruceta</string>
+    <string name="hub_hold_a_direction_pad_to_steer_your_sumo">Mantén una cruceta para dirigir a tu sumo.</string>
+    <string name="hub_your_sumo_steers_itself_toward_the_nearest_rival_34b048">Tu sumo se dirige solo hacia el rival más cercano. Tú solo pulsas Embestida.</string>
+</resources>

@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -52,6 +53,7 @@ import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
+import com.gamesuite.R
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
@@ -71,9 +73,11 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Renders TicTacToeGame's state reactively. All game rules live in
@@ -171,6 +175,13 @@ fun TicTacToeScreen(
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
         game.misere = misere
         game.wild = wild
+        // Hub "board" choice (classic 3x3 / four = 4x4 / five = 5x5); the engine ignores it for
+        // Misere, Wild and network play, and a resumed save brings its own size.
+        game.boardSize = when (sessionManager.launchOptions.extras["board"]) {
+            "four" -> 4
+            "five" -> 5
+            else -> 3
+        }
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -183,6 +194,8 @@ fun TicTacToeScreen(
     }
 
     val board = game.board.value
+    // Edge length, read off the board itself so the grid and the cell count can never disagree.
+    val dim = dimForCells(board.size)
     val currentPlayer = game.currentPlayer.value
     val roundOver = game.roundOver.value
     val winningLine = game.winningLine.value
@@ -280,14 +293,15 @@ fun TicTacToeScreen(
     // board) pops the empty grid back in, also staggered, once the engine
     // has actually reset. Both default to 1f (fully visible, no-op) so a
     // cell never renders wrong before either effect has run.
-    val cellExitScale = remember { List(9) { Animatable(1f) } }
-    val cellEntranceScale = remember { List(9) { Animatable(1f) } }
-    LaunchedEffect(roundNumber) {
+    // Sized for the biggest board (5x5); a smaller board uses the first dim*dim.
+    val cellExitScale = remember { List(MAX_CELLS) { Animatable(1f) } }
+    val cellEntranceScale = remember { List(MAX_CELLS) { Animatable(1f) } }
+    LaunchedEffect(roundNumber, dim) {
         if (roundNumber <= 1 || reducedMotion) {
             cellEntranceScale.forEach { it.snapTo(1f) }
         } else {
             cellEntranceScale.forEach { it.snapTo(0f) }
-            val order = (0..8).sortedBy { gridDistanceFromCenter(it) }
+            val order = (0 until dim * dim).sortedBy { gridDistanceFromCenter(it, dim) }
             order.forEachIndexed { i, cellIndex ->
                 launch {
                     delay(i * TTT_STAGGER_MS)
@@ -301,16 +315,34 @@ fun TicTacToeScreen(
 
     // Undo/Hint availability. Undo waits out the Play Again clear animation (the engine resets
     // right after it); Hint needs a local human's turn, so never in network play or on the CPU's.
+    var hintBusy by remember { mutableStateOf(false) }
     val canUndoNow = game.canUndo && !isClearingRound
-    val canHintNow = canAct && !networked && !isClearingRound
+    val canHintNow = canAct && !networked && !isClearingRound && !hintBusy
     val hintUnavailableReason = when {
         roundOver -> "the round is over"
         networked -> "not available in network play"
         isBotTurn -> "waiting for the CPU"
+        hintBusy -> "thinking"
         else -> "not ready yet"
     }
     val hintText = hintMove?.let { (cell, symbol) ->
-        "Hint: Row ${cell / 3 + 1}, Column ${cell % 3 + 1}" + if (wild) ", place ${if (symbol == 1) "X" else "O"}" else ""
+        "Hint: Row ${cell / dim + 1}, Column ${cell % dim + 1}" + if (wild) ", place ${if (symbol == 1) "X" else "O"}" else ""
+    }
+
+    /** Hint without freezing the UI: the search runs on a background thread (it can take a moment on 4x4 / 5x5) and
+     *  is dropped if the position changed meanwhile. */
+    fun requestHint() {
+        if (hintBusy) return
+        val request = game.beginHint() ?: return
+        hintBusy = true
+        scope.launch {
+            try {
+                val move = withContext(Dispatchers.Default) { game.searchHint(request) }
+                game.finishHint(request, move)
+            } finally {
+                hintBusy = false
+            }
+        }
     }
 
     /** Play Again's real handler: stagger the OLD marks out (ordered from the
@@ -355,7 +387,11 @@ fun TicTacToeScreen(
         if (!gameReady || roundOver) return@LaunchedEffect
         if (c.players.getOrNull(currentPlayer - 1)?.isBot == true) {
             delay(botDelayMs)
-            game.playBotTurn()
+            // The search runs off the main thread (a 4x4 / 5x5 position can take most of a second);
+            // finishBotTurn re-checks that the position is unchanged before the move is applied.
+            val request = game.beginBotTurn() ?: return@LaunchedEffect
+            val move = withContext(Dispatchers.Default) { game.searchBotMove(request) } ?: return@LaunchedEffect
+            if (!game.finishBotTurn(request, move)) return@LaunchedEffect
             // The bot's placement is otherwise silent (sounds.playTap() only fires from the
             // human's tap). A light tick + haptic gives the CPU's move the same "something
             // happened" acknowledgment — but not when the move ended the round, where the
@@ -406,7 +442,7 @@ fun TicTacToeScreen(
 
     GameChrome(
         helpTitle = helpTitleFor(misere, wild),
-        helpText = helpTextFor(misere, wild),
+        helpText = if (dim > 3) stringResource(R.string.ttt_help_big_board, dim) else helpTextFor(misere, wild),
         matchInProgress = !roundOver,
         onLeave = game::leaveSession,
         // Leaving mid-round discards ONLY the unfinished round: if earlier rounds were already
@@ -416,7 +452,7 @@ fun TicTacToeScreen(
         leaveKeepsProgress = finishedRounds == 0,
         onUndo = { game.undo() },
         canUndo = canUndoNow,
-        onHint = { if (canHintNow) game.hint() },
+        onHint = { if (canHintNow) requestHint() },
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this round?",
@@ -489,7 +525,7 @@ fun TicTacToeScreen(
                             canHint = canHintNow,
                             hintUnavailableReason = hintUnavailableReason,
                             onUndo = { game.undo() },
-                            onHint = { game.hint() }
+                            onHint = { requestHint() }
                         )
                         if (hintText != null) {
                             Spacer(modifier = Modifier.height(4.dp))
@@ -513,21 +549,24 @@ fun TicTacToeScreen(
                             // One "pitch" is a cell plus its CellGap on each side. fitBoard
                             // never returns a footprint larger than the slot; the cap keeps
                             // a tablet from sprawling into a 480dp+ board.
-                            val fit = remember(slotWidth, slotHeight) {
+                            // fitBoard returns the biggest cell that fits, so cells reach the
+                            // comfortable 48dp (pitch 56dp) whenever the slot has room for that and
+                            // shrink toward the 28dp floor (pitch 36dp) only when it does not.
+                            val fit = remember(slotWidth, slotHeight, dim) {
                                 fitBoard(
                                     availableWidthPx = slotWidth.value,
                                     availableHeightPx = slotHeight.value,
-                                    columns = 3,
-                                    rows = 3,
+                                    columns = dim,
+                                    rows = dim,
                                     minCellPx = MIN_PITCH_DP,
-                                    maxCellPx = MAX_PITCH_DP
+                                    maxCellPx = MAX_BOARD_DP / dim
                                 )
                             }
                             // Under the minimum a cell would be too small to hit, so stop
                             // shrinking and let the board pan instead of overflowing.
                             val scrolls = !fit.meetsMinimum
                             val pitch = (if (scrolls) MIN_PITCH_DP else fit.cellPx).dp
-                            val boardSize = pitch * 3
+                            val boardSize = pitch * dim
                             val verticalState = rememberScrollState()
                             val horizontalState = rememberScrollState()
 
@@ -545,12 +584,13 @@ fun TicTacToeScreen(
                             ) {
                                 Box(modifier = Modifier.size(boardSize)) {
                                     Column {
-                                        for (row in 0 until 3) {
+                                        for (row in 0 until dim) {
                                             Row {
-                                                for (col in 0 until 3) {
-                                                    val index = row * 3 + col
+                                                for (col in 0 until dim) {
+                                                    val index = row * dim + col
                                                     TttCell(
                                                         index = index,
+                                                        dim = dim,
                                                         cellValue = board[index],
                                                         isWinning = winningLine?.contains(index) == true,
                                                         hintSymbol = if (hintMove != null && hintMove.first == index) hintMove.second else null,
@@ -592,10 +632,10 @@ fun TicTacToeScreen(
                                     // widths are fractions of the pitch so they scale with the
                                     // board instead of being raw pixels.
                                     Canvas(modifier = Modifier.fillMaxSize()) {
-                                        val pitchPx = size.width / 3f
+                                        val pitchPx = size.width / dim
                                         fun cellCenter(index: Int) = Offset(
-                                            (index % 3 + 0.5f) * pitchPx,
-                                            (index / 3 + 0.5f) * pitchPx
+                                            (index % dim + 0.5f) * pitchPx,
+                                            (index / dim + 0.5f) * pitchPx
                                         )
                                         if (winningLine != null) {
                                             val start = cellCenter(winningLine.first())
@@ -730,8 +770,18 @@ private val CellGap = 4.dp
 /** Smallest cell pitch (28dp cell + 2 x [CellGap]) before the board scrolls instead of shrinking. */
 private const val MIN_PITCH_DP = 36f
 
-/** Largest cell pitch: a 480dp board, so a tablet doesn't stretch it. */
-private const val MAX_PITCH_DP = 160f
+/** Largest board edge: 480dp (a 3x3 cell pitch of 160dp, 120dp on 4x4, 96dp on 5x5), so a tablet doesn't stretch it. */
+private const val MAX_BOARD_DP = 480f
+
+/** Most cells any board has (5x5); per-cell animation state is allocated for this many. */
+private const val MAX_CELLS = 25
+
+/** Board edge length for a board of [cellCount] cells: 4 for 16, 5 for 25, otherwise the classic 3. */
+private fun dimForCells(cellCount: Int): Int = when (cellCount) {
+    16 -> 4
+    25 -> 5
+    else -> 3
+}
 
 /** Pause between a round ending and its result panel appearing, so the winning line finishes first. */
 private const val RESULT_HOLD_MS = 350L
@@ -849,9 +899,10 @@ private fun helpTextFor(misere: Boolean, wild: Boolean): String {
 /** Squared grid distance of cell [index] (0-8, row-major over the 3x3 board) from the
  *  board's true center cell (index 4) — used to order the fresh grid's staggered
  *  entrance center-out after Play Again resets the board. */
-private fun gridDistanceFromCenter(index: Int): Int {
-    val dx = index % 3 - 1
-    val dy = index / 3 - 1
+private fun gridDistanceFromCenter(index: Int, dim: Int): Int {
+    // Doubled coordinates so an even-sized board's centre (between cells) stays an integer.
+    val dx = (index % dim) * 2 - (dim - 1)
+    val dy = (index / dim) * 2 - (dim - 1)
     return dx * dx + dy * dy
 }
 
@@ -861,12 +912,19 @@ private fun gridDistanceFromCenter(index: Int): Int {
  *  on a win, or the board's true center (index 4) on a draw. Ties (equal distance)
  *  keep natural board order, which reads as a fine symmetric ripple either way. */
 private fun clearOrder(board: IntArray, winningLine: List<Int>?): List<Int> {
-    val centerIndex = winningLine?.getOrNull(1) ?: 4
-    val cx = centerIndex % 3
-    val cy = centerIndex / 3
+    val dim = dimForCells(board.size)
+    // The ripple starts at the winning line's middle cell (on a 4-long line, the cell just past
+    // the middle), or at the board's centre on a draw (doubled coordinates, so an even board
+    // centres between its middle cells).
+    val center2 = if (winningLine != null && winningLine.isNotEmpty()) {
+        val mid = winningLine[winningLine.size / 2]
+        (mid % dim) * 2 to (mid / dim) * 2
+    } else {
+        (dim - 1) to (dim - 1)
+    }
     return board.indices.filter { board[it] != 0 }.sortedBy { idx ->
-        val dx = idx % 3 - cx
-        val dy = idx / 3 - cy
+        val dx = (idx % dim) * 2 - center2.first
+        val dy = (idx / dim) * 2 - center2.second
         dx * dx + dy * dy
     }
 }
@@ -881,6 +939,7 @@ private fun clearOrder(board: IntArray, winningLine: List<Int>?): List<Int> {
 @Composable
 private fun TttCell(
     index: Int,
+    dim: Int,
     cellValue: Int,
     isWinning: Boolean,
     hintSymbol: Int?,
@@ -892,13 +951,13 @@ private fun TttCell(
     transitionScale: () -> Float,
     onTap: () -> Unit
 ) {
-    // 1-indexed row/column (index is 0-8 row-major over the 3x3 grid) plus what's there.
+    // 1-indexed row/column (index is row-major over the dim x dim grid) plus what's there.
     val markName = when (cellValue) {
         1 -> "X"
         2 -> "O"
         else -> "empty"
     }
-    val description = "Row ${index / 3 + 1}, Column ${index % 3 + 1}, $markName" +
+    val description = "Row ${index / dim + 1}, Column ${index % dim + 1}, $markName" +
         (if (isWinning) ", winning line" else "") +
         (if (hintSymbol != null) ", suggested move" + (if (wild) ", place ${if (hintSymbol == 1) "X" else "O"}" else "") else "")
 

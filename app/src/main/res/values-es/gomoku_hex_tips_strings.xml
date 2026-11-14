@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tip_gomoku_1">Toca un punto para seleccionarlo y vuelve a tocarlo para colocar una piedra.</string>
+    <string name="tip_gomoku_2">Alinea cinco de tus piedras en fila, columna o diagonal para ganar.</string>
+    <string name="tip_gomoku_3">Bloquea los tres y cuatro abiertos de tu rival antes de que lleguen a cinco.</string>
+    <string name="tip_hex_1">El rojo une sus dos bordes rojos; el azul, sus dos bordes azules.</string>
+    <string name="tip_hex_2">Une tus dos lados con una cadena continua de piedras. No hay empates.</string>
+    <string name="tip_hex_3">Con la regla del pastel, el segundo jugador puede cambiar de bando tras la primera piedra.</string>
+</resources>

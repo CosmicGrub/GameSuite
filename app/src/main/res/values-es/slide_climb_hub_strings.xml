@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos del Game Hub de Desliza y Sube (nombres hubKey) -->
+    <string name="hub_slide_and_climb">Desliza y Sube</string>
+    <string name="hub_roll_the_dice_and_race_to_square_100">Tira el dado y corre hasta la casilla 100.</string>
+    <string name="hub_on_land_on_100_exactly_off_bounce_back">Sí: cae justo en el 100. No: rebotas hacia atrás.</string>
+    <string name="hub_spare_roll">Tirada extra</string>
+    <string name="hub_one_extra_roll_to_use_instead_of_a_bad_one">Una tirada extra para usar en lugar de una mala.</string>
+    <string name="hub_no_spare_roll">Sin tirada extra</string>
+    <string name="hub_everyone_has_one">Todos tienen una</string>
+    <string name="hub_player_1_only">Solo el jugador 1</string>
+    <string name="hub_player_2_only">Solo el jugador 2</string>
+    <string name="hub_player_3_only">Solo el jugador 3</string>
+    <string name="hub_player_4_only">Solo el jugador 4</string>
+</resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Bridge Builders (hubKey names). Texts that already exist elsewhere (Same screen, helper level words, rotate toggle) are not repeated. -->
+    <string name="hub_bridge_builders">Bridge Builders</string>
+    <string name="hub_build_a_bridge_together_before_the_water_rises">Build a bridge together before the water rises.</string>
+    <string name="hub_build_with_helper_robots">Build with helper robots</string>
+    <string name="hub_you_and_1_to_3_friendly_helper_robots_build_one_22243c">You and 1 to 3 friendly helper robots build one bridge together. Each of you has a lane.</string>
+    <string name="hub_two_to_four_people_build_one_bridge_on_the_same_2ee8db">Two to four people build one bridge on the same screen, each in their own lane. Helper robots can fill empty lanes.</string>
+    <string name="hub_bridge_size">Bridge size</string>
+    <string name="hub_how_many_planks_the_bridge_needs_how_big_the_gre_b78f09">How many planks the bridge needs, how big the green spots are and how fast the water rises.</string>
+    <string name="hub_little_bridge">Little bridge</string>
+    <string name="hub_a_short_bridge_wide_green_spots_and_slow_water_g_57c05d">A short bridge, wide green spots and slow water: great for the youngest builders.</string>
+    <string name="hub_medium_bridge">Medium bridge</string>
+    <string name="hub_a_good_mix_for_most_families">A good mix for most families.</string>
+    <string name="hub_big_bridge">Big bridge</string>
+    <string name="hub_a_long_bridge_small_green_spots_and_quick_water_894f2c">A long bridge, small green spots and quick water for practised builders.</string>
+    <string name="hub_relaxed_building">Relaxed building</string>
+    <string name="hub_every_tap_places_a_plank_even_outside_the_green_b32ed7">Every tap places a plank, even outside the green spot, and the cart and the water are slower. Tapping nearer the middle still makes a sturdier plank.</string>
+    <string name="hub_bigger_green_spot_for">Bigger green spot for</string>
+    <string name="hub_give_one_builder_a_wider_green_spot_so_different_a08081">Give one builder a wider green spot so different ages can build side by side.</string>
+    <string name="hub_nobody_all_equal">Nobody, all equal</string>
+    <string name="hub_lane_1">Lane 1</string>
+    <string name="hub_lane_2">Lane 2</string>
+    <string name="hub_lane_3">Lane 3</string>
+    <string name="hub_lane_4">Lane 4</string>
+    <string name="hub_helper_robot_level">Helper robot level</string>
+    <string name="hub_helper_robots">Helper robots</string>
+    <string name="hub_robots_build_a_lane_of_their_own_so_a_small_team_e4be3f">Robots build a lane of their own, so a small team always has enough builders.</string>
+</resources>

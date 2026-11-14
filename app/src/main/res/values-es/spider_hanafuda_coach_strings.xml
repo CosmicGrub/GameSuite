@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Spider Solitaire and Hanafuda (see GameCoach.kt entries) -->
+    <string name="coach_spider_solitaire_s1">Forma las columnas hacia abajo: pon una carta sobre otra de un rango más, de cualquier palo.</string>
+    <string name="coach_spider_solitaire_s2">Una escalera solo se mueve si todas sus cartas son de un palo y están en orden. Arrástrala, o tócala y luego toca una columna.</string>
+    <string name="coach_spider_solitaire_s3">¿Sin jugadas? Reparte una fila del mazo cuando todas las columnas tengan una carta.</string>
+    <string name="coach_spider_solitaire_s4">Una escalera completa del Rey al As en un palo sale de la mesa. Quita las ocho para ganar.</string>
+    <string name="coach_spider_solitaire_s5">¿Atascado? Usa la pista o deshaz tantas veces como quieras.</string>
+    <string name="coach_spider_solitaire_fact">El Solitario Araña usa dos barajas, 104 cartas en total, y debe su nombre a las ocho escaleras completas que despejan la mesa, una por cada pata de una araña.</string>
+    <string name="coach_hanafuda_s1">En cada turno, juega una carta de tu mano sobre una carta de la mesa del mismo mes.</string>
+    <string name="coach_hanafuda_s2">¿Sin pareja? La carta se queda en la mesa. ¿Dos parejas? Eliges una.</string>
+    <string name="coach_hanafuda_s3">Después da la vuelta a la primera carta del mazo y empareja del mismo modo.</string>
+    <string name="coach_hanafuda_s4">Las cartas capturadas son Luces, Animales, Cintas o Simples. Los conjuntos forman combinaciones llamadas yaku.</string>
+    <string name="coach_hanafuda_s5">Con una combinación, di Koi-Koi para seguir jugando por más, o Shobu para puntuar y terminar la ronda.</string>
+    <string name="coach_hanafuda_s6">Siete puntos o más valen el doble, y también los puntos ganados tras un Koi-Koi del oponente.</string>
+    <string name="coach_hanafuda_fact">Hanafuda significa cartas de flores. La baraja tiene 48 cartas, cuatro por cada uno de los doce meses, y Koi-Koi, que significa vamos, es uno de los juegos más populares con ella.</string>
+</resources>

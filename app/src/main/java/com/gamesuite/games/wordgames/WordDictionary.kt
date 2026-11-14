@@ -1,6 +1,8 @@
 package com.gamesuite.games.wordgames
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -19,6 +21,22 @@ object WordDictionary {
     @Volatile
     private var loaded = false
 
+    /** True once the word list has been parsed. Safe to read from any thread. */
+    val isLoaded: Boolean get() = loaded
+
+    /**
+     * Loads the dictionary on [Dispatchers.IO]; the main-thread-safe entry point. Call from any
+     * coroutine (UI effects included) and the ~359k-line parse never runs on the caller's thread.
+     */
+    suspend fun preload(context: Context) {
+        if (loaded) return
+        withContext(Dispatchers.IO) { ensureLoaded(context) }
+    }
+
+    /**
+     * Blocking load. Parses the whole asset, so it must only be called off the main thread
+     * (use [preload] from coroutines).
+     */
     @Synchronized
     fun ensureLoaded(context: Context) {
         if (loaded) return

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach cards of Darts and Bowling (the GameCoach entries are added by the integrator) -->
+    <string name="coach_darts_s1">Throw three darts a visit at the board. Each part of the board scores: the thin outer ring doubles the number, the thin inner ring trebles it, and the bull in the middle is worth 25 and 50.</string>
+    <string name="coach_darts_s2">Drag on the board to move the reticle, then flick upward to throw. A moderate flick is best. Your hand wobbles a little, shown by the circle around the reticle.</string>
+    <string name="coach_darts_s3">In 501 and 301 count down to exactly zero. You must finish on a double, and going past zero is a bust that sends you back to where the visit began.</string>
+    <string name="coach_darts_s4">In Cricket close 20, 19, 18, 17, 16, 15 and the bull with three marks each. Once you have closed a number, extra hits score points while a rival still has it open.</string>
+    <string name="coach_darts_s5">Tap Hint for a suggested target and the finishing route. When your three darts are thrown, press Collect darts to pass the turn.</string>
+    <string name="coach_darts_fact">The standard dartboard numbering, with 20 at the top and 3 and 11 beside the bottom, is traditionally credited to a Lancashire carpenter named Thomas Bucknall Ellis in 1896.</string>
+    <string name="coach_bowling_s1">Bowl ten frames. In each frame you get up to two balls to knock down all ten pins. Knock them all down with the first ball and it is a strike.</string>
+    <string name="coach_bowling_s2">Set the start position, aim, spin and speed with the sliders and press Roll. Or drag across the foot of the lane to place the ball and swipe up: the angle is the aim and a curve adds hook.</string>
+    <string name="coach_bowling_s3">For the best chance of a strike, start wide and hook the ball into the pocket between the head pin and the pin beside it.</string>
+    <string name="coach_bowling_s4">A spare is clearing the pins with your second ball and scores the next ball as a bonus. A strike scores the next two balls. A perfect game of twelve strikes is 300.</string>
+    <string name="coach_bowling_s5">The rack in the corner shows which pins are still standing. Tap Hint for a suggested shot, and turn on Bumpers in the setup to keep the ball out of the gutters.</string>
+    <string name="coach_bowling_fact">Ten-pin bowling\'s triangle of pins is a descendant of older nine-pin games; a Connecticut ban on nine-pins in the 1840s is often said to have led to the extra tenth pin.</string>
+</resources>

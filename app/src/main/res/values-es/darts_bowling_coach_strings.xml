@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach cards of Darts and Bowling (the GameCoach entries are added by the integrator) -->
+    <string name="coach_darts_s1">Lanza tres dardos por tanda a la diana. Cada zona puntúa: el aro exterior fino dobla el número, el aro interior fino lo triplica y el centro vale 25 y 50.</string>
+    <string name="coach_darts_s2">Arrastra sobre la diana para mover la mira y desliza hacia arriba para lanzar. Un gesto moderado es lo mejor. Tu pulso tiembla un poco, como muestra el círculo alrededor de la mira.</string>
+    <string name="coach_darts_s3">En 501 y 301 cuenta atrás hasta cero exacto. Debes terminar en un doble, y pasarte de cero es un fallo que te devuelve a donde empezó la tanda.</string>
+    <string name="coach_darts_s4">En Cricket cierra 20, 19, 18, 17, 16, 15 y la diana con tres marcas cada uno. Cuando cierras un número, los aciertos extra suman puntos mientras un rival lo tenga abierto.</string>
+    <string name="coach_darts_s5">Pulsa Pista para ver un objetivo sugerido y la ruta de cierre. Cuando lances tus tres dardos, pulsa Recoger dardos para pasar el turno.</string>
+    <string name="coach_darts_fact">La numeración habitual de la diana, con el 20 arriba y el 3 y el 11 a los lados de abajo, se atribuye tradicionalmente a un carpintero de Lancashire llamado Thomas Bucknall Ellis en 1896.</string>
+    <string name="coach_bowling_s1">Juega diez turnos. En cada turno tienes hasta dos bolas para derribar los diez bolos. Si los derribas todos con la primera bola, es un pleno.</string>
+    <string name="coach_bowling_s2">Ajusta la salida, la dirección, el efecto y la velocidad con los deslizadores y pulsa Lanzar. O arrastra por el pie de la pista para colocar la bola y desliza hacia arriba: el ángulo es la dirección y una curva añade efecto.</string>
+    <string name="coach_bowling_s3">Para tener más opciones de pleno, sal desde un lado y curva la bola hacia el hueco entre el bolo delantero y el de al lado.</string>
+    <string name="coach_bowling_s4">Un semipleno es limpiar los bolos con la segunda bola y suma la bola siguiente como bonus. Un pleno suma las dos bolas siguientes. Una partida perfecta de doce plenos son 300.</string>
+    <string name="coach_bowling_s5">El marcador de la esquina muestra qué bolos siguen en pie. Pulsa Pista para ver un lanzamiento sugerido y activa las barreras en la configuración para mantener la bola fuera de las canaletas.</string>
+    <string name="coach_bowling_fact">El triángulo de diez bolos desciende de juegos más antiguos de nueve bolos; se dice que una prohibición de los nueve bolos en Connecticut en la década de 1840 llevó al décimo bolo extra.</string>
+</resources>

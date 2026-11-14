@@ -450,6 +450,8 @@ private fun ChessDesktopApp(onBack: () -> Unit) {
                     ChessResult.BLACK_WINS -> "Checkmate -- bot wins."
                     ChessResult.DRAW_STALEMATE -> "Stalemate -- draw."
                     ChessResult.DRAW_REPETITION -> "Draw by repetition."
+                    ChessResult.DRAW_FIFTY_MOVE -> "Draw by the fifty-move rule."
+                    ChessResult.DRAW_INSUFFICIENT_MATERIAL -> "Draw: insufficient material."
                     ChessResult.IN_PROGRESS -> "" // unreachable when roundOver is true
                 }
                 Text(outcome)

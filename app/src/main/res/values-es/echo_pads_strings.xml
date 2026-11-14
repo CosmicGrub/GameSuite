@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Echo Pads screen, tips (ES) -->
+<resources>
+    <string name="echo_pads_help_title">Echo Pads</string>
+    <string name="echo_pads_help_text">Mira cómo se encienden los pads y escucha sus notas. Luego toca los mismos pads en el mismo orden. En cada ronda el patrón crece en uno. En Pasar y jugar, quien se equivoca queda fuera. En Cara a cara, pierde quien se equivoca.</string>
+    <string name="echo_pads_pad_circle">Pad del círculo</string>
+    <string name="echo_pads_pad_triangle">Pad del triángulo</string>
+    <string name="echo_pads_pad_square">Pad del cuadrado</string>
+    <string name="echo_pads_pad_star">Pad de la estrella</string>
+    <string name="echo_pads_pad_lit">%1$s, encendido</string>
+    <string name="echo_pads_round">Ronda %1$d</string>
+    <string name="echo_pads_round_left">Ronda %1$d · quedan %2$d jugadores</string>
+    <string name="echo_pads_score_best">Puntos %1$d · Récord %2$d</string>
+    <string name="echo_pads_progress">%1$d de %2$d</string>
+    <string name="echo_pads_status_ready">Prepárate.</string>
+    <string name="echo_pads_status_handoff">%1$s, toma el dispositivo y pulsa Listo.</string>
+    <string name="echo_pads_status_ready_name">%1$s, prepárate.</string>
+    <string name="echo_pads_status_watch">Mira el patrón.</string>
+    <string name="echo_pads_status_watch_name">%1$s, mira el patrón.</string>
+    <string name="echo_pads_status_copy">Tu turno: copia el patrón.</string>
+    <string name="echo_pads_status_copy_name">%1$s, tu turno: copia el patrón.</string>
+    <string name="echo_pads_status_ok">¡Perfecto!</string>
+    <string name="echo_pads_status_ok_name">¡%1$s lo logró!</string>
+    <string name="echo_pads_status_retry">Casi. Míralo otra vez e inténtalo de nuevo.</string>
+    <string name="echo_pads_status_miss">Fallaste. Fin del juego.</string>
+    <string name="echo_pads_status_miss_out">%1$s falló y queda fuera.</string>
+    <string name="echo_pads_status_miss_plain">%1$s falló.</string>
+    <string name="echo_pads_ready_button">Listo</string>
+    <string name="echo_pads_out_tag">fuera</string>
+    <string name="echo_pads_zone_watch">Mira</string>
+    <string name="echo_pads_zone_your_turn">Tu turno</string>
+    <string name="echo_pads_zone_wait">Espera</string>
+    <string name="echo_pads_zone_get_ready">Prepárate</string>
+    <string name="echo_pads_zone_ok">¡Perfecto!</string>
+    <string name="echo_pads_zone_retry">Otra vez</string>
+    <string name="echo_pads_zone_miss">Fallo</string>
+    <string name="echo_pads_zone_winner">¡Ganador!</string>
+    <string name="echo_pads_over_solo_title">Fin del juego</string>
+    <string name="echo_pads_over_solo_line">Copiaste %1$d seguidos.</string>
+    <string name="echo_pads_over_solo_none">Esta vez no copiaste ningún patrón. ¡Inténtalo otra vez!</string>
+    <string name="echo_pads_over_best">Récord: %1$d</string>
+    <string name="echo_pads_over_new_best">¡Nuevo récord!</string>
+    <string name="echo_pads_over_win">¡%1$s gana!</string>
+    <string name="echo_pads_over_tie">Empate entre %1$s.</string>
+    <string name="echo_pads_over_line">%1$s copió %2$d</string>
+    <string name="tip_echo_pads_1">Mira y escucha mientras se encienden los pads, y luego toca los mismos pads en el mismo orden.</string>
+    <string name="tip_echo_pads_2">Cada pad tiene su propia forma, color y nota, así que puedes aprenderlos con la vista o con el oído.</string>
+    <string name="tip_echo_pads_3">¿Para los más pequeños? Activa el Modo fácil y la velocidad Lenta en la configuración para tener un segundo intento gratis.</string>
+</resources>

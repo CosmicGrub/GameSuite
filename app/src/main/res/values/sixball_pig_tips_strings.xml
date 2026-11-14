@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips; move these into polish_strings.xml (GameTipsTest reads only that file) and delete this file -->
+    <string name="tip_six_ball_puzzle_1">Swipe the tray or press an arrow: every ball rolls until something stops it.</string>
+    <string name="tip_six_ball_puzzle_2">Put each ball on the slot with its own symbol and colour.</string>
+    <string name="tip_six_ball_puzzle_3">Beat par for three stars. Undo is unlimited and Hint shows the next tilt.</string>
+    <string name="tip_pig_dice_1">Roll as often as you like; the numbers pile up in the pot.</string>
+    <string name="tip_pig_dice_2">Hold to bank the pot. Roll a 1 and you lose it and your turn.</string>
+    <string name="tip_pig_dice_3">First to the goal wins. Hint shows the best move and your chance.</string>
+</resources>

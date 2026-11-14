@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Profiles, Kids home, parent gate, parent controls, time-up -->
+    <string name="prof_whos_playing">Who\'s playing?</string>
+    <string name="prof_add_profile">Add profile</string>
+    <string name="prof_manage">Manage profiles</string>
+    <string name="prof_done">Done</string>
+    <string name="prof_save">Save</string>
+    <string name="prof_cancel">Cancel</string>
+    <string name="prof_back">Back</string>
+    <string name="prof_kind_adult">Adult</string>
+    <string name="prof_kind_kid">Kid</string>
+    <string name="prof_kind_label">Profile type</string>
+    <string name="prof_name_label">Name</string>
+    <string name="prof_name_hint">Use a nickname, not your real name</string>
+    <string name="prof_age_label">Age</string>
+    <string name="prof_age_4_6">Ages 4 to 6</string>
+    <string name="prof_age_7_9">Ages 7 to 9</string>
+    <string name="prof_age_10_12">Ages 10 to 12</string>
+    <string name="prof_character_label">Pick a character</string>
+    <string name="prof_color_label">Pick a colour</string>
+    <string name="prof_cd_profile">%1$s, %2$s profile</string>
+    <string name="prof_cd_selected">Selected</string>
+
+    <string name="prof_err_empty">Type a name</string>
+    <string name="prof_err_long">At most 16 characters</string>
+    <string name="prof_err_chars">Letters, numbers and spaces only</string>
+    <string name="prof_err_link">Names can\'t look like links</string>
+    <string name="prof_err_dup">That name is already used</string>
+    <string name="prof_err_too_many">The profile limit has been reached</string>
+
+    <string name="prof_rename">Rename</string>
+    <string name="prof_delete">Delete</string>
+    <string name="prof_delete_title">Delete %1$s?</string>
+    <string name="prof_delete_body">Their stats, saved games and favourites are removed for good.</string>
+    <string name="prof_err_delete_default">The first profile can\'t be deleted.</string>
+    <string name="prof_err_delete_active">Switch to another profile first.</string>
+    <string name="prof_err_delete_last_adult">At least one adult profile must stay.</string>
+
+    <string name="prof_kids_hi">Hi, %1$s!</string>
+    <string name="prof_kids_stickers">%1$d stickers</string>
+    <string name="prof_kids_time_left">%1$d min left</string>
+    <string name="prof_kids_play">Play</string>
+    <string name="prof_kids_lock">Hold to open parent controls</string>
+    <string name="prof_kids_lock_holding">Keep holding</string>
+    <string name="prof_kids_empty">No games here yet. Ask a grown-up.</string>
+
+    <string name="prof_gate_title">Grown-ups only</string>
+    <string name="prof_gate_prompt">Solve this to continue</string>
+    <string name="prof_gate_answer">Answer</string>
+    <string name="prof_gate_check">Check</string>
+    <string name="prof_gate_wrong">Not quite. %1$d tries left.</string>
+    <string name="prof_gate_locked">Too many tries. Wait %1$d seconds.</string>
+    <string name="prof_gate_not_number">Type a number</string>
+    <string name="prof_gate_prompt_word">Type this number as digits</string>
+    <string name="prof_gate_prompt_pin">Enter your 4-digit PIN</string>
+    <string name="prof_gate_prompt_phone">Use your phone\'s screen lock</string>
+    <string name="prof_gate_phone_button">Unlock with phone lock</string>
+    <string name="prof_gate_phone_failed">Phone lock was not confirmed. Try again.</string>
+    <string name="prof_gate_pin_label">PIN</string>
+    <string name="prof_gate_pin_again">PIN again</string>
+    <string name="prof_gate_pin_incomplete">Type all 4 digits</string>
+    <string name="prof_gate_pin_mismatch">The two PINs do not match</string>
+    <string name="prof_gate_pin_set">Set or change PIN</string>
+    <string name="prof_gate_pin_remove">Remove PIN</string>
+    <string name="prof_gate_pin_setup_hint">Choose 4 digits only a grown-up knows. Opening parent controls will accept this PIN.</string>
+    <string name="prof_gate_other_way">Try another way</string>
+    <string name="prof_gate_style_title">Unlock style</string>
+    <string name="prof_gate_method_auto">Automatic</string>
+    <string name="prof_gate_method_auto_desc">Starts with %1$s</string>
+    <string name="prof_gate_method_phone">Phone lock</string>
+    <string name="prof_gate_method_phone_desc">Your phone\'s own PIN, pattern, password or fingerprint</string>
+    <string name="prof_gate_method_word">Word code</string>
+    <string name="prof_gate_method_word_desc">A number spelled out in words, typed as digits</string>
+    <string name="prof_gate_method_pin">PIN</string>
+    <string name="prof_gate_method_pin_desc">A 4-digit PIN you choose</string>
+    <string name="prof_gate_method_sums">Sums</string>
+    <string name="prof_gate_method_sums_desc">A maths question</string>
+    <string name="prof_gate_phone_unavailable">Needs a screen lock set on this phone</string>
+    <string name="prof_gate_phone_hint">Phone lock uses the same fingerprint or PIN as unlocking your device.</string>
+    <string-array name="prof_gate_digit_words">
+        <item>zero</item>
+        <item>one</item>
+        <item>two</item>
+        <item>three</item>
+        <item>four</item>
+        <item>five</item>
+        <item>six</item>
+        <item>seven</item>
+        <item>eight</item>
+        <item>nine</item>
+    </string-array>
+
+    <string name="prof_dash_title">Parent controls</string>
+    <string name="prof_dash_for">Settings for %1$s</string>
+    <string name="prof_dash_no_kids">Add a kid profile to set limits.</string>
+    <string name="prof_dash_play_time">Play time</string>
+    <string name="prof_dash_daily">Daily limit</string>
+    <string name="prof_dash_minutes">%1$d min</string>
+    <string name="prof_dash_no_limit">No limit</string>
+    <string name="prof_dash_today">Played today: %1$d min</string>
+    <string name="prof_dash_week">This week</string>
+    <string name="prof_dash_quiet">Quiet hours</string>
+    <string name="prof_dash_quiet_desc">No play between these times</string>
+    <string name="prof_dash_quiet_from">From</string>
+    <string name="prof_dash_quiet_to">Until</string>
+    <string name="prof_dash_online">Online play</string>
+    <string name="prof_dash_online_locked">Locked off for kids. Kid profiles can never play online or nearby.</string>
+    <string name="prof_dash_games">Games shown</string>
+    <string name="prof_dash_switch">Switch profile</string>
+    <string name="prof_dash_hour_up">Later</string>
+    <string name="prof_dash_hour_down">Earlier</string>
+
+    <string name="prof_timeup_title">Time\'s up for today!</string>
+    <string name="prof_timeup_quiet_title">It\'s quiet time</string>
+    <string name="prof_timeup_body">Great playing! See you next time.</string>
+    <string name="prof_timeup_quiet_body">Games are back at %1$s.</string>
+    <string name="prof_timeup_parent">Grown-up? Open parent controls</string>
+    <string name="prof_warn_toast">5 minutes left. Finish your round!</string>
+
+    <string name="prof_settings_section">Profiles and family</string>
+    <string name="prof_settings_current">Playing as %1$s</string>
+    <string name="prof_settings_switch">Switch or add profile</string>
+    <string name="prof_settings_parent">Parent controls</string>
+    <string name="prof_settings_online">Online play</string>
+    <string name="prof_settings_online_desc">Turn off to hide and block Online and quick match on this device.</string>
+</resources>

@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub catalog texts (name = hubKey(English text)); texts that already exist elsewhere are not repeated -->
+    <string name="hub_blackjack">Blackjack</string>
+    <string name="hub_beat_the_dealer_to_21_with_play_chips_no_real_mo_8cfb1c">Beat the dealer to 21 with play chips. No real money, ever.</string>
+    <string name="hub_solo">Solo</string>
+    <string name="hub_you_against_the_dealer_one_round_at_a_time">You against the dealer, one round at a time.</string>
+    <string name="hub_share_the_table_with_1_to_3_computer_players">Share the table with 1 to 3 computer players.</string>
+    <string name="hub_friends_share_this_device_and_each_play_against_68cf55">Friends share this device and each play against the dealer. Computers can fill empty seats.</string>
+    <string name="hub_decks_in_the_shoe">Decks in the shoe</string>
+    <string name="hub_more_decks_make_the_shoe_harder_to_count_one_dec_76e4d0">More decks make the shoe harder to count. One deck is the friendliest game.</string>
+    <string name="hub_6_decks">6 decks</string>
+    <string name="hub_4_decks">4 decks</string>
+    <string name="hub_2_decks">2 decks</string>
+    <string name="hub_1_deck">1 deck</string>
+    <string name="hub_starting_chips">Starting chips</string>
+    <string name="hub_play_chips_only_there_is_no_real_money_in_this_g_142b1b">Play chips only. There is no real money in this game.</string>
+    <string name="hub_500_chips">500 chips</string>
+    <string name="hub_1_000_chips">1,000 chips</string>
+    <string name="hub_2_500_chips">2,500 chips</string>
+    <string name="hub_5_000_chips">5,000 chips</string>
+    <string name="hub_blackjack_pays">Blackjack pays</string>
+    <string name="hub_what_a_natural_21_wins_3_to_2_is_the_fair_classi_789f4f">What a natural 21 wins. 3 to 2 is the fair classic; 6 to 5 favors the dealer.</string>
+    <string name="hub_3_to_2">3 to 2</string>
+    <string name="hub_6_to_5">6 to 5</string>
+    <string name="hub_dealer_hits_soft_17">Dealer hits soft 17</string>
+    <string name="hub_on_the_dealer_draws_on_a_17_that_counts_an_ace_a_57cd11">On: the dealer draws on a 17 that counts an Ace as 11. Off: the dealer stands on every 17.</string>
+    <string name="hub_offer_insurance">Offer insurance</string>
+    <string name="hub_when_the_dealer_shows_an_ace_you_may_bet_half_yo_450d7a">When the dealer shows an Ace you may bet half your stake that the dealer has blackjack.</string>
+    <string name="hub_allow_late_surrender">Allow late surrender</string>
+    <string name="hub_give_up_your_first_two_cards_after_the_dealer_ch_c8b0e3">Give up your first two cards after the dealer checks for blackjack, and get half your bet back.</string>
+    <string name="hub_war">War</string>
+    <string name="hub_flip_compare_and_win_the_whole_pile_a_tie_sends_ea6301">Flip, compare and win the whole pile. A tie sends you to war.</string>
+    <string name="hub_play_1_to_3_computer_players">Play 1 to 3 computer players.</string>
+    <string name="hub_game_style">Game style</string>
+    <string name="hub_classic_is_pure_luck_choose_3_adds_a_decision_ev_41710f">Classic is pure luck. Choose 3 adds a decision every round.</string>
+    <string name="hub_everyone_flips_the_top_card_highest_wins_the_pil_a4430b">Everyone flips the top card. Highest wins the pile.</string>
+    <string name="hub_choose_3">Choose 3</string>
+    <string name="hub_secretly_pick_one_of_your_top_three_cards_each_r_adb63b">Secretly pick one of your top three cards each round.</string>
+    <string name="hub_cards_put_down_in_a_war">Cards put down in a war</string>
+    <string name="hub_when_top_cards_tie_each_tied_player_puts_these_c_1fd660">When top cards tie, each tied player puts these cards face down, then flips a deciding card.</string>
+    <string name="hub_3_face_down">3 face down</string>
+    <string name="hub_1_face_down">1 face down</string>
+    <string name="hub_round_limit">Round limit</string>
+    <string name="hub_after_this_many_rounds_the_game_is_called_and_th_d8eb89">After this many rounds the game is called and the bigger pile wins.</string>
+    <string name="hub_150_rounds">150 rounds</string>
+    <string name="hub_300_rounds">300 rounds</string>
+    <string name="hub_600_rounds">600 rounds</string>
+    <string name="hub_how_well_the_computer_picks_its_card_in_choose_3">How well the computer picks its card in Choose 3.</string>
+    <!-- Blackjack and War screens -->
+    <string name="bjw_card_desc">%1$s of %2$s</string>
+    <string name="bjw_card_back_desc">Face-down card</string>
+    <string name="bjw_cpu_tag">CPU</string>
+    <string name="bjw_you_suffix">(you)</string>
+    <string name="bjw_host_left">The host left. Waiting for them to return.</string>
+    <string name="bjw_leave_title">Leave this table?</string>
+    <string name="bjw_leave_body_net">Leaving drops you from the table. The others carry on.</string>
+    <string name="bjw_unavailable">Not available right now</string>
+    <string name="bjw_waiting_host">Waiting for the host...</string>
+    <string name="bj_help_title">How to play Blackjack</string>
+    <string name="bj_help_text">Get closer to 21 than the dealer without going over. Number cards count their number, face cards count 10 and an Ace counts 1 or 11.\n\nPlace a bet with the chips, then play each hand: Hit takes a card, Stand stops, Double doubles your bet for exactly one more card, Split turns a pair into two hands, and Surrender gives up the hand for half your bet back.\n\nA blackjack (an Ace and a ten-value card) pays 3 to 2, or 6 to 5 at some tables. If the dealer shows an Ace you may buy insurance. Tap Hint for the basic-strategy move.\n\nThese are play chips only. There is no real money. If you run out you can rebuy.</string>
+    <string name="bj_leave_body">Leaving parks this session so you can resume it later. Your chips stay as they are.</string>
+    <string name="bj_end_session">Finish session</string>
+    <string name="bj_round_line">Round %1$d</string>
+    <string name="bj_session_line">Session: %1$s chips</string>
+    <string name="bj_shoe_desc">Shoe, %1$d cards left</string>
+    <string name="bj_dealer">Dealer</string>
+    <string name="bj_dealer_empty">Dealer. No cards yet.</string>
+    <string name="bj_dealer_desc">Dealer. Cards: %1$s. Total %2$d.</string>
+    <string name="bj_dealer_desc_hidden">Dealer. Showing %1$s. Second card face down.</string>
+    <string name="bj_total">%1$d</string>
+    <string name="bj_total_soft">Soft %1$d</string>
+    <string name="bj_hand_desc">Hand %1$d, bet %2$d chips. Cards: %3$s. Total %4$s.</string>
+    <string name="bj_seat_desc">%1$s, %2$d chips.</string>
+    <string name="bj_seat_turn">On turn.</string>
+    <string name="bj_seat_bet">Bet %1$d chips.</string>
+    <string name="bj_chips_line">%1$d chips</string>
+    <string name="bj_bet_line">Bet: %1$d</string>
+    <string name="bj_bet_small">Bet %1$d</string>
+    <string name="bj_insured">Insured: %1$d</string>
+    <string name="bj_sitting_out">Sitting out</string>
+    <string name="bj_round_net">%1$s chips</string>
+    <string name="bj_chip_desc">Add a %1$d chip to your bet</string>
+    <string name="bj_clear_bet">Clear</string>
+    <string name="bj_all_in">All in</string>
+    <string name="bj_rebet">Rebet %1$d</string>
+    <string name="bj_place_bet">Place bet</string>
+    <string name="bj_broke">%1$s is out of chips. Rebuy to keep playing, or sit this round out.</string>
+    <string name="bj_rebuy">Rebuy %1$d chips</string>
+    <string name="bj_sit_out">Sit out</string>
+    <string name="bj_insure">Insure %1$d</string>
+    <string name="bj_no_insurance">No insurance</string>
+    <string name="bj_hit">Hit</string>
+    <string name="bj_stand">Stand</string>
+    <string name="bj_double">Double</string>
+    <string name="bj_split">Split</string>
+    <string name="bj_surrender">Surrender</string>
+    <string name="bj_hint">Hint</string>
+    <string name="bj_hint_suggest">Basic strategy suggests: %1$s</string>
+    <string name="bj_hint_take_insurance">Take insurance</string>
+    <string name="bj_next_round">Next round</string>
+    <string name="bj_out_blackjack">Blackjack</string>
+    <string name="bj_out_win">Win</string>
+    <string name="bj_out_push">Push</string>
+    <string name="bj_out_lose">Lose</string>
+    <string name="bj_out_bust">Bust</string>
+    <string name="bj_out_surrender">Surrender</string>
+    <string name="bj_banner_blackjack">Blackjack! %1$s chips</string>
+    <string name="bj_banner_win">Round won: %1$s chips</string>
+    <string name="bj_banner_lose">Round lost: %1$s chips</string>
+    <string name="bj_banner_push">Push. Your bet is returned.</string>
+    <string name="bj_ann_start">Place your bets.</string>
+    <string name="bj_ann_no_bets">Nobody bet.</string>
+    <string name="bj_ann_reshuffled">The shoe was reshuffled.</string>
+    <string name="bj_ann_bet">%1$s bets %2$d chips.</string>
+    <string name="bj_ann_bet_you">You bet %1$d chips.</string>
+    <string name="bj_ann_rebuy">%1$s rebuys %2$d chips.</string>
+    <string name="bj_ann_rebuy_you">You rebuy %1$d chips.</string>
+    <string name="bj_ann_sit_out">%1$s sits this round out.</string>
+    <string name="bj_ann_sit_out_you">You sit this round out.</string>
+    <string name="bj_ann_deal">Cards are out. The dealer shows %1$s.</string>
+    <string name="bj_ann_peek_clear">The dealer checks: no blackjack.</string>
+    <string name="bj_ann_ins_yes">%1$s takes insurance for %2$d chips.</string>
+    <string name="bj_ann_ins_yes_you">You take insurance for %1$d chips.</string>
+    <string name="bj_ann_ins_no">%1$s declines insurance.</string>
+    <string name="bj_ann_ins_no_you">You decline insurance.</string>
+    <string name="bj_ann_dealer_bj">The dealer has blackjack.</string>
+    <string name="bj_ann_hit">%1$s hits and has %2$d.</string>
+    <string name="bj_ann_hit_you">You hit and have %1$d.</string>
+    <string name="bj_ann_stand">%1$s stands on %2$d.</string>
+    <string name="bj_ann_stand_you">You stand on %1$d.</string>
+    <string name="bj_ann_double">%1$s doubles down and has %2$d.</string>
+    <string name="bj_ann_double_you">You double down and have %1$d.</string>
+    <string name="bj_ann_split">%1$s splits a pair.</string>
+    <string name="bj_ann_split_you">You split your pair.</string>
+    <string name="bj_ann_surrender">%1$s surrenders.</string>
+    <string name="bj_ann_surrender_you">You surrender.</string>
+    <string name="bj_ann_bust">%1$s busts with %2$d.</string>
+    <string name="bj_ann_bust_you">You bust with %1$d.</string>
+    <string name="bj_ann_reveal">The dealer turns over the hole card: %1$d.</string>
+    <string name="bj_ann_dealer_hit">The dealer draws and has %1$d.</string>
+    <string name="bj_ann_dealer_bust">The dealer busts with %1$d.</string>
+    <string name="bj_ann_round_over">Round over.</string>
+    <string name="bj_turn_bet_you">Place your bet.</string>
+    <string name="bj_turn_bet_named">%1$s, place your bet.</string>
+    <string name="bj_turn_bet_other">%1$s is betting.</string>
+    <string name="bj_turn_ins_you">Insurance? The dealer shows an Ace.</string>
+    <string name="bj_turn_ins_other">%1$s is deciding on insurance.</string>
+    <string name="bj_turn_play_you">Your move.</string>
+    <string name="bj_turn_play_named">%1$s, your move.</string>
+    <string name="bj_turn_play_other">%1$s is playing.</string>
+    <string name="bj_turn_dealer">The dealer plays.</string>
+    <string name="bj_turn_next">Start the next round when you are ready.</string>
+    <string name="bj_why_wait">Wait for your turn.</string>
+    <string name="bj_why_cpu">It is a computer player\'s turn.</string>
+    <string name="bj_why_phase">You can\'t do that right now.</string>
+    <string name="bj_why_over">This session is over.</string>
+    <string name="bj_why_bad_bet">Bets are whole multiples of %1$d chips.</string>
+    <string name="bj_why_afford">You don\'t have enough chips for that.</string>
+    <string name="bj_why_not_broke">You can rebuy only when you are out of chips.</string>
+    <string name="bj_why_first_two">You can only do that with your first two cards.</string>
+    <string name="bj_why_not_pair">You can only split two cards of the same rank.</string>
+    <string name="bj_why_max_hands">You can\'t split into more than %1$d hands.</string>
+    <string name="bj_why_split_aces">Split aces get one card each.</string>
+    <string name="bj_why_surrender_off">Surrender is turned off for this table.</string>
+    <string name="bj_why_insurance_off">Insurance is turned off for this table.</string>
+    <string name="wr_help_title">How to play War</string>
+    <string name="wr_help_text">The deck is dealt out. Every round each player turns over their top card, and the highest card (Ace is high) wins both cards.\n\nIf the top cards tie, it is war: each tied player puts cards face down, then flips one more, and the higher card takes the whole pile. If a player runs out of cards during a war, they lose it.\n\nIn Choose 3 you see your top three cards and secretly pick one to play. Pass the device between people when prompted so nobody sees your cards.\n\nYou win by holding every card. After the round limit the bigger pile wins.</string>
+    <string name="wr_leave_body">Leaving parks this game so you can resume it later.</string>
+    <string name="wr_round_line">Round %1$d of %2$d</string>
+    <string name="wr_session">Games won: %1$s</string>
+    <string name="wr_pile_desc">%1$s: %2$d cards in the pile.</string>
+    <string name="wr_count">%1$d cards</string>
+    <string name="wr_chosen">Chosen</string>
+    <string name="wr_flip">Flip</string>
+    <string name="wr_auto">Auto-flip</string>
+    <string name="wr_auto_on">On</string>
+    <string name="wr_auto_off">Off</string>
+    <string name="wr_war">War!</string>
+    <string name="wr_empty_flip">Tap Flip to turn over the top cards.</string>
+    <string name="wr_empty_pick">Pick one of your three cards to start.</string>
+    <string name="wr_pick_title">Pick a card to play</string>
+    <string name="wr_play_card">Play this card</string>
+    <string name="wr_choice_desc">Card %1$d: %2$s</string>
+    <string name="wr_suggested">(suggested)</string>
+    <string name="wr_hint_line">Suggestion: card %1$d has the best expected swing.</string>
+    <string name="wr_pass_to">Pass the device to %1$s. Keep your cards hidden.</string>
+    <string name="wr_pass_ready">%1$s is ready</string>
+    <string name="wr_waiting_picks">Waiting for: %1$s</string>
+    <string name="wr_play_desc">%1$s, card played: %2$s.</string>
+    <string name="wr_play_down">%1$d face down</string>
+    <string name="wr_ann_start">Cards are dealt. Flip to begin.</string>
+    <string name="wr_ann_start_pick">Cards are dealt.</string>
+    <string name="wr_ann_war_prefix">Tie! %1$d players go to war.</string>
+    <string name="wr_ann_round_win">%1$s wins the round with %2$s and takes %3$d cards.</string>
+    <string name="wr_ann_round_win_you">You win the round with %1$s and take %2$d cards.</string>
+    <string name="wr_ann_split">Every player in the war ran out of cards, so the pile is shared.</string>
+    <string name="wr_over_win">%1$s wins the game!</string>
+    <string name="wr_over_win_you">You win the game!</string>
+    <string name="wr_over_draw">The round limit was reached with equal piles: a draw.</string>
+    <string name="wr_over_draw_title">A draw</string>
+    <string name="wr_over_limit">The round limit was reached, so the bigger pile wins.</string>
+    <string name="wr_final_line">%1$s: %2$d cards</string>
+    <string name="wr_turn_flip">Tap Flip.</string>
+    <string name="wr_turn_pick_you">Pick a card to play.</string>
+    <string name="wr_turn_pick_named">%1$s, pick a card to play.</string>
+    <string name="wr_turn_waiting">Waiting for the others.</string>
+    <string name="wr_why_choice">Select one of your three cards first.</string>
+    <string name="wr_why_over">The game is over.</string>
+    <string name="wr_why_phase">You can\'t do that right now.</string>
+    <string name="wr_why_wait">Wait for the other players.</string>
+    <!-- First-run tips (GameTips.kt carries the English lines) -->
+    <string name="tip_blackjack_1">Tap chips to build a bet, then press Place bet. Play chips only; no real money.</string>
+    <string name="tip_blackjack_2">Hit to draw, Stand to stop, Double to double your bet for one card, Split a pair into two hands.</string>
+    <string name="tip_blackjack_3">Go over 21 and you bust. Tap Hint any time for the basic-strategy move.</string>
+    <string name="tip_war_1">Tap Flip. The higher card takes both. Aces are high.</string>
+    <string name="tip_war_2">A tie is a war: each tied player puts cards face down, then flips a deciding card.</string>
+    <string name="tip_war_3">In Choose 3, pick one of your top three cards in secret. Spend your aces wisely.</string>
+    <string-array name="bjw_rank_names">
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+        <item>Ace</item>
+    </string-array>
+    <string-array name="bjw_suit_names">
+        <item>clubs</item>
+        <item>diamonds</item>
+        <item>hearts</item>
+        <item>spades</item>
+    </string-array>
+</resources>

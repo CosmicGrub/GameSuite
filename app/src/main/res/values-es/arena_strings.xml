@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_title">Arena de computadoras</string>
+    <string name="arena_subtitle">Mira a dos computadoras jugar entre sí, jugada a jugada, en la pantalla real del juego. Nada de esto toca tus estadísticas, rachas, logros ni partidas guardadas.</string>
+    <string name="arena_card_title">Arena de computadoras</string>
+    <string name="arena_card_body">Mira a las computadoras enfrentarse: elige un juego, dos niveles y cuántas partidas.</string>
+    <string name="arena_pick_game">Juego</string>
+    <string name="arena_pick_a">Nivel de la computadora A</string>
+    <string name="arena_pick_b">Nivel de la computadora B</string>
+    <string name="arena_pick_games">Número de partidas</string>
+    <string name="arena_games_endless">Sin fin</string>
+    <string name="arena_start">Empezar</string>
+    <string name="arena_back">Atrás</string>
+    <string name="arena_note_coop">Constructores de puentes es cooperativo: los cuatro robots ayudantes construyen juntos (A en los carriles 1 y 3, B en el 2 y el 4), así que el marcador cuenta puentes construidos y arrastrados por el agua en lugar de victorias.</string>
+    <string name="arena_note_slide">En Escaleras y Toboganes mandan los dados; los niveles solo cambian cómo usa cada computadora su tirada de repuesto.</string>
+
+    <string name="arena_level_easy">Fácil</string>
+    <string name="arena_level_medium">Medio</string>
+    <string name="arena_level_hard">Difícil</string>
+    <string name="arena_computer_a">Computadora A</string>
+    <string name="arena_computer_b">Computadora B</string>
+
+    <string name="arena_game_chutes_race">Escaleras y Toboganes</string>
+    <string name="arena_game_bridge_builders">Constructores de puentes</string>
+    <string name="arena_game_chess">Ajedrez</string>
+    <string name="arena_game_checkers">Damas</string>
+    <string name="arena_game_reversi">Reversi</string>
+    <string name="arena_game_connect_four">Cuatro en línea</string>
+
+    <string name="arena_strip_a">A (%1$s): %2$d</string>
+    <string name="arena_strip_b">B (%1$s): %2$d</string>
+    <string name="arena_strip_draws">Empates: %1$d</string>
+    <string name="arena_strip_game">Partida %1$d de %2$d</string>
+    <string name="arena_strip_game_endless">Partida %1$d (sin fin)</string>
+    <string name="arena_strip_robots">Robots A (%1$s) + B (%2$s)</string>
+    <string name="arena_strip_built">Construidos: %1$d</string>
+    <string name="arena_strip_failed">Arrastrados: %1$d</string>
+    <string name="arena_paused">En pausa</string>
+    <string name="arena_pause">Pausa</string>
+    <string name="arena_resume">Reanudar</string>
+    <string name="arena_speed">Velocidad %1$s</string>
+    <string name="arena_stop">Parar</string>
+    <string name="arena_close">Cerrar</string>
+    <string name="arena_again">Repetir</string>
+
+    <string name="arena_result_a">Partida %1$d: gana la computadora A.</string>
+    <string name="arena_result_b">Partida %1$d: gana la computadora B.</string>
+    <string name="arena_result_draw">Partida %1$d: empate.</string>
+    <string name="arena_result_built">Partida %1$d: el puente se construyó.</string>
+    <string name="arena_result_failed">Partida %1$d: el agua se llevó el puente.</string>
+    <string name="arena_next_first">Siguiente: empieza %1$s.</string>
+    <string name="arena_done">Serie completa</string>
+    <string name="arena_done_summary">A %1$d, B %2$d, empates %3$d</string>
+    <string name="arena_done_coop">construidos %1$d, arrastrados %2$d</string>
+</resources>

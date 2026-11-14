@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda de Coches de ranura y Pesca. -->
+    <string name="coach_slot_cars_s1">Corre con los coches de ranura por el circuito y sé el primero en cruzar la meta tras el número de vueltas elegido.</string>
+    <string name="coach_slot_cars_s2">Solo controlas el acelerador. Mantén tu mando para acelerar y suéltalo para frenar.</string>
+    <string name="coach_slot_cars_s3">La clave es frenar antes de una curva. Un coche que entra demasiado rápido se sale de la ranura, pierde toda su velocidad y lo recolocan al cabo de un momento.</string>
+    <string name="coach_slot_cars_s4">Las señales ámbar marcan las curvas que vienen. La barra de agarre sobre tu mando se llena al llegar al límite: en una curva, mantenla fuera de la zona rayada. El botón Pista te dice si debes soltar.</string>
+    <string name="coach_slot_cars_s5">¿Quieres ir con calma? Cámara lenta reduce la velocidad a la mitad y Paso a paso vuelve la carrera por turnos: elige acelerar o dejar rodar en cada medio segundo y pulsa Ir.</string>
+    <string name="coach_slot_cars_fact">Las carreras de coches de ranura despegaron en los años sesenta, cuando unos juegos eléctricos baratos permitieron a cualquiera correr con coches diminutos por una ranura del circuito.</string>
+    <string name="coach_fishing_s1">Pescad por turnos. Cada pescador lanza una vez por ronda y gana el mayor peso total de peces.</string>
+    <string name="coach_fishing_s2">Elige un punto del lago y mantén pulsado el botón: el medidor de fuerza va y viene. Suelta para lanzar. Más lejos significa aguas más profundas y peces más grandes y raros.</string>
+    <string name="coach_fishing_s3">Espera una picada. Los tirones pequeños son solo mordisqueos, así que no te muevas. Cuando el flotador se hunda, pulsa el botón de inmediato para clavar el anzuelo.</string>
+    <string name="coach_fishing_s4">Mantén pulsado el botón para recoger y suéltalo para aflojar el sedal. Si se tensa demasiado se rompe, y si se afloja demasiado el pez se escapa.</string>
+    <string name="coach_fishing_s5">Cuando un pez se prepara para tirar aparecen una onda y un aviso: suelta y dale sedal. El botón Pista te dice qué hacer y la pesca relajada te da más tiempo para reaccionar.</string>
+    <string name="coach_fishing_fact">El pez que más pelea no siempre es el más grande. Los pescadores llevan siglos cansando al pez con el sedal flojo en lugar de arrastrarlo.</string>
+</resources>

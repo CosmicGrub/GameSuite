@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Bridge Builders (hubKey names). Texts that already exist elsewhere (Same screen, helper level words, rotate toggle) are not repeated. -->
+    <string name="hub_bridge_builders">Constructores de puentes</string>
+    <string name="hub_build_a_bridge_together_before_the_water_rises">Construyan un puente juntos antes de que suba el agua.</string>
+    <string name="hub_build_with_helper_robots">Construir con robots ayudantes</string>
+    <string name="hub_you_and_1_to_3_friendly_helper_robots_build_one_22243c">Tú y de 1 a 3 robots ayudantes amistosos construyen un puente juntos. Cada uno tiene su carril.</string>
+    <string name="hub_two_to_four_people_build_one_bridge_on_the_same_2ee8db">De dos a cuatro personas construyen un puente en la misma pantalla, cada una en su carril. Los robots ayudantes pueden ocupar los carriles vacíos.</string>
+    <string name="hub_bridge_size">Tamaño del puente</string>
+    <string name="hub_how_many_planks_the_bridge_needs_how_big_the_gre_b78f09">Cuántas tablas necesita el puente, qué tan grandes son las zonas verdes y qué tan rápido sube el agua.</string>
+    <string name="hub_little_bridge">Puente pequeño</string>
+    <string name="hub_a_short_bridge_wide_green_spots_and_slow_water_g_57c05d">Un puente corto, zonas verdes amplias y agua lenta: ideal para los constructores más pequeños.</string>
+    <string name="hub_medium_bridge">Puente mediano</string>
+    <string name="hub_a_good_mix_for_most_families">Un buen equilibrio para la mayoría de las familias.</string>
+    <string name="hub_big_bridge">Puente grande</string>
+    <string name="hub_a_long_bridge_small_green_spots_and_quick_water_894f2c">Un puente largo, zonas verdes pequeñas y agua rápida para constructores con práctica.</string>
+    <string name="hub_relaxed_building">Construcción relajada</string>
+    <string name="hub_every_tap_places_a_plank_even_outside_the_green_b32ed7">Cada toque coloca una tabla, incluso fuera de la zona verde, y el carrito y el agua van más lentos. Tocar más cerca del centro sigue dando una tabla más firme.</string>
+    <string name="hub_bigger_green_spot_for">Zona verde más grande para</string>
+    <string name="hub_give_one_builder_a_wider_green_spot_so_different_a08081">Dale a un constructor una zona verde más ancha para que distintas edades construyan juntas.</string>
+    <string name="hub_nobody_all_equal">Nadie, todos iguales</string>
+    <string name="hub_lane_1">Carril 1</string>
+    <string name="hub_lane_2">Carril 2</string>
+    <string name="hub_lane_3">Carril 3</string>
+    <string name="hub_lane_4">Carril 4</string>
+    <string name="hub_helper_robot_level">Nivel del robot ayudante</string>
+    <string name="hub_helper_robots">Robots ayudantes</string>
+    <string name="hub_robots_build_a_lane_of_their_own_so_a_small_team_e4be3f">Los robots construyen un carril propio, así un equipo pequeño siempre tiene suficientes constructores.</string>
+</resources>

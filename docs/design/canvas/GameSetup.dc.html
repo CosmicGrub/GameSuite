@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Game setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin-bottom:10px}
+.seg{display:flex;background:#141829;border:1px solid #232943;border-radius:16px;padding:4px;gap:4px}
+.seg a{flex:1;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font:600 13px Inter;color:#9AA0B8;text-decoration:none}
+.seg a.on{background:#2A2F55;color:#F3F1EA}
+.opt{height:44px;padding:0 16px;border-radius:22px;display:inline-flex;align-items:center;background:#1C2138;color:#C9CDE0;font:500 14px Inter}
+.opt.on{background:#F3F1EA;color:#0B0D1A;font-weight:600}
+.row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1E2340}
+.sw{width:48px;height:28px;border-radius:14px;background:#2E3558;position:relative}
+.sw.on{background:#FFB547}.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:#fff}.sw.on i{left:23px}
+.mk{position:absolute;width:22px;height:22px;border-radius:11px;background:#FF6B7A;color:#2A050A;font:700 12px Inter;display:flex;align-items:center;justify-content:center;z-index:5}
+</style>
+</helmet>
+<div class="ph">
+<div style="padding:52px 20px 0;display:flex;align-items:center;gap:12px">
+<a href="Library.dc.html" aria-label="Back" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+<div style="margin-left:auto;display:flex;gap:8px"><span class="opt" style="height:40px">How to play</span></div>
+</div>
+<div style="padding:12px 20px 0">
+<div style="height:120px;border-radius:24px;background:linear-gradient(150deg,#4A55A2,#1E2350);position:relative;overflow:hidden;padding:18px;display:flex;flex-direction:column;justify-content:flex-end"><div style="position:absolute;right:-16px;top:-16px;width:130px;height:130px;border-radius:65px;background:rgba(255,255,255,.12)"></div><h1 style="font-size:30px">Chess</h1><div style="color:#D6D9EE;font-size:14px">Castling, en passant, promotion, draw rules.</div></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:20px 20px 0">
+<div class="lab">Who are you playing</div>
+<div class="seg"><a class="on" href="GameSetup.dc.html">Computer</a><a href="GameSetup.dc.html">Same device</a><a href="GameSetup.dc.html">Nearby</a><a href="GameSetup.dc.html">Online</a></div>
+
+<div class="lab" style="margin-top:22px">Computer level</div>
+<div style="background:#141829;border:1px solid #232943;border-radius:20px;padding:16px">
+<div style="display:flex;justify-content:space-between;font:600 13px Inter"><span class="mut">Easy</span><span style="color:#FFB547">Medium</span><span class="mut">Hard</span></div>
+<div style="position:relative;height:8px;border-radius:4px;background:#2E3558;margin:14px 6px 12px"><div style="position:absolute;left:0;top:0;height:8px;width:50%;border-radius:4px;background:#FFB547"></div><div style="position:absolute;left:50%;top:-8px;margin-left:-12px;width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.5)"></div></div>
+<div class="mut" style="font-size:13px">Plays solid openings and punishes simple mistakes. Roughly a club player.</div>
+</div>
+
+<div class="lab" style="margin-top:22px">Your side and clock</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="opt on">White</span><span class="opt">Black</span><span class="opt">Random</span></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="opt">No clock</span><span class="opt on">10 min</span><span class="opt">5 min</span><span class="opt">15 + 10</span></div>
+
+<div style="margin-top:10px">
+<div class="row"><div><div style="font-weight:600">Hints</div><div class="mut" style="font-size:13px">Show a suggested move on request</div></div><div class="sw on"><i></i></div></div>
+<div class="row" style="border:0"><div><div style="font-weight:600">Allow undo</div><div class="mut" style="font-size:13px">Take back your last move</div></div><div class="sw on"><i></i></div></div>
+</div>
+</div>
+<div style="padding:12px 20px 30px;background:linear-gradient(to top,#0B0D1A 70%,transparent);position:relative">
+<div class="mk" style="right:28px;top:-2px">3</div>
+<a href="TableChess.dc.html" style="display:flex;align-items:center;justify-content:center;height:56px;border-radius:28px;font:600 17px Sora;background:#FFB547;color:#1A1203;text-decoration:none;box-shadow:0 10px 28px rgba(255,181,71,.3),inset 0 1px 0 rgba(255,255,255,.4)">Start game</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

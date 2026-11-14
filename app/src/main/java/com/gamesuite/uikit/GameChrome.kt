@@ -34,7 +34,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gamesuite.R
 
 /**
  * What [GameChrome] needs from the shell to park a game for later, without the uikit knowing
@@ -98,8 +100,8 @@ fun GameChrome(
     modifier: Modifier = Modifier,
     buttonFill: Color = MaterialTheme.colorScheme.background,
     buttonContent: Color = MaterialTheme.colorScheme.onBackground,
-    leaveTitle: String = "Leave this game?",
-    leaveBody: String = "This game is still in progress. Leaving now won't count it as a win or a loss.",
+    leaveTitle: String = stringResource(R.string.gc_leave_title),
+    leaveBody: String = stringResource(R.string.gc_leave_body),
     /**
      * False when [onAbort] will record the session through `leaveSession()` (earlier finished
      * boards exist): that ends the session, which discards its save, so the dialog must not
@@ -113,6 +115,8 @@ fun GameChrome(
     content: @Composable BoxScope.() -> Unit
 ) {
     val progressSaver = LocalProgressSaver.current
+    val menuDesc = stringResource(R.string.gc_game_menu)
+    val menuOpenLabel = stringResource(R.string.gc_open_game_menu)
     var showMenu by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -129,6 +133,11 @@ fun GameChrome(
     Box(modifier = modifier.fillMaxSize()) {
         content()
 
+        // Networked matches only (a no-op for everything else): a reconnecting banner, and a clean "Host left" /
+        // "Connection lost" end through the game's own abort, so no game needs code for it. Nothing is saved: a
+        // match whose room is gone cannot be resumed.
+        SessionHealthOverlay(onEnded = { if (!leaving) { leaving = true; onAbort() } })
+
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -140,8 +149,8 @@ fun GameChrome(
                     .clip(CircleShape)
                     .background(buttonFill)
                     .border(1.dp, buttonContent.copy(alpha = 0.35f), CircleShape)
-                    .semantics { contentDescription = "Game menu" }
-                    .clickable(onClickLabel = "Open game menu", role = Role.Button) { showMenu = true },
+                    .semantics { contentDescription = menuDesc }
+                    .clickable(onClickLabel = menuOpenLabel, role = Role.Button) { showMenu = true },
                 contentAlignment = Alignment.Center
             ) {
                 // The glyph is decoration; without this a screen reader reads "vertical ellipsis".
@@ -153,19 +162,19 @@ fun GameChrome(
                 )
             }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                DropdownMenuItem(text = { Text("How to Play") }, onClick = { showMenu = false; showHelp = true })
+                DropdownMenuItem(text = { Text(stringResource(R.string.gc_how_to_play)) }, onClick = { showMenu = false; showHelp = true })
                 if (onUndo != null) {
                     DropdownMenuItem(
-                        text = { Text("Undo") },
+                        text = { Text(stringResource(R.string.gc_undo)) },
                         enabled = canUndo,
                         onClick = { showMenu = false; onUndo() }
                     )
                 }
                 if (onHint != null) {
-                    DropdownMenuItem(text = { Text("Hint") }, onClick = { showMenu = false; onHint() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.gc_hint)) }, onClick = { showMenu = false; onHint() })
                 }
                 extraItems { showMenu = false }
-                DropdownMenuItem(text = { Text("Back to Menu") }, onClick = { showMenu = false; requestLeave() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.gc_back_to_menu)) }, onClick = { showMenu = false; requestLeave() })
             }
         }
     }
@@ -178,7 +187,7 @@ fun GameChrome(
             text = {
                 Text(
                     if (savesProgress) {
-                        "$leaveBody\n\nYour progress is saved: pick this game from the menu to resume it."
+                        "$leaveBody\n\n" + stringResource(R.string.gc_progress_saved)
                     } else {
                         leaveBody
                     }
@@ -194,9 +203,9 @@ fun GameChrome(
                         if (savesProgress) progressSaver?.save?.invoke()
                         onAbort()
                     }
-                }) { Text("Leave") }
+                }) { Text(stringResource(R.string.gc_leave)) }
             },
-            dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text("Keep Playing") } }
+            dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text(stringResource(R.string.gc_keep_playing)) } }
         )
     }
 
@@ -206,7 +215,7 @@ fun GameChrome(
             title = { Text(helpTitle) },
             // Scrolls so a long rules text never clips on a short or narrow window (Fold cover, landscape).
             text = { Text(helpText, modifier = Modifier.verticalScroll(rememberScrollState())) },
-            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Got it") } }
+            confirmButton = { TextButton(onClick = { showHelp = false }) { Text(stringResource(R.string.gc_got_it)) } }
         )
     }
 }

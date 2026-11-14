@@ -58,6 +58,10 @@ that service's `wss://` URL pasted into Settings — no code changes.
 
 ## Protocol reference
 
+**Wave 5 (room metadata, `peek`/`lock`/`kick`/`started`, quick-chat, matchmaking, rate limits, error codes) is specified
+frame by frame in [`CHANGELOG-wave5.md`](CHANGELOG-wave5.md); it is additive and an old client keeps working.** The rest of
+this section describes the original frames.
+
 See the comment block at the top of `index.js` for the exact JSON message
 shapes (`host`/`join`/`message`/`leave` client→server,
 `hosted`/`joined`/`reconnected`/`playerJoined`/`playerDisconnected`/
@@ -209,6 +213,61 @@ So deploying the relay before players have updated turns every network blip
 for an old-build player into a lost seat. There is no flag to relax this: the
 relay always requires the token.
 
+## Configuration
+
+Everything is optional. The relay is a single stateless Node process: rooms and matchmaking tickets live in memory and are
+gone on restart (clients recover by reconnecting; see "Reconnect"). Listen address `0.0.0.0:$PORT`.
+
+| variable | default | meaning |
+|---|---|---|
+| `PORT` | `8080` | listen port (hosting platforms set it) |
+| `TRUST_PROXY` | `0` | `0`: ignore `X-Forwarded-For`. `1`: behind one reverse proxy (Fly, Render, nginx, Caddy): the client is the LAST entry of `X-Forwarded-For`. `N`: N proxies in a chain, the Nth from the right. **Set it to match your host**: unset behind a proxy, every client shares the proxy's single budget; set while directly exposed, it trusts a header clients can forge. |
+| `RATE_LIMIT_LOOPBACK` | off | loopback addresses are exempt from per-IP budgets unless `1` (local dev, test suites) |
+| `JOIN_FAIL_PER_IP` / `JOIN_FAIL_WINDOW_MS` / `IP_BLOCK_MS` | `10` / `60000` / `60000` | weighted refused joins per window before an IP is blocked, and for how long |
+| `HOST_PER_IP_PER_MIN` / `MAX_ROOMS_PER_IP` | `6` / `30` | room-creation rate and live rooms per IP |
+| `QUEUE_FRAMES_PER_IP_PER_MIN` | `6` | `queue` frames per IP per minute |
+| `MSG_RATE_PER_SEC` / `MSG_BURST` | `240` / `480` | per-socket frame budget (a 60 Hz stream to 3 guests is 180/s) |
+| `MSG_BYTES_PER_SEC` / `MSG_BYTES_BURST` | `1048576` / `2097152` | per-socket byte budget |
+| `FLOOD_STRIKES` / `FLOOD_STRIKE_WINDOW_MS` | `3` / `10000` | strikes (at most one a second) that terminate a flooding socket |
+| `LOBBY_TTL_MS` | `600000` | a new-style lobby holding only its host is closed after this long |
+| `CODE_COOLDOWN_MS` | `60000` (`0` if `ROOM_CODE_LENGTH_OVERRIDE` is set) | a freed room code is not reallocated for this long |
+| `CHAT_MIN_GAP_MS` / `CHAT_PER_20S` / `CHAT_SAME_ID_MS` | `1200` / `5` / `5000` | quick-chat limits per sender |
+| `QUEUE_MAX_TICKETS` / `QUEUE_MAX_PENDING` | `2000` / `100` | matchmaking caps |
+| `QUEUE_CLAIM_WITHIN_MS` / `QUEUE_TICKET_MAX_AGE_MS` / `QUEUE_NOSHOW_COOLDOWN_MS` | `15000` / `180000` / `30000` | claim window, ticket lifetime, no-show cooldown |
+| `QUEUE_WINDOW1_MS` / `QUEUE_WINDOW2_MS` | `15000` / `30000` | skill-bucket windows (same bucket, then +-1, then any) |
+| `RECONNECT_GRACE_MS_OVERRIDE`, `ROOM_IDLE_TIMEOUT_MS_OVERRIDE`, `ROOM_SWEEP_INTERVAL_MS_OVERRIDE`, `ROOM_CODE_LENGTH_OVERRIDE` | | test shrinkers, see "Identity and seat takeover" |
+| `ENABLE_TEST_CONTROL` | off | enables the `__test` frames (injectable clock). **Never in production.** |
+
+### Deploying (where it runs is the owner's decision; the server itself is ready)
+
+* **Health**: `GET /health` returns `200` JSON counts (rooms, tickets, pending matches), no room data. Point the platform's
+  health check and uptime monitor at it.
+* **Docker**: `docker build -t gamesuite-relay server/ && docker run -p 8080:8080 -e TRUST_PROXY=1 gamesuite-relay`. The image is
+  `node:20-alpine`, runs as the unprivileged `node` user, has a `HEALTHCHECK` on `/health`, and stops cleanly on `SIGTERM`.
+* **Matchmaking needs an always-on host.** Rooms and tickets are in memory, so a platform that sleeps an idle instance (e.g. a free
+  tier) loses every queue and room on cold start: fine for friend rooms, not for Quick match.
+* **TLS**: terminate `wss://` at the platform/proxy; the reconnect and claim tokens are bearer secrets (see "Identity").
+* **Logs** show a connection as `client <first 6 hex of a salted hash of the IP>` (the salt is per process); no IP is stored or
+  logged in clear, and nothing is written to disk.
+* **One instance only.** There is no shared state between instances; do not scale this horizontally.
+
+### Seat ranges (matchmaking)
+
+`seat-ranges.json` lists every networked game and its Online seat range, so a forged `queue` cannot ask for a table the game
+cannot seat. It is **generated** from the Kotlin Game Hub specs by `node gen-seat-ranges.js` (a plain script that parses
+`GameHubSpecs.kt` and `games/**/*HubSpecs.kt`; `--check` verifies the checked-in file) and committed. `seat-ranges-test.js` fails
+`npm test` when it is stale and when its `onlineMaxSeats` differs from `MAX_PLAYERS_PER_ROOM` in `index.js` (the Kotlin
+`ONLINE_MAX_SEATS` must stay equal to it). After adding a networked game or changing a seat range in Kotlin, rerun the generator.
+
+### Extension points for voice (wave 6, nothing built)
+
+The frame set is a closed allowlist in `index.js` (the `default:` branch rejects unknown types) and each wave-5 feature lives in
+its own module (`rooms-meta.js`, `quickchat.js`, `queue.js`, `ratelimit.js`). A future `rtc` signalling frame
+(`{"type":"rtc","toPlayerId","payloadBase64"}`) fits the existing stamp-and-forward model as one more `case` plus a small module;
+audio itself would be peer-to-peer and never touch the relay. `clubId` (an opt-in pseudonymous install id) would be one more
+optional field on `host`/`join`/`queue`, relayed like `avatar`. Voice defaults (off in matchmade rooms), `RECORD_AUDIO` timing and
+the settings key are client-side decisions; see the design doc section 6.
+
 ## Hardening
 
 This is a small free/cheap-tier relay exposed to the open internet, so it
@@ -228,7 +287,17 @@ constants at the top of `index.js`):
 - **Join rate limiting** — a socket that racks up 20 refused `join` attempts
   (bad room code, taken or retired playerId, wrong or unknown reconnect token,
   full or closed room) is disconnected, as basic protection against
-  brute-forcing room codes and reconnect tokens.
+  brute-forcing room codes and reconnect tokens. Since wave 5 the same refusals also
+  count against the client's **IP** (10 per minute, then a 60 s block that survives
+  reconnecting), `peek` misses count too, and hosting, room count and queueing have
+  per-IP limits (see `CHANGELOG-wave5.md` section 6 and "Configuration").
+- **Flood guard** — each socket has a frame and byte budget; excess frames are dropped and a
+  strike counted, three strikes in ten seconds terminate the socket. Defaults are far above
+  any real-time game's needs.
+- **Lobby TTL and code cooldown** — a new-style lobby that never gets a guest closes after 10
+  minutes, and a freed room code is not handed out again for 60 seconds.
+- **Display names** — control characters, zero-width and bidi-override characters are stripped,
+  whitespace is collapsed, and the name is cut at 40 code points.
 - **playerId caps** — a playerId is at most 64 characters and a room seats at
   most 64 distinct ids over its lifetime (see "Identity and seat takeover").
 - **displayName length cap** — any `displayName` read off an incoming
@@ -239,7 +308,15 @@ constants at the top of `index.js`):
 ## Continuous integration
 
 `.github/workflows/relay-server.yml` runs `npm ci && npm test` in this
-directory on every push/PR that touches `server/**`. `npm test` runs the
-self-starting `smoke-test.js` and then `identity-test.js` — so a broken protocol
-change, a regression of the crash/room-leak fixes, or a reopened seat-takeover
-hole gets caught before merge.
+directory on every push/PR that touches `server/**`. `npm test` runs, in order, the
+self-starting `smoke-test.js`, `identity-test.js` (seat takeover), `seat-ranges-test.js`
+(generated seat table is fresh and matches the relay's cap), `room-meta-test.js` (metadata,
+peek, lock/kick/started, avatars, names, lobby TTL, code cooldown, health), `ratelimit-test.js`
+(per-IP budgets, TRUST_PROXY with and without, flood guard incl. a 60 Hz stream),
+`quickchat-test.js` and `queue-test.js` (matchmaking algorithm in-process, then over the wire),
+so a broken protocol change, a regression of the crash/room-leak fixes, or a reopened seat-takeover
+hole gets caught before merge. Every test spawns its own relay on a free port, awaits specific
+frames (never sleeps and hopes), drives time through the relay's injectable clock
+(`ENABLE_TEST_CONTROL=1`, so no real 30-second waits) and kills its children on every exit path.
+Shared harness: `test-lib.js`. The freshness check of `seat-ranges.json` needs the Kotlin sources,
+so it runs in the repo checkout CI uses and is skipped (loudly) in a server-only context.

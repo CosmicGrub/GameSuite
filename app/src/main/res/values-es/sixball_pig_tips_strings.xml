@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips; move these into polish_strings.xml (GameTipsTest reads only that file) and delete this file -->
+    <string name="tip_six_ball_puzzle_1">Desliza la bandeja o pulsa una flecha: cada bola rueda hasta que algo la detiene.</string>
+    <string name="tip_six_ball_puzzle_2">Pon cada bola en el hueco con su propio símbolo y color.</string>
+    <string name="tip_six_ball_puzzle_3">Supera el par para conseguir tres estrellas. Deshacer es ilimitado y la pista muestra la siguiente inclinación.</string>
+    <string name="tip_pig_dice_1">Tira tantas veces como quieras; los números se acumulan en el bote.</string>
+    <string name="tip_pig_dice_2">Planta para guardar el bote. Si sacas un 1 lo pierdes y pierdes el turno.</string>
+    <string name="tip_pig_dice_3">Gana el primero en llegar a la meta. La pista muestra la mejor jugada y tu probabilidad.</string>
+</resources>

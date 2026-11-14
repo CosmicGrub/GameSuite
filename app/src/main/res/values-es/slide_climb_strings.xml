@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Desliza y Sube (id del juego chutes-race): pantalla, anuncios y texto de accesibilidad -->
+    <string name="slide_climb_help_title">Desliza y Sube</string>
+    <string name="slide_climb_help_text">Toca el dado grande para tirar. Tu ficha salta ese número de casillas por el camino numerado. Si caes al pie de una cuerda, subes; si caes en lo alto de un tobogán, bajas. Gana la primera ficha que llegue a la casilla 100.</string>
+
+    <string name="slide_climb_shape_circle">círculo</string>
+    <string name="slide_climb_shape_square">cuadrado</string>
+    <string name="slide_climb_shape_triangle">triángulo</string>
+    <string name="slide_climb_shape_diamond">rombo</string>
+    <string name="slide_climb_shape_star">estrella</string>
+    <string name="slide_climb_shape_plus">cruz</string>
+
+    <string name="slide_climb_ann_start">Empieza %1$s. Toca el dado.</string>
+    <string name="slide_climb_ann_start_you">Empiezas tú. Toca el dado.</string>
+    <string name="slide_climb_ann_pending">%1$s sacó %2$d. Quédate con la tirada o usa la tirada extra.</string>
+    <string name="slide_climb_ann_pending_you">Sacaste %1$d. Quédate con la tirada o usa tu tirada extra.</string>
+    <string name="slide_climb_ann_move">%1$s sacó %2$d y saltó a la casilla %3$d.</string>
+    <string name="slide_climb_ann_move_you">Sacaste %1$d y saltaste a la casilla %2$d.</string>
+    <string name="slide_climb_ann_climb">%1$s sacó %2$d, encontró una cuerda y subió a la casilla %3$d.</string>
+    <string name="slide_climb_ann_climb_you">Sacaste %1$d, encontraste una cuerda y subiste a la casilla %2$d.</string>
+    <string name="slide_climb_ann_slide">%1$s sacó %2$d y se deslizó hasta la casilla %3$d.</string>
+    <string name="slide_climb_ann_slide_you">Sacaste %1$d y te deslizaste hasta la casilla %2$d.</string>
+    <string name="slide_climb_ann_bounce">%1$s sacó %2$d, se pasó del final y rebotó hasta la casilla %3$d.</string>
+    <string name="slide_climb_ann_bounce_you">Sacaste %1$d, te pasaste del final y rebotaste hasta la casilla %2$d.</string>
+    <string name="slide_climb_ann_stuck">%1$s sacó %2$d, pero necesita el número exacto para terminar, así que se queda en la casilla %3$d.</string>
+    <string name="slide_climb_ann_stuck_you">Sacaste %1$d, pero necesitas el número exacto para terminar, así que te quedas en la casilla %2$d.</string>
+    <string name="slide_climb_ann_win">%1$s llegó a la casilla 100 y gana.</string>
+    <string name="slide_climb_ann_win_you">Llegaste a la casilla 100 y ganas.</string>
+    <string name="slide_climb_spare_used">Tirada extra usada.</string>
+
+    <string name="slide_climb_turn_you">Tu turno. Toca el dado.</string>
+    <string name="slide_climb_turn_named">%1$s, toca el dado.</string>
+    <string name="slide_climb_thinking">%1$s está tirando…</string>
+    <string name="slide_climb_deciding">%1$s está decidiendo…</string>
+    <string name="slide_climb_why_decide">Elige primero: quedarte con la tirada o usar la tirada extra.</string>
+
+    <string name="slide_climb_dice_tap">Tirar el dado</string>
+    <string name="slide_climb_dice_value">El dado muestra %1$d</string>
+    <string name="slide_climb_dice_none">El dado aún no se ha tirado</string>
+    <string name="slide_climb_keep">Quedarte con la tirada</string>
+    <string name="slide_climb_spare">Usar la tirada extra y volver a tirar</string>
+
+    <string name="slide_climb_chip_desc">%1$s, ficha de %2$s, en la casilla %3$d</string>
+    <string name="slide_climb_chip_spare">Tiene una tirada extra.</string>
+
+    <string name="slide_climb_board_desc">Camino en zigzag de 100 casillas. Fichas: %1$s. Cuerdas que suben: %2$s. Toboganes que bajan: %3$s.</string>
+    <string name="slide_climb_board_piece">%1$s (ficha de %2$s) en la casilla %3$d</string>
+    <string name="slide_climb_board_at_start">%1$s (ficha de %2$s) en la salida</string>
+    <string name="slide_climb_jump_rope">cuerda de la %1$d a la %2$d, hacia arriba</string>
+    <string name="slide_climb_jump_slide">tobogán de la %1$d a la %2$d, hacia abajo</string>
+
+    <string name="slide_climb_wins">¡Gana %1$s!</string>
+    <string name="slide_climb_final_line">%1$s: casilla %2$d</string>
+</resources>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_title">Computer Arena</string>
+    <string name="arena_subtitle">Watch two computers play each other, move by move, in the real game screen. Nothing here touches your stats, streaks, achievements or saved games.</string>
+    <string name="arena_card_title">Computer Arena</string>
+    <string name="arena_card_body">Watch the computers battle each other: pick a game, two levels and how many games.</string>
+    <string name="arena_pick_game">Game</string>
+    <string name="arena_pick_a">Computer A level</string>
+    <string name="arena_pick_b">Computer B level</string>
+    <string name="arena_pick_games">Number of games</string>
+    <string name="arena_games_endless">Endless</string>
+    <string name="arena_start">Start</string>
+    <string name="arena_back">Back</string>
+    <string name="arena_note_coop">Bridge Builders is cooperative: all four helper robots build together (A on lanes 1 and 3, B on lanes 2 and 4), so the scoreboard counts bridges built and washed out instead of wins.</string>
+    <string name="arena_note_slide">In Slide and Climb the dice decide the race; the levels only change how each computer uses its spare roll.</string>
+
+    <string name="arena_level_easy">Easy</string>
+    <string name="arena_level_medium">Medium</string>
+    <string name="arena_level_hard">Hard</string>
+    <string name="arena_computer_a">Computer A</string>
+    <string name="arena_computer_b">Computer B</string>
+
+    <string name="arena_game_chutes_race">Slide and Climb</string>
+    <string name="arena_game_bridge_builders">Bridge Builders</string>
+    <string name="arena_game_chess">Chess</string>
+    <string name="arena_game_checkers">Checkers</string>
+    <string name="arena_game_reversi">Reversi</string>
+    <string name="arena_game_connect_four">Connect Four</string>
+
+    <string name="arena_strip_a">A (%1$s): %2$d</string>
+    <string name="arena_strip_b">B (%1$s): %2$d</string>
+    <string name="arena_strip_draws">Draws: %1$d</string>
+    <string name="arena_strip_game">Game %1$d of %2$d</string>
+    <string name="arena_strip_game_endless">Game %1$d (endless)</string>
+    <string name="arena_strip_robots">Robots A (%1$s) + B (%2$s)</string>
+    <string name="arena_strip_built">Built: %1$d</string>
+    <string name="arena_strip_failed">Washed out: %1$d</string>
+    <string name="arena_paused">Paused</string>
+    <string name="arena_pause">Pause</string>
+    <string name="arena_resume">Resume</string>
+    <string name="arena_speed">Speed %1$s</string>
+    <string name="arena_stop">Stop</string>
+    <string name="arena_close">Close</string>
+    <string name="arena_again">Run again</string>
+
+    <string name="arena_result_a">Game %1$d: Computer A wins.</string>
+    <string name="arena_result_b">Game %1$d: Computer B wins.</string>
+    <string name="arena_result_draw">Game %1$d: a draw.</string>
+    <string name="arena_result_built">Game %1$d: the bridge was built.</string>
+    <string name="arena_result_failed">Game %1$d: the bridge washed out.</string>
+    <string name="arena_next_first">Next: %1$s moves first.</string>
+    <string name="arena_done">Series complete</string>
+    <string name="arena_done_summary">A %1$d, B %2$d, draws %3$d</string>
+    <string name="arena_done_coop">built %1$d, washed out %2$d</string>
+</resources>

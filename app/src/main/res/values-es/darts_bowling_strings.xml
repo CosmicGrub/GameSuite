@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hub texts (hub_<slug> names, see hubKey) and first-run tips of Darts and Bowling -->
+    <string name="hub_darts">Dardos</string>
+    <string name="hub_flick_darts_at_the_board_count_down_from_501_or_dd2b10">Lanza dardos a la diana: cuenta atrás desde 501 o juega al Cricket.</string>
+    <string name="hub_practice">Práctica</string>
+    <string name="hub_throw_on_your_own_and_beat_your_best_average">Lanza en solitario y mejora tu mejor media.</string>
+    <string name="hub_throw_against_1_to_3_computer_players">Lanza contra 1 a 3 jugadores del ordenador.</string>
+    <string name="hub_your_hand">Tu pulso</string>
+    <string name="hub_how_steady_you_throw_a_steadier_hand_means_less_730ae0">Qué firme es tu pulso. Un pulso más firme tiembla menos.</string>
+    <string name="hub_rock_steady">Firme como una roca</string>
+    <string name="hub_very_little_wobble">Muy poco temblor.</string>
+    <string name="hub_pub_regular">Aficionado</string>
+    <string name="hub_a_little_wobble_like_a_keen_amateur">Algo de temblor, como un aficionado entusiasta.</string>
+    <string name="hub_nervous">Nervioso</string>
+    <string name="hub_a_lot_of_wobble_a_real_challenge">Mucho temblor: un verdadero reto.</string>
+    <string name="hub_darts_game">Juego de dardos</string>
+    <string name="hub_count_down_to_zero_or_close_the_cricket_numbers">Cuenta atrás hasta cero, o cierra los números del Cricket.</string>
+    <string name="hub_501">501</string>
+    <string name="hub_count_down_to_exactly_zero_the_classic_match">Cuenta atrás hasta cero exacto. La partida clásica.</string>
+    <string name="hub_301">301</string>
+    <string name="hub_a_shorter_count_down_to_zero">Una cuenta atrás más corta hasta cero.</string>
+    <string name="hub_cricket">Cricket</string>
+    <string name="hub_close_20_to_15_and_the_bull_then_out_score_your_cf9d98">Cierra del 20 al 15 y la diana, y supera a tus rivales en puntos.</string>
+    <string name="hub_double_out">Doble de salida</string>
+    <string name="hub_on_finish_on_a_double_or_the_bull_off_any_dart_c_35f0f9">Activado: termina en un doble o en la diana. Desactivado: cualquier dardo puede terminar.</string>
+    <string name="hub_double_in">Doble de entrada</string>
+    <string name="hub_on_your_score_only_starts_once_you_hit_a_double">Activado: tu puntuación solo empieza al acertar un doble.</string>
+    <string name="hub_bowling">Bolos</string>
+    <string name="hub_aim_swipe_and_curve_the_ball_into_the_pocket_for_fb40d2">Apunta, desliza y curva la bola hacia el bolo clave para hacer un pleno.</string>
+    <string name="hub_bowl_on_your_own_and_chase_a_perfect_300">Juega en solitario y persigue los 300 perfectos.</string>
+    <string name="hub_bowl_against_1_to_3_computer_players">Juega contra 1 a 3 jugadores del ordenador.</string>
+    <string name="hub_bumpers">Barreras</string>
+    <string name="hub_rails_along_the_lane_keep_the_ball_out_of_the_gu_f11c42">Unas barreras a lo largo de la pista mantienen la bola fuera de las canaletas.</string>
+    <string name="hub_aim_guide">Guía de puntería</string>
+    <string name="hub_shows_the_path_your_ball_will_take_down_the_lane">Muestra el camino que seguirá tu bola por la pista.</string>
+    <string name="tip_darts_1">Arrastra sobre la diana para mover la mira y desliza hacia arriba para lanzar. Un gesto suave se queda corto.</string>
+    <string name="tip_darts_2">En 501 debes acabar justo en cero con un doble. Si te pasas, la tanda no cuenta.</string>
+    <string name="tip_darts_3">En Cricket, cierra del 20 al 15 y la diana con tres marcas, y puntúa en los números que tus rivales dejen abiertos.</string>
+    <string name="tip_bowling_1">Desliza la bola para elegir la salida y luego desliza hacia arriba. Curva el gesto para dar efecto a la bola.</string>
+    <string name="tip_bowling_2">Apunta al hueco junto al bolo delantero para tener más opciones de pleno.</string>
+    <string name="tip_bowling_3">Un semipleno suma la bola siguiente como bonus y un pleno las dos siguientes. El décimo turno puede dar una tercera bola.</string>
+</resources>

@@ -60,7 +60,11 @@ enum class OnlineRole { NONE, HOST, GUEST }
  * play needs that server deployed somewhere reachable — server/README.md
  * covers both).
  */
-class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
+class OnlineTransport(
+    private val serverUrl: String,
+    /** Where listener callbacks run. Default: posted to the main thread (see [MAIN_THREAD]); tests pass [DIRECT] or their own. */
+    private val deliver: (Runnable) -> Unit = MAIN_THREAD
+) : MultiplayerTransport, com.gamesuite.core.OnlineRawChannel, SessionHealthSource {
 
     private val client = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS) // keeps NAT/carrier connections from silently timing out
@@ -83,6 +87,8 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
     @Volatile var hostPlayerId: String? = null
         private set
 
+    override val sessionHostId: String? get() = hostPlayerId
+
     // Set true right before a deliberate close ([disconnect]) so the reconnect logic below
     // never tries to resurrect a connection the player (or the shell) actually meant to end.
     @Volatile private var intentionalDisconnect = false
@@ -104,7 +110,17 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
     /** True while an unexpected disconnect is being retried — the lobby/game UI can surface
      *  a "Reconnecting..." indicator off this instead of treating every drop as [connectionError]. */
     private val _isReconnecting = MutableStateFlow(false)
-    val isReconnecting: StateFlow<Boolean> = _isReconnecting.asStateFlow()
+    override val isReconnecting: StateFlow<Boolean> = _isReconnecting.asStateFlow()
+
+    private val _sessionEnd = MutableStateFlow<SessionEnd?>(null)
+    /** Set once when the match cannot go on: the host's seat was vacated for good (a guest sees the relay's
+     *  `playerLeft` for the host id, which only follows an explicit leave or an expired reconnect grace
+     *  window), or this device ran out of reconnect attempts. The game chrome turns it into a clean abort. */
+    override val sessionEnd: StateFlow<SessionEnd?> = _sessionEnd.asStateFlow()
+
+    private val _awayPlayers = MutableStateFlow<Set<String>>(emptySet())
+    /** Seats the relay says dropped but is still holding open (`playerDisconnected`), until they come back or leave. */
+    override val awayPlayers: StateFlow<Set<String>> = _awayPlayers.asStateFlow()
 
     private val _connectedPlayers = MutableStateFlow<List<OnlinePlayer>>(emptyList())
     val connectedPlayers: StateFlow<List<OnlinePlayer>> = _connectedPlayers.asStateFlow()
@@ -122,11 +138,11 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
 
     /** Raw relayed payloads, addressed by playerId — for the lobby UI's [OnlineLobbyMessage.GameStart]. */
     private var rawMessageListener: ((fromPlayerId: String, payload: ByteArray) -> Unit)? = null
-    fun onRawMessageReceived(listener: (fromPlayerId: String, payload: ByteArray) -> Unit) {
+    override fun onRawMessageReceived(listener: (fromPlayerId: String, payload: ByteArray) -> Unit) {
         rawMessageListener = listener
     }
 
-    fun sendRaw(toPlayerId: String?, payload: ByteArray) = sendMessageFrame(toPlayerId, payload)
+    override fun sendRaw(toPlayerId: String?, payload: ByteArray) = sendMessageFrame(toPlayerId, payload)
 
     // ---- MultiplayerTransport (game layer) ----
 
@@ -170,6 +186,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         reconnectToken = null
         hostPlayerId = playerId
         intentionalDisconnect = false
+        resetSessionHealth()
         openSocket {
             sendFrame(WireMessage(type = "host", playerId = playerId, displayName = displayName))
         }
@@ -187,9 +204,15 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
         reconnectToken = null
         hostPlayerId = null
         intentionalDisconnect = false
+        resetSessionHealth()
         openSocket {
             sendFrame(WireMessage(type = "join", roomCode = code, playerId = playerId, displayName = displayName, spectator = spectator))
         }
+    }
+
+    private fun resetSessionHealth() {
+        _sessionEnd.value = null
+        _awayPlayers.value = emptySet()
     }
 
     private fun openSocket(onOpenSendInitialFrame: () -> Unit) {
@@ -238,6 +261,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                     }
                 }
                 _isReconnecting.value = false
+                _sessionEnd.compareAndSet(null, SessionEnd.CONNECTION_LOST)
                 _connectionError.value = "Lost connection and couldn't reconnect: $reason"
             }
         }
@@ -339,7 +363,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
             "hosted" -> msg.roomCode?.let {
                 msg.reconnectToken?.let { token -> reconnectToken = token }
                 _roomCode.value = it
-                onHostedListener?.invoke(it)
+                val c = it; deliver(Runnable { onHostedListener?.invoke(c) })
             }
             "joined" -> {
                 val code = msg.roomCode ?: return
@@ -359,7 +383,7 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                 if (role == OnlineRole.GUEST) hostPlayerId = msg.hostPlayerId ?: existing.firstOrNull()?.playerId
                 _roomCode.value = code
                 _connectedPlayers.value = existing
-                onJoinedListener?.invoke(code, existing)
+                deliver(Runnable { onJoinedListener?.invoke(code, existing) })
                 // A spectator's re-join after a drop replies "joined" rather than "reconnected"
                 // (see server/index.js) since it has no prior roster to diff against — still a
                 // successful reconnect attempt if one is in flight.
@@ -378,7 +402,8 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                 _connectionError.value = null // any refusal from an earlier attempt is history now
                 _roomCode.value = code
                 _connectedPlayers.value = existing
-                onReconnectedListener?.invoke()
+                _awayPlayers.value = emptySet() // the relay does not replay earlier disconnects, so start from a clean slate
+                deliver(Runnable { onReconnectedListener?.invoke() })
                 resuming.complete(true)
             }
             "playerJoined" -> {
@@ -387,26 +412,36 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
                 _connectedPlayers.update { current ->
                     if (current.any { it.playerId == playerId }) current else current + OnlinePlayer(playerId, name)
                 }
-                joinedListener?.invoke(playerId)
+                deliver(Runnable { joinedListener?.invoke(playerId) })
             }
             "playerLeft" -> {
                 val playerId = msg.playerId ?: return
                 _connectedPlayers.update { it.filterNot { p -> p.playerId == playerId } }
-                leftListener?.invoke(playerId)
+                _awayPlayers.update { it - playerId }
+                // A guest (or spectator) whose host seat is vacated for good has no match left to play.
+                if (role == OnlineRole.GUEST && playerId == hostPlayerId) _sessionEnd.compareAndSet(null, SessionEnd.HOST_LEFT)
+                deliver(Runnable { leftListener?.invoke(playerId) })
             }
-            "playerDisconnected", "playerReconnected" -> {
-                // A room member's connection dropped but the relay is holding their seat open
-                // (or it just came back) — deliberately NOT onPlayerLeft/onPlayerJoined, since a
-                // disconnect may well resolve itself before the grace period expires. No
-                // "temporarily away" UI hook exists yet; a reasonable follow-up, not required
-                // for the reconnect mechanism itself to work correctly.
+            "playerDisconnected" -> {
+                // Not onPlayerLeft: the relay holds the seat open and the drop may heal. Surfaced as state only,
+                // so the game chrome can say "reconnecting" without any game having to know.
+                val playerId = msg.playerId ?: return
+                _awayPlayers.update { it + playerId }
+            }
+            "playerReconnected" -> {
+                val playerId = msg.playerId ?: return
+                _awayPlayers.update { it - playerId }
             }
             "message" -> {
                 val fromPlayerId = msg.fromPlayerId ?: return
                 val payloadBase64 = msg.payloadBase64 ?: return
+                if (payloadBase64.length > MAX_PAYLOAD_BASE64_CHARS) return // the relay caps frames at 64 KiB; never decode more than that
                 val bytes = runCatching { Base64.getDecoder().decode(payloadBase64) }.getOrNull() ?: return
-                rawMessageListener?.invoke(fromPlayerId, bytes)
-                messageListener?.invoke(fromPlayerId, bytes)
+                // One hop for both listeners so they stay adjacent and in relay order, and read at delivery time.
+                deliver(Runnable {
+                    rawMessageListener?.invoke(fromPlayerId, bytes)
+                    messageListener?.invoke(fromPlayerId, bytes)
+                })
             }
             "error" -> {
                 _connectionError.value = msg.message ?: "Server error"
@@ -425,6 +460,18 @@ class OnlineTransport(private val serverUrl: String) : MultiplayerTransport {
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
+
+        /** Base64 text of one relayed payload (64 KiB of bytes is ~88k chars), with headroom. */
+        internal const val MAX_PAYLOAD_BASE64_CHARS = 96 * 1024
+
+        private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+        /** Production delivery: one hop to the main thread, FIFO, so game handlers never run on OkHttp's socket
+         *  thread and arrive in the order the relay sent them (Nearby already delivers on main). */
+        val MAIN_THREAD: (Runnable) -> Unit = { r -> mainHandler.post(r) }
+
+        /** Runs the callback inline on the calling (socket) thread: for JVM tests with no main looper. */
+        val DIRECT: (Runnable) -> Unit = { r -> r.run() }
     }
 }
 

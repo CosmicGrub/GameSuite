@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Second-person forms, used when the seat's name is "You" ("You wins!" would be wrong). -->
+    <string name="yg_win">You win!</string>
+    <string name="yg_gomoku_ann_win">You win with five in a row</string>
+    <string name="yg_hex_ann_win">You win by connecting your sides</string>
+    <string name="yg_morris_end_reduced">You are down to two men.</string>
+    <string name="yg_cc_ann_skipped">You are boxed in and pass.</string>
+    <string name="yg_ludo_ann_win">You got all four tokens home and win!</string>
+    <string name="yg_shogi_hand_of">Your hand</string>
+</resources>

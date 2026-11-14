@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Draw and Guess states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06070F}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#06070F;position:relative;font:400 15px/1.4 Inter,sans-serif;color:#F3F1EA}
+.cap{position:absolute;top:14px;height:30px;padding:0 14px;border-radius:15px;background:#1C2138;font:600 13px Inter;display:flex;align-items:center;letter-spacing:.06em;text-transform:uppercase;color:#C9CDE0}
+.ph{position:absolute;top:56px;width:390px;height:844px;background:#0B0D1A;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.card{background:#141829;border:1px solid #232943;border-radius:20px}
+.btn{height:56px;border-radius:28px;background:#FF7A59;color:#1A0A05;font:600 17px Sora;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(255,122,89,.28),inset 0 1px 0 rgba(255,255,255,.35)}
+.chip{height:44px;padding:0 16px;border-radius:22px;background:#1C2138;color:#C9CDE0;font:500 14px Inter;display:inline-flex;align-items:center}
+.chip.on{background:#F3F1EA;color:#0B0D1A;font-weight:600}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin:20px 0 8px}
+.top{margin-top:52px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.av{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font:700 15px Sora;flex:none}
+.cv{background:#FFFDF6;border-radius:24px;position:relative;overflow:hidden}
+.opt{height:88px;border-radius:20px;background:#141829;border:1px solid #232943;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:600 15px Sora}
+</style>
+</helmet>
+<div class="sb">
+<span class="cap" style="left:0">1 Setup</span><span class="cap" style="left:430px">2 Pass the device</span><span class="cap" style="left:860px">3 Drawing</span><span class="cap" style="left:1290px">4 Guessing, mid-round</span><span class="cap" style="left:1720px">5 Score card</span>
+
+<div class="ph" style="left:0">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></div><h2 style="font-size:17px">Draw and Guess</h2><span style="width:44px"></span></div>
+<div style="margin-top:16px;height:104px;border-radius:24px;background:linear-gradient(150deg,#FF7A59,#8A2A12);position:relative;overflow:hidden;padding:16px;display:flex;flex-direction:column;justify-content:flex-end"><svg width="140" height="104" viewBox="0 0 140 104" style="position:absolute;right:0;top:0" aria-hidden="true"><path d="M20 90c20-50 40 10 60-40s30 30 50-20" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85"/><circle cx="104" cy="30" r="10" fill="#FFD27A"/></svg><div style="font:600 13px Inter;color:#FFE3D8">Ages 6 and up · 2 to 8 players</div></div>
+<div class="lab">Players</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chip" style="gap:8px"><i class="av" style="width:26px;height:26px;background:#8B7CFF;font-size:12px">S</i>Sam</span><span class="chip" style="gap:8px"><i class="av" style="width:26px;height:26px;background:#0E7490;font-size:12px">M</i>Mia</span><span class="chip" style="gap:8px"><i class="av" style="width:26px;height:26px;background:#6B4E2E;font-size:12px">L</i>Leo</span><span class="chip" style="gap:8px"><i class="av" style="width:26px;height:26px;background:#2E9E5B;font-size:12px">G</i>Gran</span><span class="chip" style="color:#FF9D82">+ Add</span></div>
+<div class="lab">How guessers answer</div>
+<div style="display:flex;gap:8px"><span class="chip on">Pick a picture</span><span class="chip">Type it</span></div>
+<div class="lab">Time to draw</div>
+<div style="display:flex;gap:8px"><span class="chip">30s</span><span class="chip on">60s</span><span class="chip">90s</span><span class="chip">No timer</span></div>
+<div class="lab">Rounds and teams</div>
+<div class="card" style="padding:4px 16px"><div style="display:flex;justify-content:space-between;align-items:center;height:52px"><span>Everyone draws</span><b style="font:600 16px Sora">2 times</b></div><div style="display:flex;justify-content:space-between;align-items:center;height:52px;border-top:1px solid #1E2340"><span>Two teams</span><div style="width:48px;height:28px;border-radius:14px;background:#2E3558;position:relative"><i style="position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff"></i></div></div><div style="display:flex;justify-content:space-between;align-items:center;height:52px;border-top:1px solid #1E2340"><span>Little kids bonus</span><div style="width:48px;height:28px;border-radius:14px;background:#FF7A59;position:relative"><i style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff"></i></div></div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:40px">Start drawing</div>
+</div>
+
+<div class="ph" style="left:430px;align-items:center;background:radial-gradient(100% 50% at 50% 30%,#4A1F12 0%,#0B0D1A 70%)">
+<div style="margin-top:150px;width:120px;height:120px;border-radius:60px;background:#0E7490;display:flex;align-items:center;justify-content:center;font:700 48px Sora;box-shadow:0 0 0 10px rgba(14,116,144,.25)">M</div>
+<h1 style="font-size:34px;margin-top:26px;text-align:center;line-height:1.1">Pass to Mia</h1>
+<div class="mut" style="font-size:16px;margin-top:8px;text-align:center">Everyone else, look away. Mia is about to see a secret word.</div>
+<div style="margin-top:36px;display:flex;gap:6px"><i style="width:30px;height:6px;border-radius:3px;background:#FF7A59"></i><i style="width:30px;height:6px;border-radius:3px;background:#2E3558"></i><i style="width:30px;height:6px;border-radius:3px;background:#2E3558"></i><i style="width:30px;height:6px;border-radius:3px;background:#2E3558"></i></div>
+<div class="mut" style="font-size:13px;margin-top:8px">Mia draws 1 of 2</div>
+<div style="flex:1"></div>
+<div style="width:200px;height:200px;border-radius:100px;background:#1C2138;box-shadow:inset 0 0 0 4px #FF7A59,0 0 0 14px rgba(255,122,89,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF7A59" stroke-width="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><div style="font:600 16px Sora;text-align:center;line-height:1.2">Hold to<br>see the word</div></div>
+<div class="mut" style="font-size:13px;margin:22px 0 44px;text-align:center">Let go and the word hides again.</div>
+</div>
+
+<div class="ph" style="left:860px">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="#F3F1EA" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div>
+<div style="display:flex;align-items:center;gap:10px"><svg width="44" height="44" viewBox="0 0 44 44" aria-label="38 seconds left"><circle cx="22" cy="22" r="18" fill="none" stroke="#232943" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="#FF7A59" stroke-width="5" stroke-linecap="round" stroke-dasharray="70 113" transform="rotate(-90 22 22)"/><text x="22" y="27" text-anchor="middle" font-family="Sora" font-weight="700" font-size="14" fill="#F3F1EA">38</text></svg></div>
+<div class="ib" style="font:600 13px Inter">Mia</div></div>
+<div style="margin-top:14px;text-align:center"><div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase">Draw this</div><div style="font:700 30px Sora">Cat</div></div>
+<div class="cv" style="margin-top:12px;height:430px">
+<svg width="350" height="430" viewBox="0 0 350 430" aria-label="Drawing in progress: a cat face"><circle cx="175" cy="230" r="100" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linecap="round"/><path d="M95 170L100 95L150 138" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><path d="M255 170L250 95L200 138" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><circle cx="140" cy="220" r="9" fill="#2B1B4A"/><circle cx="210" cy="220" r="9" fill="#2B1B4A"/><path d="M165 255l10 10 10-10z" fill="#E0415A"/><path d="M60 245l60 6M60 270l60-6" stroke="#E0415A" stroke-width="5" stroke-linecap="round"/></svg></div>
+<div style="margin-top:12px;display:flex;align-items:center;gap:10px;justify-content:space-between">
+<div style="display:flex;gap:8px"><i style="width:36px;height:36px;border-radius:18px;background:#2B1B4A;box-shadow:0 0 0 3px #0B0D1A,0 0 0 5px #F3F1EA"></i><i style="width:36px;height:36px;border-radius:18px;background:#E0415A"></i><i style="width:36px;height:36px;border-radius:18px;background:#2A7FD0"></i><i style="width:36px;height:36px;border-radius:18px;background:#2E9E5B"></i><i style="width:36px;height:36px;border-radius:18px;background:#FFB547"></i><i style="width:36px;height:36px;border-radius:18px;background:#8B5CF6"></i></div>
+</div>
+<div style="margin-top:12px;display:flex;gap:10px"><div class="chip" style="flex:1;justify-content:center;height:52px;gap:6px"><i style="width:6px;height:6px;border-radius:3px;background:#F3F1EA;display:block"></i><i style="width:12px;height:12px;border-radius:6px;background:#F3F1EA;display:block"></i><i style="width:20px;height:20px;border-radius:10px;background:#F3F1EA;display:block"></i></div><div class="chip" style="height:52px;width:52px;justify-content:center" aria-label="Undo stroke"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></div><div class="chip" style="height:52px;width:52px;justify-content:center" aria-label="Eraser"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 16l9-10 7 7-6 6H8zM9 21h11"/></svg></div><div class="chip" style="height:52px;width:52px;justify-content:center;color:#FF9D82" aria-label="Clear all"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:36px;background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558">I am done drawing</div>
+</div>
+
+<div class="ph" style="left:1290px">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="#F3F1EA" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div>
+<svg width="44" height="44" viewBox="0 0 44 44" aria-label="12 seconds left"><circle cx="22" cy="22" r="18" fill="none" stroke="#232943" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="#FFB547" stroke-width="5" stroke-linecap="round" stroke-dasharray="22 113" transform="rotate(-90 22 22)"/><text x="22" y="27" text-anchor="middle" font-family="Sora" font-weight="700" font-size="14" fill="#F3F1EA">12</text></svg>
+<div class="ib" style="font:600 13px Inter">Leo</div></div>
+<div style="margin-top:14px;text-align:center"><div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase">Leo, what is Mia drawing?</div></div>
+<div class="cv" style="margin-top:12px;height:300px"><svg width="350" height="300" viewBox="0 0 350 430" preserveAspectRatio="xMidYMid meet" aria-label="Mia's drawing"><circle cx="175" cy="230" r="100" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linecap="round"/><path d="M95 170L100 95L150 138" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><path d="M255 170L250 95L200 138" fill="none" stroke="#2B1B4A" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><circle cx="140" cy="220" r="9" fill="#2B1B4A"/><circle cx="210" cy="220" r="9" fill="#2B1B4A"/><path d="M165 255l10 10 10-10z" fill="#E0415A"/><path d="M60 245l60 6M60 270l60-6" stroke="#E0415A" stroke-width="5" stroke-linecap="round"/></svg></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px">
+<div class="opt"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="19" r="11" fill="#9AA0B8"/><path d="M8 12l2-8 6 6zM26 12l-2-8-6 6z" fill="#9AA0B8"/></svg>Rabbit</div>
+<div class="opt" style="box-shadow:0 0 0 3px #FFB547"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="19" r="11" fill="#FF9A3C"/><path d="M8 14L9 4l7 6zM26 14l-1-10-7 6z" fill="#FF9A3C"/></svg>Cat</div>
+<div class="opt"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><ellipse cx="17" cy="20" rx="13" ry="9" fill="#6B4E2E"/><circle cx="26" cy="12" r="6" fill="#6B4E2E"/></svg>Dog</div>
+<div class="opt"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 4c8 6 10 14 0 24C7 18 9 10 17 4z" fill="#2E9E5B"/></svg>Leaf</div>
+<div class="opt"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="11" fill="#FFB547"/></svg>Sun</div>
+<div class="opt"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="6" y="14" width="22" height="14" fill="#E0415A"/><path d="M3 15L17 3l14 12z" fill="#8A2A12"/></svg>House</div>
+</div>
+<div class="mut" style="font-size:13px;margin-top:12px;text-align:center">Tap the picture you think it is. Fast answers score more.</div>
+</div>
+
+<div class="ph" style="left:1720px">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></div><h2 style="font-size:17px">Final scores</h2><div class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></div></div>
+<div style="margin-top:20px;border-radius:28px;background:linear-gradient(150deg,#3A1A10,#141829);border:1px solid #4A2A1E;padding:20px;text-align:center"><div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase">Winner</div><div class="av" style="width:72px;height:72px;border-radius:36px;background:#0E7490;font-size:28px;margin:10px auto 0;box-shadow:0 0 0 5px #FFB547">M</div><h1 style="font-size:28px;margin-top:10px">Mia</h1><div style="font:600 15px Inter;color:#FFB547">46 points</div></div>
+<div class="card" style="margin-top:12px;padding:4px 16px">
+<div style="display:flex;align-items:center;gap:12px;height:56px"><b style="font:700 16px Sora;width:20px;color:#9AA0B8">2</b><i class="av" style="width:34px;height:34px;background:#6B4E2E;font-size:13px">L</i><b style="font:600 15px Sora;flex:1">Leo</b><span>38</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-top:1px solid #1E2340"><b style="font:700 16px Sora;width:20px;color:#9AA0B8">3</b><i class="av" style="width:34px;height:34px;background:#8B7CFF;font-size:13px">S</i><b style="font:600 15px Sora;flex:1">Sam</b><span>31</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-top:1px solid #1E2340"><b style="font:700 16px Sora;width:20px;color:#9AA0B8">4</b><i class="av" style="width:34px;height:34px;background:#2E9E5B;font-size:13px">G</i><b style="font:600 15px Sora;flex:1">Gran</b><span>29</span></div></div>
+<div class="lab" style="margin-top:16px">Best drawings</div>
+<div style="display:flex;gap:10px"><div class="cv" style="width:100px;height:100px;flex:none;border-radius:16px"><svg width="100" height="100" viewBox="0 0 350 430" aria-label="Cat drawing"><circle cx="175" cy="230" r="100" fill="none" stroke="#2B1B4A" stroke-width="12"/><path d="M95 170L100 95L150 138M255 170L250 95L200 138" fill="none" stroke="#2B1B4A" stroke-width="12"/></svg></div><div class="cv" style="width:100px;height:100px;flex:none;border-radius:16px"><svg width="100" height="100" viewBox="0 0 100 100" aria-label="House drawing"><rect x="22" y="48" width="56" height="36" fill="none" stroke="#2B1B4A" stroke-width="5"/><path d="M16 50L50 20l34 30" fill="none" stroke="#E0415A" stroke-width="5"/></svg></div><div class="cv" style="width:100px;height:100px;flex:none;border-radius:16px"><svg width="100" height="100" viewBox="0 0 100 100" aria-label="Sun drawing"><circle cx="50" cy="50" r="18" fill="#FFB547"/><path d="M50 14v12M50 74v12M14 50h12M74 50h12" stroke="#FFB547" stroke-width="5"/></svg></div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:12px">Play again</div>
+<div style="display:flex;gap:10px;margin-bottom:36px"><div class="btn" style="flex:1;background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558;font-size:15px">Save drawings</div><div class="btn" style="flex:1;background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558;font-size:15px">Home</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

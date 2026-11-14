@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texas Hold'em coach card (own file; the GameCoach.entries entry is added by the integrator) -->
+    <string name="coach_texas_holdem_s1">Todos reciben dos cartas privadas. Cinco cartas comunes se descubren en el centro: el flop (tres), luego el turn (una) y luego el river (una).</string>
+    <string name="coach_texas_holdem_s2">Forma la mejor mano de cinco cartas con tus dos cartas y las cinco de la mesa. De menor a mayor: carta alta, pareja, doble pareja, trío, escalera, color, full, póker y escalera de color.</string>
+    <string name="coach_texas_holdem_s3">Se apuesta antes del flop y después de cada carta nueva. En tu turno puedes retirarte, pasar, igualar, o apostar y subir con el control deslizante y los botones Mín., ½ bote, bote y todo.</string>
+    <string name="coach_texas_holdem_s4">Las ciegas pequeña y grande son apuestas obligatorias que rotan por la mesa con el botón del repartidor. Pueden subir con el tiempo, así que la partida siempre termina.</string>
+    <string name="coach_texas_holdem_s5">Si vas con todo por menos que la apuesta, las fichas sobrantes forman un bote lateral que no puedes ganar. Las fichas son solo de juego: gana el torneo el último jugador con fichas.</string>
+    <string name="coach_texas_holdem_fact">Se dice que el Texas Hold\'em nació en Robstown, Texas, a principios del siglo XX, y en 2007 la legislatura de Texas reconoció a esa localidad como su cuna.</string>
+</resources>

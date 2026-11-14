@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Checkers: round-over reasons when nobody wins, and the Hint button while the search runs. -->
+    <string name="checkers_draw_title">It\'s a draw</string>
+    <string name="checkers_draw_no_progress">Draw: no capture or man move in 40 moves</string>
+    <string name="checkers_draw_repetition">Draw by repetition</string>
+    <string name="checkers_hint_thinking">Thinking…</string>
+</resources>

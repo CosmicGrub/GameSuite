@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_mini_golf_s1">Drag back from the ball like a slingshot and let go to putt. The farther you drag, the harder you hit.</string>
+    <string name="coach_mini_golf_s2">Prefer buttons? Use Aim left and right, the Power slider and Putt.</string>
+    <string name="coach_mini_golf_s3">Sand slows the ball, water costs a stroke and puts the ball back, belts push it along and bumpers bounce it away.</string>
+    <string name="coach_mini_golf_s4">Take turns. The fewest strokes over all the holes wins, and a hole ends at the stroke limit.</string>
+    <string name="coach_mini_golf_fact">Miniature golf boomed in the United States around 1930, when thousands of courses opened, many of them on rooftops and empty lots.</string>
+</resources>

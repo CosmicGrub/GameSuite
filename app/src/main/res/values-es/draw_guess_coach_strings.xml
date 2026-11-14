@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Draw and Guess coach card and tips -->
+    <string name="coach_draw_guess_s1">Túrnense para dibujar una palabra secreta. Quien dibuja toca su nombre, elige una de tres imágenes y mantiene pulsado para ver la palabra. Los demás miran a otro lado.</string>
+    <string name="coach_draw_guess_s2">Dibuja con el dedo. Elige entre seis colores y tres pinceles, y usa Deshacer, Borrar todo o la Goma. No hace falta saber dibujar: los monigotes valen.</string>
+    <string name="coach_draw_guess_s3">¿Crees que lo sabes? Toca tu nombre para pedir turno. El reloj se detiene y tienes un intento: toca la tarjeta con la imagen correcta o escribe la palabra en el modo para mayores.</string>
+    <string name="coach_draw_guess_s4">Un acierto da puntos a quien adivina y a quien dibuja, más cuanto más rápido llegue y más difícil sea la palabra. Un fallo te deja fuera durante el turno.</string>
+    <string name="coach_draw_guess_s5">Cada persona dibuja una vez por ronda. Con cuatro, seis u ocho jugadores pueden formar dos equipos: solo adivina el equipo de quien dibuja. Solo en la misma pantalla: no hay modo Cercano ni En línea.</string>
+    <string name="coach_draw_guess_fact">Los juegos al estilo Pictionary funcionan porque un dibujo tosco solo tiene que bastar para recordar una palabra, y por eso los bocetos rápidos suelen ganar a los cuidados.</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game Hub texts of Echo Pads (hubKey names) -->
+<resources>
+    <string name="hub_pattern_speed">Pattern speed</string>
+    <string name="hub_how_fast_the_pads_light_up_the_game_speed_in_set_94aeec">How fast the pads light up. The game speed in Settings changes it too.</string>
+    <string name="hub_slow">Slow</string>
+    <string name="hub_long_gentle_flashes_best_for_little_ones">Long, gentle flashes: best for little ones.</string>
+    <string name="hub_normal">Normal</string>
+    <string name="hub_a_steady_pace">A steady pace.</string>
+    <string name="hub_fast">Fast</string>
+    <string name="hub_quick_flashes_for_sharp_memories">Quick flashes for sharp memories.</string>
+    <string name="hub_easy_mode">Easy mode</string>
+    <string name="hub_every_turn_gets_one_free_try_the_first_wrong_pad_c0eba0">Every turn gets one free try: the first wrong pad just shows the pattern again.</string>
+    <string name="hub_sound">Sound</string>
+    <string name="hub_each_pad_plays_its_own_note_switch_off_to_play_w_cfeac7">Each pad plays its own note. Switch off to play with lights and shapes only.</string>
+    <string name="hub_turn_halves_to_face_players">Turn halves to face players</string>
+    <string name="hub_each_player_s_half_turns_to_face_them_switch_off_bb2d01">Each player\'s half turns to face them. Switch off to keep both halves upright.</string>
+    <string name="hub_echo_pads">Echo Pads</string>
+    <string name="hub_watch_the_lights_hear_the_notes_then_echo_the_pa_fe5e2b">Watch the lights, hear the notes, then echo the pattern back.</string>
+    <string name="hub_copy_a_pattern_that_grows_by_one_every_round_how_e02ca9">Copy a pattern that grows by one every round. How long can you go?</string>
+    <string name="hub_pass_and_play">Pass and play</string>
+    <string name="hub_take_turns_copying_the_pattern_miss_and_you_are_70716e">Take turns copying the pattern. Miss and you are out. The last one in wins.</string>
+    <string name="hub_head_to_head">Head to head</string>
+    <string name="hub_two_players_one_screen_a_half_each_copy_the_shar_039f0c">Two players, one screen, a half each. Copy the shared pattern in turn: whoever slips up loses.</string>
+</resources>

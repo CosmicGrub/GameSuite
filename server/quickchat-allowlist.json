@@ -1,0 +1,5 @@
+{
+  "_comment": "Quick-chat allowlist (docs/roadmap/WAVE-5-MULTIPLAYER-DESIGN.md section 4.2). Ids only, never text: the relay accepts a chat frame only if phraseId is one of these integers. Phrases 1-12 are text phrases, 101-106 are emotes (smile, clap, wow, think, heart, wave). The ids are stable forever; the Android client resolves them to strings in the receiver's locale. Do not renumber.",
+  "phrases": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  "emotes": [101, 102, 103, 104, 105, 106]
+}

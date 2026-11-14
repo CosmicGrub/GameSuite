@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tip_carrom_1">Desliza el lanzador por tu línea, luego arrastra hacia atrás desde él y suelta para disparar.</string>
+    <string name="tip_carrom_2">Mete tu propio color para volver a tirar. Cubre la reina con una de tus fichas.</string>
+    <string name="tip_carrom_3">Si el lanzador cae en una tronera es falta: una ficha vuelve al tablero.</string>
+    <string name="tip_curling_1">Toca el hielo donde quieres que se detenga la piedra y pulsa Lanzar.</string>
+    <string name="tip_curling_2">Gira el mango para curvar a izquierda o derecha, y barre mientras se desliza para llevarla más lejos.</string>
+    <string name="tip_curling_3">Cuando se han lanzado todas las piedras, puntúa la más cercana al centro.</string>
+</resources>

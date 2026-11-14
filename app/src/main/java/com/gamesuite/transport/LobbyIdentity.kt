@@ -16,6 +16,7 @@ import com.gamesuite.core.PlayerInfo
  * Shared by the Nearby and Online guest lobbies.
  */
 fun guestSeatIndex(players: List<PlayerInfo>, myPlayerId: String): Int {
+    if (isCpuPlayerId(myPlayerId)) return -1 // a guest is never a computer seat
     if (players.any { it.playerId.isBlank() }) return -1
     if (players.map { it.playerId }.toSet().size != players.size) return -1
     val index = players.indexOfFirst { it.playerId == myPlayerId }

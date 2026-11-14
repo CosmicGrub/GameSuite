@@ -5,11 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.airHockeyPrefsDataStore: DataStore<Preferences> by preferencesDataStore(name = "air_hockey_prefs")
+private val Context.airHockeyPrefsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("air_hockey_prefs")
 
 /**
  * Air Hockey's own tiny persisted preference: [AirHockeyGame.AirHockeyMotionTier]

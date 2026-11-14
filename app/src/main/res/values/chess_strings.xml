@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chess: automatic draws, the chess clock and time-out results. -->
+    <string name="chess_end_draw_fifty">Draw by fifty-move rule</string>
+    <string name="chess_end_draw_insufficient">Draw: insufficient material</string>
+    <string name="chess_end_time_up">Time\'s up</string>
+    <string name="chess_end_win_on_time_you">You win on time!</string>
+    <string name="chess_end_win_on_time">%1$s wins on time</string>
+    <string name="chess_end_draw_time_insufficient">Draw: time ran out, but the opponent cannot checkmate</string>
+
+    <string name="chess_clock_side_white">White</string>
+    <string name="chess_clock_side_black">Black</string>
+    <string name="chess_clock_a11y_white">White %1$s</string>
+    <string name="chess_clock_a11y_black">Black %1$s</string>
+    <string name="chess_clock_running">Clock running</string>
+    <string name="chess_clock_low_time">Low time</string>
+    <string name="chess_clock_low_tag">LOW</string>
+</resources>

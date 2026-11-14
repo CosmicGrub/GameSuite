@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Bridge Builders (bridge_builders_coach_s1..s5 and _fact) and its first-run tips (tip_bridge_builders_1..3; move them to polish_strings.xml when GameTips is updated) -->
+    <string name="coach_bridge_builders_s1">Everybody builds one bridge together, from their own lane, all at the same time. You win together or you try again together.</string>
+    <string name="coach_bridge_builders_s2">A cart slides back and forth along your lane. Tap when it is inside the green spot (marked with a frame and a diamond) to place a plank.</string>
+    <string name="coach_bridge_builders_s3">The nearer the middle you tap, the sturdier the plank. Sturdy planks push the water back and make the final crossing quicker. A miss only makes your cart rest a moment.</string>
+    <string name="coach_bridge_builders_s4">Nobody can build more than two planks ahead of the slowest lane. When the rope between lanes is tight, wait for your friends.</string>
+    <string name="coach_bridge_builders_s5">Finish every lane before the water covers the bridge, then everybody crosses. Helper robots can fill empty lanes. Relaxed building and a bigger green spot for one builder help mixed ages play together. Same screen only: there is no Nearby or Online mode.</string>
+    <string name="coach_bridge_builders_fact">Some of the oldest bridges still in use are stone arch bridges built by the Romans, and a few are almost two thousand years old.</string>
+</resources>

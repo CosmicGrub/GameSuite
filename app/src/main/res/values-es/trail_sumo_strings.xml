@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared texts of the same-screen party games Light-Trail Duel and Sumo Push. -->
+    <string name="tsp_style_solid">liso</string>
+    <string name="tsp_style_dashed">discontinuo</string>
+    <string name="tsp_style_dotted">punteado</string>
+    <string name="tsp_style_hollow">hueco</string>
+    <string name="tsp_seat_in">en juego</string>
+    <string name="tsp_seat_out">fuera</string>
+    <string name="tsp_chip_desc">%1$s, patrón %2$s, %3$d de %4$d rondas ganadas, %5$s</string>
+    <string name="tsp_paused_title">En pausa</string>
+    <string name="tsp_paused_body">Que todos quiten los dedos de la pantalla. Pulsa Reanudar cuando estéis listos.</string>
+    <string name="tsp_resume">Reanudar</string>
+    <string name="tsp_pause">Pausa</string>
+    <string name="tsp_go">¡Ya!</string>
+    <string name="tsp_round_win">%1$s gana la ronda.</string>
+    <string name="tsp_round_win_you">Ganas la ronda.</string>
+    <string name="tsp_round_draw">Ronda empatada: nadie la gana. Se jugará otra vez.</string>
+    <string name="tsp_match_win">¡%1$s gana la partida!</string>
+    <string name="tsp_match_win_you">¡Ganas la partida!</string>
+    <string name="tsp_match_draw">La partida termina en empate.</string>
+    <string name="tsp_summary">Rondas ganadas: %1$s</string>
+    <string name="tsp_hud_round">Ronda %1$d · el primero en llegar a %2$d gana</string>
+    <string name="tsp_leave_title">¿Salir de la partida?</string>
+    <string name="tsp_leave_body">Tu partida se guarda. Puedes reanudarla desde la página del juego.</string>
+    <string name="tsp_leave_body_session">Esto termina la sesión y registra las partidas jugadas hasta ahora.</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card texts for Blackjack and War (the GameCoach.kt entries use these names) -->
+    <string name="coach_blackjack_s1">Toca las fichas para armar tu apuesta y pulsa Apostar.</string>
+    <string name="coach_blackjack_s2">Acércate a 21 más que la banca sin pasarte. Las figuras valen 10 y el As vale 1 u 11.</string>
+    <string name="coach_blackjack_s3">Pedir toma una carta. Plantarse se detiene. Doblar duplica tu apuesta por una última carta.</string>
+    <string name="coach_blackjack_s4">Divide una pareja en dos manos. Rendirse abandona una mala mano y recuperas la mitad de tu apuesta.</string>
+    <string name="coach_blackjack_s5">Un blackjack paga extra. ¿Sin fichas? Recompra y sigue jugando. Son fichas de juego, nunca dinero real.</string>
+    <string name="coach_blackjack_fact">El nombre viene de un premio que pagaban algunos casinos estadounidenses por un As de picas con una Jota negra.</string>
+    <string name="coach_war_s1">Toca Voltear. Cada jugador da la vuelta a su carta de arriba.</string>
+    <string name="coach_war_s2">La carta más alta gana y se lleva todas las cartas en juego. El As es alto.</string>
+    <string name="coach_war_s3">Un empate es la guerra: los jugadores empatados ponen cartas boca abajo y voltean una más. La más alta se lleva todo el montón.</string>
+    <string name="coach_war_s4">En Elige 3 ves tus tres cartas de arriba y eliges una en secreto. Gana quien tenga todas las cartas.</string>
+    <string name="coach_war_fact">Una partida de Guerra clásica puede durar cientos de vueltas, por eso esta tiene un límite de rondas.</string>
+</resources>

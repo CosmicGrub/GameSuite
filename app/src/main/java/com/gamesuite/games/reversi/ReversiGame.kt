@@ -3,14 +3,21 @@ package com.gamesuite.games.reversi
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.settings.CpuDifficulty
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Everything needed to put a Reversi session back exactly as it was: the board, whose turn it is,
  * the pass flag, the session tally, who opens the next board and the difficulty. One shape serves
  * both Resume (written to disk) and Undo (kept in memory). The legal-move set and the disc counts
  * are derived from the cells on restore, so they cannot disagree with the board.
+ *
+ * [size] is the board edge length; a save written before board sizes existed has no such field and
+ * decodes as the standard 8. (It is also left out of the JSON when it is 8, since defaults are not
+ * encoded, so standard saves stay byte-identical to the old format.)
  */
 @Serializable
 private data class ReversiSnapshot(
@@ -24,13 +31,49 @@ private data class ReversiSnapshot(
     val sessionWins: Map<String, Int>,
     val sessionDraws: Int,
     val nextStartingPlayerIndex: Int,
-    val difficulty: String
+    val difficulty: String,
+    val size: Int = 8
 )
 
 @Serializable
 private data class ReversiSnapshotPlayer(val playerId: String, val displayName: String, val isBot: Boolean)
 
 private val reversiSnapshotJson = Json { ignoreUnknownKeys = true }
+
+/** The supported board edge lengths and the Hub's "board" option ids that select them. */
+object ReversiBoardSizes {
+    const val SMALL = 6
+    const val STANDARD = 8
+    const val LARGE = 10
+    val ALL: List<Int> = listOf(SMALL, STANDARD, LARGE)
+
+    /** Hub option id ("small" / "standard" / "large") to an edge length; anything else is standard. */
+    fun fromOptionId(id: String?): Int = when (id) {
+        "small" -> SMALL
+        "large" -> LARGE
+        else -> STANDARD
+    }
+}
+
+/**
+ * Search depth (in plies) for the bot per board size and [CpuDifficulty] tier. 6x6 and 8x8 keep the
+ * long-standing 2/4/6; a 10x10 board has more cells to scan per node and more moves per position, so
+ * it searches 2/3/4 to stay around a second per move on a phone.
+ */
+internal fun reversiSearchDepth(size: Int, difficulty: CpuDifficulty): Int =
+    if (size >= ReversiBoardSizes.LARGE) {
+        when (difficulty) {
+            CpuDifficulty.EASY -> 2
+            CpuDifficulty.HARD -> 4
+            else -> 3
+        }
+    } else {
+        when (difficulty) {
+            CpuDifficulty.EASY -> 2
+            CpuDifficulty.HARD -> 6
+            else -> 4
+        }
+    }
 
 /** A player's identity + bot flag — mirrors ConnectFourPlayerState's own shape (see that class's
  *  KDoc for why this is a list even though Reversi, like Connect Four, is always exactly 2 players). */
@@ -41,15 +84,15 @@ data class ReversiPlayerState(
 )
 
 /**
- * [cells] is 64 entries, row-major on an 8x8 board (index = row*8+col); each entry is the index
- * into [players] who owns that disc, or null if empty. [legalMoves] is always the CURRENT
- * player's own legal destination cells (recomputed by [ReversiGame.buildStateAfterMove] on every
- * move, including through a pass — see that function's own KDoc), so the UI can highlight them
- * directly without recomputing anything itself. [scores] is disc count per player index, live
- * for the whole board (not just at game end). [justPassed] is true only on the ply immediately
- * after a real pass happened (the OTHER player had no legal move and was skipped) — see
- * [ReversiGame.buildStateAfterMove] — so the UI can show a one-time "Player X passes" moment
- * rather than silently reassigning the turn.
+ * [cells] is size*size entries (64 on the standard 8x8 board), row-major (index = row*size+col);
+ * each entry is the index into [players] who owns that disc, or null if empty. [legalMoves] is
+ * always the CURRENT player's own legal destination cells (recomputed by
+ * [ReversiGame.buildStateAfterMove] on every move, including through a pass — see that function's
+ * own KDoc), so the UI can highlight them directly without recomputing anything itself. [scores] is
+ * disc count per player index, live for the whole board (not just at game end). [justPassed] is
+ * true only on the ply immediately after a real pass happened (the OTHER player had no legal move
+ * and was skipped) — see [ReversiGame.buildStateAfterMove] — so the UI can show a one-time "Player
+ * X passes" moment rather than silently reassigning the turn. [size] is the board edge length.
  */
 data class ReversiState(
     val cells: List<Int?>,
@@ -60,54 +103,283 @@ data class ReversiState(
     val lastAction: String,
     val justPassed: Boolean = false,
     val boardOver: Boolean = false,
-    val winnerPlayerId: String? = null
+    val winnerPlayerId: String? = null,
+    val size: Int = 8
 )
+
+/**
+ * The pure board rules and bot search for ONE board edge length. Immutable after construction, so a
+ * search can run on a background thread against the engine it captured without touching the
+ * (main-thread) game state: [ReversiGame] hands it a copy of the cells and applies the answer later.
+ *
+ * Flanking walks one step at a time with real row/col bounds checking in all 8 directions, never a
+ * flat `index ± delta` shortcut (the classic Othello-engine bug: `index - 1` from column 0 silently
+ * wraps into the previous row instead of walking off the board).
+ *
+ * BOT STRATEGY: alpha-beta minimax over the classic static positional table (corners strongly
+ * positive; the diagonal "X-squares" and edge-adjacent "C-squares" negative while their corner is
+ * still takeable) plus a mobility term; a genuine board-over leaf is scored by the real final disc
+ * difference, offset by [WIN_SCORE] so a confirmed outcome always beats a heuristic one. A pass
+ * consumes one ply but places no disc; true game over needs NEITHER player to have a move. Legal
+ * cells are searched corner-first purely as alpha-beta move ordering. The table generalizes to any
+ * even size >= 6: corners at the four ends, X-squares diagonal to a corner, C-squares beside it.
+ */
+internal class ReversiEngine private constructor(val n: Int) {
+    val cellCount: Int = n * n
+
+    /** For a C-square, the corner it sits next to; -1 for every other cell. */
+    private val cSquareCorner = IntArray(cellCount) { -1 }
+
+    /** Static weight of every cell that is not a C-square (a C-square's weight depends on its corner). */
+    private val fixedWeight = IntArray(cellCount)
+
+    /** Alpha-beta move-ordering rank per cell (higher is searched first). */
+    private val orderRank = IntArray(cellCount)
+
+    init {
+        val last = n - 1
+        for (index in 0 until cellCount) {
+            val row = index / n
+            val col = index % n
+            val rowEdge = row == 0 || row == last
+            val colEdge = col == 0 || col == last
+            val nearRow = row == 1 || row == n - 2
+            val nearCol = col == 1 || col == n - 2
+            when {
+                rowEdge && colEdge -> {
+                    fixedWeight[index] = CORNER_WEIGHT
+                    orderRank[index] = 3
+                }
+                nearRow && nearCol -> {
+                    fixedWeight[index] = X_SQUARE_WEIGHT
+                    orderRank[index] = 0
+                }
+                rowEdge && nearCol -> {
+                    cSquareCorner[index] = row * n + (if (col == 1) 0 else last)
+                    orderRank[index] = 0
+                }
+                colEdge && nearRow -> {
+                    cSquareCorner[index] = (if (row == 1) 0 else last) * n + col
+                    orderRank[index] = 0
+                }
+                rowEdge || colEdge -> {
+                    // Whichever coordinate varies along this edge; 0/1 and last-1/last are corner or
+                    // C-square cells handled above, so only the stretch between them remains.
+                    val alongEdge = if (rowEdge) col else row
+                    fixedWeight[index] =
+                        if (alongEdge == 2 || alongEdge == n - 3) EDGE_NEAR_CORNER_WEIGHT else EDGE_MID_WEIGHT
+                    orderRank[index] = 2
+                }
+                else -> {
+                    val ring = row == 1 || row == n - 2 || col == 1 || col == n - 2
+                    fixedWeight[index] = if (ring) INTERIOR_RING_WEIGHT else INTERIOR_CORE_WEIGHT
+                    orderRank[index] = 1
+                }
+            }
+        }
+    }
+
+    /** The standard opening: the four centre cells, the two diagonals split between the players. */
+    fun openingCells(startingPlayer: Int): MutableList<Int?> {
+        val cells = MutableList<Int?>(cellCount) { null }
+        val h = n / 2
+        val other = 1 - startingPlayer
+        cells[(h - 1) * n + (h - 1)] = other
+        cells[h * n + h] = other
+        cells[(h - 1) * n + h] = startingPlayer
+        cells[h * n + (h - 1)] = startingPlayer
+        return cells
+    }
+
+    /** True iff walking from ([row], [col]) in ([dr], [dc]) sees 1+ opponent discs then one of [player]'s own. */
+    private fun flanksInDirection(cells: List<Int?>, row: Int, col: Int, dr: Int, dc: Int, player: Int): Boolean {
+        val opponent = 1 - player
+        var r = row + dr
+        var c = col + dc
+        var sawOpponent = false
+        while (r in 0 until n && c in 0 until n) {
+            when (cells[r * n + c]) {
+                opponent -> {
+                    sawOpponent = true
+                    r += dr
+                    c += dc
+                }
+                player -> return sawOpponent
+                else -> return false // empty cell -- the line dead-ends before reaching player's own disc
+            }
+        }
+        return false // ran off the board without reaching player's own disc
+    }
+
+    fun isLegalMove(cells: List<Int?>, index: Int, player: Int): Boolean {
+        if (index !in 0 until cellCount || cells[index] != null) return false
+        val row = index / n
+        val col = index % n
+        return DIRECTIONS.any { (dr, dc) -> flanksInDirection(cells, row, col, dr, dc, player) }
+    }
+
+    fun legalMovesFor(cells: List<Int?>, player: Int): Set<Int> =
+        cells.indices.filterTo(mutableSetOf()) { isLegalMove(cells, it, player) }
+
+    /** Places [player]'s disc at [index] and flips every flanked line (decided against the original cells). */
+    fun applyMove(cells: List<Int?>, index: Int, player: Int): List<Int?> {
+        val newCells = cells.toMutableList()
+        newCells[index] = player
+        val row = index / n
+        val col = index % n
+        for ((dr, dc) in DIRECTIONS) {
+            if (!flanksInDirection(cells, row, col, dr, dc, player)) continue
+            var r = row + dr
+            var c = col + dc
+            while (newCells[r * n + c] != player) {
+                newCells[r * n + c] = player
+                r += dr
+                c += dc
+            }
+        }
+        return newCells
+    }
+
+    /**
+     * Runs [minimax] for every cell in [legal] and returns the best-scoring one (ties keep the first
+     * found; candidates are sorted corner-first). The running alpha is threaded across sibling root
+     * moves, which tightens pruning without changing which move wins. When [deadlineNanos] passes
+     * and at least one move has been scored, the remaining root moves are skipped.
+     */
+    fun chooseMove(
+        cells: List<Int?>,
+        legal: Set<Int>,
+        bot: Int,
+        depth: Int,
+        deadlineNanos: Long = Long.MAX_VALUE
+    ): Int? {
+        val opponent = 1 - bot
+        var alpha = Int.MIN_VALUE
+        var bestScore = Int.MIN_VALUE
+        var bestIndex: Int? = null
+        for (index in legal.sortedByDescending { orderRank[it] }) {
+            if (bestIndex != null && System.nanoTime() > deadlineNanos) break
+            val newCells = applyMove(cells, index, bot)
+            val score = minimax(
+                newCells, depth = depth - 1, alpha = alpha, beta = Int.MAX_VALUE,
+                maximizing = false, bot = bot, opponent = opponent, toMove = opponent
+            )
+            if (score > bestScore) {
+                bestScore = score
+                bestIndex = index
+                alpha = maxOf(alpha, bestScore)
+            }
+        }
+        return bestIndex
+    }
+
+    private fun minimax(
+        cells: List<Int?>, depth: Int, alpha: Int, beta: Int, maximizing: Boolean,
+        bot: Int, opponent: Int, toMove: Int
+    ): Int {
+        val toMoveLegal = legalMovesFor(cells, toMove)
+        if (toMoveLegal.isEmpty()) {
+            val otherLegal = legalMovesFor(cells, 1 - toMove)
+            if (otherLegal.isEmpty()) return terminalScore(cells, bot, opponent) // neither can move -- real game over
+            if (depth == 0) return evaluate(cells, bot, opponent)
+            return minimax(cells, depth - 1, alpha, beta, !maximizing, bot, opponent, 1 - toMove) // pass: no disc placed
+        }
+        if (depth == 0) return evaluate(cells, bot, opponent)
+
+        var a = alpha
+        var b = beta
+        var best = if (maximizing) Int.MIN_VALUE else Int.MAX_VALUE
+        for (index in toMoveLegal.sortedByDescending { orderRank[it] }) {
+            val newCells = applyMove(cells, index, toMove)
+            val score = minimax(newCells, depth - 1, a, b, !maximizing, bot, opponent, 1 - toMove)
+            if (maximizing) {
+                best = maxOf(best, score)
+                a = maxOf(a, best)
+            } else {
+                best = minOf(best, score)
+                b = minOf(b, best)
+            }
+            if (b <= a) break // alpha-beta cutoff
+        }
+        return best
+    }
+
+    /** A genuine board-over leaf from [bot]'s view: the real disc difference offset by [WIN_SCORE]. */
+    private fun terminalScore(cells: List<Int?>, bot: Int, opponent: Int): Int {
+        val diff = cells.count { it == bot } - cells.count { it == opponent }
+        return when {
+            diff > 0 -> WIN_SCORE + diff
+            diff < 0 -> -WIN_SCORE + diff
+            else -> 0
+        }
+    }
+
+    /** Positional table plus mobility, from [bot]'s perspective. */
+    private fun evaluate(cells: List<Int?>, bot: Int, opponent: Int): Int {
+        var score = 0
+        for (index in cells.indices) {
+            val owner = cells[index] ?: continue
+            val weight = positionalWeight(index, cells)
+            score += if (owner == bot) weight else -weight
+        }
+        val botMoves = legalMovesFor(cells, bot).size
+        val opponentMoves = legalMovesFor(cells, opponent).size
+        score += (botMoves - opponentMoves) * MOBILITY_WEIGHT
+        return score
+    }
+
+    /** A C-square is dangerous only while its corner is still empty (looked up live); the rest is static. */
+    private fun positionalWeight(index: Int, cells: List<Int?>): Int {
+        val corner = cSquareCorner[index]
+        if (corner >= 0) return if (cells[corner] == null) C_SQUARE_WEIGHT_CORNER_OPEN else C_SQUARE_WEIGHT_CORNER_TAKEN
+        return fixedWeight[index]
+    }
+
+    companion object {
+        private val cache = ConcurrentHashMap<Int, ReversiEngine>()
+
+        /** The shared engine for [size]; [size] must be one of [ReversiBoardSizes.ALL]. */
+        fun of(size: Int): ReversiEngine {
+            require(size in ReversiBoardSizes.ALL) { "unsupported Reversi board size $size" }
+            return cache.getOrPut(size) { ReversiEngine(size) }
+        }
+
+        const val CORNER_WEIGHT = 120
+        const val X_SQUARE_WEIGHT = -20
+        const val C_SQUARE_WEIGHT_CORNER_OPEN = -40
+        const val C_SQUARE_WEIGHT_CORNER_TAKEN = 10
+        const val EDGE_NEAR_CORNER_WEIGHT = 10
+        const val EDGE_MID_WEIGHT = 6
+        const val INTERIOR_RING_WEIGHT = 1
+        const val INTERIOR_CORE_WEIGHT = 3
+        const val MOBILITY_WEIGHT = 12
+        const val WIN_SCORE = 1_000_000
+
+        /** Explicit (dr, dc) pairs -- see [flanksInDirection] for why this is never a flat index delta. */
+        val DIRECTIONS = listOf(-1 to -1, -1 to 0, -1 to 1, 0 to -1, 0 to 1, 1 to -1, 1 to 0, 1 to 1)
+    }
+}
 
 /**
  * Reversi/Othello: players alternate placing a disc on any cell that FLANKS at least one line of
  * the opponent's discs (traps them between the new disc and an existing disc of the mover's own
- * color), flipping every trapped disc to the mover's color. Standard 8x8 board, standard opening
- * (see [startMatch]). The fifth board game in this batch (after Dots and Boxes/Connect Four/
- * Checkers/Chess) — reuses that established `sessionWins`/`sessionDraws`/`matchOver`/
- * `nextStartingPlayerIndex`/`leaveSession`/`playAgain` session shape verbatim (see
- * [ConnectFourGame][com.gamesuite.games.connectfour.ConnectFourGame]'s own KDoc for the
- * precedent), since this is another fixed-board, `difficulty`-tunes-the-bot 2-player game, not a
- * scaled solo puzzle.
+ * color), flipping every trapped disc to the mover's color. Standard 8x8 board and opening (see
+ * [startMatch]), or 6x6 / 10x10 via [boardSize]. Reuses the established
+ * `sessionWins`/`sessionDraws`/`matchOver`/`nextStartingPlayerIndex`/`leaveSession`/`playAgain`
+ * session shape verbatim (see [ConnectFourGame][com.gamesuite.games.connectfour.ConnectFourGame]'s
+ * own KDoc for the precedent).
  *
  * DISC IDENTITY: unlike real Othello's fixed black/white discs, this engine represents ownership
- * purely by player index (0/1) — there is no engine-level "black"/"white" concept, since which
- * player is 0 vs 1 depends on session setup, not a fixed color. The UI layer (ReversiScreen) picks
- * a consistent on-screen dark/light disc pair for the two indices.
+ * purely by player index (0/1); the UI layer (ReversiScreen) picks a consistent dark/light pair.
  *
- * A REAL PASS, NOT A SKIP: Reversi's genre-defining wrinkle over Connect Four/Checkers/Chess is
- * that a player can be completely unable to move — [buildStateAfterMove] computes the actual
- * legal-move set for whoever's up next after every placement and, when that set is empty but the
- * player who just moved still has a move, hands the turn straight back to them with
- * `justPassed=true` (see that function's own KDoc for the full three-way branch). The bot's own
- * [minimax] search has to handle the exact same rule mid-tree (see that function's KDoc) — a pass
- * consumes a ply but places no disc, and true game-over is reached only once NEITHER player has a
- * legal move at a node, not merely the player-to-move.
+ * A REAL PASS, NOT A SKIP: [buildStateAfterMove] computes the actual legal-move set for whoever's
+ * up next after every placement and, when that set is empty but the player who just moved still has
+ * a move, hands the turn straight back to them with `justPassed=true`.
  *
- * BOT STRATEGY: real minimax with alpha-beta pruning, scaled by SEARCH DEPTH per [CpuDifficulty]
- * tier (`EASY`=2 ply, `MEDIUM`=4, `HARD`=6 — see [difficultySearchDepth], the exact same tier
- * shape ConnectFourGame uses) rather than a full solve — Othello's full game tree, while smaller
- * than Connect Four's, is still far too large to solve at shallow tiers. The non-terminal
- * evaluation (see [evaluate]) is a real, well-known classic Othello heuristic rather than raw disc
- * count: a static POSITIONAL WEIGHT table (corners strongly positive, the diagonally-adjacent
- * "X-squares" and orthogonally-adjacent "C-squares" strongly negative while their corner is still
- * takeable — see [positionalWeight]'s own KDoc for citation) plus a MOBILITY term (having more
- * legal moves than the opponent is itself a real Othello advantage, independent of the current
- * disc count — disc count early/mid-game is close to irrelevant and can even be misleading, which
- * is exactly why this evaluation is NOT plain disc-count-based). A genuine board-over leaf is
- * scored by the real final disc-count difference instead (see [terminalScore]), scaled well above
- * the heuristic's own range so a confirmed forced win always outranks a merely-good-looking
- * heuristic position — same "prefer an actual win over a good-looking position" principle
- * ConnectFourGame's own `WIN_SCORE` embodies.
- *
- * Legal cells are searched CORNER-FIRST, then other-edge, then interior, then X/C-squares last
- * (see [moveOrderPriority]) purely as alpha-beta MOVE ORDERING — trying the moves most likely to
- * be strong first lets pruning cut off more of the tree sooner, not a gameplay rule of its own,
- * same disclaimer ConnectFourGame's own `columnSearchOrder` KDoc makes about its center-first order.
+ * BOT: the rules and the alpha-beta search live in [ReversiEngine] (see its KDoc), depth scaled by
+ * [reversiSearchDepth]. [playBotTurnAsync] and [requestHint] run that search OFF the main thread on a
+ * copy of the position and re-check that the position is unchanged before applying the answer;
+ * [playBotTurn] and [hint] are the same thing synchronously.
  */
 class ReversiGame : GameModule, ResumableGame, UndoableGame {
     override val gameId = "reversi"
@@ -124,13 +396,27 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     val state = mutableStateOf<ReversiState?>(null)
 
+    /**
+     * Board edge length for the NEXT board dealt (6, 8 or 10; anything else becomes 8). Set it
+     * before [init] (the Hub's "board" option); a restored save or a guest's host sync overrides it
+     * with the size of the position it carries. Networked hosts deal whatever this is set to.
+     */
+    var boardSize: Int = ReversiBoardSizes.STANDARD
+        set(value) {
+            field = if (value in ReversiBoardSizes.ALL) value else ReversiBoardSizes.STANDARD
+            engine = ReversiEngine.of(field)
+        }
+
+    @Volatile
+    private var engine: ReversiEngine = ReversiEngine.of(ReversiBoardSizes.STANDARD)
+
     // ---- Networked play bookkeeping (host-authoritative; see ReversiNetMessage) ----
     /** True in LOCAL_AD_HOC / ONLINE. Safe to read before [init] (false). */
     private val isNetworked: Boolean
         get() = this::context.isInitialized &&
             (context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE)
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     /** Networked only: the other seat left; no further moves or rematches. Local state, never synced. */
@@ -146,6 +432,9 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     /** Pre-set by the UI from the player's default-difficulty setting before startMatch(). */
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
+
+    /** Computer Arena only (null otherwise): per-seat CPU levels and pausing. */
+    var arena: com.gamesuite.core.ArenaHook? = null
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -177,7 +466,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
         opponentLeft.value = false
-        stateVersion = 0
+        stateVersion = com.gamesuite.core.SyncEpoch.base()
         lastAppliedRemoteVersion = 0
         if (isNetworked) registerNetworkListeners()
     }
@@ -230,7 +519,8 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
                 sessionWins = sessionWins.value,
                 sessionDraws = sessionDraws.value,
                 nextStartingPlayerIndex = nextStartingPlayerIndex,
-                difficulty = difficulty.name
+                difficulty = difficulty.name,
+                size = s.size
             )
         )
     }
@@ -240,7 +530,8 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         return try {
             val snap = reversiSnapshotJson.decodeFromString(ReversiSnapshot.serializer(), text)
             val roster = context.players
-            val valid = snap.cells.size == 64 &&
+            val valid = snap.size in ReversiBoardSizes.ALL &&
+                snap.cells.size == snap.size * snap.size &&
                 snap.players.size == 2 &&
                 snap.cells.all { it == null || it in snap.players.indices } &&
                 snap.players.size == roster.size &&
@@ -252,7 +543,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
                 snap.sessionDraws >= 0 &&
                 snap.sessionWins.all { (id, wins) -> wins >= 0 && roster.any { it.playerId == id } } &&
                 (snap.winnerPlayerId == null || snap.players.any { it.playerId == snap.winnerPlayerId }) &&
-                (snap.boardOver || legalMovesFor(snap.cells, snap.currentPlayerIndex).isNotEmpty())
+                (snap.boardOver || ReversiEngine.of(snap.size).legalMovesFor(snap.cells, snap.currentPlayerIndex).isNotEmpty())
             if (valid) snap else null
         } catch (_: Exception) {
             null
@@ -260,16 +551,19 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     }
 
     private fun applySnapshot(snap: ReversiSnapshot, restoreDifficulty: Boolean) {
+        boardSize = snap.size
+        val rules = engine
         state.value = ReversiState(
             cells = snap.cells,
             players = snap.players.map { ReversiPlayerState(it.playerId, it.displayName, it.isBot) },
             currentPlayerIndex = snap.currentPlayerIndex,
-            legalMoves = if (snap.boardOver) emptySet() else legalMovesFor(snap.cells, snap.currentPlayerIndex),
+            legalMoves = if (snap.boardOver) emptySet() else rules.legalMovesFor(snap.cells, snap.currentPlayerIndex),
             scores = computeScores(snap.cells, snap.players.size),
             lastAction = snap.lastAction,
             justPassed = snap.justPassed,
             boardOver = snap.boardOver,
-            winnerPlayerId = snap.winnerPlayerId
+            winnerPlayerId = snap.winnerPlayerId,
+            size = snap.size
         )
         sessionWins.value = snap.sessionWins
         sessionDraws.value = snap.sessionDraws
@@ -321,24 +615,52 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     // --- Hint -------------------------------------------------------------------------------
 
+    /** True when a hint makes sense for [s]: a human's turn on a live, non-networked board. */
+    private fun hintAllowed(s: ReversiState): Boolean {
+        if (isNetworked) return false
+        if (matchOver.value || s.boardOver || s.legalMoves.isEmpty()) return false
+        if (s.players[s.currentPlayerIndex].isBot) return false
+        return true
+    }
+
+    /**
+     * Iterative deepening through [hintDepthsFor] plies, stopping early once [HINT_TIME_BUDGET_MS]
+     * has been spent. Pure: reads only its arguments, so it is safe to run off the main thread.
+     */
+    private fun searchHint(rules: ReversiEngine, s: ReversiState): Int? {
+        val started = System.nanoTime()
+        var best: Int? = null
+        for (depth in hintDepthsFor(rules.n)) {
+            best = rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, depth) ?: best
+            if ((System.nanoTime() - started) / 1_000_000L > HINT_TIME_BUDGET_MS) break
+        }
+        return best
+    }
+
     /**
      * Suggests a cell for the player to move: the strongest move the bot's own search can find
-     * (iterative deepening up to [HINT_SEARCH_DEPTH] plies, regardless of the CPU difficulty
-     * setting, stopping early once [HINT_TIME_BUDGET_MS] has been spent). Highlights it
-     * ([hintMove]) and returns it; null when it is not a human's turn or the board is over.
-     * Reversi keeps no records, so a hint costs nothing.
+     * regardless of the CPU difficulty setting. Highlights it ([hintMove]) and returns it; null when
+     * it is not a human's turn or the board is over. Synchronous; the screen uses [requestHint].
      */
     fun hint(): Int? {
         val s = state.value ?: return null
-        if (isNetworked) return null
-        if (matchOver.value || s.boardOver || s.legalMoves.isEmpty()) return null
-        if (s.players[s.currentPlayerIndex].isBot) return null
-        val started = System.nanoTime()
-        var best: Int? = null
-        for (depth in HINT_SEARCH_DEPTHS) {
-            best = chooseBotMove(s, depthOverride = depth) ?: best
-            if ((System.nanoTime() - started) / 1_000_000L > HINT_TIME_BUDGET_MS) break
-        }
+        if (!hintAllowed(s)) return null
+        val best = searchHint(engine, s)
+        hintMove.value = best
+        return best
+    }
+
+    /**
+     * [hint] with the search on [Dispatchers.Default]. The suggestion is applied only if the
+     * position is still exactly the one that was searched (no move, undo, restart or leave in the
+     * meantime); otherwise it is dropped and null is returned.
+     */
+    suspend fun requestHint(): Int? {
+        val s = state.value ?: return null
+        if (!hintAllowed(s)) return null
+        val rules = engine
+        val best = withContext(Dispatchers.Default) { searchHint(rules, s) }
+        if (state.value !== s || matchOver.value) return null
         hintMove.value = best
         return best
     }
@@ -349,13 +671,11 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     /**
      * Deals the standard Othello opening: the four center cells filled in the real game's own
-     * D4/E4/D5/E5 pattern (here, board indices 27/28/35/36 on an 8-wide row-major board), with
-     * the two diagonal pairs split between the two players so each starts with exactly 2 discs on
-     * the board and 4 legal opening moves. Which player is "starting" alternates via
-     * [nextStartingPlayerIndex] the same way ConnectFourGame's own startMatch() does; a fresh
-     * board is always playable regardless of whether a PRIOR board's endMatch() left matchOver
-     * stuck true (same fix ConnectFourGame/Minesweeper/Sudoku/... all needed, built in from the
-     * start here rather than rediscovered).
+     * pattern (indices 27/28/35/36 on the 8x8 board; the centre of any even size), with the two
+     * diagonal pairs split between the two players so each starts with exactly 2 discs on the board.
+     * Which player is "starting" alternates via [nextStartingPlayerIndex] the same way
+     * ConnectFourGame's own startMatch() does; a fresh board is always playable regardless of whether
+     * a PRIOR board's endMatch() left matchOver stuck true.
      */
     override fun startMatch() {
         if (isNetworked && !isHost) return // guest: wait for the host's StateSync (or its RequestState reply)
@@ -365,22 +685,19 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         history.clear()
         hintMove.value = null
 
+        val rules = engine
         val startingPlayerIndex = nextStartingPlayerIndex % players.size
-        val otherPlayerIndex = 1 - startingPlayerIndex // safe: this game is always exactly 2 players
-        val cells = MutableList<Int?>(64) { null }
-        cells[27] = otherPlayerIndex     // row 3, col 3 -- real Othello's D4
-        cells[36] = otherPlayerIndex     // row 4, col 4 -- real Othello's E5
-        cells[28] = startingPlayerIndex  // row 3, col 4 -- real Othello's E4
-        cells[35] = startingPlayerIndex  // row 4, col 3 -- real Othello's D5
+        val cells = rules.openingCells(startingPlayerIndex) // safe: this game is always exactly 2 players
 
         commit(
             ReversiState(
                 cells = cells,
                 players = players,
                 currentPlayerIndex = startingPlayerIndex,
-                legalMoves = legalMovesFor(cells, startingPlayerIndex),
+                legalMoves = rules.legalMovesFor(cells, startingPlayerIndex),
                 scores = computeScores(cells, players.size),
-                lastAction = "Game started"
+                lastAction = "Game started",
+                size = rules.n
             )
         )
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % players.size
@@ -461,7 +778,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         // passed validation, so a rejected tap leaves nothing behind. Networked play has no undo.
         if (!mover.isBot && !isNetworked) captureSnapshot()?.let { history.push(it) }
         hintMove.value = null
-        val newCells = applyMove(s.cells, index, s.currentPlayerIndex)
+        val newCells = engine.applyMove(s.cells, index, s.currentPlayerIndex)
         val flippedCount = s.cells.indices.count { newCells[it] == s.currentPlayerIndex && s.cells[it] != null && s.cells[it] != s.currentPlayerIndex }
 
         val newState = buildStateAfterMove(
@@ -503,7 +820,8 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         boardOver = s.boardOver,
         winnerPlayerId = s.winnerPlayerId,
         sessionWins = sessionWins.value,
-        sessionDraws = sessionDraws.value
+        sessionDraws = sessionDraws.value,
+        size = s.size
     )
 
     /** Host: sends the authoritative state (current version) to the guest seat. */
@@ -527,7 +845,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString(ReversiNetMessage.serializer(), String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString(ReversiNetMessage.serializer(), String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return // malformed or foreign payload: ignore rather than crash the match
         }
@@ -557,324 +875,80 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         applyPlacement(cell)
     }
 
-    /** Guest: adopts a strictly newer, well-formed host state. */
+    /** Guest: adopts a strictly newer, well-formed host state (including a valid board size). */
     private fun applyRemoteState(version: Int, net: ReversiNetState) {
         if (version <= lastAppliedRemoteVersion) return
         val roster = context.players
-        val valid = net.cells.size == 64 &&
+        val valid = net.size in ReversiBoardSizes.ALL &&
+            net.cells.size == net.size * net.size &&
             net.cells.all { it == null || it == 0 || it == 1 } &&
             net.players.size == 2 && roster.size == 2 &&
             net.players.indices.all { net.players[it].playerId == roster[it].playerId } &&
             net.currentPlayerIndex in 0..1 &&
             (net.winnerPlayerId == null || net.players.any { it.playerId == net.winnerPlayerId })
         if (!valid) return
+        if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
+        boardSize = net.size
+        val rules = engine
         state.value = ReversiState(
             cells = net.cells,
             players = net.players.mapIndexed { i, p -> ReversiPlayerState(p.playerId, p.displayName, roster[i].isBot) },
             currentPlayerIndex = net.currentPlayerIndex,
-            legalMoves = if (net.boardOver) emptySet() else legalMovesFor(net.cells, net.currentPlayerIndex),
+            legalMoves = if (net.boardOver) emptySet() else rules.legalMovesFor(net.cells, net.currentPlayerIndex),
             scores = computeScores(net.cells, 2),
             lastAction = net.lastAction,
             justPassed = net.justPassed,
             boardOver = net.boardOver,
-            winnerPlayerId = net.winnerPlayerId
+            winnerPlayerId = net.winnerPlayerId,
+            size = net.size
         )
         sessionWins.value = net.sessionWins
         sessionDraws.value = net.sessionDraws
         hintMove.value = null
     }
 
+    /** True when the bot should move in [s]: a live board whose player to move is a bot. */
+    private fun botToMove(s: ReversiState): Boolean {
+        if (matchOver.value || s.boardOver) return false
+        return s.players[s.currentPlayerIndex].isBot
+    }
+
     /**
-     * Bounded bot: choose one legal cell via [chooseBotMove] and play it. No-op if the board/match
-     * is already over or the current player isn't actually a bot, so it's safe to call speculatively
-     * — same contract as ConnectFourGame.playBotTurn().
+     * Bounded bot: choose one legal cell and play it, synchronously. No-op if the board/match is
+     * already over or the current player isn't actually a bot, so it's safe to call speculatively —
+     * same contract as ConnectFourGame.playBotTurn(). The screen uses [playBotTurnAsync].
      */
     fun playBotTurn() {
         val s = state.value ?: return
-        if (matchOver.value || s.boardOver) return
-        val bot = s.players[s.currentPlayerIndex]
-        if (!bot.isBot) return
-
-        val index = chooseBotMove(s) ?: return
+        if (!botToMove(s)) return
+        val rules = engine
+        val index = rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, reversiSearchDepth(rules.n, difficulty)) ?: return
         placeDisc(index)
     }
 
-    /** Search depth (in plies) per [CpuDifficulty] tier — see this class's own KDoc for why this
-     *  is depth-scaled rather than a full solve. Identical tier shape to ConnectFourGame's own. */
-    private val difficultySearchDepth: Map<CpuDifficulty, Int> = mapOf(
-        CpuDifficulty.EASY to 2,
-        CpuDifficulty.MEDIUM to 4,
-        CpuDifficulty.HARD to 6
-    )
-
     /**
-     * Runs [minimax] from [s]'s current position for every one of the mover's own legal cells and
-     * returns the single best-scoring one (ties keep the FIRST found — since candidates are sorted
-     * corner-first via [moveOrderPriority], a tie is broken toward the strongest-looking cell, a
-     * reasonable positional default). Null only if [s.legalMoves] is somehow empty, which shouldn't
-     * be reachable: [playBotTurn] only calls this while `!s.boardOver`, and [buildStateAfterMove]
-     * never leaves a non-board-over state with an empty legal-move set for the player to move.
-     *
-     * Threads the running [alpha] forward across SIBLING top-level moves, the same root-level
-     * move-ordering technique ConnectFourGame's own `chooseBotMove` KDoc explains in full (provably
-     * can't change which move is ultimately chosen, only tightens pruning).
+     * [playBotTurn] with the search on [Dispatchers.Default], capped at about [BOT_TIME_CAP_MS] per
+     * move. The move is applied only if the position is still exactly the one that was searched and
+     * the session is live; if the player undid, restarted or left meanwhile, the answer is dropped.
      */
-    private fun chooseBotMove(s: ReversiState, depthOverride: Int? = null): Int? {
-        val depth = depthOverride
-            ?: difficultySearchDepth[difficulty]
-            ?: difficultySearchDepth.getValue(CpuDifficulty.MEDIUM)
-        val bot = s.currentPlayerIndex
-        val opponent = 1 - bot
-
-        var alpha = Int.MIN_VALUE
-        var bestScore = Int.MIN_VALUE
-        var bestIndex: Int? = null
-        for (index in s.legalMoves.sortedByDescending(::moveOrderPriority)) {
-            val newCells = applyMove(s.cells, index, bot)
-            val score = minimax(
-                newCells, depth = depth - 1, alpha = alpha, beta = Int.MAX_VALUE,
-                maximizing = false, bot = bot, opponent = opponent, toMove = opponent
-            )
-            if (score > bestScore) {
-                bestScore = score
-                bestIndex = index
-                alpha = maxOf(alpha, bestScore)
-            }
-        }
-        return bestIndex
-    }
-
-    /**
-     * Alpha-beta minimax, always evaluated from [bot]'s own perspective (positive is good for
-     * [bot], regardless of whose ply it actually is — `maximizing` tracks whose turn it is, [bot]
-     * itself never changes across one top-level [chooseBotMove] search, same convention
-     * ConnectFourGame.minimax uses).
-     *
-     * PASS HANDLING (the one real difference from ConnectFourGame's own minimax, which never needs
-     * it): [toMove]'s legal moves are computed FIRST. If empty, this checks whether the OTHER
-     * player has a move — if so, [toMove] is passed over entirely: the search recurses to the other
-     * player at `depth - 1` WITHOUT placing a disc (no cell is ever chosen for a pass — there is
-     * none to choose). This deliberately consumes one ply per pass, same as a real move, rather
-     * than searching a pass "for free" — a documented simplification (a real engine might not
-     * charge a ply for a forced pass) that keeps the recursion trivially guaranteed to terminate
-     * without any special-casing, since every recursive call still strictly decreases [depth]. True
-     * game-over is reached only once NEITHER player has a legal move at the same node — that node
-     * is scored by [terminalScore] (the real final disc difference), never treated as merely another
-     * depth-limited cutoff.
-     */
-    private fun minimax(
-        cells: List<Int?>, depth: Int, alpha: Int, beta: Int, maximizing: Boolean,
-        bot: Int, opponent: Int, toMove: Int
-    ): Int {
-        val toMoveLegal = legalMovesFor(cells, toMove)
-        if (toMoveLegal.isEmpty()) {
-            val otherLegal = legalMovesFor(cells, 1 - toMove)
-            if (otherLegal.isEmpty()) return terminalScore(cells, bot, opponent) // neither can move -- real game over
-            if (depth == 0) return evaluate(cells, bot, opponent)
-            return minimax(cells, depth - 1, alpha, beta, !maximizing, bot, opponent, 1 - toMove) // pass: no disc placed
-        }
-        if (depth == 0) return evaluate(cells, bot, opponent)
-
-        var a = alpha
-        var b = beta
-        var best = if (maximizing) Int.MIN_VALUE else Int.MAX_VALUE
-        for (index in toMoveLegal.sortedByDescending(::moveOrderPriority)) {
-            val newCells = applyMove(cells, index, toMove)
-            val score = minimax(newCells, depth - 1, a, b, !maximizing, bot, opponent, 1 - toMove)
-            if (maximizing) {
-                best = maxOf(best, score)
-                a = maxOf(a, best)
-            } else {
-                best = minOf(best, score)
-                b = minOf(b, best)
-            }
-            // Alpha-beta cutoff: the side above us in the tree already has a better option
-            // elsewhere, so it will never let play reach this branch -- no need to keep exploring it.
-            if (b <= a) break
-        }
-        return best
-    }
-
-    /** A genuine board-over leaf's score, always from [bot]'s own perspective: the real final disc
-     *  count difference, offset by [WIN_SCORE] in the winning direction so it always dominates
-     *  [evaluate]'s own heuristic range (bounded by a small constant times 64 cells, comfortably
-     *  under [WIN_SCORE]) -- the exact same "a confirmed outcome always beats a merely-good-looking
-     *  heuristic position" principle ConnectFourGame's own WIN_SCORE embodies. The disc-difference
-     *  term ALSO naturally prefers a bigger margin win over a narrower one (and a narrower loss over
-     *  a bigger one), the same "prefer the best of the same class of outcome" idea ConnectFourGame's
-     *  `WIN_SCORE + depth` achieves via depth instead. */
-    private fun terminalScore(cells: List<Int?>, bot: Int, opponent: Int): Int {
-        val botDiscs = cells.count { it == bot }
-        val opponentDiscs = cells.count { it == opponent }
-        val diff = botDiscs - opponentDiscs
-        return when {
-            diff > 0 -> WIN_SCORE + diff
-            diff < 0 -> -WIN_SCORE + diff
-            else -> 0
-        }
-    }
-
-    /**
-     * Non-terminal position estimate for [minimax]'s depth cutoff, always from [bot]'s own
-     * perspective: the sum of every occupied cell's [positionalWeight] (positive when [bot] owns
-     * it, negated when [opponent] does), plus a MOBILITY term -- `(botLegalMoveCount -
-     * opponentLegalMoveCount) * MOBILITY_WEIGHT`. Mobility matters independently of the positional
-     * table: having more available moves than the opponent is a real, well-known Othello advantage
-     * (it constrains the opponent's own options and tends to force them into weaker cells later),
-     * not captured by static per-cell weights alone.
-     */
-    private fun evaluate(cells: List<Int?>, bot: Int, opponent: Int): Int {
-        var score = 0
-        for (index in cells.indices) {
-            val owner = cells[index] ?: continue
-            val weight = positionalWeight(index, cells)
-            score += if (owner == bot) weight else -weight
-        }
-        val botMoves = legalMovesFor(cells, bot).size
-        val opponentMoves = legalMovesFor(cells, opponent).size
-        score += (botMoves - opponentMoves) * MOBILITY_WEIGHT
-        return score
-    }
-
-    /**
-     * Classic Othello static positional weight for [index], per the well-established
-     * corner/X-square/C-square convention described throughout Othello strategy literature and
-     * reproduced by many published Othello AI heuristics (e.g. Kartik Kukreja's widely-cited
-     * "Heuristic Function for Reversi/Othello" write-up uses this exact corner-strongly-positive,
-     * X-/C-square-strongly-negative shape, just at a different overall scale) -- the specific
-     * magnitudes here (corner=120, X-square=-20, C-square=-40/+10) are this project's own chosen
-     * scale within that same well-known family, not a novel scheme:
-     * - CORNERS (index in [CORNERS]): the single best cell in Othello -- once taken it can never be
-     *   flipped back, so it anchors a stable edge. Highest weight, [CORNER_WEIGHT].
-     * - X-SQUARES (diagonally adjacent to a corner, index in [X_SQUARES]): the single most
-     *   dangerous cell in the early/mid game -- playing one very often hands the adjacent corner
-     *   straight to the opponent. Flatly negative regardless of the corner's own state (unlike
-     *   C-squares below), since an X-square's danger isn't really about who owns the corner so much
-     *   as the structural weakness of the disc itself.
-     * - C-SQUARES (orthogonally adjacent to a corner along an edge, [C_SQUARE_TO_CORNER]'s keys):
-     *   dangerous ONLY WHILE the corresponding corner is still empty and therefore still takeable --
-     *   once a player actually OWNS that corner, a neighboring C-square stops being a liability (it
-     *   can no longer be used to flank a corner-taking move against a corner that's already gone)
-     *   and instead becomes an ordinary, mildly useful edge cell. This conditional is looked up live
-     *   against [cells] on every call, not baked into a static table.
-     * - OTHER EDGE cells (on the border, not a corner or C-square): modestly positive -- edge discs
-     *   are harder to flank than interior ones (fewer of the 8 directions apply), with cells nearer
-     *   a corner ([EDGE_NEAR_CORNER_WEIGHT]) worth a touch more than dead-center edge cells
-     *   ([EDGE_MID_WEIGHT]).
-     * - All other INTERIOR cells: a small positive value, [INTERIOR_CORE_WEIGHT] for the true center
-     *   and [INTERIOR_RING_WEIGHT] for the ring just inside the edge (a shade lower, since those
-     *   cells sit one step from the genuinely dangerous perimeter).
-     */
-    private fun positionalWeight(index: Int, cells: List<Int?>): Int {
-        if (index in CORNERS) return CORNER_WEIGHT
-        if (index in X_SQUARES) return X_SQUARE_WEIGHT
-
-        val cornerForCSquare = C_SQUARE_TO_CORNER[index]
-        if (cornerForCSquare != null) {
-            return if (cells[cornerForCSquare] == null) C_SQUARE_WEIGHT_CORNER_OPEN else C_SQUARE_WEIGHT_CORNER_TAKEN
-        }
-
-        val row = index / 8
-        val col = index % 8
-        val onEdge = row == 0 || row == 7 || col == 0 || col == 7
-        if (onEdge) {
-            // Whichever coordinate actually varies along this edge (the other is pinned to 0/7);
-            // corners/C-squares above already consumed coord values 0/1/6/7, so only 2..5 remain.
-            val alongEdge = if (row == 0 || row == 7) col else row
-            return if (alongEdge == 2 || alongEdge == 5) EDGE_NEAR_CORNER_WEIGHT else EDGE_MID_WEIGHT
-        }
-
-        val ring = row == 1 || row == 6 || col == 1 || col == 6
-        return if (ring) INTERIOR_RING_WEIGHT else INTERIOR_CORE_WEIGHT
-    }
-
-    /** Corner-first, then other-edge, then interior, then X-/C-squares last -- pure alpha-beta
-     *  MOVE-ORDERING (see this class's own KDoc), not a gameplay rule. Reuses the same
-     *  corner/X-square/C-square/edge/interior classification [positionalWeight] does, but as a
-     *  flat, state-independent priority rank (ordering doesn't need the live corner-taken nuance
-     *  that scoring does -- a coarse rank is all pruning needs). */
-    private fun moveOrderPriority(index: Int): Int = when {
-        index in CORNERS -> 3
-        index in X_SQUARES || index in C_SQUARE_TO_CORNER -> 0
-        else -> {
-            val row = index / 8
-            val col = index % 8
-            if (row == 0 || row == 7 || col == 0 || col == 7) 2 else 1
-        }
+    suspend fun playBotTurnAsync() {
+        val s = state.value ?: return
+        if (!botToMove(s)) return
+        val rules = engine
+        val depth = reversiSearchDepth(rules.n, arena?.levelFor(s.currentPlayerIndex, difficulty) ?: difficulty)
+        val deadline = System.nanoTime() + BOT_TIME_CAP_MS * 1_000_000L
+        val index = withContext(Dispatchers.Default) {
+            rules.chooseMove(s.cells, s.legalMoves, s.currentPlayerIndex, depth, deadline)
+        } ?: return
+        if (state.value !== s || matchOver.value) return
+        if (arena?.deferIfPaused { if (state.value === s && !matchOver.value) placeDisc(index) } == true) return
+        placeDisc(index)
     }
 
     /** Disc count per player index, live for the whole board (not just at game end). */
     private fun computeScores(cells: List<Int?>, playerCount: Int): List<Int> =
         (0 until playerCount).map { p -> cells.count { it == p } }
-
-    /**
-     * Walks one step at a time from ([row], [col]) in direction ([dr], [dc]) -- ALWAYS via real
-     * row/col bounds checking on every single step, never a flat `index ± delta` shortcut (the
-     * classic Othello-engine bug: e.g. `index - 1` from column 0 silently wraps into the previous
-     * row's last column instead of walking off the board). Returns true iff it sees one-or-more
-     * opponent discs immediately, followed by a disc belonging to [player], before hitting an empty
-     * cell or the board edge -- the real, exact Othello flanking-capture rule. Used both to decide
-     * whether ([row], [col]) is itself a legal move (any direction flanking is enough) and, in
-     * [applyMove], to decide which directions actually get flipped.
-     */
-    private fun flanksInDirection(cells: List<Int?>, row: Int, col: Int, dr: Int, dc: Int, player: Int): Boolean {
-        val opponent = 1 - player
-        var r = row + dr
-        var c = col + dc
-        var sawOpponent = false
-        while (r in 0..7 && c in 0..7) {
-            when (cells[r * 8 + c]) {
-                opponent -> {
-                    sawOpponent = true
-                    r += dr
-                    c += dc
-                }
-                player -> return sawOpponent
-                else -> return false // empty cell -- the line dead-ends before ever reaching player's own disc
-            }
-        }
-        return false // ran off the board without ever reaching player's own disc
-    }
-
-    /** True iff [index] is currently empty AND [player] flanks the opponent in at least one of the
-     *  8 [DIRECTIONS] from it -- the real Othello legal-move rule, shared verbatim between the
-     *  actual move set exposed on [ReversiState.legalMoves] and the bot's own search. */
-    private fun isLegalMove(cells: List<Int?>, index: Int, player: Int): Boolean {
-        if (cells[index] != null) return false
-        val row = index / 8
-        val col = index % 8
-        return DIRECTIONS.any { (dr, dc) -> flanksInDirection(cells, row, col, dr, dc, player) }
-    }
-
-    /** Every legal destination cell for [player] on [cells] -- used both for the actual move set
-     *  the UI highlights and for the bot's own search (see this class's own KDoc). */
-    private fun legalMovesFor(cells: List<Int?>, player: Int): Set<Int> =
-        cells.indices.filterTo(mutableSetOf()) { isLegalMove(cells, it, player) }
-
-    /** Places [player]'s disc at [index], then for every one of the 8 [DIRECTIONS] where
-     *  [flanksInDirection] returns true, walks that same direction flipping every opponent disc to
-     *  [player]'s own color until it reaches [player]'s own disc (exclusive) -- the real Othello
-     *  capture rule. Flanking is decided against the ORIGINAL [cells] (before [index] is placed),
-     *  which is always correct here: whether a direction flanks depends only on cells strictly
-     *  beyond [index] in that direction, never on [index] itself. */
-    private fun applyMove(cells: List<Int?>, index: Int, player: Int): List<Int?> {
-        val newCells = cells.toMutableList()
-        newCells[index] = player
-        val row = index / 8
-        val col = index % 8
-        for ((dr, dc) in DIRECTIONS) {
-            if (!flanksInDirection(cells, row, col, dr, dc, player)) continue
-            var r = row + dr
-            var c = col + dc
-            while (newCells[r * 8 + c] != player) {
-                newCells[r * 8 + c] = player
-                r += dr
-                c += dc
-            }
-        }
-        return newCells
-    }
 
     /**
      * Resolves what happens after [justMoved] places a disc on the already-updated [cells]:
@@ -894,10 +968,11 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
         justMoved: Int,
         actionText: String
     ): ReversiState {
+        val rules = engine
         val opponent = 1 - justMoved
         val scores = computeScores(cells, players.size)
 
-        val opponentMoves = legalMovesFor(cells, opponent)
+        val opponentMoves = rules.legalMovesFor(cells, opponent)
         if (opponentMoves.isNotEmpty()) {
             return ReversiState(
                 cells = cells,
@@ -905,11 +980,12 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
                 currentPlayerIndex = opponent,
                 legalMoves = opponentMoves,
                 scores = scores,
-                lastAction = actionText
+                lastAction = actionText,
+                size = rules.n
             )
         }
 
-        val moverMoves = legalMovesFor(cells, justMoved)
+        val moverMoves = rules.legalMovesFor(cells, justMoved)
         if (moverMoves.isNotEmpty()) {
             return ReversiState(
                 cells = cells,
@@ -918,7 +994,8 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
                 legalMoves = moverMoves,
                 scores = scores,
                 lastAction = "${players[opponent].displayName} has no legal move and passes",
-                justPassed = true
+                justPassed = true,
+                size = rules.n
             )
         }
 
@@ -939,50 +1016,20 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
                 "It's a tie, ${scores[0]}-${scores[1]}!"
             },
             boardOver = true,
-            winnerPlayerId = winnerId
+            winnerPlayerId = winnerId,
+            size = rules.n
         )
     }
 
     private companion object {
-        /** Hint search: iterative deepening through these plies (the strongest is the HARD tier's
-         *  own depth), abandoning deeper passes once the budget in ms is spent. */
-        val HINT_SEARCH_DEPTHS = listOf(2, 4, 6)
+        /** Hint search: iterative deepening through these plies, abandoning deeper passes once the
+         *  budget in ms is spent. The 10x10 board stops at 4 for the same reason its bot does. */
+        fun hintDepthsFor(size: Int): List<Int> =
+            if (size >= ReversiBoardSizes.LARGE) listOf(2, 3, 4) else listOf(2, 4, 6)
+
         const val HINT_TIME_BUDGET_MS = 400L
 
-        const val CORNER_WEIGHT = 120
-        const val X_SQUARE_WEIGHT = -20
-        const val C_SQUARE_WEIGHT_CORNER_OPEN = -40
-        const val C_SQUARE_WEIGHT_CORNER_TAKEN = 10
-        const val EDGE_NEAR_CORNER_WEIGHT = 10
-        const val EDGE_MID_WEIGHT = 6
-        const val INTERIOR_RING_WEIGHT = 1
-        const val INTERIOR_CORE_WEIGHT = 3
-
-        /** Small constant weighting how much a mobility ADVANTAGE (more legal moves than the
-         *  opponent) is worth relative to the positional table above -- see [evaluate]'s own KDoc. */
-        const val MOBILITY_WEIGHT = 12
-
-        /** Magnitude of a confirmed win/loss score -- comfortably larger than any possible sum of
-         *  [positionalWeight]/mobility heuristic scores (bounded by 64 cells times the highest
-         *  single-cell weight, plus a small mobility term), so a real win is always preferred over
-         *  any merely-good-looking heuristic position. Same value/role as ConnectFourGame's own
-         *  WIN_SCORE. */
-        const val WIN_SCORE = 1_000_000
-
-        /** Explicit (dr, dc) pairs -- see [flanksInDirection]'s own KDoc for why this is never a
-         *  flat index-delta approach. */
-        val DIRECTIONS = listOf(-1 to -1, -1 to 0, -1 to 1, 0 to -1, 0 to 1, 1 to -1, 1 to 0, 1 to 1)
-
-        val CORNERS = setOf(0, 7, 56, 63)
-        val X_SQUARES = setOf(9, 14, 49, 54)
-
-        /** Every C-square index mapped to the corner it sits next to -- see [positionalWeight]'s
-         *  own KDoc for why that corner's own occupancy is looked up live rather than baked in. */
-        val C_SQUARE_TO_CORNER = mapOf(
-            1 to 0, 8 to 0,
-            6 to 7, 15 to 7,
-            48 to 56, 57 to 56,
-            55 to 63, 62 to 63
-        )
+        /** After this long into a bot move the remaining root candidates are skipped. */
+        const val BOT_TIME_CAP_MS = 1_500L
     }
 }

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Profile picker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:radial-gradient(100% 45% at 50% 0%,#2A2F6E 0%,#0B0D1A 70%);color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px;align-items:center}
+h1{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.p{display:flex;flex-direction:column;align-items:center;gap:10px;text-decoration:none;color:#F3F1EA}
+.p i{width:112px;height:112px;border-radius:36px;display:flex;align-items:center;justify-content:center;font:700 40px Sora;font-style:normal;box-shadow:0 14px 30px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.25)}
+.p b{font:600 16px Sora}
+.tag{font:600 11px Inter;border-radius:8px;padding:2px 8px;background:#2A2F55;color:#C9CDE0}
+</style>
+</helmet>
+<div class="ph">
+<h1 style="font-size:34px;margin-top:96px">Who's playing?</h1>
+<div class="mut" style="margin-top:8px">Pick a profile to load its games and progress.</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:34px 40px;margin-top:48px">
+<a class="p" href="Home.dc.html"><i style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</i><b>Sam</b><span class="tag">Adult</span></a>
+<a class="p" href="Home.dc.html"><i style="background:linear-gradient(145deg,#4ADE9B,#0E7490)">A</i><b>Alex</b><span class="tag">Adult</span></a>
+<a class="p" href="KidsHome.dc.html"><i style="background:linear-gradient(145deg,#FFD27A,#FF7A8A)">M</i><b>Mia</b><span class="tag" style="background:#4A3A12;color:#FFD27A">Kids · 7</span></a>
+<a class="p" href="KidsHome.dc.html"><i style="background:linear-gradient(145deg,#5BC8F5,#2A7FD0)">L</i><b>Leo</b><span class="tag" style="background:#4A3A12;color:#FFD27A">Kids · 10</span></a>
+</div>
+<div style="flex:1"></div>
+<a href="Onboarding.dc.html" style="display:flex;align-items:center;justify-content:center;height:52px;width:100%;border-radius:26px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;font:600 16px Sora;color:#F3F1EA;text-decoration:none;margin-bottom:12px">Add a profile</a>
+<div class="mut" style="font-size:12px;margin-bottom:36px">Each profile has its own stats, saves, avatar and rules.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
