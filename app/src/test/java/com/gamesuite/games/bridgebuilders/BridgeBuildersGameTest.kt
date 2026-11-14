@@ -87,12 +87,14 @@ class BridgeBuildersGameTest {
         assertTrue(r.game.matchOver.value)
     }
 
-    @Test fun leavingWithNoBridgeBuiltIsNobodysWin() {
+    @Test fun leavingWithNoBridgeBuiltIsAnAbortNobodyIsRecordedAsLosing() {
         val r = game(humans = 2).started()
         var result: GameResult? = null
         r.game.setOnMatchEnd { result = it }
         r.game.leaveSession()
-        assertEquals(listOf(false, false), result!!.scores.map { it.isWinner })
+        assertTrue(result!!.wasAborted)
+        assertTrue(result!!.scores.isEmpty())
+        assertTrue(r.game.matchOver.value)
     }
 
     @Test fun playAgainStartsAFreshTryAndLeavingTwiceEndsOnce() {
@@ -123,7 +125,7 @@ class BridgeBuildersGameTest {
         var result: GameResult? = null
         r.game.setOnMatchEnd { result = it }
         r.game.leaveSession()
-        assertEquals(1, result!!.scores.size) // only the real player is scored
+        assertTrue(result!!.wasAborted) // no bridge built: not recorded for the real player (nor the helper)
     }
 
     @Test fun moreThanFourSeatsIsRefusedAtInitNotSilentlyTruncated() {

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,7 +33,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -55,6 +59,7 @@ import com.gamesuite.games.drawguess.DrawLimits
 import com.gamesuite.games.drawguess.DrawPalette
 import com.gamesuite.games.drawguess.DrawStroke
 import com.gamesuite.games.drawguess.DrawWord
+import com.gamesuite.games.drawguess.StrokeLayerPlanner
 import com.gamesuite.games.drawguess.GLYPH_COLORS
 import com.gamesuite.games.drawguess.GlyphOp
 import com.gamesuite.games.drawguess.WordLang
@@ -194,6 +199,53 @@ private class StrokePathCache {
     }
 }
 
+/**
+ * A bitmap of every finished stroke, so a frame costs one image draw plus the live stroke instead of redrawing up to 300
+ * paths. New strokes are painted on top; undo, clear or a new paper size rebuild it (see [StrokeLayerPlanner]).
+ */
+private class CommittedLayer {
+    private var bitmap: ImageBitmap? = null
+    private var canvas: androidx.compose.ui.graphics.Canvas? = null
+    private val rendered = ArrayList<DrawStroke>()
+    private var w = 0
+    private var h = 0
+    private val scope = CanvasDrawScope()
+
+    fun draw(
+        target: DrawScope, owners: List<DrawStroke>, paths: List<Path>,
+        inkColors: Array<Color>, paper: Color, brushes: Array<Stroke>
+    ) {
+        val wi = target.size.width.toInt()
+        val hi = target.size.height.toInt()
+        if (wi <= 0 || hi <= 0) return
+        val sizeChanged = bitmap == null || wi != w || hi != h
+        if (sizeChanged) {
+            val b = ImageBitmap(wi, hi)
+            bitmap = b; canvas = androidx.compose.ui.graphics.Canvas(b); w = wi; h = hi
+        }
+        val plan = StrokeLayerPlanner.plan(rendered, owners, sizeChanged)
+        val bmp = bitmap ?: return
+        val cv = canvas ?: return
+        if (plan.hasWork) {
+            if (plan.reset) {
+                cv.drawRect(0f, 0f, wi.toFloat(), hi.toFloat(), androidx.compose.ui.graphics.Paint().apply { blendMode = androidx.compose.ui.graphics.BlendMode.Clear })
+                rendered.clear()
+            }
+            val f = wi.toFloat() / DrawLimits.COORD_MAX
+            scope.draw(target, target.layoutDirection, cv, Size(wi.toFloat(), hi.toFloat())) {
+                withTransform({ scale(f, f, Offset.Zero) }) {
+                    for (i in plan.from until owners.size) {
+                        val s = owners[i]
+                        drawPath(paths[i], if (s.eraser) paper else inkColors[s.color], style = brushes[s.size])
+                        rendered += s
+                    }
+                }
+            }
+        }
+        target.drawImage(bmp)
+    }
+}
+
 private fun buildStrokePath(s: DrawStroke): Path {
     val p = Path()
     val xy = s.xy
@@ -227,6 +279,8 @@ fun DrawingCanvas(
 ) {
     val board = game.board
     val cache = remember { StrokePathCache() }
+    val layer = remember { CommittedLayer() }
+    val brushes = remember { Array(DrawLimits.BRUSH_COUNT) { Stroke(DrawPalette.brushFractions[it] * DrawLimits.COORD_MAX, cap = StrokeCap.Round, join = StrokeJoin.Round) } }
     val activePath = remember { Path() }
     var tick by remember { mutableIntStateOf(0) }
     val toolNow by rememberUpdatedState(tool)
@@ -309,23 +363,13 @@ fun DrawingCanvas(
         // the draw and the paper would keep showing undone strokes until the next touch.
         @Suppress("UNUSED_VARIABLE") val version = game.boardVersion.value
         cache.sync(board.strokes)
-        val f = size.width / DrawLimits.COORD_MAX
-        withTransform({ scale(f, f, Offset.Zero) }) {
-            val strokes = cache.owners
-            for (i in strokes.indices) {
-                val s = strokes[i]
-                val color = if (s.eraser) paper else inkColors[s.color]
-                drawPath(
-                    cache.paths[i], color,
-                    style = Stroke(DrawPalette.brushFractions[s.size] * DrawLimits.COORD_MAX, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                )
-            }
-            if (board.drawing) {
+        // Finished strokes come from one cached bitmap; only the stroke under the finger is drawn path by path.
+        layer.draw(this, cache.owners, cache.paths, inkColors, paper, brushes)
+        if (board.drawing) {
+            val f = size.width / DrawLimits.COORD_MAX
+            withTransform({ scale(f, f, Offset.Zero) }) {
                 val color = if (board.activeEraser) paper else inkColors[board.activeColor]
-                drawPath(
-                    activePath, color,
-                    style = Stroke(DrawPalette.brushFractions[board.activeSize] * DrawLimits.COORD_MAX, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                )
+                drawPath(activePath, color, style = brushes[board.activeSize])
             }
         }
     }
@@ -356,8 +400,9 @@ fun ColorSwatch(index: Int, selected: Boolean, name: String, selectedWord: Strin
             .clip(RoundedCornerShape(16.dp))
             .background(ink)
             .border(if (selected) 5.dp else 1.dp, if (selected) ring else MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = if (selected) "$name, $selectedWord" else name },
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            // The radio state is real semantics now (TalkBack says "selected" itself), so the name stays plain.
+            .semantics { contentDescription = name },
         contentAlignment = Alignment.Center
     ) {
         Canvas(Modifier.size(22.dp)) {
@@ -386,8 +431,9 @@ fun BrushButton(level: Int, selected: Boolean, name: String, selectedWord: Strin
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(if (selected) 4.dp else 1.dp, if (selected) ink else MaterialTheme.colorScheme.outline, shape)
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = if (selected) "$name, $selectedWord" else name },
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            // The radio state is real semantics now (TalkBack says "selected" itself), so the name stays plain.
+            .semantics { contentDescription = name },
         contentAlignment = Alignment.Center
     ) {
         val d = when (level) { 0 -> 8.dp; 1 -> 16.dp; else -> 28.dp }
@@ -402,6 +448,8 @@ fun ToolTextButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     enabled: Boolean = true,
+    /** True for an on/off tool (the Eraser): TalkBack then announces its state. */
+    toggle: Boolean = false,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -414,7 +462,10 @@ fun ToolTextButton(
             .clip(shape)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
             .border(if (selected) 4.dp else 1.dp, if (selected) ink else MaterialTheme.colorScheme.outline, shape)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .let {
+                if (toggle) it.toggleable(value = selected, enabled = enabled, role = Role.Switch, onValueChange = { _ -> onClick() })
+                else it.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {

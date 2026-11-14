@@ -137,6 +137,7 @@ class WhackAMoleGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (engine?.phase != WhackPhase.OVER) return
         startMatch()

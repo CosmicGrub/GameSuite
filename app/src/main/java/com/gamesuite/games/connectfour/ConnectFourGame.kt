@@ -468,6 +468,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * session. Reuses [startMatch] itself, same as DotsAndBoxesGame.playAgain().
      */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value) return

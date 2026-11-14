@@ -135,8 +135,12 @@ fun SlideClimbScreen(
     val burst = rememberParticleBurst()
     val density = LocalDensity.current
 
+    // the table this screen already dealt: an equal context emitted again must not restart the board in progress
+    val dealtFor = remember { arrayOfNulls<com.gamesuite.core.GameContext>(1) }
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        if (slideClimbSameTable(dealtFor[0], ctx)) return@LaunchedEffect
+        dealtFor[0] = ctx
         val extras = sessionManager.launchOptions.extras
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
@@ -223,7 +227,7 @@ fun SlideClimbScreen(
                 lastMoveSerial = cur.moveSerial
                 val seat = cur.eventSeat
                 if (seat != null && !reduced) {
-                    var at = slideClimbPiecePos(seat, cur.eventFrom, 1)
+                    var at = slideClimbPiecePos(seat, cur.eventFrom, shownPos.count { it == cur.eventFrom }.coerceAtLeast(1))
                     val hopMs = gameSpeed.scale(170L).coerceAtLeast(60L)
                     val path = SlideClimbRules.hopPath(cur.eventFrom, cur.dice, cur.exactFinish)
                     if (path.isEmpty()) {
@@ -235,7 +239,8 @@ fun SlideClimbScreen(
                     }
                     for (square in path) {
                         awaitUnpaused()
-                        val next = slideClimbCellCenter(square)
+                        // the last hop settles where the piece will rest (nudged when the square is shared)
+                        val next = if (square == path.last() && cur.eventTo == cur.eventLanded) slideClimbPiecePos(seat, square, 1 + cur.positions.indices.count { it != seat && cur.positions[it] == square }) else slideClimbCellCenter(square)
                         leg = SlideClimbLeg(seat, at, next, 0.32f)
                         legT.snapTo(0f)
                         legT.animateTo(1f, tween(hopMs.toInt(), easing = LinearEasing))
@@ -243,7 +248,7 @@ fun SlideClimbScreen(
                         at = next
                     }
                     if (cur.eventTo != cur.eventLanded) {
-                        val dest = slideClimbCellCenter(cur.eventTo)
+                        val dest = slideClimbPiecePos(seat, cur.eventTo, 1 + cur.positions.indices.count { it != seat && cur.positions[it] == cur.eventTo })
                         delay(gameSpeed.scale(120L))
                         awaitUnpaused()
                         leg = SlideClimbLeg(seat, at, dest, if (cur.event == SlideClimbEvent.CLIMB) 0.5f else 0.1f)
@@ -336,8 +341,8 @@ fun SlideClimbScreen(
         val base = when (v.event) {
             SlideClimbEvent.ROLL -> androidContext.scText(who, R.string.slide_climb_ann_pending, R.string.slide_climb_ann_pending_you, v.dice)
             SlideClimbEvent.MOVE -> androidContext.scText(who, R.string.slide_climb_ann_move, R.string.slide_climb_ann_move_you, v.dice, v.eventTo)
-            SlideClimbEvent.CLIMB -> androidContext.scText(who, R.string.slide_climb_ann_climb, R.string.slide_climb_ann_climb_you, v.dice, v.eventTo)
-            SlideClimbEvent.SLIDE -> androidContext.scText(who, R.string.slide_climb_ann_slide, R.string.slide_climb_ann_slide_you, v.dice, v.eventTo)
+            SlideClimbEvent.CLIMB -> if (v.bouncedIntoJump) androidContext.scText(who, R.string.slide_climb_ann_bounce_climb, R.string.slide_climb_ann_bounce_climb_you, v.dice, v.eventTo) else androidContext.scText(who, R.string.slide_climb_ann_climb, R.string.slide_climb_ann_climb_you, v.dice, v.eventTo)
+            SlideClimbEvent.SLIDE -> if (v.bouncedIntoJump) androidContext.scText(who, R.string.slide_climb_ann_bounce_slide, R.string.slide_climb_ann_bounce_slide_you, v.dice, v.eventTo) else androidContext.scText(who, R.string.slide_climb_ann_slide, R.string.slide_climb_ann_slide_you, v.dice, v.eventTo)
             SlideClimbEvent.BOUNCE -> androidContext.scText(who, R.string.slide_climb_ann_bounce, R.string.slide_climb_ann_bounce_you, v.dice, v.eventTo)
             SlideClimbEvent.STUCK -> androidContext.scText(who, R.string.slide_climb_ann_stuck, R.string.slide_climb_ann_stuck_you, v.dice, v.eventTo)
             SlideClimbEvent.WIN -> androidContext.scText(who, R.string.slide_climb_ann_win, R.string.slide_climb_ann_win_you)

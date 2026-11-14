@@ -291,6 +291,8 @@ internal fun TapTugBoard(
         ) {
             for (z in zones) {
                 val a = a11y(z.seat)
+                // A computer's zone ignores touches, so it must not be announced as a button that does nothing.
+                val tappable = interactive.getOrElse(z.seat) { false }
                 Box(
                     Modifier
                         .offset { IntOffset((z.left * wPx).toInt(), (z.top * hPx).toInt()) }
@@ -298,9 +300,11 @@ internal fun TapTugBoard(
                         .height(hDp * z.height)
                         .graphicsLayer { rotationZ = if (z.rotated) 180f else 0f }
                         .semantics(mergeDescendants = true) {
-                            role = Role.Button
                             contentDescription = a.description
-                            onClick(label = a.description) { a.onActivate(); true }
+                            if (tappable) {
+                                role = Role.Button
+                                onClick(label = a.description) { a.onActivate(); true }
+                            }
                             val extra = a.extraLabel
                             val action = a.onExtra
                             if (extra != null && action != null) customActions = listOf(CustomAccessibilityAction(extra) { action(); true })

@@ -145,6 +145,7 @@ class ReactionDuelGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (engine?.phase != DuelPhase.OVER) return
         startMatch()

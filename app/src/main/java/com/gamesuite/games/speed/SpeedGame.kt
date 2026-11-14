@@ -280,6 +280,7 @@ class SpeedGame(
     /** A fresh board in the same session (after a finished one). */
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value || state.value?.boardOver != true) return

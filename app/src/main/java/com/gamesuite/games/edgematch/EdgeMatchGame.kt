@@ -695,6 +695,7 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** Called from the solved panel's "New Puzzle" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

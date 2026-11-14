@@ -371,6 +371,7 @@ class HangmanGame : GameModule, ResumableGame {
 
     /** Called from the round-over panel's "New Word" button — keeps the running score. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }
