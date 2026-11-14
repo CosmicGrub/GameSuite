@@ -47,6 +47,7 @@ data class PieClue(val trait: PieTrait, val yes: Boolean)
 data class PieEvent(val serial: Int, val code: String)
 
 object PieEventCode {
+    const val CASE_START = "case_start"
     const val PEEKED = "peeked"
     const val SHOWN = "shown"
     const val FLIPPED = "flipped"
@@ -65,12 +66,17 @@ data class PieSession(
     val casesInBook: Int,
     val stars: Int,
     val luckyPeeksUsed: Int,
-    val bookFinished: Boolean
+    val bookFinished: Boolean,
+    /** Where the thief stood when the latest case ended (0..3). */
+    val lastCaseHops: Int = 0
 )
 
 /**
  * Everything the screen reads. The thief is NEVER here while a case runs: [revealedThiefId] is non-null only in
- * CASE_WON and CASE_LOST. [pendingAnswer] is non-null only in the PEEK phase (the lens shows it).
+ * CASE_WON and CASE_LOST. [pendingAnswer] is non-null only in the PEEK phase (the lens shows it, and only while it
+ * is held or toggled open). [offeredTraits] are the clues the band offers; [availableTraits] are the ones not yet asked.
+ * In SNEAK the card has been drawn ([lastSneakWasDash] true or false, null when the step was skipped by a Lucky
+ * peek or was a wrong catch) but the turn has not moved on until [PieEngine.sneakDone].
  */
 data class PieState(
     val phase: PiePhase,
@@ -78,6 +84,7 @@ data class PieState(
     val caseIndex: Int,
     val casesInBook: Int,
     val lineup: List<PieSuspectView>,
+    val offeredTraits: List<PieTrait>,
     val availableTraits: List<PieTrait>,
     val clues: List<PieClue>,
     val currentSeat: Int,
@@ -85,10 +92,16 @@ data class PieState(
     val lastSneakWasDash: Boolean?,
     val pendingTrait: PieTrait?,
     val pendingAnswer: Boolean?,
+    val peeked: Boolean,
     val luckyAvailable: Boolean,
     val uncleared: Int,
     val revealedThiefId: String?,
-    val lastEvent: PieEvent?
+    val lastEvent: PieEvent?,
+    val sneakSkipped: Boolean = false,
+    val wrongCatch: Boolean = false,
+    val sneakDrawn: Int = 0,
+    val caseStars: Int = 0,
+    val hasPass: Boolean = false
 )
 
 enum class PieResult {

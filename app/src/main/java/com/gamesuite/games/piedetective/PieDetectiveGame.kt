@@ -18,12 +18,11 @@ import kotlin.random.Random
  * Nearby, no Online.
  *
  * Set [band], [handicap], [difficulty], [hints] and [autoFlip] before [init] / [startMatch] (the screen does it from
- * the Hub's launch options). The engine is injectable so tests can pass a fake; the default is the stub until phase 0
- * lands the real one.
+ * the Hub's launch options). The engine is injectable so tests can pass a fake; the default is [PieEngineImpl].
  */
 class PieDetectiveGame(
     private val random: Random = Random.Default,
-    internal val engine: PieEngine = StubPieEngine()
+    internal val engine: PieEngine = PieEngineImpl()
 ) : GameModule, ResumableGame {
     override val gameId = "pie-detective"
     override val displayName = "Pie Detective"
@@ -75,8 +74,15 @@ class PieDetectiveGame(
         commit()
     }
 
+    /**
+     * The app lost the foreground or a dialog opened: Sidekick autoplay freezes, a half-made peek returns to the trait
+     * choice and a person's turn is covered by the pass screen again (see [PieEngine.pause]).
+     */
     @Synchronized
-    override fun pause() { engine.pause() }
+    override fun pause() {
+        engine.pause()
+        if (state.value != null && !matchOver.value) commit()
+    }
 
     @Synchronized
     override fun resume() { engine.resume() }
@@ -136,6 +142,9 @@ class PieDetectiveGame(
     fun cancelToChoose(seat: Int): PieResult = act { engine.cancelToChoose(seat) }
 
     @Synchronized
+    fun sneakDone(): PieResult = act { engine.sneakDone() }
+
+    @Synchronized
     fun nextCase(): PieResult = act { engine.nextCase() }
 
     /** The screen calls this after its 1.2 s pause when it is a Sidekick's turn. True if the Sidekick acted. */
@@ -178,7 +187,6 @@ class PieDetectiveGame(
     @Synchronized
     override fun restore(snapshot: String): Boolean {
         val save = PieSaveCodec.decode(snapshot, seats()) ?: return false
-        configure()
         if (!engine.restore(save)) return false
         band = engine.band
         handicap = engine.handicapSpec
