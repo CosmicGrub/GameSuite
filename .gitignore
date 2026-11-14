@@ -46,3 +46,8 @@ _showcase/
 # all reproducible from source via the app/build.gradle.kts cargo-ndk tasks.
 rust/target/
 app/src/main/jniLibs/
+
+# Release signing: never commit keys or their passwords (see docs/release/SIGNING.md)
+keystore.properties
+*.jks
+*.keystore
