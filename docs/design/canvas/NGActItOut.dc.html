@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Act It Out states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06070F}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#06070F;position:relative;font:400 15px/1.4 Inter,sans-serif;color:#F3F1EA}
+.cap{position:absolute;top:14px;height:30px;padding:0 14px;border-radius:15px;background:#1C2138;font:600 13px Inter;display:flex;align-items:center;letter-spacing:.06em;text-transform:uppercase;color:#C9CDE0}
+.ph{position:absolute;top:56px;width:390px;height:844px;background:#0B0D1A;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.card{background:#141829;border:1px solid #232943;border-radius:20px}
+.btn{height:56px;border-radius:28px;background:#E64CB4;color:#1F0517;font:600 17px Sora;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(230,76,180,.28),inset 0 1px 0 rgba(255,255,255,.35)}
+.chip{height:44px;padding:0 16px;border-radius:22px;background:#1C2138;color:#C9CDE0;font:500 14px Inter;display:inline-flex;align-items:center}
+.chip.on{background:#F3F1EA;color:#0B0D1A;font-weight:600}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin:20px 0 8px}
+.top{margin-top:52px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.av{width:34px;height:34px;border-radius:17px;display:flex;align-items:center;justify-content:center;font:700 13px Sora;flex:none}
+</style>
+</helmet>
+<div class="sb">
+<span class="cap" style="left:0">1 Setup</span><span class="cap" style="left:430px">2 Pass to the actor</span><span class="cap" style="left:860px">3 Acting, mid-round</span><span class="cap" style="left:1290px">4 Round over</span><span class="cap" style="left:1720px">5 Score card</span>
+
+<div class="ph" style="left:0">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></div><h2 style="font-size:17px">Act It Out</h2><span style="width:44px"></span></div>
+<div style="margin-top:16px;height:104px;border-radius:24px;background:linear-gradient(150deg,#E64CB4,#6B1658);position:relative;overflow:hidden;padding:16px;display:flex;flex-direction:column;justify-content:flex-end"><svg width="150" height="104" viewBox="0 0 150 104" style="position:absolute;right:0;top:0" aria-hidden="true"><circle cx="90" cy="38" r="20" fill="#fff" opacity=".9"/><path d="M60 100c0-24 14-36 30-36s30 12 30 36" fill="#fff" opacity=".9"/><path d="M52 52l-20-16M128 52l20-16" stroke="#FFD27A" stroke-width="7" stroke-linecap="round"/></svg><div style="font:600 13px Inter;color:#FFD9F1">Ages 4 and up · 3 to 12 players</div></div>
+<div class="lab">Teams</div>
+<div style="display:flex;gap:10px"><div class="card" style="flex:1;padding:12px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><i class="av" style="width:12px;height:12px;background:#E64CB4"></i><b style="font:600 14px Sora">Rockets</b></div><div style="display:flex;flex-direction:column;gap:6px;font-size:14px"><span>Sam</span><span>Mia</span><span>Gran</span></div></div><div class="card" style="flex:1;padding:12px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><i class="av" style="width:12px;height:12px;background:#4DA3FF"></i><b style="font:600 14px Sora">Comets</b></div><div style="display:flex;flex-direction:column;gap:6px;font-size:14px"><span>Alex</span><span>Leo</span><span>Aunt Jo</span></div></div></div>
+<div class="mut" style="font-size:13px;margin-top:8px">Mixed ages are spread evenly. Tap a name to swap.</div>
+<div class="lab">Cards for</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chip">Little kids</span><span class="chip on">Everyone</span><span class="chip">Grown-ups</span></div>
+<div class="lab">Time per turn</div>
+<div style="display:flex;gap:8px"><span class="chip">30s</span><span class="chip on">60s</span><span class="chip">90s</span></div>
+<div class="card" style="margin-top:16px;padding:4px 16px"><div style="display:flex;justify-content:space-between;align-items:center;height:56px"><div><div style="font-weight:600">Little kids bonus</div><div class="mut" style="font-size:13px">+1 point when a child's team scores</div></div><div style="width:48px;height:28px;border-radius:14px;background:#E64CB4;position:relative;flex:none"><i style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff"></i></div></div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:40px">Deal the first card</div>
+</div>
+
+<div class="ph" style="left:430px;align-items:center;background:radial-gradient(100% 50% at 50% 30%,#4A0F3A 0%,#0B0D1A 70%)">
+<div style="margin-top:56px;width:100%;display:flex;justify-content:space-between;align-items:center"><div class="chip" style="gap:8px"><i class="av" style="width:12px;height:12px;background:#E64CB4"></i>Rockets</div><div class="mut" style="font:600 13px Inter">Round 1 of 3</div></div>
+<div style="margin-top:100px;width:120px;height:120px;border-radius:60px;background:#6B4E2E;display:flex;align-items:center;justify-content:center;font:700 48px Sora;box-shadow:0 0 0 10px rgba(230,76,180,.22)">G</div>
+<h1 style="font-size:34px;margin-top:26px;text-align:center;line-height:1.1">Gran, you act</h1>
+<div class="mut" style="font-size:16px;margin-top:8px;text-align:center">Rockets, shout your guesses. Comets, look away from the screen.</div>
+<div style="flex:1"></div>
+<div style="width:200px;height:200px;border-radius:100px;background:#1C2138;box-shadow:inset 0 0 0 4px #E64CB4,0 0 0 14px rgba(230,76,180,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#E64CB4" stroke-width="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><div style="font:600 16px Sora;text-align:center;line-height:1.2">Hold to<br>see your card</div></div>
+<div class="mut" style="font-size:13px;margin:22px 0 44px;text-align:center">The timer starts when you let go.</div>
+</div>
+
+<div class="ph" style="left:860px">
+<div class="top"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="#F3F1EA" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div><div class="chip" style="gap:8px"><i class="av" style="width:12px;height:12px;background:#E64CB4"></i>Rockets 6</div><div class="ib" style="font:600 13px Inter">3 skips</div></div>
+<div style="margin-top:22px;display:flex;justify-content:center"><svg width="150" height="150" viewBox="0 0 150 150" aria-label="22 seconds left"><circle cx="75" cy="75" r="64" fill="none" stroke="#232943" stroke-width="12"/><circle cx="75" cy="75" r="64" fill="none" stroke="#E64CB4" stroke-width="12" stroke-linecap="round" stroke-dasharray="148 402" transform="rotate(-90 75 75)"/><text x="75" y="90" text-anchor="middle" font-family="Sora" font-weight="700" font-size="44" fill="#F3F1EA">22</text></svg></div>
+<div style="margin-top:20px;border-radius:28px;background:#F3F1EA;color:#0B0D1A;padding:22px;text-align:center;box-shadow:0 18px 40px rgba(0,0,0,.5)">
+<svg width="120" height="110" viewBox="0 0 120 110" aria-hidden="true"><ellipse cx="60" cy="70" rx="34" ry="26" fill="#FF9A3C"/><circle cx="60" cy="40" r="22" fill="#FF9A3C"/><path d="M42 28L38 8l18 12zM78 28l4-20-18 12z" fill="#FF9A3C"/><circle cx="52" cy="38" r="3.4" fill="#2B1B4A"/><circle cx="68" cy="38" r="3.4" fill="#2B1B4A"/><path d="M56 48l4 4 4-4z" fill="#E0415A"/><path d="M92 76c20 0 26-16 18-26" stroke="#FF9A3C" stroke-width="8" fill="none" stroke-linecap="round"/></svg>
+<div style="font:700 40px Sora;margin-top:4px;line-height:1">A cat</div><div style="font:600 13px Inter;color:#5B6080;margin-top:6px;letter-spacing:.08em;text-transform:uppercase">Animals · easy</div></div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:12px;margin-bottom:40px"><div style="flex:1;height:84px;border-radius:28px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;display:flex;align-items:center;justify-content:center;gap:10px;font:600 18px Sora"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 5l9 7-9 7zM19 5v14"/></svg>Skip</div><div style="flex:1.4;height:84px;border-radius:28px;background:#4ADE9B;color:#06281A;display:flex;align-items:center;justify-content:center;gap:10px;font:600 20px Sora;box-shadow:0 10px 28px rgba(74,222,155,.28)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Got it!</div></div>
+</div>
+
+<div class="ph" style="left:1290px">
+<div class="top"><span style="width:44px"></span><h2 style="font-size:17px">Round 1 over</h2><span style="width:44px"></span></div>
+<div style="margin-top:20px;border-radius:28px;background:linear-gradient(150deg,#4A0F3A,#141829);border:1px solid #5A1F4A;padding:20px;text-align:center"><div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase">Rockets scored</div><div style="font:700 72px Sora;line-height:1;margin-top:6px;color:#FF8FD6">7</div><div style="font:600 14px Inter;color:#C9CDE0;margin-top:6px">6 cards + 1 little kids bonus</div></div>
+<div class="lab">This round</div>
+<div class="card" style="padding:4px 16px">
+<div style="display:flex;align-items:center;gap:12px;height:48px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ADE9B" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">A cat</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:48px;border-top:1px solid #1E2340"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ADE9B" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">Brushing teeth</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:48px;border-top:1px solid #1E2340"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ADE9B" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">Riding a bike</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:48px;border-top:1px solid #1E2340"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9AA0B8" stroke-width="2.6" aria-hidden="true"><path d="M5 5l9 7-9 7zM19 5v14"/></svg><span class="mut" style="flex:1">Skipped: Elephant</span></div></div>
+<div style="display:flex;gap:10px;margin-top:14px"><div class="card" style="flex:1;padding:12px 16px"><div class="mut" style="font-size:12px">Rockets</div><div style="font:700 26px Sora">7</div></div><div class="card" style="flex:1;padding:12px 16px"><div class="mut" style="font-size:12px">Comets</div><div style="font:700 26px Sora">0</div></div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:12px">Next: Comets, Aunt Jo acts</div>
+<div style="height:24px"></div>
+</div>
+
+<div class="ph" style="left:1720px;background:#06070F">
+<div style="margin-top:64px;border-radius:32px;background:linear-gradient(160deg,#4A0F3A,#141829);border:1px solid #5A1F4A;padding:22px;box-shadow:0 14px 0 rgba(0,0,0,.4)">
+<div style="display:flex;align-items:center;justify-content:space-between"><h1 style="font-size:24px">Act It Out</h1><div style="font:600 13px Inter;color:#C9CDE0">7 Nov · 3 rounds</div></div>
+<div style="margin-top:14px;display:flex;gap:10px"><div style="flex:1;border-radius:20px;background:#E64CB4;color:#1F0517;padding:14px;text-align:center;box-shadow:0 0 0 3px #FFD27A"><div style="font:700 12px Inter;letter-spacing:.08em;text-transform:uppercase">Winners</div><div style="font:700 20px Sora;margin-top:2px">Rockets</div><div style="font:700 44px Sora;line-height:1">19</div></div><div style="flex:1;border-radius:20px;background:#1C2138;padding:14px;text-align:center"><div style="font:600 12px Inter;letter-spacing:.08em;text-transform:uppercase;color:#9AA0B8">Comets</div><div style="font:700 20px Sora;margin-top:2px">&nbsp;</div><div style="font:700 44px Sora;line-height:1">16</div></div></div>
+<div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.07);border-radius:16px;padding:10px 14px"><i class="av" style="background:#6B4E2E">G</i><span style="flex:1;font-size:14px">Gran: most cards guessed</span><b style="font:700 16px Sora">9</b></div>
+<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.07);border-radius:16px;padding:10px 14px"><i class="av" style="background:#0E7490">M</i><span style="flex:1;font-size:14px">Mia: fastest guess</span><b style="font:700 16px Sora">3s</b></div>
+<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.07);border-radius:16px;padding:10px 14px"><i class="av" style="background:#8B7CFF">L</i><span style="flex:1;font-size:14px">Leo: funniest (voted)</span><svg width="20" height="20" viewBox="0 0 24 24" fill="#FFB547" aria-hidden="true"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg></div>
+</div></div>
+<div style="flex:1"></div>
+<div class="btn" style="margin-bottom:12px">Play again</div>
+<div style="display:flex;gap:10px;margin-bottom:40px"><div class="btn" style="flex:1;background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558;font-size:15px">Share card</div><div class="btn" style="flex:1;background:#1C2138;color:#F3F1EA;box-shadow:inset 0 0 0 1px #2E3558;font-size:15px">Home</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

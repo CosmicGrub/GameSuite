@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parent gate</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.k{height:64px;border-radius:20px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;display:flex;align-items:center;justify-content:center;font:600 24px Sora;color:#F3F1EA}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:52px"><a href="KidsHome.dc.html" aria-label="Back to kids home" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a></div>
+<div style="margin-top:36px;width:72px;height:72px;border-radius:24px;background:linear-gradient(145deg,#8B7CFF,#3B2F9E);display:flex;align-items:center;justify-content:center"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+<h1 style="font-size:32px;margin-top:22px;line-height:1.1">Grown-ups only</h1>
+<div class="mut" style="font-size:16px;margin-top:8px">Solve this to open settings, time limits and online options.</div>
+
+<div style="margin-top:28px;background:#141829;border:1px solid #232943;border-radius:24px;padding:22px;text-align:center">
+<div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase">What is</div>
+<div style="font:700 44px Sora;margin-top:6px;font-variant-numeric:tabular-nums">17 × 6</div>
+<div style="margin-top:14px;height:60px;border-radius:16px;background:#0B0D1A;box-shadow:inset 0 0 0 2px #FFB547;display:flex;align-items:center;justify-content:center;font:700 30px Sora;letter-spacing:.2em">10<span style="width:2px;height:30px;background:#FFB547;margin-left:4px"></span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px">
+<div class="k">1</div><div class="k">2</div><div class="k">3</div><div class="k">4</div><div class="k">5</div><div class="k">6</div><div class="k">7</div><div class="k">8</div><div class="k">9</div>
+<div class="k" style="color:#9AA0B8" aria-label="Delete"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M21 5H9l-6 7 6 7h12zM15 9l-4 6M11 9l4 6"/></svg></div><div class="k">0</div>
+<a href="ParentDash.dc.html" class="k" style="background:#FFB547;color:#1A1203;text-decoration:none;box-shadow:none" aria-label="Enter">Go</a>
+</div>
+<div class="mut" style="font-size:12px;text-align:center;margin-top:16px">A new question every time. Optional: use your device PIN or fingerprint instead.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

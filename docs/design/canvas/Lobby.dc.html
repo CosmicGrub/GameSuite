@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Online room lobby</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:radial-gradient(100% 40% at 50% 0%,#2A2F6E 0%,#0B0D1A 70%);color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.card{background:#141829;border:1px solid #232943;border-radius:20px}
+.seat{height:116px;border-radius:20px;background:#141829;border:1px solid #232943;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative}
+.seat .av{width:48px;height:48px;border-radius:24px;display:flex;align-items:center;justify-content:center;font:700 18px Sora}
+.rd{position:absolute;top:8px;right:8px;height:22px;padding:0 8px;border-radius:11px;font:600 11px Inter;display:flex;align-items:center}
+.qc{height:40px;padding:0 14px;border-radius:20px;background:#1C2138;display:inline-flex;align-items:center;font:500 13px Inter;color:#C9CDE0;flex:none;box-shadow:inset 0 0 0 1px #2E3558}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:52px;display:flex;align-items:center;justify-content:space-between">
+<a href="Library.dc.html" aria-label="Leave room" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+<div style="text-align:center"><h2 style="font-size:17px">UNO · Friends room</h2><div class="mut" style="font-size:12px">Chat on · Anyone with the code</div></div>
+<span style="width:44px"></span>
+</div>
+
+<div style="margin-top:22px;border-radius:24px;padding:18px;background:linear-gradient(150deg,#3A4390,#161A3F);text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)">
+<div style="font:600 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:#C9CDE0">Room code</div>
+<div style="font:700 46px Sora;letter-spacing:.14em;margin-top:2px">K7QM</div>
+<div style="display:flex;gap:10px;margin-top:12px;justify-content:center"><span style="height:44px;padding:0 20px;border-radius:22px;background:#F3F1EA;color:#0B0D1A;display:flex;align-items:center;gap:8px;font:600 14px Inter"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy</span><span style="height:44px;padding:0 20px;border-radius:22px;background:rgba(255,255,255,.14);display:flex;align-items:center;gap:8px;font:600 14px Inter"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>Share link</span></div>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:20px 0 10px"><h3 style="font-size:18px">Players</h3><span class="mut" style="font-size:13px">3 of 4 seats</span></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<div class="seat"><span class="rd" style="background:#12301F;color:#4ADE9B">Ready</span><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><b style="font:600 14px Sora">Sam <span class="mut" style="font:500 11px Inter">· Host</span></b></div>
+<div class="seat"><span class="rd" style="background:#12301F;color:#4ADE9B">Ready</span><div class="av" style="background:#0E7490">M</div><b style="font:600 14px Sora">Maya</b></div>
+<div class="seat"><span class="rd" style="background:#2A2F55;color:#C9CDE0">Not ready</span><div class="av" style="background:#6B4E2E">R</div><b style="font:600 14px Sora">Rex</b></div>
+<div class="seat" style="border:2px dashed #2E3558;background:transparent"><div class="av" style="background:#1C2138;color:#9AA0B8;font-size:24px">+</div><span class="mut" style="font:500 13px Inter">Open seat</span><span style="font:600 12px Inter;color:#FFB547">Fill with computer</span></div>
+</div>
+
+<div style="margin-top:18px"><div class="mut" style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Quick chat</div>
+<div style="display:flex;gap:8px;overflow:hidden;margin-right:-20px"><span class="qc">Good luck!</span><span class="qc">Nice move</span><span class="qc">Ready?</span><span class="qc">One sec</span></div></div>
+
+<div style="flex:1"></div>
+<div style="display:flex;gap:10px;padding-bottom:36px">
+<a href="Lobby.dc.html" style="flex:1;height:56px;border-radius:28px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;display:flex;align-items:center;justify-content:center;font:600 16px Sora;color:#F3F1EA;text-decoration:none">Settings</a>
+<a href="TableCards.dc.html" style="flex:2;height:56px;border-radius:28px;background:#FFB547;color:#1A1203;display:flex;align-items:center;justify-content:center;font:600 17px Sora;text-decoration:none;box-shadow:0 10px 28px rgba(255,181,71,.3),inset 0 1px 0 rgba(255,255,255,.4)">Start when ready</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
