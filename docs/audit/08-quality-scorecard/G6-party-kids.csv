@@ -1,0 +1,15 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+taprace,2,2,2,2,2,10,Init game before first composition so no blank first frame (TapRaceScreen.kt:138),S,Pause on help/leave/coach via a GameChrome overlay hook and a real pause() (TapRaceGame.kt:217),M
+tugofwar,2,2,2,2,2,10,Init game before first composition so no blank first frame (TugOfWarScreen.kt:137),S,Pause on help/leave/coach via a GameChrome overlay hook and a real pause() (TugOfWarGame.kt:235),M
+reactionduel,2,2,1,2,2,9,Build engine in remember so frame 1 shows the zones (ReactionDuelScreen.kt:164-201),S,Implement pause()/resume() by shifting engine time (ReactionDuelGame.kt:122),M
+whackamole,2,2,1,2,2,9,Implement pause()/resume() by shifting playStartAt and the act index (WhackAMoleGame.kt:114),M,Palm rejection in RwTouchSurface using ContactSizes (ReactionWhackStage.kt:50-82),M
+lighttrail,2,2,2,2,2,10,Palm rejection in TsPointerRouter,M,Coach card must pause the round (LightTrailScreen.kt:242),S
+sumopush,2,2,2,2,2,10,Palm rejection in TsPointerRouter,M,Coach card must pause the round (SumoPushScreen.kt:252),S
+paddleduel,1,2,1,2,2,8,Retune Easy bot (speed/think/lapse/ball cap) and test it against a slow-human model (PaddleDuelEngine.kt:119),S,Fix blank first frame (PaddleDuelScreen.kt:174),S
+rpsshowdown,2,2,2,2,2,10,Fix blank first frame (RpsShowdownScreen.kt:225),S,Cap HARD CPU memory for kid profiles (RpsCpu.kt:85-101),S
+chutesrace,3,2,3,2,3,13,Shared party score card replacing ClFinishedPanel,M,Re-verify dice and round-button semantics (audit F5-F8),S
+drawguess,3,1,2,2,3,11,Add win/lose animation and chime honouring Reduced Motion (DrawGuessScreen.kt:639),S,Score card that saves the drawing as a sticker,M
+echopads,3,2,2,3,3,13,Side-by-side duel layout in landscape (ReactionWhackZones.kt:52-60),S,Score card with longest-pattern sticker,M
+actitout,3,2,2,2,3,12,Hide card from Recents and add FLAG_SECURE while PLAYING,S,Winners card with awards and share,M
+bridgebuilders,3,2,3,2,3,13,Explain the water rising on a lost try and drowning during CROSS,S,Audible green-spot cue for TalkBack,M
+partytoolkit,2,1,2,1,2,8,Move the eight legacy tools' English text to strings and add ES (PartyToolkitScreen.kt:326-343 and tool bodies),M,Delete the duplicate legacy Scoreboard/Teams/First Player tools,S

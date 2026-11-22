@@ -8,3 +8,8 @@ markup/redlines, core flow, progress/social, kids and family, tablet, and the fi
 - These are design intent only; none of it is wired into the app. Known mismatch: Echo Pads mockup colours differ from the
   shipped colour-blind-safe palette (blue, vermillion, yellow, bluish green).
 - Published canvas: https://claude.ai/artifact/QxFjzpecD9dmBtVPHzJizF (private to the owner).
+
+## Added 2026-11-22: refinement and style-system boards
+- `RF*.dc.html` (21 boards): quality-refinement mockups and redlines from the 81-game scorecard (docs/audit/08-quality-scorecard/): program overview, GameChrome v2, unified deck, motion/sound/haptic/accessibility spec, score card v2, and per-family refinements (board games, cards, puzzles, words, arcade, toy sports, party/kids, tablet/Fold).
+- `ST*.dc.html` (12 boards): the proposed user-selectable style system: settings and in-game choice, parent/kid rules, tablet layout, and every main game in flat / 2.5D / 3D plus the motion levels and a game-by-style support matrix. 3D views are CSS approximations.
+- Related docs: docs/research/art-and-animation/ (R-A 3D rendering, R-B 2D animation and assets) and docs/design/style-packs/ (scope, architecture, scale, script, game-by-game matrix).
