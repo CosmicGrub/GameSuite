@@ -240,7 +240,7 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
         // resolve (provably unique AND guess-free); HARD accepts a
         // backtracking-confirmed-unique puzzle too, even if line-solving
         // alone stalls -- see generateUniqueSolvableGrid's own KDoc.
-        val solution = generateUniqueSolvableGrid(size, random, requireLineSolvable = difficulty != CpuDifficulty.HARD)
+        val solution = generateOrFallback(size, difficulty, random)
         val rowClues = (0 until size).map { r -> cluesOf((0 until size).map { c -> solution[r * size + c] }) }
         val colClues = (0 until size).map { c -> cluesOf((0 until size).map { r -> solution[r * size + c] }) }
 
@@ -740,6 +740,29 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
      * by pure logic" and "genuinely needs a guess" HARD candidates without
      * needing to special-case either.
      */
+    /** Test seam: invoked at the start of every generation attempt; a test makes it throw to force a failure. */
+    internal var generationHook: (() -> Unit)? = null
+
+    /**
+     * Never lets generation crash the app: a failed attempt is retried with a new seed up to [GENERATION_RETRIES]
+     * times, then a bundled, verified picture for the tier is used ([NonogramFallbackPuzzles]). Deterministic for a
+     * daily seed (every retry seed comes from the same Random).
+     */
+    private fun generateOrFallback(size: Int, difficulty: CpuDifficulty, random: Random): List<Boolean> {
+        var r = random
+        repeat(GENERATION_RETRIES) {
+            try {
+                generationHook?.invoke()
+                return generateUniqueSolvableGrid(size, r, requireLineSolvable = difficulty != CpuDifficulty.HARD)
+            } catch (_: Exception) {
+                r = Random(r.nextLong())
+            }
+        }
+        val f = NonogramFallbackPuzzles.pick(difficulty, r.nextInt(Int.MAX_VALUE))
+        check(f.size == size) { "fallback Nonogram has the wrong size for $difficulty" }
+        return f.solution
+    }
+
     private fun generateUniqueSolvableGrid(size: Int, random: Random, requireLineSolvable: Boolean): List<Boolean> {
         repeat(MAX_GENERATION_ATTEMPTS) {
             val grid = List(size * size) { random.nextFloat() < FILL_PROBABILITY }
@@ -971,6 +994,9 @@ class NonogramGame(private val nowMillis: () -> Long = { SystemClock.elapsedReal
 
     private companion object {
         const val MAX_GENERATION_ATTEMPTS = 500
+
+        /** How many times a failed generation is retried with a fresh seed before the bundled picture is used. */
+        const val GENERATION_RETRIES = 3
         const val SOLVE_CALL_BUDGET = 200_000
         const val INCONCLUSIVE = -1
         const val FILL_PROBABILITY = 0.45f
