@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import com.gamesuite.uikit.ContactSizes
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -158,49 +159,6 @@ internal fun DrawScope.drawTapTugFlag(base: Offset, height: Float, dark: Boolean
         drawRect(col, Offset(base.x + i * w / cells, base.y - height + j * h / cells), Size(w / cells, h / cells))
     }
     drawRect(Color(0xFF111111), Offset(base.x, base.y - height), Size(w, h), style = Stroke(1.5f))
-}
-
-/**
- * The touch size of every finger of the latest raw MotionEvent, looked up by POSITION. Compose hands the pointer
- * model its own ids (they count up with every new touch), which are NOT the Android pointer ids of the MotionEvent, so
- * an id-keyed lookup mixed fingers up (a stale palm size from a reused Android id could reject a later finger, and a
- * real palm got no size at all). A contact's position is the same in both views, so a down is matched to the
- * nearest recorded contact within [MATCH_PX]; with no match the size is unknown (0) and the contact is accepted.
- */
-internal class ContactSizes {
-    private var xs = FloatArray(0)
-    private var ys = FloatArray(0)
-    private var sizes = FloatArray(0)
-
-    fun record(m: MotionEvent) {
-        try {
-            val n = m.pointerCount
-            set(FloatArray(n) { m.getX(it) }, FloatArray(n) { m.getY(it) }, FloatArray(n) { maxOf(m.getTouchMajor(it), m.getTouchMinor(it)) })
-        } catch (_: Exception) {
-        }
-    }
-
-    /** Replaces the recorded contacts (the pure part of [record], unit tested). */
-    fun set(x: FloatArray, y: FloatArray, size: FloatArray) {
-        xs = x; ys = y; sizes = size
-    }
-
-    /** The touch size of the contact nearest ([x], [y]), or 0 when none is within [MATCH_PX]. */
-    fun sizeAt(x: Float, y: Float): Float {
-        var best = -1
-        var bestD = MATCH_PX * MATCH_PX
-        for (i in xs.indices) {
-            val dx = xs[i] - x
-            val dy = ys[i] - y
-            val d = dx * dx + dy * dy
-            if (d <= bestD) { bestD = d; best = i }
-        }
-        return if (best >= 0) sizes[best] else 0f
-    }
-
-    companion object {
-        const val MATCH_PX = 8f
-    }
 }
 
 /**
