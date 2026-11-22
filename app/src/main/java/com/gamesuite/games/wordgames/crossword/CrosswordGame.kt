@@ -118,7 +118,10 @@ data class CrosswordState(
  * [puzzlesSolved]) so back-to-back "New Puzzle" taps don't keep re-anchoring
  * on the same word.
  */
-class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame {
+class CrosswordGame(
+    private val gridSize: Int = 15,
+    private val random: kotlin.random.Random = kotlin.random.Random.Default
+) : GameModule, ResumableGame {
     override val gameId = "crossword"
     override val displayName = "Crossword"
     override val category = GameCategory.WORD
@@ -342,7 +345,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame 
     }
 
     override fun startMatch() {
-        val pool = (clueBankByDifficulty[difficulty] ?: CrosswordClueBank.gamesAndTechTheme).shuffled()
+        val pool = (clueBankByDifficulty[difficulty] ?: CrosswordClueBank.gamesAndTechTheme).shuffled(random)
         val (grid, entries) = generate(pool)
         hintsRemaining.value = maxHintsForDifficulty()
         justSolvedCells.value = emptySet()
@@ -599,7 +602,7 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame 
         val longest = sorted.firstOrNull() ?: return null
         val topCandidates = sorted.takeWhile { longest.word.length - it.word.length <= SEED_LENGTH_TOLERANCE }
         val unseen = topCandidates.filterNot { it.word in recentSeedWords }
-        val chosen = unseen.ifEmpty { topCandidates }.random()
+        val chosen = unseen.ifEmpty { topCandidates }.random(random)
 
         recentSeedWords.addLast(chosen.word)
         while (recentSeedWords.size > SEED_HISTORY_SIZE) recentSeedWords.removeFirst()
@@ -626,17 +629,34 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame 
         return null
     }
 
+    /**
+     * A word may go at [start] only if it crosses the existing letters properly:
+     *  - the cells just before and after it (along its direction) are empty, so it cannot lengthen an existing run;
+     *  - every NEW letter has empty side neighbours (perpendicular), so it cannot form an unclued run next to another word;
+     *  - every EXISTING letter it reuses must be a pure crossing: no neighbour along this word's own direction
+     *    (that would be a collinear overlap with a word already running that way);
+     *  - at least one crossing, and every reused letter matches.
+     * Together these guarantee each maximal run of 2+ letters in the finished grid is exactly one clued entry.
+     */
     private fun canPlace(grid: Array<Array<Char?>>, word: String, start: CrosswordPos, direction: Direction): Boolean {
+        val across = direction == Direction.ACROSS
+        val dr = if (across) 0 else 1
+        val dc = if (across) 1 else 0
+        fun filled(r: Int, c: Int): Boolean = r in 0 until gridSize && c in 0 until gridSize && grid[r][c] != null
+        if (filled(start.row - dr, start.col - dc)) return false
+        if (filled(start.row + dr * word.length, start.col + dc * word.length)) return false
         var hasIntersection = false
         for (i in word.indices) {
-            val r = if (direction == Direction.DOWN) start.row + i else start.row
-            val c = if (direction == Direction.ACROSS) start.col + i else start.col
+            val r = start.row + dr * i
+            val c = start.col + dc * i
             if (r !in 0 until gridSize || c !in 0 until gridSize) return false
-
             val existing = grid[r][c]
             if (existing != null) {
                 if (existing != word[i]) return false
+                if (filled(r - dr, c - dc) || filled(r + dr, c + dc)) return false
                 hasIntersection = true
+            } else {
+                if (filled(r + dc, c + dr) || filled(r - dc, c - dr)) return false
             }
         }
         return hasIntersection
@@ -684,5 +704,42 @@ class CrosswordGame(private val gridSize: Int = 15) : GameModule, ResumableGame 
 
         /** Sanity ceiling when validating a saved hint budget (the real maximum is 5). */
         private const val MAX_SNAPSHOT_HINTS = 99
+    }
+}
+
+/**
+ * Checks a finished crossword: every maximal run of two or more letters, across and down, must be exactly
+ * one clued entry (same start, direction and word), every entry must lie on the grid with matching letters
+ * and have a non-blank clue. Returns human-readable problems; empty means valid.
+ */
+object CrosswordGridValidator {
+    fun problems(grid: List<List<CrosswordCell>>, entries: List<CrosswordEntry>): List<String> {
+        val out = mutableListOf<String>()
+        val n = grid.size
+        val rows = grid.map { r -> r.map { it.letter } }
+        fun at(r: Int, c: Int): Char? = rows.getOrNull(r)?.getOrNull(c)
+        for (e in entries) {
+            if (e.clue.isBlank()) out += "entry ${e.id} '${e.word}' has no clue"
+            for ((i, p) in e.cells.withIndex()) {
+                if (at(p.row, p.col) != e.word[i]) out += "entry ${e.id} '${e.word}' does not match the grid at ${p.row},${p.col}"
+            }
+        }
+        val keys = entries.map { Triple(it.direction, it.start, it.word) }
+        for (dir in Direction.values()) {
+            val dr = if (dir == Direction.DOWN) 1 else 0
+            val dc = 1 - dr
+            for (r in 0 until n) for (c in 0 until n) {
+                if (at(r, c) == null) continue
+                if (at(r - dr, c - dc) != null) continue // not the start of a run
+                var len = 0
+                val sb = StringBuilder()
+                while (at(r + dr * len, c + dc * len) != null) { sb.append(at(r + dr * len, c + dc * len)); len++ }
+                if (len < 2) continue
+                if (Triple(dir, CrosswordPos(r, c), sb.toString()) !in keys) out += "unclued $dir run '$sb' at $r,$c"
+            }
+        }
+        val dup = entries.groupBy { Triple(it.direction, it.start, it.word) }.filter { it.value.size > 1 }
+        for (k in dup.keys) out += "duplicate entry $k"
+        return out
     }
 }
