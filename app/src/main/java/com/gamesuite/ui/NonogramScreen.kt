@@ -83,6 +83,8 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlin.math.floor
 
@@ -285,7 +287,7 @@ fun NonogramScreen(
                 reportedNewBest = false
             } else {
                 val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-                reportedNewBest = statsStore.recordWin(game.difficulty, finalTime)
+                reportedNewBest = withContext(NonCancellable) { statsStore.recordWin(game.difficulty, finalTime) }
             }
         }
     }
