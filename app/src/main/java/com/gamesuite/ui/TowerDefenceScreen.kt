@@ -214,17 +214,9 @@ fun TowerDefenceScreen(
     // the lifecycle is RESUMED (so it stops when the app is backgrounded); it is cancelled when
     // the screen leaves composition. `last` restarts from zero every time the loop (re)starts, so
     // a pause can never feed one huge dt into the simulation.
-    LaunchedEffect(lifecycleOwner, state.paused, state.runOver) {
-        if (state.paused || state.runOver) return@LaunchedEffect
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var last = 0L
-            while (!game.matchOver.value && !game.state.value.paused && !game.state.value.runOver) {
-                withFrameNanos { nanos ->
-                    if (last != 0L) game.tick((nanos - last) / 1_000_000_000f)
-                    last = nanos
-                }
-            }
-        }
+    com.gamesuite.uikit.rememberGameFrameClock(running = !state.paused && !state.runOver) { dt ->
+        val s = game.state.value
+        if (dt > 0f && !game.matchOver.value && !s.paused && !s.runOver) game.tick(dt)
     }
 
     // Lives lost -- compares against the previous composition's value rather than a seq-numbered

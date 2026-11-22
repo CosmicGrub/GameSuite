@@ -279,18 +279,9 @@ fun AirHockeyScreen(
     }
 
     // The physics frame loop — runs continuously while this screen is composed and the match isn't over.
-    LaunchedEffect(state.matchOver) {
-        if (state.matchOver) return@LaunchedEffect
-        var lastFrameNanos = 0L
-        while (!game.state.value.matchOver) {
-            withFrameNanos { nanos ->
-                if (lastFrameNanos != 0L) {
-                    val dt = (nanos - lastFrameNanos) / 1_000_000_000f
-                    game.tick(dt)
-                }
-                lastFrameNanos = nanos
-            }
-        }
+    // Shared frame clock: lifecycle-gated (stops on ON_STOP), first frame after a restart is dt 0.
+    com.gamesuite.uikit.rememberGameFrameClock(running = !state.matchOver) { dt ->
+        if (dt > 0f && !game.state.value.matchOver) game.tick(dt)
     }
 
     if (state.matchOver) {
