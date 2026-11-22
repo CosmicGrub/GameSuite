@@ -75,6 +75,8 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlin.math.floor
 
@@ -235,7 +237,7 @@ fun WordGuessScreen(
                 reportedResult = false to false
             } else {
                 val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-                val result = statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime)
+                val result = withContext(NonCancellable) { statsStore.recordSolve(game.difficulty, s.guesses.size, finalTime) }
                 reportedResult = result.isNewBestGuesses to result.isNewBestTimeMillis
             }
         }

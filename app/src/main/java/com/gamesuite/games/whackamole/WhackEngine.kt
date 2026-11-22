@@ -143,6 +143,14 @@ class WhackEngine(val config: WhackConfig) {
         }
     }
 
+    /** Moves the whole round [deltaMs] later on the clock (a pause: the countdown, the play window and the CPU's relative plan all slide together). */
+    fun shiftClock(deltaMs: Long) {
+        if (deltaMs <= 0L) return
+        countdownEndAt += deltaMs
+        playStartAt += deltaMs
+        clockNow += deltaMs
+    }
+
     fun timeLeftMs(now: Long): Long = when (phase) {
         WhackPhase.COUNTDOWN -> config.durationMs.toLong()
         WhackPhase.PLAY -> (playStartAt + config.durationMs - now).coerceIn(0L, config.durationMs.toLong())

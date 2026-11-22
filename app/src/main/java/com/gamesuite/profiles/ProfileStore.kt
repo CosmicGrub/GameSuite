@@ -225,6 +225,7 @@ class ProfileStore internal constructor(
                         val st = store.ensureInitialized()
                         if (st != null) {
                             ProfileScope.setActive(st.active.id)
+                            ProfileScope.setActiveKid(st.active.isKid)
                             profiles = st
                         } else {
                             unreadable = true

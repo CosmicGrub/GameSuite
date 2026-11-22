@@ -209,13 +209,33 @@ class TapRaceGame(
         rounds = rounds.coerceIn(1, 9)
         tally = TapTugMatchTally(seatCount, rounds)
         round = 1
+        pausedAt = null
         lastSim = clock()
         beginRound()
         commit()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /** Wall-clock reading when paused (null while running). The simulation, bots and input all read [now], so a pause freezes the race. */
+    private var pausedAt: Long? = null
+
+    /** The game clock: frozen while paused. */
+    private fun now(): Long = pausedAt ?: clock()
+
+    @Synchronized
+    override fun pause() {
+        if (pausedAt != null || state.value == null || matchOver.value || phase == RacePhase.OVER) return
+        advanceTo(clock())
+        commit()
+        pausedAt = clock()
+    }
+
+    /** Resumes without fast-forwarding: the time spent paused is simply dropped. */
+    @Synchronized
+    override fun resume() {
+        if (pausedAt == null) return
+        pausedAt = null
+        lastSim = clock()
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -285,8 +305,8 @@ class TapRaceGame(
     /** Advances the race to the injected clock. Returns true when the screen should redraw. */
     @Synchronized
     fun tick(): Boolean {
-        if (state.value == null || matchOver.value) return false
-        advanceTo(clock())
+        if (state.value == null || matchOver.value || pausedAt != null) return false
+        advanceTo(now())
         commit()
         return true
     }
@@ -305,7 +325,7 @@ class TapRaceGame(
     }
 
     /** The simulated time of an input arriving now: the last step plus the part of the next one that has passed. */
-    private fun inputT(): Long = simT + (clock() - lastSim).coerceIn(0L, TapRaceRules.STEP_MS - 1)
+    private fun inputT(): Long = simT + (now() - lastSim).coerceIn(0L, TapRaceRules.STEP_MS - 1)
 
     private fun step() {
         when (phase) {
@@ -389,10 +409,10 @@ class TapRaceGame(
     /** A finger [pointerId] went down on [seat]'s pad. Counts one tap when the race allows it. */
     @Synchronized
     fun press(seat: Int, pointerId: Long = 0L): TapReject {
-        if (state.value == null || matchOver.value || phase == RacePhase.OVER) return TapReject.NOT_RACING
+        if (state.value == null || matchOver.value || phase == RacePhase.OVER || pausedAt != null) return TapReject.NOT_RACING
         if (seat !in 0 until seatCount) return TapReject.BAD_SEAT
         if (isBotSeat(seat)) return TapReject.BOT_SEAT
-        advanceTo(clock())
+        advanceTo(now())
         val t = inputT()
         val result = when (phase) {
             RacePhase.COUNTDOWN -> {
@@ -663,6 +683,7 @@ class TapRaceGame(
         over = false
         winnerSeats = emptyList()
         round = s.played + 1
+        pausedAt = null
         lastSim = clock()
         beginRound()
         commit()

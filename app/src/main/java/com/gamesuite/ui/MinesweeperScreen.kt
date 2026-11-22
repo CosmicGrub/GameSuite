@@ -78,6 +78,8 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -276,7 +278,7 @@ fun MinesweeperScreen(
             val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
             // An assisted board (a hint was used) is still a solved board, but it can't set a best time.
             val assisted = game.hintsUsed.value > 0
-            if (!assisted && statsStore.recordWin(game.difficulty, finalTime)) newBestBoard = board
+            if (!assisted && withContext(NonCancellable) { statsStore.recordWin(game.difficulty, finalTime) }) newBestBoard = board
         } else {
             // A lost board never gets the celebration: a failure haptic and a buzz only.
             haptics(HapticSignal.FAILURE)

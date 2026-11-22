@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
 import com.gamesuite.games.wordgames.WordDictionary
+import com.gamesuite.games.wordgames.WordSafety
+import com.gamesuite.games.wordgames.KidWordPool
+import com.gamesuite.games.wordguess.WordGuessAnswerList
+import com.gamesuite.core.ProfileScope
 import com.gamesuite.settings.CpuDifficulty
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -173,7 +177,13 @@ class HangmanGame : GameModule, ResumableGame {
     /** Call once, from the UI, before startMatch() — loads the shared dictionary asset that [wordPoolFor] samples from. */
     fun loadDictionary(androidContext: Context) {
         WordDictionary.ensureLoaded(androidContext)
+        WordGuessAnswerList.ensureLoaded(androidContext)
     }
+
+    /** True when the active profile is a KID profile; swapped in tests. */
+    internal var kidModeProvider: () -> Boolean = { ProfileScope.isActiveKid }
+    internal var dictionaryWordsOfLength: (Int) -> List<String> = { WordDictionary.wordsOfLength(it) }
+    internal var kidWordsOfLength: (Int) -> List<String> = { KidWordPool.ofLength(it) }
 
     /**
      * Builds this round's candidate pool for [tier]: [curatedWords] plus a broader sample from
@@ -185,12 +195,17 @@ class HangmanGame : GameModule, ResumableGame {
      * run yet, [WordDictionary.wordsOfLength] returns empty lists rather than throwing, so this
      * degrades gracefully to [curatedWords] alone instead of crashing.
      */
-    private fun wordPoolFor(tier: CpuDifficulty): List<String> {
+    internal fun wordPoolFor(tier: CpuDifficulty): List<String> {
         val curated = curatedWords.getValue(tier)
         val lengths = dictionaryLengthsByDifficulty.getValue(tier)
+        if (kidModeProvider()) {
+            // KID profile: never the raw dictionary. Curated flavour words + Draw and Guess nouns + Word Guess answers.
+            return (curated + lengths.flatMap { kidWordsOfLength(it) }.map { it.uppercase() })
+                .filter { WordSafety.isSafe(it) }.distinct()
+        }
         val sampled = lengths.flatMap { length ->
-            WordDictionary.wordsOfLength(length)
-                .filter { it.all(Char::isLetter) } // dictionary asset can include hyphenated/apostrophe entries; hangman assumes plain letters
+            dictionaryWordsOfLength(length)
+                .filter { it.all(Char::isLetter) && WordSafety.isSafe(it) } // dictionary asset can include hyphenated/apostrophe entries; hangman assumes plain letters
                 .shuffled()
                 .take(DICTIONARY_WORDS_PER_LENGTH)
                 .map { it.uppercase() }

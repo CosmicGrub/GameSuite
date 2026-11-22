@@ -81,6 +81,8 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -291,7 +293,7 @@ fun SlidingPuzzleScreen(
             return@LaunchedEffect
         }
         val elapsed = game.solvedElapsedMillis.value ?: 0L
-        val result = statsStore.recordSolve(game.difficulty, s.moveCount, elapsed)
+        val result = withContext(NonCancellable) { statsStore.recordSolve(game.difficulty, s.moveCount, elapsed) }
         newBestMessage = when {
             result.isNewBestMoves && result.isNewBestTimeMillis -> "New best! Fewest moves and fastest time."
             result.isNewBestMoves -> "New best move count!"
