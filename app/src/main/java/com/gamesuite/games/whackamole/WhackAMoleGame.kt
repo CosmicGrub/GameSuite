@@ -73,7 +73,11 @@ class WhackAMoleGame(
 
     val players get() = context.players
 
-    fun nowMs(): Long = clock()
+    /** Clock reading while paused (null when running): the round's time stands still, so nothing the screen reads advances. */
+    private var pausedAt: Long? = null
+
+    /** The game clock: frozen while paused. */
+    fun nowMs(): Long = pausedAt ?: clock()
 
     override fun init(context: GameContext) {
         synchronized(lock) {
@@ -106,13 +110,25 @@ class WhackAMoleGame(
         recorded = false
         val e = WhackEngine(config(seed))
         engine = e
+        pausedAt = null
         e.startMatch(clock())
         lastSig = signature(e)
         bump()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    @Synchronized
+    override fun pause() {
+        val e = engine ?: return
+        if (pausedAt != null || matchOver.value || e.phase == WhackPhase.OVER) return
+        pausedAt = clock()
+    }
+
+    @Synchronized
+    override fun resume() {
+        val at = pausedAt ?: return
+        pausedAt = null
+        engine?.shiftClock(clock() - at)
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -149,6 +165,7 @@ class WhackAMoleGame(
     @Synchronized
     fun tick(): Boolean {
         val e = engine ?: return false
+        if (pausedAt != null) return false
         e.tick(clock())
         return afterChange(e)
     }
@@ -173,6 +190,7 @@ class WhackAMoleGame(
     @Synchronized
     fun whack(seat: Int, hole: Int, ageMs: Long = 0L): WhackResult {
         val e = engine ?: return WhackResult(WhackKind.IGNORED)
+        if (pausedAt != null) return WhackResult(WhackKind.IGNORED)
         val now = clock()
         val r = e.whack(seat, hole, now - ageMs.coerceAtLeast(0L), now)
         afterChange(e)

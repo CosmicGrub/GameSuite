@@ -83,7 +83,14 @@ class ReactionDuelGame(
 
     val players get() = context.players
 
-    fun nowMs(): Long = clock()
+    /** Wall-clock reading when paused (null while running), and the total paused so far: the engine runs on wall time minus the pauses, so its stored deadlines (signal moment, timeouts, CPU plans) simply stop. */
+    private var pausedAt: Long? = null
+    private var pausedTotal = 0L
+
+    private fun now(): Long = (pausedAt ?: clock()) - pausedTotal
+
+    /** The game clock: frozen while paused. */
+    fun nowMs(): Long = now()
 
     override fun init(context: GameContext) {
         synchronized(lock) {
@@ -114,13 +121,24 @@ class ReactionDuelGame(
         recorded = false
         val e = ReactionDuelEngine(config(random.nextLong()))
         engine = e
-        e.startMatch(clock())
+        e.startMatch(now())
         lastSig = signature(e)
         bump()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    @Synchronized
+    override fun pause() {
+        val e = engine ?: return
+        if (pausedAt != null || matchOver.value || e.phase == DuelPhase.OVER) return
+        pausedAt = clock()
+    }
+
+    @Synchronized
+    override fun resume() {
+        val at = pausedAt ?: return
+        pausedTotal += clock() - at
+        pausedAt = null
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -159,7 +177,8 @@ class ReactionDuelGame(
     @Synchronized
     fun tick(): Boolean {
         val e = engine ?: return false
-        e.tick(clock())
+        if (pausedAt != null) return false
+        e.tick(now())
         return afterChange(e)
     }
 
@@ -186,9 +205,10 @@ class ReactionDuelGame(
     @Synchronized
     fun press(seat: Int, ageMs: Long = 0L, pad: Int = -1): PressResult {
         val e = engine ?: return PressResult.IGNORED
+        if (pausedAt != null) return PressResult.IGNORED
         // In echo a finger that missed every pad is not a wrong answer, it is nothing (one-switch has no pads to miss).
         if (e.config.variant == DuelVariant.ECHO && !e.config.oneSwitch && pad !in 0 until DuelSymbol.ECHO_PADS) return PressResult.IGNORED
-        val now = clock()
+        val now = now()
         val r = e.press(seat, now - ageMs.coerceAtLeast(0L), pad, now)
         afterChange(e)
         return r
@@ -245,7 +265,7 @@ class ReactionDuelGame(
         variant = DuelVariant.fromId(s.variant); bestOf = s.bestOf; relaxed = s.relaxed; oneSwitch = s.oneSwitch
         difficulty = CpuDifficulty.valueOf(s.difficulty)
         val e = ReactionDuelEngine(config(s.seed))
-        e.resume(clock(), DuelProgress(s.completed, s.roundsPlayed, s.wins, s.falseStarts, s.bestMs))
+        e.resume(now(), DuelProgress(s.completed, s.roundsPlayed, s.wins, s.falseStarts, s.bestMs))
         engine = e
         matchOver.value = false; recorded = false
         sessionWins.value = s.sessionWins; sessionDraws.value = s.sessionDraws
