@@ -389,8 +389,10 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         val over = snap.exploded || snap.won
         if (over && !snap.minesPlaced) return null
         // Mines are placed on the first reveal, which is also when the stopwatch starts.
-        if (snap.minesPlaced != snap.timerStarted) return null
+        // A Daily board has its mines (and a pre-opened start) from the first frame, before the stopwatch starts.
+        if (snap.minesPlaced != snap.timerStarted && !(snap.dailySeed != null && snap.minesPlaced && !snap.timerStarted)) return null
         if (snap.minesPlaced && cells.count { it.isMine } != mines) return null
+        if (snap.dailySeed != null && !snap.minesPlaced) return null
         if (!snap.minesPlaced && cells.any { it.isMine || it.adjacentMines != 0 || it.state == CellState.REVEALED }) return null
         if (snap.activeElapsedMillis < 0L) return null
         val finished = snap.finishedElapsedMillis
@@ -497,12 +499,27 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
         hintsUsed.value = 0
         hintCell.value = null
         boardNumber.value += 1
-        state.value = MinesweeperState(
+        val blank = MinesweeperState(
             rows = rows,
             cols = cols,
             cells = List(rows * cols) { MinesweeperCell() },
             mineCount = mines
         )
+        state.value = if (dailySeed == null) blank else dailyBoard(blank, dailySeed)
+        minesPlaced = dailySeed != null
+    }
+
+    /**
+     * The Daily board is a pure function of the seed (and the tier's size): mines, the safe start
+     * cell and the pre-opened region all come from one Random(seed), so every player gets the same
+     * board whichever square they touch first. Free play keeps first-click-safe placement.
+     * The pre-opened start does NOT start the stopwatch; the first real reveal does.
+     */
+    private fun dailyBoard(blank: MinesweeperState, seed: Long): MinesweeperState {
+        val rng = Random(seed)
+        val start = rng.nextInt(blank.rows * blank.cols)
+        val withMines = placeMines(blank, avoidIndex = start, random = rng)
+        return floodReveal(withMines, start)
     }
 
     /**
