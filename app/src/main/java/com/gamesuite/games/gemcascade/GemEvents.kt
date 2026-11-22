@@ -59,7 +59,7 @@ sealed interface GemEvent {
     /** A piece moved by a rule (a butterfly or spider rising, the gem it swapped with dropping). */
     data class PieceMoved(val from: Pos, val to: Pos) : GemEvent
 
-    /** A butterfly escaped through the top, a treasure was collected at the bottom, or a spider reached the top. */
+    /** A butterfly escaped through the top or a treasure was collected at the bottom (the piece is gone). A spider reaching the top is [GameOver] with [OverReason.SPIDER] instead. */
     data class Escaped(val at: Pos, val piece: PieceType) : GemEvent
 
     /** A time bomb's counter went down; [remaining] is what is left. */

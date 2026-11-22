@@ -301,7 +301,7 @@ class GemEngine internal constructor(
         }
     }
 
-    private fun endOfTurn(ev: MutableList<GemEvent>, consumedMove: Boolean) {
+    internal fun endOfTurn(ev: MutableList<GemEvent>, consumedMove: Boolean) {
         if (status != GemStatus.PLAYING) return
         refreshGoals(ev)
         if (checkWin(ev)) return
@@ -696,10 +696,15 @@ class GemEngine internal constructor(
             board.swapCells(from, to)
             changed = true
             if (r - 1 == 0) {
-                ev += GemEvent.Escaped(to, cell.type)
-                board[to] = Cell.EMPTY
-                if (cell.type == PieceType.BUTTERFLY) butterfliesEscaped++
-                else { over(OverReason.SPIDER, ev); return }
+                if (cell.type == PieceType.BUTTERFLY) {
+                    ev += GemEvent.Escaped(to, cell.type)
+                    board[to] = Cell.EMPTY
+                    butterfliesEscaped++
+                } else {
+                    // the spider stays on the top row; the game is over
+                    over(OverReason.SPIDER, ev)
+                    return
+                }
             }
         }
         if (changed) settle(ev)

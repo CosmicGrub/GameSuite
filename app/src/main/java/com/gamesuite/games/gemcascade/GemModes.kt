@@ -167,6 +167,11 @@ object GemLevels {
             if (b.timer !in 3..40) out += "bomb timer ${b.timer}"
         }
         for (g in level.goals) if (goalType(g.type) == null) out += "unknown goal ${g.type}"
+        if (level.floor.isNotEmpty()) {
+            for (r in 0 until level.rows) for (c in 0 until level.cols) {
+                if (level.floor[r][c] != '0' && level.pieces[r][c] != '.' && level.pieces[r][c] != 'L') out += "ice under a non-gem cell at $r,$c"
+            }
+        }
         if (out.isNotEmpty()) return out
         val bottom = level.rows - 1
         if (level.pieces[bottom].any { it == 'T' }) out += "treasure on the bottom row"
