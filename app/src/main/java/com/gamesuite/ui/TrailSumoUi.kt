@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import com.gamesuite.uikit.measuringContacts
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -99,19 +101,24 @@ internal fun rememberTsFrameMs(active: Boolean): State<Long> {
  * for its whole life. Positions are shifted by ([originX], [originY]) into the router's screen space. When the
  * loop leaves composition (or the screen pauses) every held control is released.
  */
-internal fun Modifier.tsPointers(router: TsPointerRouter, originX: Float, originY: Float): Modifier =
-    pointerInput(router, originX, originY) {
+internal fun Modifier.tsPointers(router: TsPointerRouter, originX: Float, originY: Float): Modifier = composed {
+    // Shared palm rejection: a resting palm (touch size over 22 mm) never becomes a control press.
+    val guard = com.gamesuite.uikit.rememberPalmGuard()
+    this.measuringContacts(guard.contacts).pointerInput(router, originX, originY) {
         awaitPointerEventScope {
             try {
                 while (true) {
                     val event = awaitPointerEvent()
+                    guard.gate.retain(event.changes.filter { it.pressed }.map { it.id.value })
                     for (c in event.changes) {
                         val id = c.id.value
                         if (c.pressed) {
-                            if (!c.previousPressed) router.down(id, c.position.x + originX, c.position.y + originY)
-                            else router.move(id, c.position.x + originX, c.position.y + originY)
+                            if (!c.previousPressed) {
+                                if (guard.acceptDown(id, c.position.x, c.position.y)) router.down(id, c.position.x + originX, c.position.y + originY)
+                            } else if (!guard.gate.isRejected(id)) router.move(id, c.position.x + originX, c.position.y + originY)
                         } else if (c.previousPressed) {
-                            router.up(id)
+                            if (!guard.gate.isRejected(id)) router.up(id)
+                            guard.gate.release(id)
                         }
                     }
                 }
@@ -120,6 +127,7 @@ internal fun Modifier.tsPointers(router: TsPointerRouter, originX: Float, origin
             }
         }
     }
+}
 
 /** Places a zone's content in its own local frame, rotated onto the screen so it faces its player. */
 @Composable

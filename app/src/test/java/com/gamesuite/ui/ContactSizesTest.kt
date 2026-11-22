@@ -1,5 +1,6 @@
 package com.gamesuite.ui
 
+import com.gamesuite.uikit.ContactSizes
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

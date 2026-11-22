@@ -1,5 +1,7 @@
 package com.gamesuite.ui
 
+import com.gamesuite.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -1326,7 +1328,7 @@ private fun MinesweeperHintRow(
             modifier = Modifier
                 .heightIn(min = 48.dp)
                 .semantics { contentDescription = buttonDescription }
-        ) { Text("Hint") }
+        ) { Text(stringResource(R.string.gc_hint)) }
         Text(
             message,
             color = palette.textPrimary,
@@ -1398,7 +1400,7 @@ private fun MinesweeperResultPanel(
             }
             if (won && isNewBest) {
                 Spacer(Modifier.height(4.dp))
-                Text("New best time!", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.plat_new_best_time), fontWeight = FontWeight.Bold)
             } else if (bestTimeMillis != null) {
                 Spacer(Modifier.height(4.dp))
                 Text("Best: ${minesFormatClock(bestTimeMillis)}", style = MaterialTheme.typography.bodyMedium)
@@ -1416,7 +1418,7 @@ private fun MinesweeperResultPanel(
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Back to Menu", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.gc_back_to_menu), textAlign = TextAlign.Center) }
             }
             Spacer(Modifier.height(8.dp))
             ChangeSetupButton(
@@ -1457,7 +1459,7 @@ private fun MinesweeperDiscardDialog(
                 onClick = onDismiss,
                 modifier = Modifier.heightIn(min = 48.dp),
                 colors = ButtonDefaults.textButtonColors(contentColor = palette.textPrimary)
-            ) { Text("Keep Playing") }
+            ) { Text(stringResource(R.string.gc_keep_playing)) }
         }
     )
 }

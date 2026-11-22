@@ -206,7 +206,7 @@ fun FlowLinesScreen(
     val colorblind = LocalColorblindMode.current
     val colors = if (colorblind) FlowColorblindColors else FlowStandardColors
 
-    val dailySeed: Long? = remember(daily) { if (daily) java.time.LocalDate.now().toEpochDay() else null }
+    val dailySeed: Long? = remember(daily) { if (daily) com.gamesuite.core.DailySeed.todayEpochDay() else null }
     var dailyBoardActive by remember { mutableStateOf(daily) }
     var resumedAsSolved by remember { mutableStateOf(false) }
 
