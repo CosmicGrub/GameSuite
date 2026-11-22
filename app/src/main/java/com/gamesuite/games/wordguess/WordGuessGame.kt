@@ -114,7 +114,7 @@ data class WordGuessState(
 class WordGuessGame(
     private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() },
     private val pickSecret: (Random) -> String = { WordGuessAnswerList.randomAnswer(it) },
-    private val isValidGuess: (String) -> Boolean = { WordDictionary.isValidWord(it) }
+    private val isValidGuess: (String) -> Boolean = { WordDictionary.isValidWord(it) || WordGuessAnswerList.isAnswer(it) }
 ) : GameModule, ResumableGame {
     override val gameId = "word-guess"
     override val displayName = "Word Guess"
