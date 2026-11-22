@@ -139,9 +139,9 @@ class BotBastionHubSpecsTest {
         }
     }
 
-    @Test fun theCoachFileHoldsOnlyTheCoachAndTipKeys() {
+    @Test fun theCoachFileHoldsOnlyTheCoachKeys() {
         val keys = parseFile("res/values/bot_bastion_coach_strings.xml").keys.toList()
-        assertEquals((1..5).map { "coach_bot_bastion_s$it" } + "coach_bot_bastion_fact" + (1..3).map { "tip_bot_bastion_$it" }, keys)
+        assertEquals((1..5).map { "coach_bot_bastion_s$it" } + "coach_bot_bastion_fact", keys)
     }
 
     @Test fun threeShortTipsExistInBothLocales() {

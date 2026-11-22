@@ -120,4 +120,7 @@
     <string name="bot_bastion_announce_core_hit">El Núcleo fue golpeado. Núcleo %1$d</string>
     <string name="bot_bastion_node_empty">Nodo %1$d de %2$d, vacío</string>
     <string name="bot_bastion_node_bot">Nodo %1$d de %2$d, %3$s nivel %4$d</string>
+    <string name="tip_bot_bastion_1">Pon un Cuidador cerca de la entrada y tus cañones cerca del Núcleo.</string>
+    <string name="tip_bot_bastion_2">Los Morteros limpian multitudes pero fallan a las naves pegadas a ellos.</string>
+    <string name="tip_bot_bastion_3">Guarda un Pulso Nova para la oleada del jefe.</string>
 </resources>

@@ -376,6 +376,11 @@ object GameTips {
             "When everyone is locked in, a countdown runs and all moves flip face up together. Ties are played again.",
             "Against the computer, Hard learns your habits. Mix up your moves and do not repeat what just won."
         ),
+        "bot-bastion" to listOf(
+            "Put a Tender near the entry and your guns near the Core.",
+            "Lobbers clear crowds but miss ships right beside them.",
+            "Keep a Nova Pulse for the boss wave."
+        ),
         "gem-cascade" to listOf(
             "Swap two neighbouring gems so three or more of a kind line up.",
             "Match four for a Flare, five for a Prism, or an L or T for a Burst.",

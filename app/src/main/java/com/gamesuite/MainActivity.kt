@@ -110,7 +110,9 @@ import com.gamesuite.ui.TapRaceScreen
 import com.gamesuite.games.tugofwar.TugOfWarGame
 import com.gamesuite.ui.TugOfWarScreen
 import com.gamesuite.ui.profiles.profileRoutes
+import com.gamesuite.games.botbastion.BotBastionGame
 import com.gamesuite.games.gemcascade.GemCascadeGame
+import com.gamesuite.ui.BotBastionScreen
 import com.gamesuite.games.slideclimb.SlideClimbGame
 import com.gamesuite.ui.GemCascadeScreen
 import com.gamesuite.ui.SlideClimbScreen
@@ -1261,6 +1263,10 @@ class MainActivity : ComponentActivity() {
                         composable("reaction-duel") {
                             val g = rememberActiveModule(sessionManager, "reaction-duel") { ReactionDuelGame() }
                             ReactionDuelScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("bot-bastion") {
+                            val g = rememberActiveModule(sessionManager, "bot-bastion") { BotBastionGame() }
+                            BotBastionScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
                         }
                         composable("gem-cascade") {
                             val g = rememberActiveModule(sessionManager, "gem-cascade") { GemCascadeGame() }

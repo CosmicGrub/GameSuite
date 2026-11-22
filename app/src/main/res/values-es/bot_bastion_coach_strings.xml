@@ -7,7 +7,4 @@
     <string name="coach_bot_bastion_s4">Égida añade un escudo al Núcleo. Los especiales caen cada pocas oleadas y de los Mensajeros: el Pulso Nova limpia la pantalla y el Kit de reparación cura el Núcleo.</string>
     <string name="coach_bot_bastion_s5">Pausa cuando quieras y sigue construyendo. Cada décima oleada trae un jefe, así que guarda un especial. Hasta cuatro personas pueden jugar en un dispositivo.</string>
     <string name="coach_bot_bastion_fact">Una estación espacial en órbita se mantiene arriba porque cae sin parar alrededor del planeta sin llegar a tocarlo.</string>
-    <string name="tip_bot_bastion_1">Pon un Cuidador cerca de la entrada y tus cañones cerca del Núcleo.</string>
-    <string name="tip_bot_bastion_2">Los Morteros limpian multitudes pero fallan a las naves pegadas a ellos.</string>
-    <string name="tip_bot_bastion_3">Guarda un Pulso Nova para la oleada del jefe.</string>
 </resources>

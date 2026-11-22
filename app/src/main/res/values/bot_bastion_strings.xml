@@ -120,4 +120,7 @@
     <string name="bot_bastion_announce_core_hit">The Core was hit. Core %1$d</string>
     <string name="bot_bastion_node_empty">Node %1$d of %2$d, empty</string>
     <string name="bot_bastion_node_bot">Node %1$d of %2$d, %3$s level %4$d</string>
+    <string name="tip_bot_bastion_1">Put a Tender near the entry and your guns near the Core.</string>
+    <string name="tip_bot_bastion_2">Lobbers clear crowds but miss ships right beside them.</string>
+    <string name="tip_bot_bastion_3">Keep a Nova Pulse for the boss wave.</string>
 </resources>

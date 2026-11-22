@@ -136,6 +136,7 @@ object GameThemes {
         "rps-showdown" to GameAccent(0xFF9E1F78, 0xFFFF66D1),
         "chutes-race" to GameAccent(0xFF541380, 0xFFAF85CC),
         "gem-cascade" to GameAccent(0xFF0B6B73, 0xFF5CD6D0),
+        "bot-bastion" to GameAccent(0xFF8A3A00, 0xFFFFB066),
         "draw-guess" to GameAccent(0xFFB45309, 0xFFFCD34D),
         "echo-pads" to GameAccent(0xFF5D4DB8, 0xFFB3A8F5),
         "act-it-out" to GameAccent(0xFF8E2B6D, 0xFFF08CCB),
