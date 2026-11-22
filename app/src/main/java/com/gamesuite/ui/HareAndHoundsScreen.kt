@@ -62,7 +62,11 @@ import com.gamesuite.games.hareandhounds.HoundsRole
 import com.gamesuite.games.hareandhounds.HoundsSides
 import com.gamesuite.games.hareandhounds.HoundsState
 import com.gamesuite.games.hareandhounds.HoundsWhy
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.HaHHapticCues
+import com.gamesuite.haptics.HapticRules
 import com.gamesuite.haptics.HapticSignal
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalGameSpeed
@@ -257,18 +261,26 @@ fun HareAndHoundsScreen(
         else -> winnerSeat == humanSeat
     }
 
+    // HAPTICS (see HaHHapticCues): a move is NORMAL_ACTION for either side, only when the ply goes UP
+    // (a resume, undo or restart is silent); the end of the board follows the announcement delay.
+    val sequencer = rememberHapticSequencer()
+    val hapticsAllowed = HapticRules.shouldPlay(sessionManager.arenaActive, s.players.map { it.isBot })
+    val plyTracker = remember { ChangeTracker<Int>() }
     LaunchedEffect(s.ply) {
+        val previousPly = plyTracker.update(s.ply)
         if (s.lastMove == null || s.ply == 0) return@LaunchedEffect
         playSfx(SfxKind.SOLID_THUNK)
-        haptics(if (s.lastMover == s.hareSeat) HapticSignal.LIGHT_TICK else HapticSignal.NORMAL_ACTION)
+        if (previousPly != null && s.ply > previousPly && hapticsAllowed) sequencer(HaHHapticCues.forMove())
     }
+    val boardOverTracker = remember { ChangeTracker<Boolean>() }
     LaunchedEffect(s.boardOver) {
+        val wasOver = boardOverTracker.update(s.boardOver)
         if (!s.boardOver) return@LaunchedEffect
         delay(gameSpeed.scale(450L))
-        if (localWon == false) {
-            playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE)
-        } else {
-            playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.CELEBRATION)
+        if (localWon == false) playSfx(SfxKind.INVALID_BUZZ) else playSfx(SfxKind.SUCCESS_CHIME)
+        // Only a board that ENDED while on screen vibrates (resuming onto a finished board does not).
+        if (wasOver == false && hapticsAllowed) {
+            sequencer(HaHHapticCues.forBoardEnd(localWon, houndsTrapped = winnerSeat == s.houndsSeat))
         }
     }
 
