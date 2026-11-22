@@ -42,8 +42,10 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.reversi.ReversiBoardSizes
 import com.gamesuite.games.reversi.ReversiGame
 import com.gamesuite.games.reversi.ReversiState
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.HapticRules
+import com.gamesuite.haptics.ReversiHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
@@ -53,6 +55,14 @@ import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** What the haptics effect remembers about the previous board to tell a change from a restore. */
+private data class ReversiHapticSnapshot(
+    val cells: List<Int?>,
+    val boardOver: Boolean,
+    val justPassed: Boolean,
+    val lastAction: String
+)
 
 /** Smallest cell the board shrinks to before it stops shrinking and pans instead. */
 private const val REVERSI_MIN_CELL_DP = 28f
@@ -108,7 +118,6 @@ fun ReversiScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
     val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.REVERSI, enabled = musicEnabled)
@@ -192,11 +201,28 @@ fun ReversiScreen(
         return
     }
 
-    LaunchedEffect(s.boardOver) {
-        if (s.boardOver) haptics(if (s.winnerPlayerId != null) HapticSignal.CELEBRATION else HapticSignal.NORMAL_ACTION)
-    }
-    LaunchedEffect(s.justPassed) {
-        if (s.justPassed) haptics(HapticSignal.NORMAL_ACTION)
+    // HAPTICS: one effect per state change, deriving the event from the board itself (previous vs
+    // current cells), so a resume (first board seen), an undo, a restart and an arena series never
+    // vibrate; see ReversiHapticCues and docs/design/haptics-cue-sheet.md.
+    val sequencer = rememberHapticSequencer()
+    val hapticTracker = remember { ChangeTracker<ReversiHapticSnapshot>() }
+    LaunchedEffect(s) {
+        val previous = hapticTracker.update(ReversiHapticSnapshot(s.cells, s.boardOver, s.justPassed, s.lastAction))
+        if (previous == null) return@LaunchedEffect
+        val isBot = s.players.map { it.isBot }
+        if (!HapticRules.shouldPlay(sessionManager.arenaActive, isBot)) return@LaunchedEffect
+        val move = ReversiHapticCues.detectMove(previous.cells, s.cells, s.size)
+        val lighter = move != null &&
+            HapticRules.isLighterMover(move.mover, isBot, if (isNetworked) localSeat else null)
+        val passed = s.justPassed && !(previous.justPassed && previous.lastAction == s.lastAction)
+        val end = if (s.boardOver && !previous.boardOver) {
+            HapticRules.outcomeFor(
+                s.players.indexOfFirst { it.playerId == s.winnerPlayerId },
+                isBot,
+                if (isNetworked) localSeat else null
+            )
+        } else null
+        sequencer(ReversiHapticCues.compose(move, lighter, passed, end))
     }
 
     // A seat is playable by touch when it is not a bot -- seat 0 is NOT assumed to be the human, so
@@ -344,7 +370,7 @@ fun ReversiScreen(
                                     onTap = {
                                         game.placeDisc(index)
                                         sounds.playTap()
-                                        haptics(HapticSignal.NORMAL_ACTION)
+                                        // The vibration comes from the board-change effect above (only legal cells are tappable).
                                     }
                                 )
                             }

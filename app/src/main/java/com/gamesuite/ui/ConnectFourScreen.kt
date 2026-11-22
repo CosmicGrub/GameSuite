@@ -59,8 +59,10 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.connectfour.ConnectFourBoardSpec
 import com.gamesuite.games.connectfour.ConnectFourGame
 import com.gamesuite.games.connectfour.ConnectFourState
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.ConnectFourHapticCues
+import com.gamesuite.haptics.HapticRules
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
@@ -144,7 +146,6 @@ fun ConnectFourScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
     val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.CONNECT_FOUR, enabled = musicEnabled)
@@ -283,6 +284,32 @@ fun ConnectFourScreen(
         dropped
     }
 
+    // HAPTICS: the buzz is synced to the END of the fall animation (same ConnectFourHapticCues.fallMs
+    // the disc tween uses). Derived from the board diff, so a resume, restart or undo stays silent.
+    val sequencer = rememberHapticSequencer()
+    val hapticTracker = remember { ChangeTracker<List<Int?>>() }
+    LaunchedEffect(s.cells) {
+        val previous = hapticTracker.update(s.cells) ?: return@LaunchedEffect
+        val isBot = s.players.map { it.isBot }
+        if (!HapticRules.shouldPlay(sessionManager.arenaActive, isBot)) return@LaunchedEffect
+        val dropIndex = ConnectFourHapticCues.detectDrop(previous, s.cells) ?: return@LaunchedEffect
+        val mover = s.cells[dropIndex] ?: return@LaunchedEffect
+        val seat = if (networked) localIndex else null
+        val end = if (s.boardOver) {
+            HapticRules.outcomeFor(winnerIndex, isBot, seat)
+        } else null
+        val threat = end == null &&
+            ConnectFourHapticCues.createdThreat(previous, s.cells, s.rows, s.cols, s.winLength, mover)
+        sequencer(
+            ConnectFourHapticCues.forDrop(
+                fallMs = ConnectFourHapticCues.fallMs(dropIndex / s.cols, reducedMotion),
+                lighter = HapticRules.isLighterMover(mover, isBot, seat),
+                threat = threat,
+                end = end
+            )
+        )
+    }
+
     // One effect per finished board (boardOver flips false -> true once per board; startMatch()/
     // playAgain() reset it before it can fire again). Only a HUMAN win gets the celebration: the
     // old version shook the board and played the success chime when the CPU won.
@@ -293,11 +320,8 @@ fun ConnectFourScreen(
             particleBurst.clear()
             return@LaunchedEffect
         }
-        if (!humanWon) {
-            haptics(HapticSignal.NORMAL_ACTION)
-            return@LaunchedEffect
-        }
-        haptics(HapticSignal.CELEBRATION)
+        // (The board-end vibration is part of the drop gesture below, so it lands with the disc.)
+        if (!humanWon) return@LaunchedEffect
         playSfx(SfxKind.SUCCESS_CHIME)
 
         val winningLine = s.winningLine
@@ -422,7 +446,6 @@ fun ConnectFourScreen(
                         if (live != null && mayDrop) {
                             game.dropDisc(col)
                             sounds.playTap()
-                            haptics(HapticSignal.NORMAL_ACTION)
                         }
                     },
                     modifier = slotModifier
@@ -912,7 +935,7 @@ private fun DiscSlotView(
                     // 190ms for a one-row drop up to a 350ms cap: an accelerating, gravity-like ease.
                     fall.animateTo(
                         0f,
-                        animationSpec = tween(durationMillis = (140 + 50 * (row + 1)).coerceAtMost(350), easing = FastOutLinearInEasing)
+                        animationSpec = tween(durationMillis = ConnectFourHapticCues.fallMs(row, false).toInt(), easing = FastOutLinearInEasing)
                     )
                 }
             }
