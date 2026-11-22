@@ -70,8 +70,8 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleGame
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleRecord
 import com.gamesuite.games.slidingpuzzle.SlidingPuzzleStatsStore
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.SlidingPuzzleHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalCard3DMode
 import com.gamesuite.settings.LocalEnhancedAnimations
 import com.gamesuite.settings.LocalMusicEnabled
@@ -152,7 +152,7 @@ fun SlidingPuzzleScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
+    val sequencer = rememberHapticSequencer()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.SLIDING_PUZZLE, enabled = musicEnabled)
     val reducedMotion = LocalReducedMotion.current
@@ -280,7 +280,7 @@ fun SlidingPuzzleScreen(
         // One new haptic, not a ladder: SUCCESS's own distinct, warmer-feeling pattern (see
         // Haptics.kt's KDoc) -- there's no variable "impact force" analog in this game the way
         // Air Hockey has real collision speed to map to, so this stays a single fixed signal.
-        haptics(HapticSignal.SUCCESS)
+        sequencer(SlidingPuzzleHapticCues.forSolve())
         if (enhanced) {
             boardPulseScale.snapTo(1f)
             boardPulseScale.animateTo(1.03f, tween(120))
@@ -500,14 +500,13 @@ fun SlidingPuzzleScreen(
                                                     val movesBefore = s.moveCount
                                                     game.tapTile(index)
                                                     // tapTile no-ops for a tap on a tile that isn't adjacent
-                                                    // to the blank, so only fire feedback for an actual slide.
-                                                    if (game.state.value?.moveCount != movesBefore) {
-                                                        sounds.playTap()
-                                                        // The ordinary "a tile placed" bucket -- there's no
-                                                        // variable impact-force analog here to scale off of,
-                                                        // so every slide uses the same single signal.
-                                                        haptics(HapticSignal.NORMAL_ACTION)
-                                                    }
+                                                    // to the blank: that is the weak "blocked" tick, a real
+                                                    // slide is NORMAL_ACTION (the solving slide hands over to
+                                                    // the CELEBRATION cue instead).
+                                                    val after = game.state.value
+                                                    val moved = after?.moveCount != movesBefore
+                                                    if (moved) sounds.playTap()
+                                                    sequencer(SlidingPuzzleHapticCues.forTap(moved, after?.solved == true))
                                                 }
                                             )
                                         }

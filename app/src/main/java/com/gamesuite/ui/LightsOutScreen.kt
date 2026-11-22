@@ -60,8 +60,8 @@ import com.gamesuite.games.lightsout.LightsOutGame
 import com.gamesuite.games.lightsout.LightsOutRecord
 import com.gamesuite.games.lightsout.LightsOutState
 import com.gamesuite.games.lightsout.LightsOutStatsStore
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.LightsOutHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.CpuDifficulty
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.LocalReducedMotion
@@ -156,7 +156,7 @@ fun LightsOutScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
+    val sequencer = rememberHapticSequencer()
     val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.LIGHTS_OUT, enabled = musicEnabled)
@@ -215,7 +215,7 @@ fun LightsOutScreen(
     LaunchedEffect(s.won) {
         if (!s.won || resumedAsSolved) return@LaunchedEffect
         // A solve is always the human's (this game has no opponent), so the celebration is unconditional.
-        haptics(HapticSignal.CELEBRATION)
+        sequencer(LightsOutHapticCues.forSolve())
         playSfx(SfxKind.SUCCESS_CHIME)
         // An assisted solve (any hint taken on this board) counts as solved but sets no record.
         if (reportedResult == null && game.hintsUsed.value == 0) {
@@ -244,7 +244,8 @@ fun LightsOutScreen(
         if (live != null && !live.isOver && !game.matchOver.value) {
             game.press(index)
             sounds.playTap()
-            haptics(HapticSignal.NORMAL_ACTION)
+            // A toggle is a LIGHT_TICK; the tap that clears the last light is left to the solve cue.
+            sequencer(LightsOutHapticCues.forTap(solvedByThisTap = game.state.value?.won == true))
         }
     }
     val startNewBoard: () -> Unit = {
