@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Bot Bastion (hubKey names); shared texts such as Play already exist elsewhere -->
+    <string name="hub_bot_bastion">Bot Bastión</string>
+    <string name="hub_build_bots_and_defend_the_core">Construye bots y defiende el Núcleo.</string>
+    <string name="hub_defend_the_core_friends_can_fly_pilot_ships">Defiende el Núcleo. Los amigos pueden pilotar naves.</string>
+    <string name="hub_skill_level">Nivel de dificultad</string>
+    <string name="hub_cadet_is_gentle_endless_never_stops">Cadete es suave; Sin fin no se detiene.</string>
+    <string name="hub_cadet">Cadete</string>
+    <string name="hub_softer_ships_and_extra_scrap">Naves más blandas y chatarra extra.</string>
+    <string name="hub_captain">Capitán</string>
+    <string name="hub_the_standard_challenge">El desafío normal.</string>
+    <string name="hub_galactic_hero">Héroe Galáctico</string>
+    <string name="hub_tough_waves_and_swarm_attacks">Oleadas duras y ataques en enjambre.</string>
+    <string name="hub_insanity">Locura</string>
+    <string name="hub_for_experts_fast_strong_and_pricey">Para expertos: rápido, fuerte y caro.</string>
+    <string name="hub_endless">Sin fin</string>
+    <string name="hub_hold_on_as_long_as_you_can">Resiste todo lo que puedas.</string>
+    <string name="hub_crew_size">Tamaño de la tripulación</string>
+    <string name="hub_people_sharing_this_device">Personas que comparten este dispositivo.</string>
+</resources>
