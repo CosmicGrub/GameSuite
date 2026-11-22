@@ -110,7 +110,9 @@ import com.gamesuite.ui.TapRaceScreen
 import com.gamesuite.games.tugofwar.TugOfWarGame
 import com.gamesuite.ui.TugOfWarScreen
 import com.gamesuite.ui.profiles.profileRoutes
+import com.gamesuite.games.gemcascade.GemCascadeGame
 import com.gamesuite.games.slideclimb.SlideClimbGame
+import com.gamesuite.ui.GemCascadeScreen
 import com.gamesuite.ui.SlideClimbScreen
 import com.gamesuite.games.drawguess.DrawGuessGame
 import com.gamesuite.ui.DrawGuessScreen
@@ -1259,6 +1261,14 @@ class MainActivity : ComponentActivity() {
                         composable("reaction-duel") {
                             val g = rememberActiveModule(sessionManager, "reaction-duel") { ReactionDuelGame() }
                             ReactionDuelScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("gem-cascade") {
+                            val g = rememberActiveModule(sessionManager, "gem-cascade") { GemCascadeGame() }
+                            GemCascadeScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch)
+                        }
+                        composable("gem-cascade-daily") {
+                            val g = rememberActiveModule(sessionManager, "gem-cascade-daily") { GemCascadeGame() }
+                            GemCascadeScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, daily = true, onMatchEnded = finishMatch)
                         }
                         composable("chutes-race") {
                             val g = rememberActiveModule(sessionManager, "chutes-race") { SlideClimbGame() }
