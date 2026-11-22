@@ -791,7 +791,7 @@ class MainActivity : ComponentActivity() {
                                 game = wordSearchGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("word-search")
                             )
                         }
                         composable("crossword") {
@@ -915,7 +915,7 @@ class MainActivity : ComponentActivity() {
                                 game = slidingPuzzleGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("sliding-puzzle")
                             )
                         }
                         composable("minesweeper") {
@@ -936,7 +936,7 @@ class MainActivity : ComponentActivity() {
                                 game = minesweeperGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("minesweeper")
                             )
                         }
                         composable("sudoku") {
@@ -957,7 +957,7 @@ class MainActivity : ComponentActivity() {
                                 game = sudokuGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("sudoku")
                             )
                         }
                         composable("lights-out") {
@@ -978,7 +978,7 @@ class MainActivity : ComponentActivity() {
                                 game = lightsOutGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("lights-out")
                             )
                         }
                         composable("color-flood") {
@@ -999,7 +999,7 @@ class MainActivity : ComponentActivity() {
                                 game = colorFloodGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("color-flood")
                             )
                         }
                         composable("edge-match") {
@@ -1020,7 +1020,7 @@ class MainActivity : ComponentActivity() {
                                 game = edgeMatchGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("edge-match")
                             )
                         }
                         composable("nonogram") {
@@ -1041,7 +1041,7 @@ class MainActivity : ComponentActivity() {
                                 game = nonogramGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("nonogram")
                             )
                         }
                         composable("yahtzee") {
@@ -1242,7 +1242,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("six-ball-puzzle-daily") {
                             val g = rememberActiveModule(sessionManager, "six-ball-puzzle-daily") { SixBallGame() }
-                            SixBallScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch, dailyEpochDay = java.time.LocalDate.now().toEpochDay())
+                            SixBallScreen(sessionManager = sessionManager, game = g, settingsViewModel = settingsViewModel, onMatchEnded = finishMatch, dailyEpochDay = com.gamesuite.core.DailySeed.todayEpochDay())
                         }
                         composable("pig-dice") {
                             val g = rememberActiveModule(sessionManager, "pig-dice") { PigGame() }
@@ -1339,7 +1339,7 @@ class MainActivity : ComponentActivity() {
                                 game = kakuroGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("flow-lines")
                             )
                         }
                         composable("kenken") {
@@ -1360,7 +1360,7 @@ class MainActivity : ComponentActivity() {
                                 game = kenkenGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("kenken")
                             )
                         }
                         composable("mastermind") {
@@ -1381,7 +1381,7 @@ class MainActivity : ComponentActivity() {
                                 game = mastermindGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("mastermind")
                             )
                         }
                         composable("word-guess") {
@@ -1402,7 +1402,7 @@ class MainActivity : ComponentActivity() {
                                 game = wordGuessGame,
                                 settingsViewModel = settingsViewModel,
                                 onMatchEnded = finishMatch,
-                                dailySeed = java.time.LocalDate.now().toEpochDay()
+                                dailySeed = com.gamesuite.core.DailySeed.forToday("word-guess")
                             )
                         }
                         composable("tower-defence") {
