@@ -211,6 +211,7 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
                         val st = store.ensureInitialized()
                         if (st != null) {
                             ProfileScope.setActive(st.active.id)
+                            ProfileScope.setActiveKid(st.active.isKid)
                             profiles = st
                         } else {
                             unreadable = true

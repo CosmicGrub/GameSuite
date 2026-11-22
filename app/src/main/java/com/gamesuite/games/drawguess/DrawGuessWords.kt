@@ -341,23 +341,9 @@ bounce|rebotar|X|3
 
     // ---- kid safety -------------------------------------------------------------------------
 
-    /** Whole words that must never be in the bank (EN and ES): scary, violent, body parts, politics, brands. */
-    val bannedWords: Set<String> = setOf(
-        "gun", "knife", "sword", "bomb", "blood", "kill", "dead", "death", "ghost", "monster", "spider", "snake", "skull", "witch", "devil", "fight",
-        "war", "vote", "flag", "president", "party", "hand", "foot", "feet", "eye", "nose", "mouth", "ear", "arm", "leg", "tooth", "teeth", "hair",
-        "finger", "toe", "belly", "bottom", "head", "nike", "lego", "disney", "pepsi", "google", "ikea",
-        "pistola", "cuchillo", "espada", "bomba", "sangre", "matar", "muerte", "fantasma", "monstruo", "araña", "serpiente", "bruja", "diablo",
-        "guerra", "bandera", "voto", "presidente", "mano", "pie", "ojo", "nariz", "boca", "oreja", "brazo", "pierna", "diente", "pelo", "dedo",
-        "barriga", "cabeza", "fiesta",
-        // Adult or unkind themes and rude words (EN, then ES). Whole words only, so harmless words that merely contain them stay allowed.
-        "beer", "wine", "drug", "naked", "sex", "toilet", "poop", "butt", "bum", "breast", "grave", "coffin", "hell", "hate", "gamble", "casino",
-        "smoke", "shoot", "hang",
-        "arma", "droga", "cerveza", "vino", "desnudo", "culo", "caca", "tumba", "infierno", "odio", "apuesta", "humo", "disparar"
-    )
+    /** Whole words that must never be in the bank (EN and ES): scary, violent, body parts, politics, brands. Shared list: see WordSafety. */
+    val bannedWords: Set<String> get() = com.gamesuite.games.wordgames.WordSafety.familyBannedWords
 
     /** Fragments (6+ letters, so no accidental hits inside a harmless word) that must not appear anywhere. */
-    val bannedFragments: List<String> = listOf(
-        "weapon", "murder", "zombie", "terror", "skeleton", "religio", "politic", "election", "cigarette", "alcohol", "poison",
-        "asesin", "esqueleto", "religi", "politic", "elecci", "cigarr", "veneno", "cerveza", "desnud", "infiern", "disparar"
-    )
+    val bannedFragments: List<String> get() = com.gamesuite.games.wordgames.WordSafety.familyBannedFragments
 }
