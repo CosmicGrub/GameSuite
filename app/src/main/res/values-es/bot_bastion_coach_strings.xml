@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card and tips of Bot Bastion -->
+    <string name="coach_bot_bastion_s1">Naves rocosas llamadas Vagantes vuelan por los carriles brillantes hacia tu Núcleo. Si pasan suficientes, el Núcleo cae.</string>
+    <string name="coach_bot_bastion_s2">Toca un nodo vacío para construir un bot. El Piquete dispara en todas direcciones, el Mortero golpea grupos desde lejos, la Bruma llega muy lejos, el Cuidador frena y congela, y el Esquife patrulla el borde.</string>
+    <string name="coach_bot_bastion_s3">Toca un bot para mejorarlo hasta el nivel cinco, cambiar a quién apunta o venderlo recuperando casi toda la chatarra.</string>
+    <string name="coach_bot_bastion_s4">Égida añade un escudo al Núcleo. Los especiales caen cada pocas oleadas y de los Mensajeros: el Pulso Nova limpia la pantalla y el Kit de reparación cura el Núcleo.</string>
+    <string name="coach_bot_bastion_s5">Pausa cuando quieras y sigue construyendo. Cada décima oleada trae un jefe, así que guarda un especial. Hasta cuatro personas pueden jugar en un dispositivo.</string>
+    <string name="coach_bot_bastion_fact">Una estación espacial en órbita se mantiene arriba porque cae sin parar alrededor del planeta sin llegar a tocarlo.</string>
+    <string name="tip_bot_bastion_1">Pon un Cuidador cerca de la entrada y tus cañones cerca del Núcleo.</string>
+    <string name="tip_bot_bastion_2">Los Morteros limpian multitudes pero fallan a las naves pegadas a ellos.</string>
+    <string name="tip_bot_bastion_3">Guarda un Pulso Nova para la oleada del jefe.</string>
+</resources>

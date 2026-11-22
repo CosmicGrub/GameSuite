@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card and tips of Bot Bastion -->
+    <string name="coach_bot_bastion_s1">Rock-ships called Drifters fly along the glowing lanes toward your Core. If enough of them get through, the Core falls.</string>
+    <string name="coach_bot_bastion_s2">Tap an empty node to build a bot. Picket shoots all round, Lobber hits groups from far away, Haze reaches a long way, Tender slows and freezes, and Skiff patrols the edge.</string>
+    <string name="coach_bot_bastion_s3">Tap a bot to upgrade it up to level five, change who it aims at, or sell it for most of your Scrap back.</string>
+    <string name="coach_bot_bastion_s4">Aegis adds a shield to the Core. Specials drop every few waves and from Couriers: Nova Pulse clears the screen and Repair Kit heals the Core.</string>
+    <string name="coach_bot_bastion_s5">Pause whenever you like and keep building. Every tenth wave brings a boss, so save a Special for it. Up to four people can play on one device.</string>
+    <string name="coach_bot_bastion_fact">A space station that drifts in orbit stays up only because it keeps falling around the planet, never quite reaching it.</string>
+    <string name="tip_bot_bastion_1">Put a Tender near the entry and your guns near the Core.</string>
+    <string name="tip_bot_bastion_2">Lobbers clear crowds but miss ships right beside them.</string>
+    <string name="tip_bot_bastion_3">Keep a Nova Pulse for the boss wave.</string>
+</resources>
