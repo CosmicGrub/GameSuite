@@ -111,7 +111,7 @@ class DrawGuessAuditLeftoversTest {
         assertTrue(g.hasLiveMatch)
         g.chooseWord(0)
         assertTrue(g.hasLiveMatch)
-        g.endMatch(GameResult(emptyList()))
+        g.endMatch(GameResult())
         assertFalse("a match that was left is not live", g.hasLiveMatch)
     }
 

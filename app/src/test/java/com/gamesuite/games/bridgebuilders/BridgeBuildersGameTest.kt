@@ -159,7 +159,7 @@ class BridgeBuildersGameTest {
         r.game.resume()
         r.game.tick()
         assertEquals(w, r.game.state.value!!.water, 0.0005f)
-        r.rig.adv(1000)
+        r.rig.adv(4000) // 3 s resume countdown, then building again
         r.game.tick()
         assertTrue(r.game.state.value!!.water > w)
         assertFalse(r.game.state.value!!.over)

@@ -142,7 +142,8 @@ class BridgeEngineTest {
         val frozen = r.s.lanes[0].marker
         assertEquals(BridgeTapResult.WAITING, r.e.tap(0))
         r.adv(500)
-        assertEquals(frozen, r.s.lanes[0].marker, 1e-6f) // the cart waits
+        // the cart keeps sliding while it waits (it only cannot be tapped), so no frozen free perfect plank
+        assertTrue(kotlin.math.abs(frozen - r.s.lanes[0].marker) > 1e-4f)
         assertEquals(2, r.s.lanes[0].lead)
         // one friend moving is not enough: lane 2 is still at zero
         r.place(1)
@@ -341,7 +342,7 @@ class BridgeEngineTest {
         r.e.tick()
         assertEquals(w, r.s.water, 0.0005f)
         assertEquals(m, r.s.lanes[0].marker, 0.02f)
-        assertEquals("BUILD", r.s.phase)
+        assertEquals("COUNTDOWN", r.s.phase) // a long pause is followed by a 3-2-1, nothing moves in it
     }
 
     @Test fun aHugeClockJumpIsCappedAtOneSecondOfSimulation() {
@@ -497,6 +498,8 @@ class BridgeEngineTest {
         assertEquals(BridgeTapResult.NOT_BUILDING, r.e.tap(0))
         r.e.resume()
         r.adv(1000)
+        assertEquals(w, r.s.water, 0f) // the resume 3-2-1 keeps everything still
+        r.adv(4000)
         assertTrue(r.s.water > w)
     }
 

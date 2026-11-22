@@ -72,6 +72,7 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.slideclimb.SlideClimbEvent
 import com.gamesuite.games.slideclimb.SlideClimbGame
 import com.gamesuite.games.slideclimb.SlideClimbReject
+import com.gamesuite.games.slideclimb.slideClimbSameTable
 import com.gamesuite.games.slideclimb.SlideClimbRules
 import com.gamesuite.games.slideclimb.SlideClimbState
 import com.gamesuite.games.slideclimb.slideClimbHandicapFromExtras
