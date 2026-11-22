@@ -367,15 +367,7 @@ fun AirHockeyScreen(
             onMatchEnded()
         },
         leaveTitle = "Leave this match?",
-        leaveBody = "This match is still in progress. Leaving now won't count it as a win or a loss.",
-        // The menu's content is composed only while it is open, so this effect pauses the puck
-        // exactly for as long as the menu is showing.
-        extraItems = { _ ->
-            DisposableEffect(Unit) {
-                game.pause()
-                onDispose { game.resume() }
-            }
-        }
+        leaveBody = "This match is still in progress. Leaving now won't count it as a win or a loss."
     ) {
     AdaptiveTwoPane(
         foldState = LocalFoldState.current,

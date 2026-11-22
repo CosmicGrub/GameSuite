@@ -433,6 +433,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // GameChrome pauses the active game while any of its overlays (menu, help, leave dialog) is open.
+                    val overlayPauseHost = remember {
+                        com.gamesuite.uikit.OverlayPauseHost(
+                            pause = { sessionManager.currentModule?.pause() },
+                            resume = { sessionManager.currentModule?.resume() },
+                            isPaused = { (sessionManager.currentModule as? com.gamesuite.core.PausableGame)?.isPaused == true }
+                        )
+                    }
+
                     // Computer Arena: starts a series (setup screen, deep link or Run again) on its game route.
                     val startArena: (com.gamesuite.arena.ArenaConfig, com.gamesuite.arena.ArenaSpeed) -> Unit = { cfg, speed ->
                         com.gamesuite.arena.ArenaHost.start(sessionManager, cfg, speed) { route ->
@@ -452,6 +461,7 @@ class MainActivity : ComponentActivity() {
 
                     CompositionLocalProvider(
                         LocalProgressSaver provides progressSaver,
+                        com.gamesuite.uikit.LocalOverlayPauseHost provides overlayPauseHost,
                         com.gamesuite.ui.profiles.LocalVisibleSpecs provides profileAccess.visibleSpecs,
                         LocalChangeSetup provides { changeSetupRequested = true },
                         LocalFoldState provides foldState,
