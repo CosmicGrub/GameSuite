@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Gem Cascade -->
+    <string name="coach_gem_cascade_s1">Cambia dos gemas vecinas, o toca una y luego la otra, para alinear tres o más del mismo tipo. Las gemas combinadas desaparecen y caen otras nuevas.</string>
+    <string name="coach_gem_cascade_s2">Combina cuatro para crear una Llamarada que limpia una línea, cinco para un Prisma que limpia un color, y una L o una T para un Estallido que limpia un bloque a su alrededor.</string>
+    <string name="coach_gem_cascade_s3">Las cadenas son el secreto. Cuando gemas nuevas forman una combinación al caer, cada eslabón de la cadena puntúa más que el anterior.</string>
+    <string name="coach_gem_cascade_s4">Elige un tipo de juego en el Hub: Clásico, Zen, Relámpago, Misión, Giro, Mina, Mariposas o Cuenta atrás. Los niveles de misión tienen objetivos y obstáculos como hielo, jaulas, piedras y bombas.</string>
+    <string name="coach_gem_cascade_s5">¿Atascado? Toca Pista. Los potenciadores son gratis pero limitados en cada partida. El modo de un pulsador recorre el tablero por ti para jugar con un solo botón.</string>
+    <string name="coach_gem_cascade_fact">La palabra gema viene del latín gemma, que significaba a la vez joya y yema de una planta.</string>
+</resources>

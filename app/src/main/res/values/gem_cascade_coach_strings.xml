@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Gem Cascade -->
+    <string name="coach_gem_cascade_s1">Swap two neighbouring gems, or tap one and then the next, so three or more of the same kind line up. Matched gems vanish and new ones drop in.</string>
+    <string name="coach_gem_cascade_s2">Match four to make a Flare that clears a line, five for a Prism that clears one colour, and an L or T shape for a Burst that clears a block around it.</string>
+    <string name="coach_gem_cascade_s3">Chains are the secret. When new gems fall into a match by themselves, every link in the chain scores more than the last.</string>
+    <string name="coach_gem_cascade_s4">Pick a game type in the Hub: Classic, Zen, Lightning, Quest, Twist, Mine, Butterflies or Countdown. Quest levels have goals and obstacles such as ice, cages, stones and bombs.</string>
+    <string name="coach_gem_cascade_s5">Stuck? Tap Hint. Boosters are free but limited in each game. One-switch mode scans the board for you so a single button can play.</string>
+    <string name="coach_gem_cascade_fact">The word gem comes from the Latin gemma, which meant both a jewel and a bud on a plant.</string>
+</resources>
