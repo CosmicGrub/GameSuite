@@ -1,5 +1,7 @@
 package com.gamesuite.ui
 
+import com.gamesuite.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -671,7 +673,7 @@ private fun NonogramControls(
             modifier = Modifier.heightIn(min = 48.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-        ) { Text("Undo") }
+        ) { Text(stringResource(R.string.gc_undo)) }
         OutlinedButton(
             onClick = onHint,
             enabled = canHint,
@@ -686,7 +688,7 @@ private fun NonogramControls(
                 },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-        ) { Text("Hint") }
+        ) { Text(stringResource(R.string.gc_hint)) }
     }
     // Four controls do not fit one line at 312dp: Undo and Hint drop to their own line there, so
     // neither is scrolled out of sight.
@@ -847,7 +849,7 @@ private fun NonogramConfirmDialog(
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep Playing") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.gc_keep_playing)) } }
     )
 }
 
@@ -1498,7 +1500,7 @@ private fun NonogramResultPanel(
             }
             if (isNewBest) {
                 Spacer(Modifier.height(4.dp))
-                Text("New best time!", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.plat_new_best_time), fontWeight = FontWeight.Bold)
             } else if (bestTimeMillis != null) {
                 Spacer(Modifier.height(4.dp))
                 Text("Best: ${nonogramFormatClock(bestTimeMillis)}", style = MaterialTheme.typography.bodyMedium)
@@ -1516,7 +1518,7 @@ private fun NonogramResultPanel(
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Back to Menu", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.gc_back_to_menu), textAlign = TextAlign.Center) }
             }
             Spacer(Modifier.height(8.dp))
             ChangeSetupButton(
