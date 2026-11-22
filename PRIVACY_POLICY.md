@@ -1,6 +1,6 @@
 # GameSuite Privacy Policy
 
-*Last updated: November 2026*
+*Last updated: November 2026 (draft for the profiles and family-mode release; review before publishing)*
 
 GameSuite is an Android game collection. This policy describes what the app
 does with data, written to match the code in this repository rather than a
@@ -12,16 +12,37 @@ legal compliance with any particular law or store programme.
 All of the following lives in the app's private storage on your device, via
 Android's DataStore and similar local storage:
 
-- **Club profile**: the display name you choose, your avatar (a short
-  identifier string for a built-in avatar), your favourite game and which
-  in-app hints you have already seen.
+- **Profiles**: GameSuite supports several profiles on one device (adult and
+  child). For each profile it stores a display name you choose (1 to 16
+  characters), a built-in avatar (a short identifier string, not a photo), the
+  profile type (adult or child) and, for a child profile, an **age band** (4 to
+  6, 7 to 9 or 10 to 12), not a date of birth or exact age. Each profile also
+  has its own favourite game, hints already seen, settings, stats and saved
+  games.
+- **Parent controls**: a switch for online play, and for each child profile a
+  daily play limit, optional quiet hours and the list of games hidden from that
+  child. The **parent PIN**, if you set one, is stored only as a salted hash
+  (PBKDF2 with SHA-256 and a random salt), never as the PIN itself. The PIN and
+  its hash never leave the device. Other ways of unlocking the parent area use
+  your phone's own screen lock through Android's system prompt (GameSuite never
+  sees your fingerprint, face or lock-screen secret) or a simple arithmetic
+  question; neither stores anything beyond the choice of method.
+- **Play-time data**: for each child profile, how long the app was in the
+  foreground each day for the last 14 days, used to enforce the daily limit and
+  to show the weekly bars in the parent dashboard. It also stores clock
+  reference values (a monotonic clock reading and boot counter) so the limit
+  cannot be reset by changing the device clock. All of this stays on the device.
 - **Settings**: theme, sound and music, haptics, text size, accessibility
   toggles, default CPU difficulty, card size, the online relay address you
   typed (if any) and the folder you picked for your own music (stored as an
   Android folder-access URI; the app reads audio from it on your device only).
 - **Game stats and progress**: matches played, wins, losses, draws, streaks,
   achievements and per-game personal bests, saved games, and per-game
-  preferences.
+  preferences, kept separately for each profile.
+
+**Computer Arena** (games between computer players that you watch or set up)
+records nothing: no results, no history and no per-profile stats are stored from
+it.
 
 None of this is uploaded to a GameSuite server, and there is no account or
 cross-device sync. It is not encrypted by the app beyond Android's normal
@@ -34,7 +55,7 @@ transfer.
 - In Settings, the reset option restores every setting to its default.
 - Android Settings, Apps, GameSuite, Storage, then **Clear storage** (or
   uninstalling the app) deletes everything the app stores locally, including
-  the Club profile and all stats.
+  all profiles, the parent PIN hash, play-time data and all stats.
 - Data held only for the duration of an online room (see below) disappears
   when the room ends or the relay restarts; there is nothing stored for you on
   the relay to delete afterwards.
@@ -73,7 +94,8 @@ transfer.
    device broadcasts a neutral label ("GameSuite host" plus a short random
    code), not your name, and accepts connections only while its lobby is open
    and a seat is free. Once guests are in the lobby, the display names players
-   choose are shared among the people in that match.
+   choose are shared among the people in that match. Nearby and Online modes
+   are not offered to child profiles.
 3. **Online multiplayer** connects over WebSocket to a relay server
    (`server/index.js`, see [server/README.md](server/README.md)). The relay is
    open-source code that whoever sets it up runs; the app has no built-in
@@ -115,11 +137,20 @@ same Nearby or online match and to spectators of an online room.
 
 ## Children
 
-GameSuite has no accounts, ads or analytics and no free-text chat. It does not
-currently include a parental gate or a setting that turns off Online and
-Nearby play. Online play stays disabled until a relay address is entered in
-Settings, and a parent or guardian who does not want a child to play with
-strangers should not configure one.
+GameSuite has no accounts, ads, analytics or free-text chat, and it collects no
+personal information from anyone, including children. Everything about a child
+profile (name, avatar, age band, play time, stats) stays on the device. Child
+profiles never see Nearby or Online modes, and games with simulated-gambling
+themes (Blackjack, Texas Hold'em, Hanafuda, Slot Cars, Pig Dice) are hidden from
+them. A parent area, unlocked by a PIN, the phone's own screen lock or an
+arithmetic question, controls the daily limit, quiet hours, hidden games and the
+online-play switch. The online-play switch also removes Online and Nearby for
+adult profiles on the device when turned off. Online play stays disabled until
+a relay address is entered in Settings.
+
+The only information that can leave the device is what an **adult** profile
+sends to an online room when that adult chooses online play: the display name
+and avatar identifier described above.
 
 ## Changes to this policy
 
