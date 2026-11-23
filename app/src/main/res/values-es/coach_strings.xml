@@ -131,10 +131,10 @@
     <string name="coach_breakout_s3">Atrapa las mejoras que caen para obtener ayuda y no dejes que la bola pase de la pala.</string>
     <string name="coach_breakout_s4">Rompe todos los ladrillos para completar el nivel.</string>
     <string name="coach_breakout_fact">Atari lanzó Breakout en 1976 como un primo para un jugador del Pong. Inspiró muchos juegos posteriores de romper ladrillos.</string>
-    <string name="coach_tower_defence_s1">Los enemigos avanzan por un camino en oleadas. No dejes que lleguen a la salida.</string>
-    <string name="coach_tower_defence_s2">Gasta tus monedas en construir torres junto al camino.</string>
-    <string name="coach_tower_defence_s3">Cada torre tiene distinto alcance, velocidad y daño, así que combínalas.</string>
-    <string name="coach_tower_defence_s4">Derrotar enemigos te da más monedas. Sobrevive a todas las oleadas para ganar.</string>
+    <string name="coach_tower_defence_s1">Los enemigos atacan desde la izquierda y marchan hacia tu castillo a la derecha. No dejes que lleguen a la puerta.</string>
+    <string name="coach_tower_defence_s2">Gasta oro en torres. Construye donde quieras, mientras los enemigos tengan un camino hasta la puerta.</string>
+    <string name="coach_tower_defence_s3">Disparo es rápido, Explosión daña en área en tierra, Control ralentiza y Apoyo mejora. En el nivel 3 elige un camino.</string>
+    <string name="coach_tower_defence_s4">Toca una torre para mejorarla, venderla, moverla o cambiar su objetivo. Sobrevive a todas las oleadas para ganar.</string>
     <string name="coach_tower_defence_fact">Los juegos de defensa de torres se hicieron muy populares a finales de los años 2000, en parte por los mapas creados por aficionados para Warcraft III y por los juegos de navegador y de móvil. Su idea central es la colocación: dónde está una torre importa tanto como qué torre es.</string>
     <string name="coach_air_hockey_s1">Arrastra tu mazo para golpear el disco por la mesa.</string>
     <string name="coach_air_hockey_s2">Intenta meter el disco en la portería de tu rival, en el otro extremo.</string>

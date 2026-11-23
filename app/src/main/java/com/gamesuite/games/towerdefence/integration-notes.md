@@ -79,3 +79,42 @@ else shared was touched (GameCatalog, GameTheme, MainActivity, GameTips, GameCoa
 - No device run: touch handling, gestures, TalkBack behaviour, rendering quality and frame times are unverified on hardware.
 - Balance numbers are the board defaults. A scripted greedy player wins all three maps on Medium in the JVM simulation
   (`aSensiblePlayerSurvivesTheCampaignOnMedium`) and doing nothing loses; that is a smoke check, not playtesting.
+
+## Follow-up pass (branch session/ws-td2) - done vs open
+
+Done (engine and logic are JVM tested; UI is compile-checked only, nothing was run on a device):
+
+1. Tips and coach copy now describe Castle Siege. Shared files touched, tower-defence entries only: `ui/GameTips.kt`
+   (3 tips), `res/values{,-es}/polish_strings.xml` (`tip_tower_defence_1..3`), `res/values{,-es}/coach_strings.xml`
+   (`coach_tower_defence_s1..s4`). `GameTipsTest` literal equality holds.
+2. Resume: `TowerDefenceGame` is a `ResumableGame` (`snapshot()` / `restore()`); hub spec `resumable = true`; the screen calls
+   `sessionManager.tryResume(game)` before `startMatch()`. Between waves it saves the build phase; while a wave runs it saves
+   the checkpoint taken when that wave began (a resume replays the wave from its start with the towers and gold it began
+   with). Classic maps, finished runs and non-single-player launches save nothing. `TdSnapshot` validation also checks mode
+   and Daily day (Daily saves are bound to that day's map and Medium tier).
+3. Snap off: "Free placement" switch in the setup dialog (`freePlacement`, per screen, saved across rotation only).
+4. Drag a tower card from the tray onto the field (ghost lifted 56dp above the finger, release builds if valid, release
+   outside the board cancels). Pure mapping in `TdBoardMath.anchorForDrag`.
+5. Burn is now a ground fire patch (`TdFirePatch`, `TdFire`): Blast branch B shells leave an area DoT (8/s, ground units only,
+   patches never stack, merge within half a tile, at most 24). The per-enemy burn timer is gone.
+6. Keyboard / D-pad: the board is focusable; arrows move a cursor (a tile when snapped, a cell when free), Enter/Space/DPAD
+   centre builds (twice: ghost, then commit) or selects; 1-4 pick a tower, U upgrade (I = branch B), S sell, M move, T target,
+   P pause, N next wave, Esc cancel. Menus use normal focus traversal. The board takes initial focus only when a hardware
+   keyboard or D-pad is reported.
+7. Layouts (`TdLayoutMath`, tested): SPLIT_LANDSCAPE (board beside a control column), PHONE_PORTRAIT (zoomed 1.7x map, castle
+   side shown first, a pinned castle chip when the castle is off screen, a minimap to move the view; the map does NOT scroll
+   by touch, to keep drag-to-place unambiguous), STACKED (the old layout) for everything else.
+8. Themes: Roman Frontier and Cherry Ridge (skins only; Cherry adds a falling-petal ambient). Names are in
+   `tower_defence_more_strings.xml`.
+9. Modes (hub option `mode`): Endless (waves past 10 repeat, bigger; ends only when the castle falls; score = wave reached,
+   key `<map>:ENDLESS`) and Daily siege (`DailySeed` UTC day picks map, theme and one twist: more enemies, tougher, faster or
+   less starting gold; fixed Medium tier; score = wave*100 + castle left, key `daily-<day>:DAILY`, keys older than 30 days
+   are pruned). Local bests only.
+10. Calm / Standard ambient only; Lively is not built.
+
+Still open / not verified:
+- No device run: drag, focus, scrolling, minimap and key handling are untested on hardware; Fold posture layouts beyond the
+  three window-shape rules above are not tuned (book posture untested).
+- Mid-wave leave resumes at the wave start, not mid-wave (by design, see 2).
+- Daily has no leaderboard or share; Sandbox, Co-op, Toy Room mode, Sunstone Oasis, Frostfjord, Coral Reef still documented only.
+- The portrait map has no auto-scroll while dragging a ghost near an edge; use the minimap.

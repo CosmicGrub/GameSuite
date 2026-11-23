@@ -21,8 +21,8 @@ class TdUiLogicTest {
     // ---- themes ---------------------------------------------------------------------------------
 
     @Test
-    fun firstReleaseShipsThreeSkinsAndEveryRoleAndEnemyHasAName() {
-        assertEquals(listOf(TdThemeId.CASTLE, TdThemeId.SPACE, TdThemeId.TOY), TdSkins.ALL.map { it.id })
+    fun fiveSkinsShipAndEveryRoleAndEnemyHasAName() {
+        assertEquals(listOf(TdThemeId.CASTLE, TdThemeId.SPACE, TdThemeId.TOY, TdThemeId.ROMAN, TdThemeId.CHERRY), TdSkins.ALL.map { it.id })
         for (s in TdSkins.ALL) {
             for (r in TdRole.entries) { assertTrue(s.towerNames.getValue(r) != 0); assertNotNull(s.roleColor[r]) }
             for (k in TdEnemyKind.entries) { assertTrue(s.enemyNames.getValue(k) != 0); assertNotNull(s.enemyColor[k]) }
@@ -30,6 +30,10 @@ class TdUiLogicTest {
         assertEquals(TdThemeId.CASTLE, TdThemeId.fromKey(null))
         assertEquals(TdThemeId.CASTLE, TdThemeId.fromKey("nonsense"))
         assertEquals(TdThemeId.TOY, TdThemeId.fromKey("toy"))
+        assertEquals(TdThemeId.ROMAN, TdThemeId.fromKey("roman"))
+        assertEquals(TdThemeId.CHERRY, TdThemeId.fromKey("cherry"))
+        assertEquals(TdSkins.ALL.size, TdSkins.ALL.map { it.id.key }.toSet().size)
+        for (id in TdThemeId.entries) assertEquals(id, TdSkins.of(id).id)
     }
 
     @Test
@@ -178,7 +182,7 @@ class TdUiLogicTest {
 
     @Test
     fun everyTowerDefenceStringExistsInSpanishWithTheSamePlaceholders() {
-        for (file in listOf("tower_defence_strings.xml", "tower_defence_hub_strings.xml")) {
+        for (file in listOf("tower_defence_strings.xml", "tower_defence_hub_strings.xml", "tower_defence_more_strings.xml")) {
             val en = parse("res/values/$file")
             val es = parse("res/values-es/$file")
             assertTrue(en.isNotEmpty())
@@ -196,6 +200,33 @@ class TdUiLogicTest {
         for (dir in listOf("values", "values-es")) {
             val m = parse("res/$dir/tower_defence_strings.xml")
             for (k in listOf("td_tip_1", "td_tip_2", "td_tip_3", "td_help_text", "td_theme_castle", "td_theme_space", "td_theme_toy")) assertTrue("$dir $k", m.containsKey(k))
+        }
+    }
+
+    @Test
+    fun petalAmbientForCherryRidgeIsBoundedAndHasPetals() {
+        val plan = TdAmbient.plan(TdAmbientKind.PETALS, TdMotion.STANDARD)
+        assertTrue(plan.any { it.type == TdAmbientType.PETAL })
+        assertTrue(plan.size <= TdAmbient.MAX_ELEMENTS)
+        assertEquals(TdAmbientKind.PETALS, TdSkins.CHERRY.ambient)
+        assertEquals(TdAmbientKind.MEADOW, TdSkins.ROMAN.ambient)
+    }
+
+    @Test
+    fun newThemesUseDistinctPalettesAndAreNotKidFirst() {
+        assertEquals(TdSkins.ALL.size, TdSkins.ALL.map { it.panel }.toSet().size)
+        assertFalse(TdSkins.ROMAN.kidFirst)
+        assertFalse(TdSkins.CHERRY.kidFirst)
+    }
+
+    @Test
+    fun tipsAndCoachCopyDescribeCastleSiege() {
+        for (dir in listOf("values", "values-es")) {
+            val coach = parse("res/$dir/coach_strings.xml")
+            for (k in listOf("coach_tower_defence_s1", "coach_tower_defence_s2", "coach_tower_defence_s3", "coach_tower_defence_s4")) {
+                assertFalse("$dir $k still describes a path", coach.getValue(k).contains("camino por el") || coach.getValue(k).contains("along a path"))
+            }
+            assertTrue(parse("res/$dir/polish_strings.xml").containsKey("tip_tower_defence_3"))
         }
     }
 }

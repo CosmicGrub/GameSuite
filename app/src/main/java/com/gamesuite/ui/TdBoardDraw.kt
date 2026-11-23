@@ -47,7 +47,9 @@ internal class TdBoardCtx(
     val scan: State<TdScan?>,
     val particles: State<List<BurstParticle>>,
     val routeCache: TdRouteCache,
-    val kidFirst: Boolean
+    val kidFirst: Boolean,
+    /** Keyboard / D-pad placement cursor (anchor cell); null unless the board has input focus. */
+    val cursor: State<Pair<Int, Int>?>? = null
 )
 
 private fun towerSignature(s: TowerDefenceGame.TowerDefenceState): Int {
@@ -121,11 +123,27 @@ internal fun DrawScope.drawOpenBoard(c: TdBoardCtx) {
             }
         }
 
+        // Ground fire left by burning shells: a ring plus a flame mark, so it reads by shape as well as colour.
+        for (fp in s.firePatches) {
+            val p = Offset(fp.pos.x * unit, fp.pos.y * unit)
+            val r = fp.radius * unit
+            val fade = (fp.remaining / 1.5f).coerceIn(0.35f, 1f)
+            val flick = if (c.motion == TdMotion.OFF) 1f else 0.85f + 0.15f * kotlin.math.sin(t * 9f + fp.id)
+            drawCircle(Color(0xFFFF8A2B).copy(alpha = 0.28f * fade), r, p)
+            drawCircle(Color(0xFFFF8A2B).copy(alpha = 0.8f * fade), r, p, style = Stroke(width = 2f, pathEffect = DASH))
+            val flame = androidx.compose.ui.graphics.Path().apply {
+                moveTo(p.x, p.y - r * 0.5f * flick); lineTo(p.x + r * 0.22f, p.y + r * 0.2f); lineTo(p.x - r * 0.22f, p.y + r * 0.2f); close()
+            }
+            drawPath(flame, Color(0xFFFFD166).copy(alpha = 0.9f * fade))
+        }
+
         // Enemies, far ones first so near ones overlap them.
         for (e in s.enemies.sortedBy { it.pos.y }) {
             val p = Offset(e.pos.x * unit, e.pos.y * unit)
             drawEnemyShape(c.skin, e.kind, p, unit, c.colorblind, if (c.motion == TdMotion.OFF) 0f else t, c.motion)
-            drawStatus(p, unit, e.slowRemaining > 0f, e.stunRemaining > 0f, e.burnRemaining > 0f)
+            val onFire = s.firePatches.isNotEmpty() && e.kind != TdEnemyKind.FLYER &&
+                s.firePatches.any { fp -> val dx = fp.pos.x - e.pos.x; val dy = fp.pos.y - e.pos.y; dx * dx + dy * dy <= fp.radius * fp.radius }
+            drawStatus(p, unit, e.slowRemaining > 0f, e.stunRemaining > 0f, onFire)
             val frac = (e.hp / e.maxHp).coerceIn(0f, 1f)
             if (frac < 1f || e.kind == TdEnemyKind.BOSS) {
                 val above = if (e.kind == TdEnemyKind.BOSS) 0.95f else 0.55f
@@ -156,6 +174,15 @@ internal fun DrawScope.drawOpenBoard(c: TdBoardCtx) {
             drawRangeRing(p, (if (ghost.role == TdRole.SUPPORT) st.auraRange else st.range) * unit, false, c.skin.accent)
             drawTowerShape(c.skin, ghost.role, 1, TdBranch.NONE, p, unit, c.colorblind, alpha = 0.7f)
             drawPlacementMark(p, unit, ghost.valid)
+        }
+
+        // Keyboard / D-pad cursor: a bold square over the 2 x 2 footprint, with corner ticks (shape, not hue).
+        val cur = c.cursor?.value
+        if (cur != null) {
+            val cell = size.width / TdGrid.COLS
+            val tl = Offset(cur.first * cell, cur.second * cell)
+            drawRect(Color.White, tl, Size(cell * 2f, cell * 2f), style = Stroke(width = 4f))
+            drawRect(Color(0xFF14121C), tl, Size(cell * 2f, cell * 2f), style = Stroke(width = 1.5f))
         }
 
         // One-switch scan band over the 14 x 8 grid.

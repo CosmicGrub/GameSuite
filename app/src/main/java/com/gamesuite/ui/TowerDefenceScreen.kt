@@ -12,6 +12,32 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
+import android.content.res.Configuration
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntSize
+import com.gamesuite.core.DailySeed
+import com.gamesuite.games.towerdefence.TdDaily
+import com.gamesuite.games.towerdefence.TdLayoutKind
+import com.gamesuite.games.towerdefence.TdLayoutMath
+import com.gamesuite.games.towerdefence.TdMode
+import com.gamesuite.games.towerdefence.TdModifier
+import com.gamesuite.games.towerdefence.TdStatsKeys
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -150,6 +176,7 @@ fun TowerDefenceScreen(
     val particleBurst = rememberParticleBurst()
     val density = LocalDensity.current
     val shakeMagnitudePx = with(density) { 8.dp.toPx() }
+    val dragOffsetPx = with(density) { 56.dp.toPx() }
     val extras = sessionManager.launchOptions.extras
     val launchDifficulty = sessionManager.launchOptions.cpuDifficulty
 
@@ -159,6 +186,9 @@ fun TowerDefenceScreen(
     var showRoute by rememberSaveable { mutableStateOf(true) }
     var oneSwitch by rememberSaveable { mutableStateOf(false) }
     var showSetup by remember { mutableStateOf(false) }
+    // Snap off = free placement: the tower follows the pointer to the cell instead of to the tile.
+    var freePlacement by rememberSaveable { mutableStateOf(false) }
+    val snap = !freePlacement
     val motion = when {
         reducedMotion -> TdMotion.OFF
         !settings.enhancedAnimationsEnabled -> TdMotion.CALM
@@ -170,12 +200,18 @@ fun TowerDefenceScreen(
         game.difficulty = launchDifficulty ?: settings.defaultCpuDifficulty
         game.gentle = extras["gentle"] == "true"
         game.level = TowerDefenceGame.levelById(extras["map"] ?: "castle-pass") ?: TowerDefenceGame.OPEN_LEVELS.first()
+        game.mode = when (extras["mode"]) { "endless" -> TdMode.ENDLESS; "daily" -> TdMode.DAILY; else -> TdMode.CAMPAIGN }
+        game.themeCount = TdSkins.ALL.size
+        game.dailyDay = DailySeed.todayEpochDay()
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        game.startMatch()
+        // Hub Resume: put the saved build phase back; otherwise (or if the save fails validation) start fresh.
+        if (!sessionManager.tryResume(game)) game.startMatch()
+        // A Daily siege picks its own theme from the seed.
+        game.dailyPlan()?.let { themeKey = TdSkins.ALL[it.themeIndex.coerceIn(0, TdSkins.ALL.lastIndex)].id.key }
     }
 
     val matchOver by game.matchOver
@@ -196,6 +232,10 @@ fun TowerDefenceScreen(
     val levelId by derived { game.state.value.level.id }
     val difficulty by derived { game.state.value.difficulty }
     val gentle by derived { game.state.value.gentle }
+    val mode by derived { game.state.value.mode }
+    val endless = mode == TdMode.ENDLESS
+    val dailyDay by derived { game.state.value.dailyDay }
+    val dailyMod by derived { game.state.value.modifier }
     val waveInProgress by derived { game.state.value.waveInProgress }
     val countdown by derived { if (game.state.value.waveInProgress) 0 else Math.ceil(game.state.value.interWaveCooldown.toDouble()).toInt() }
     val enemyCount by derived { game.state.value.enemies.size }
@@ -205,7 +245,7 @@ fun TowerDefenceScreen(
     val nextIsBoss by derived { val s = game.state.value; TdWaves.hasBoss(if (s.waveInProgress) s.waveNumber + 1 else s.waveNumber) }
 
     val bestWaves by statsStore.bestWaves.collectAsState(initial = emptyMap())
-    val statKey = com.gamesuite.games.towerdefence.TdStatsKeys.key(levelId, difficulty, gentle)
+    val statKey = TdStatsKeys.keyFor(mode, levelId, difficulty, gentle, dailyDay)
     val bestWave = bestWaves[statKey]
     var recordedForRunSeq by remember { mutableStateOf(-1) }
     var reportedNewBest by remember(runSeq) { mutableStateOf(false) }
@@ -278,7 +318,9 @@ fun TowerDefenceScreen(
         if (runOver && recordedForRunSeq != runSeq) {
             recordedForRunSeq = runSeq
             val s = game.state.value
-            reportedNewBest = statsStore.recordWave(s.level.id, s.difficulty, s.waveNumber, s.gentle)
+            val key = TdStatsKeys.keyFor(s.mode, s.level.id, s.difficulty, s.gentle, s.dailyDay)
+            val value = if (s.mode == TdMode.DAILY) TdDaily.score(s.waveNumber, s.lives) else s.waveNumber
+            reportedNewBest = statsStore.recordBest(key, value)
             if (won) { haptics(HapticSignal.CELEBRATION); playSfx(SfxKind.SUCCESS_CHIME) } else haptics(HapticSignal.FAILURE)
         }
     }
@@ -408,6 +450,100 @@ fun TowerDefenceScreen(
     // Classic spot: the selected zone and what is built there.
     val zoneLevel by derived { val z = selectedZone; if (z == null) null else game.state.value.towers.firstOrNull { it.zoneIndex == z }?.upgradeLevel }
 
+    // ---- keyboard / D-pad -------------------------------------------------------------------------------------------
+    val boardFocus = remember { FocusRequester() }
+    var boardFocused by remember { mutableStateOf(false) }
+    var cursorPos by remember(runSeq) { mutableStateOf((TdGrid.COLS / 2) to (TdGrid.ROWS / 2)) }
+    val cursorDraw = remember { derivedStateOf { if (boardFocused) cursorPos else null } }
+    val hardwareKeys = remember {
+        val c = androidContext.resources.configuration
+        c.keyboard != Configuration.KEYBOARD_NOKEYS || c.navigation == Configuration.NAVIGATION_DPAD ||
+            c.navigation == Configuration.NAVIGATION_TRACKBALL || c.navigation == Configuration.NAVIGATION_WHEEL
+    }
+    LaunchedEffect(hardwareKeys, isOpen) { if (hardwareKeys && isOpen) runCatching { boardFocus.requestFocus() } }
+
+    fun toggleArm(role: TdRole) {
+        if (armed == role && !moving) { cancelPlacing(); return }
+        selectedId = null; moving = false; ghost = null; rejectText = null; armed = role
+        if (boardFocused) refreshGhost(cursorPos.first, cursorPos.second)
+    }
+
+    fun moveCursor(dx: Int, dy: Int) {
+        val n = TdBoardMath.moveAnchor(cursorPos.first, cursorPos.second, dx, dy, snap)
+        cursorPos = n
+        if (armed != null && !runOver) refreshGhost(n.first, n.second)
+        haptics(HapticSignal.LIGHT_TICK)
+    }
+
+    fun activateCursor() {
+        if (runOver || !isOpen) return
+        val (ax, ay) = cursorPos
+        if (armed != null) {
+            val g = ghost
+            if (g != null && g.cx == ax && g.cy == ay && g.valid) commitGhost() else refreshGhost(ax, ay)
+        } else {
+            val hit = game.state.value.towers.firstOrNull { kotlin.math.abs(it.cx - ax) <= 1 && kotlin.math.abs(it.cy - ay) <= 1 }?.id
+            selectTower(hit)
+        }
+    }
+
+    fun onBoardKey(e: KeyEvent): Boolean {
+        if (e.type != KeyEventType.KeyDown) return false
+        return when (e.key) {
+            Key.DirectionLeft -> { moveCursor(-1, 0); true }
+            Key.DirectionRight -> { moveCursor(1, 0); true }
+            Key.DirectionUp -> { moveCursor(0, -1); true }
+            Key.DirectionDown -> { moveCursor(0, 1); true }
+            Key.Enter, Key.NumPadEnter, Key.DirectionCenter, Key.Spacebar -> { activateCursor(); true }
+            else -> false
+        }
+    }
+
+    fun onGlobalKey(e: KeyEvent): Boolean {
+        if (e.type != KeyEventType.KeyDown || game.matchOver.value) return false
+        val sv = selectedView
+        return when (e.key) {
+            Key.One -> { if (isOpen && !runOver) toggleArm(TdRole.BOLT); true }
+            Key.Two -> { if (isOpen && !runOver) toggleArm(TdRole.BLAST); true }
+            Key.Three -> { if (isOpen && !runOver) toggleArm(TdRole.CONTROL); true }
+            Key.Four -> { if (isOpen && !runOver) toggleArm(TdRole.SUPPORT); true }
+            Key.Escape -> {
+                if (armed != null || ghost != null || selectedId != null) { selectTower(null); cancelPlacing(); true } else false
+            }
+            Key.U -> if (sv != null) { upgrade(sv.id, if (sv.needsBranch) TdBranch.A else TdBranch.NONE); true } else false
+            Key.I -> if (sv != null && sv.needsBranch) { upgrade(sv.id, TdBranch.B); true } else false
+            Key.S -> if (sv != null) { sell(sv.id); true } else false
+            Key.M -> if (sv != null) { startMove(); true } else false
+            Key.T -> if (sv != null) { cycleTarget(sv.id); true } else false
+            Key.P -> { game.togglePause(); true }
+            Key.N -> { game.callNextWave(); true }
+            else -> false
+        }
+    }
+
+    // Drag from a tray card: the finger arrives in root coordinates.
+    var viewRoot by remember { mutableStateOf(Offset.Zero) }
+    var viewSizePx by remember { mutableStateOf(IntSize.Zero) }
+    var contentRoot by remember { mutableStateOf(Offset.Zero) }
+    var contentSizePx by remember { mutableStateOf(IntSize.Zero) }
+    fun trayDrag(role: TdRole, root: Offset) {
+        if (armed != role || moving) { selectedId = null; moving = false; rejectText = null; armed = role }
+        val inView = root.x >= viewRoot.x && root.x <= viewRoot.x + viewSizePx.width && root.y >= viewRoot.y && root.y <= viewRoot.y + viewSizePx.height
+        val a = if (!inView) null else TdBoardMath.anchorForDrag(
+            root.x, root.y, contentRoot.x, contentRoot.y, contentSizePx.width.toFloat(), contentSizePx.height.toFloat(), dragOffsetPx, snap
+        )
+        if (a == null) {
+            ghost = null
+        } else {
+            val g = ghost
+            if (g == null || g.cx != a.first || g.cy != a.second) { refreshGhost(a.first, a.second); haptics(HapticSignal.LIGHT_TICK) }
+        }
+    }
+    fun trayDrop() {
+        val g = ghost ?: return
+        if (g.valid) commitGhost() else { feedback(false); rejectText = g.result; ghost = null }
+    }
+
     // ---- layout ------------------------------------------------------------------------------------------------------
     GameChrome(
         helpTitle = stringResource(R.string.td_help_title),
@@ -423,18 +559,20 @@ fun TowerDefenceScreen(
         extraItems = { _ -> LaunchedEffect(Unit) { autoPause() } }
     ) {
         val plan = remember(skin.ambient, motion) { TdAmbient.plan(skin.ambient, motion) }
-        Box(modifier = Modifier.fillMaxSize().background(skin.skyBottom).victoryGlow(trigger = won && !reducedMotion, tint = skin.accent)) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().background(skin.skyBottom).victoryGlow(trigger = won && !reducedMotion, tint = skin.accent)
+                .onKeyEvent { onGlobalKey(it) }
+        ) {
+            val kind = TdLayoutMath.kindFor(maxWidth.value, maxHeight.value).let { if (!isOpen && it == TdLayoutKind.PHONE_PORTRAIT) TdLayoutKind.STACKED else it }
+
             // Backdrop: sky, far and mid layers, clouds, stars. One Canvas, driven by the ambient clock.
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val t = ambientClock.floatValue.let { if (motion == TdMotion.CALM) kotlin.math.floor(it * 30f) / 30f else it }
                 with(TdAmbient) { drawBackdrop(skin, plan, if (motion == TdMotion.OFF) 0f else t, motion) }
             }
 
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // ---- HUD row 1: castle, gold, pause, setup ----------------------------------------------------------------
+            // ---- HUD: castle, gold, pause, setup; wave, countdown, next-wave card ------------------------------------------
+            val hudBlock: @Composable ColumnScope.() -> Unit = {
                 Row(
                     modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(end = GameChromeEndInset),
                     verticalAlignment = Alignment.CenterVertically,
@@ -483,16 +621,17 @@ fun TowerDefenceScreen(
                 }
                 Spacer(Modifier.height(6.dp))
 
-                // ---- HUD row 2: wave, countdown, start wave, next wave card ------------------------------------------------
                 Row(
                     modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     HudPill(skin) {
+                        val waveText = if (endless) stringResource(R.string.td_wave_endless, wave) else stringResource(R.string.td_wave_short, wave, totalWaves)
+                        val waveSpoken = if (endless) androidContext.getString(R.string.td_wave_spoken_endless, wave) else androidContext.getString(R.string.td_wave_spoken, wave, totalWaves)
                         Text(
-                            stringResource(R.string.td_wave_short, wave, totalWaves), color = skin.panelText, fontWeight = FontWeight.Bold, maxLines = 1,
-                            modifier = Modifier.semantics { contentDescription = androidContext.getString(R.string.td_wave_spoken, wave, totalWaves); liveRegion = LiveRegionMode.Polite }
+                            waveText, color = skin.panelText, fontWeight = FontWeight.Bold, maxLines = 1,
+                            modifier = Modifier.semantics { contentDescription = waveSpoken; liveRegion = LiveRegionMode.Polite }
                         )
                     }
                     if (isOpen && !runOver) {
@@ -512,19 +651,52 @@ fun TowerDefenceScreen(
                         Spacer(Modifier.weight(1f))
                     }
                 }
+                if (mode == TdMode.DAILY && dailyMod != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.td_daily_info, stringResource(tdMapNameRes(levelId)), stringResource(tdModifierRes(dailyMod!!))),
+                        color = skin.panelText, style = MaterialTheme.typography.bodySmall, maxLines = 2,
+                        modifier = Modifier.widthIn(max = 760.dp).clip(RoundedCornerShape(8.dp)).background(skin.panel.copy(alpha = 0.7f)).padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
                 if (isOpen && !runOver) {
                     Spacer(Modifier.height(4.dp))
                     TdNextWaveCard(skin, nextPreview, nextIsBoss, colorblind, Modifier.widthIn(max = 760.dp))
                 }
-                Spacer(Modifier.height(6.dp))
+            }
 
-                // ---- board ---------------------------------------------------------------------------------------------------------
-                BoxWithConstraints(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
-                    val aspect = if (isOpen) TdGrid.TILES_X / TdGrid.TILES_Y else 1f
-                    val boardW: Dp = minOf(maxWidth, maxHeight * aspect, 900.dp)
-                    val boardH: Dp = boardW / aspect
-                    val wPx = with(density) { boardW.toPx() }
-                    val hPx = with(density) { boardH.toPx() }
+            // ---- board: viewport (scrolls in portrait), content, overlays, minimap ---------------------------------------------
+            val boardBlock: @Composable (Modifier) -> Unit = { boardMod ->
+                BoxWithConstraints(modifier = boardMod, contentAlignment = Alignment.Center) {
+                    val aspect = if (isOpen) TdLayoutMath.ASPECT else 1f
+                    val wantsZoom = kind == TdLayoutKind.PHONE_PORTRAIT && isOpen
+                    val minimapH = if (wantsZoom) 56.dp else 0.dp
+                    val availH = (maxHeight - minimapH).coerceAtLeast(0.dp)
+                    val viewW: Dp
+                    val contentW: Dp
+                    val contentH: Dp
+                    if (wantsZoom) {
+                        viewW = minOf(maxWidth, 900.dp)
+                        contentH = minOf(viewW * TdLayoutMath.PORTRAIT_ZOOM / aspect, availH)
+                        contentW = contentH * aspect
+                    } else {
+                        viewW = minOf(maxWidth, availH * aspect, 900.dp)
+                        contentW = viewW
+                        contentH = viewW / aspect
+                    }
+                    val scrolls = contentW > viewW + 1.dp
+                    val viewH = contentH
+                    val zoomEff = if (viewW.value > 0f) (contentW.value / viewW.value).coerceAtLeast(1f) else 1f
+                    val viewWpx = with(density) { viewW.toPx() }
+                    val wPx = with(density) { contentW.toPx() }
+                    val hPx = with(density) { contentH.toPx() }
+                    val scroll = rememberScrollState()
+                    val scope = rememberCoroutineScope()
+                    LaunchedEffect(scrolls, viewWpx) {
+                        if (scrolls) scroll.scrollTo(TdLayoutMath.castleScroll(viewWpx, zoomEff).roundToInt())
+                    }
+                    val castleHidden by derived { scrolls && !TdLayoutMath.castleVisible(scroll.value.toFloat(), viewWpx, zoomEff) }
+
                     val terrainBmp = remember(skin.id, levelId, wPx.roundToInt(), hPx.roundToInt()) {
                         val t = TowerDefenceGame.levelById(levelId)?.terrain
                         if (t == null) null else TdArt.bakeTerrain(skin, t, wPx.roundToInt(), hPx.roundToInt())
@@ -535,160 +707,215 @@ fun TowerDefenceScreen(
                             game = game, skin = skin, colorblind = colorblind, motion = motion, terrain = terrainBmp, plan = plan,
                             ambient = ambientClock, ghost = ghostState, selectedId = selectedState, armed = armedState,
                             showRoute = showRouteState, scan = scanState, particles = particleBurst.particles,
-                            routeCache = routeCache, kidFirst = skin.kidFirst
+                            routeCache = routeCache, kidFirst = skin.kidFirst, cursor = cursorDraw
                         )
                     }
                     val boardDesc = stringResource(R.string.td_board_desc)
-                    val stateDesc = stringResource(R.string.td_board_state, wave, totalWaves, castle, castleMax, gold)
+                    val stateDesc = if (endless) stringResource(R.string.td_board_state_endless, wave, castle, castleMax, gold)
+                    else stringResource(R.string.td_board_state, wave, totalWaves, castle, castleMax, gold)
                     val haloTiles = with(density) { 12.dp.toPx() } / (wPx / TdGrid.TILES_X)
-                    val dragOffsetPx = with(density) { 56.dp.toPx() }
 
-                    Box(
-                        modifier = Modifier
-                            .size(boardW, boardH)
-                            .cameraShake(cameraShake, magnitudePx = shakeMagnitudePx)
-                            .semantics { contentDescription = boardDesc; stateDescription = stateDesc }
-                    ) {
-                        Canvas(
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(10.dp))
-                                .pointerInput(isOpen, runOver, wPx) {
-                                    if (runOver || !isOpen) return@pointerInput
-                                    detectTapGestures(
-                                        onTap = { p ->
-                                            val (ax, ay) = TdBoardMath.anchorFor(p.x, p.y, size.width.toFloat(), size.height.toFloat())
-                                            val hitId = TdBoardMath.towerAt(game.state.value.towers, p.x, p.y, size.width.toFloat(), size.height.toFloat(), if (armed != null) 0f else haloTiles)
-                                            if (armed != null && hitId == null) {
-                                                val g = ghost
-                                                if (g != null && g.cx == ax && g.cy == ay && g.valid) commitGhost() else refreshGhost(ax, ay)
-                                            } else {
-                                                selectTower(hitId)
-                                                if (hitId == null) cancelPlacing()
-                                            }
-                                        },
-                                        onLongPress = { p ->
-                                            val id = TdBoardMath.towerAt(game.state.value.towers, p.x, p.y, size.width.toFloat(), size.height.toFloat(), haloTiles)
-                                            if (id != null) { selectTower(id); radialId = id; haptics(HapticSignal.LIGHT_TICK) }
-                                        }
-                                    )
-                                }
-                                .pointerInput(isOpen, runOver) {
-                                    if (runOver || !isOpen) return@pointerInput
-                                    detectDragGestures(
-                                        onDragStart = { p ->
-                                            if (armed != null) {
-                                                val (ax, ay) = TdBoardMath.anchorFor(p.x, p.y - dragOffsetPx, size.width.toFloat(), size.height.toFloat())
-                                                refreshGhost(ax, ay)
-                                            }
-                                        },
-                                        onDrag = { change, _ ->
-                                            if (armed != null) {
-                                                val (ax, ay) = TdBoardMath.anchorFor(change.position.x, change.position.y - dragOffsetPx, size.width.toFloat(), size.height.toFloat())
-                                                val g = ghost
-                                                if (g == null || g.cx != ax || g.cy != ay) {
-                                                    refreshGhost(ax, ay)
-                                                    haptics(HapticSignal.LIGHT_TICK)
-                                                }
-                                            }
-                                        },
-                                        onDragEnd = { if (ghost?.valid == true) commitGhost() },
-                                        onDragCancel = { ghost = null }
-                                    )
-                                }
+                                .size(viewW, viewH)
+                                .cameraShake(cameraShake, magnitudePx = shakeMagnitudePx)
+                                .onGloballyPositioned { viewRoot = it.positionInRoot(); viewSizePx = it.size }
+                                .semantics { contentDescription = boardDesc; stateDescription = stateDesc }
                         ) {
-                            if (isOpen) drawOpenBoard(ctx) else drawClassicBoard(ctx, zoneState)
-                        }
-
-                        // Classic: one 48dp button per tower spot, each with its own spoken state and price.
-                        if (!isOpen && !runOver) {
-                            val level = TowerDefenceGame.levelById(levelId)
-                            level?.towerZones?.forEachIndexed { index, zone ->
-                                val spotDesc = classicSpotDescription(index, level.towerZones.size, selectedZone == index, levelOf(game, index))
+                            Box(Modifier.size(viewW, viewH).horizontalScroll(scroll, enabled = false)) {
                                 Box(
                                     modifier = Modifier
-                                        .offset(x = boardW * zone.x - 24.dp, y = boardH * zone.y - 24.dp)
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .clickable(onClickLabel = stringResource(R.string.td_classic_pick), role = Role.Button) {
-                                            selectedZone = index
-                                            haptics(HapticSignal.LIGHT_TICK)
+                                        .size(contentW, contentH)
+                                        .onGloballyPositioned { contentRoot = it.positionInRoot(); contentSizePx = it.size }
+                                        .onKeyEvent { onBoardKey(it) }
+                                        .focusRequester(boardFocus)
+                                        .onFocusChanged { boardFocused = it.isFocused }
+                                        .focusable()
+                                ) {
+                                    Canvas(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .pointerInput(isOpen, runOver, wPx, snap) {
+                                                if (runOver || !isOpen) return@pointerInput
+                                                detectTapGestures(
+                                                    onTap = { p ->
+                                                        val (ax, ay) = TdBoardMath.anchorFor(p.x, p.y, size.width.toFloat(), size.height.toFloat(), snap)
+                                                        val hitId = TdBoardMath.towerAt(game.state.value.towers, p.x, p.y, size.width.toFloat(), size.height.toFloat(), if (armed != null) 0f else haloTiles)
+                                                        if (armed != null && hitId == null) {
+                                                            val g = ghost
+                                                            if (g != null && g.cx == ax && g.cy == ay && g.valid) commitGhost() else refreshGhost(ax, ay)
+                                                        } else {
+                                                            selectTower(hitId)
+                                                            if (hitId == null) cancelPlacing()
+                                                        }
+                                                    },
+                                                    onLongPress = { p ->
+                                                        val id = TdBoardMath.towerAt(game.state.value.towers, p.x, p.y, size.width.toFloat(), size.height.toFloat(), haloTiles)
+                                                        if (id != null) { selectTower(id); radialId = id; haptics(HapticSignal.LIGHT_TICK) }
+                                                    }
+                                                )
+                                            }
+                                            .pointerInput(isOpen, runOver, snap) {
+                                                if (runOver || !isOpen) return@pointerInput
+                                                detectDragGestures(
+                                                    onDragStart = { p ->
+                                                        if (armed != null) {
+                                                            val (ax, ay) = TdBoardMath.anchorFor(p.x, p.y - dragOffsetPx, size.width.toFloat(), size.height.toFloat(), snap)
+                                                            refreshGhost(ax, ay)
+                                                        }
+                                                    },
+                                                    onDrag = { change, _ ->
+                                                        if (armed != null) {
+                                                            val (ax, ay) = TdBoardMath.anchorFor(change.position.x, change.position.y - dragOffsetPx, size.width.toFloat(), size.height.toFloat(), snap)
+                                                            val g = ghost
+                                                            if (g == null || g.cx != ax || g.cy != ay) {
+                                                                refreshGhost(ax, ay)
+                                                                haptics(HapticSignal.LIGHT_TICK)
+                                                            }
+                                                        }
+                                                    },
+                                                    onDragEnd = { if (ghost?.valid == true) commitGhost() },
+                                                    onDragCancel = { ghost = null }
+                                                )
+                                            }
+                                    ) {
+                                        if (isOpen) drawOpenBoard(ctx) else drawClassicBoard(ctx, zoneState)
+                                    }
+
+                                    // Classic: one 48dp button per tower spot, each with its own spoken state and price.
+                                    if (!isOpen && !runOver) {
+                                        val level = TowerDefenceGame.levelById(levelId)
+                                        level?.towerZones?.forEachIndexed { index, zone ->
+                                            val spotDesc = classicSpotDescription(index, level.towerZones.size, selectedZone == index, levelOf(game, index))
+                                            Box(
+                                                modifier = Modifier
+                                                    .offset(x = contentW * zone.x - 24.dp, y = contentH * zone.y - 24.dp)
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable(onClickLabel = stringResource(R.string.td_classic_pick), role = Role.Button) {
+                                                        selectedZone = index
+                                                        haptics(HapticSignal.LIGHT_TICK)
+                                                    }
+                                                    .semantics { contentDescription = spotDesc }
+                                            )
                                         }
-                                        .semantics { contentDescription = spotDesc }
+                                    }
+
+                                    // TalkBack: the field as a 14 x 8 grid, and each tower as a node with custom actions.
+                                    if (a11yOn && isOpen && !runOver) {
+                                        val terrain = TowerDefenceGame.levelById(levelId)?.terrain
+                                        if (terrain != null) AccessibleField(terrain, towerViews, routeCells, skin, contentW, contentH, armed, ::placeAtCell, ::selectTower, ::upgrade, ::sell, ::startMove, ::cycleTarget)
+                                    }
+
+                                    // Radial menu (long-press on a tower).
+                                    val rid = radialId
+                                    val rv = selectedView
+                                    if (rid != null && rv != null && rv.id == rid) {
+                                        val tw = game.state.value.towers.firstOrNull { it.id == rid }
+                                        if (tw != null) {
+                                            val c = TdGrid.towerCentre(tw.cx, tw.cy)
+                                            TdRadialMenu(
+                                                skin, contentW * (c.x / TdGrid.TILES_X), contentH * (c.y / TdGrid.TILES_Y), contentW, contentH,
+                                                canUpgrade = rv.level < TdRules.MAX_LEVEL && !rv.needsBranch && gold >= rv.upgradeCost,
+                                                onUpgrade = { upgrade(rid, TdBranch.NONE); radialId = null },
+                                                onInfo = { radialId = null },
+                                                onTarget = { cycleTarget(rid) },
+                                                onMove = { startMove() },
+                                                onSell = { sell(rid) },
+                                                onDismiss = { radialId = null }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Overlays stay on the viewport, not the scrolled map: placement line, toast, pause scrim, result.
+                            val g = ghost
+                            val tip = when {
+                                g != null -> tdPlacementText(g.result)
+                                rejectText != null -> tdPlacementText(rejectText!!)
+                                armed != null && moving -> stringResource(R.string.td_hint_move)
+                                armed != null -> stringResource(R.string.td_hint_pick) + " " + stringResource(R.string.td_hint_drag)
+                                else -> null
+                            }
+                            if (tip != null && !runOver) {
+                                val okColor = g?.valid == true
+                                Text(
+                                    (if (g != null && g.valid) "✓ " else if (g != null) "✕ " else "") + tip + (if (g != null && g.valid) "  " + stringResource(R.string.td_hint_confirm) else ""),
+                                    color = Color.White, style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter).padding(top = 6.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (g == null) Color(0xCC120E1C) else if (okColor) Color(0xCC145A3C) else Color(0xCC6A1F25))
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .semantics { liveRegion = LiveRegionMode.Polite }
+                                )
+                            }
+                            toast?.let { msg ->
+                                Text(msg, color = Color.White, style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC120E1C)).padding(horizontal = 10.dp, vertical = 5.dp).semantics { liveRegion = LiveRegionMode.Polite })
+                            }
+                            if (castleHidden && !runOver) {
+                                TdCastleChip(skin, castle, castleMax, { scope.launch { scroll.animateScrollTo(TdLayoutMath.castleScroll(viewWpx, zoomEff).roundToInt()) } }, Modifier.align(Alignment.CenterEnd))
+                            }
+                            if (paused && autoPaused && !runOver) {
+                                TdPausedScrim(onResume = { if (game.state.value.paused) game.togglePause() }, modifier = Modifier.matchParentSize())
+                            }
+                            if (runOver) {
+                                val s = game.state.value
+                                TdResultOverlay(
+                                    skin = skin, won = won, waveReached = s.waveNumber, totalWaves = s.totalWaves, castle = s.lives, castleMax = s.castleMax,
+                                    bestWave = bestWave, isNewBest = reportedNewBest, reducedMotion = reducedMotion,
+                                    onPlayAgain = { game.playAgain() }, onBackToMenu = { game.leaveSession() },
+                                    modifier = Modifier.matchParentSize(),
+                                    mode = mode, dailyScore = TdDaily.score(s.waveNumber, s.lives)
                                 )
                             }
                         }
-
-                        // TalkBack: the field as a 14 x 8 grid, and each tower as a node with custom actions.
-                        if (a11yOn && isOpen && !runOver) {
-                            val terrain = TowerDefenceGame.levelById(levelId)?.terrain
-                            if (terrain != null) AccessibleField(terrain, towerViews, routeCells, skin, boardW, boardH, armed, ::placeAtCell, ::selectTower, ::upgrade, ::sell, ::startMove, ::cycleTarget)
-                        }
-
-                        // Placement feedback line.
-                        val g = ghost
-                        val tip = when {
-                            g != null -> tdPlacementText(g.result)
-                            rejectText != null -> tdPlacementText(rejectText!!)
-                            armed != null && moving -> stringResource(R.string.td_hint_move)
-                            armed != null -> stringResource(R.string.td_hint_pick)
-                            else -> null
-                        }
-                        if (tip != null && !runOver) {
-                            val okColor = g?.valid == true
-                            Text(
-                                (if (g != null && g.valid) "✓ " else if (g != null) "✕ " else "") + tip + (if (g != null && g.valid) "  " + stringResource(R.string.td_hint_confirm) else ""),
-                                color = Color.White, style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter).padding(top = 6.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (g == null) Color(0xCC120E1C) else if (okColor) Color(0xCC145A3C) else Color(0xCC6A1F25))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                                    .semantics { liveRegion = LiveRegionMode.Polite }
-                            )
-                        }
-                        toast?.let { msg ->
-                            Text(msg, color = Color.White, style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC120E1C)).padding(horizontal = 10.dp, vertical = 5.dp).semantics { liveRegion = LiveRegionMode.Polite })
-                        }
-
-                        // Radial menu (long-press on a tower).
-                        val rid = radialId
-                        val rv = selectedView
-                        if (rid != null && rv != null && rv.id == rid) {
-                            val tw = game.state.value.towers.firstOrNull { it.id == rid }
-                            if (tw != null) {
-                                val c = TdGrid.towerCentre(tw.cx, tw.cy)
-                                TdRadialMenu(
-                                    skin, boardW * (c.x / TdGrid.TILES_X), boardH * (c.y / TdGrid.TILES_Y), boardW, boardH,
-                                    canUpgrade = rv.level < TdRules.MAX_LEVEL && !rv.needsBranch && gold >= rv.upgradeCost,
-                                    onUpgrade = { upgrade(rid, TdBranch.NONE); radialId = null },
-                                    onInfo = { radialId = null },
-                                    onTarget = { cycleTarget(rid) },
-                                    onMove = { startMove() },
-                                    onSell = { sell(rid) },
-                                    onDismiss = { radialId = null }
-                                )
-                            }
-                        }
-
-                        if (paused && autoPaused && !runOver) {
-                            TdPausedScrim(onResume = { if (game.state.value.paused) game.togglePause() }, modifier = Modifier.matchParentSize())
-                        }
-                        if (runOver) {
-                            val s = game.state.value
-                            TdResultOverlay(
-                                skin = skin, won = won, waveReached = s.waveNumber, totalWaves = s.totalWaves, castle = s.lives, castleMax = s.castleMax,
-                                bestWave = bestWave, isNewBest = reportedNewBest, reducedMotion = reducedMotion,
-                                onPlayAgain = { game.playAgain() }, onBackToMenu = { game.leaveSession() },
-                                modifier = Modifier.matchParentSize()
+                        if (scrolls) {
+                            Spacer(Modifier.height(6.dp))
+                            TdMinimap(
+                                skin, game, terrainBmp, scroll, viewWpx, zoomEff,
+                                onScrollTo = { px -> scope.launch { scroll.scrollTo(px.roundToInt()) } },
+                                modifier = Modifier.size(viewW, 44.dp)
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+            }
 
-                // ---- bottom: scan bar, tower panel, or tray -----------------------------------------------------------------------
+            // ---- bottom: scan bar, tower panel, or tray ---------------------------------------------------------------------
+            val trayBlock: @Composable () -> Unit = {
+                val roles = TdRole.entries
+                val cards: @Composable (List<TdRole>) -> Unit = { list ->
+                    for (role in list) {
+                        TdTowerCard(
+                            skin, role, gold, selected = armed == role && !moving, colorblind = colorblind, highlighted = false,
+                            onClick = { toggleArm(role) },
+                            onDragMove = { trayDrag(role, it) }, onDragEnd = { trayDrop() }, onDragCancel = { ghost = null }
+                        )
+                    }
+                }
+                if (kind == TdLayoutKind.SPLIT_LANDSCAPE) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { cards(roles.take(2)) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { cards(roles.drop(2)) }
+                        if (armed != null) TdPillButton(stringResource(R.string.td_cancel), skin, { cancelPlacing() })
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        cards(roles)
+                        if (armed != null) TdPillButton(stringResource(R.string.td_cancel), skin, { cancelPlacing() })
+                    }
+                }
+            }
+            val bottomBlock: @Composable () -> Unit = {
                 Column(Modifier.widthIn(max = 760.dp).fillMaxWidth()) {
                     val sv = selectedView
                     val currentScan = scan
@@ -721,19 +948,36 @@ fun TowerDefenceScreen(
                             onClose = { selectTower(null); cancelPlacing() },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        else -> Row(
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            for (role in TdRole.entries) {
-                                TdTowerCard(skin, role, gold, selected = armed == role && !moving, colorblind = colorblind, highlighted = false, onClick = {
-                                    if (armed == role) cancelPlacing() else { selectedId = null; moving = false; ghost = null; rejectText = null; armed = role }
-                                })
-                            }
-                            if (armed != null) TdPillButton(stringResource(R.string.td_cancel), skin, { cancelPlacing() })
-                        }
+                        else -> trayBlock()
                     }
+                }
+            }
+
+            if (kind == TdLayoutKind.SPLIT_LANDSCAPE) {
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    boardBlock(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        modifier = Modifier.width(TdLayoutMath.sideColumnWidth(maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        hudBlock()
+                        Spacer(Modifier.height(10.dp))
+                        bottomBlock()
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    hudBlock()
+                    Spacer(Modifier.height(6.dp))
+                    boardBlock(Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.height(8.dp))
+                    bottomBlock()
                 }
             }
         }
@@ -761,7 +1005,9 @@ fun TowerDefenceScreen(
             },
             onOneSwitch = { oneSwitch = it },
             onShowRoute = { showRoute = it },
-            onDismiss = { showSetup = false }
+            onDismiss = { showSetup = false },
+            freePlacement = freePlacement, onFreePlacement = { freePlacement = it },
+            modeLocked = mode == TdMode.DAILY
         )
     }
 
@@ -936,4 +1182,11 @@ private fun AccessibleField(
                 }
         )
     }
+}
+
+internal fun tdModifierRes(m: TdModifier): Int = when (m) {
+    TdModifier.SWARM -> R.string.td_mod_swarm
+    TdModifier.TOUGH -> R.string.td_mod_tough
+    TdModifier.SWIFT -> R.string.td_mod_swift
+    TdModifier.LEAN -> R.string.td_mod_lean
 }

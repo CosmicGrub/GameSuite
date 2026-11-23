@@ -14,7 +14,8 @@ import com.gamesuite.core.HubStart
  * route stays "tower-defence", so existing hub preferences keep working. Option keys reach the
  * screen as `LaunchOptions.extras`:
  *  - `map`: castle-pass (default), river-bend, twin-gates, switchback, spiral, gauntlet
- *  - `theme`: castle (default), space, toy (a skin only: it never changes balance or stats)
+ *  - `mode`: campaign (default), endless, daily (daily picks today's map, theme and twist itself)
+ *  - `theme`: castle (default), space, toy, roman, cherry (a skin only: it never changes balance or stats)
  *  - `gentle`: "true" for the Gentle tier
  * Difficulty (easy, medium, hard) still comes from the player's default-difficulty setting.
  */
@@ -40,7 +41,19 @@ object TowerDefenceHubSpecs {
         choices = listOf(
             HubChoice("castle", "Castle Siege", "Medieval pass, archers and mages."),
             HubChoice("space", "Space Station", "Drone attack on an orbital station."),
-            HubChoice("toy", "Toy Room", "Soft cartoon toys in a child room.")
+            HubChoice("toy", "Toy Room", "Soft cartoon toys in a child room."),
+            HubChoice("roman", "Roman Frontier", "A legion fort on a dusty frontier road."),
+            HubChoice("cherry", "Cherry Ridge", "A mountain keep among cherry blossom at dusk.")
+        )
+    )
+
+    private val mode = HubOption.Choice(
+        key = "mode", label = "Mode", default = "campaign",
+        help = "Campaign is ten waves. Endless goes on until the castle falls. Daily is one shared siege per day.",
+        choices = listOf(
+            HubChoice("campaign", "Campaign", "Ten waves on the map you pick."),
+            HubChoice("endless", "Endless", "Keep going. Your score is the wave you reach."),
+            HubChoice("daily", "Daily siege", "The map and twist of the day, the same for everyone.")
         )
     )
 
@@ -52,12 +65,12 @@ object TowerDefenceHubSpecs {
     val towerDefence: GameHubSpec = GameHubSpec(
         gameId = GAME_ID, title = "Tower Defence",
         tagline = "Build towers and stop the waves.",
-        family = HubFamily.ARCADE_PUZZLE, resumable = false,
+        family = HubFamily.ARCADE_PUZZLE, resumable = true,
         modes = listOf(
             HubMode(
                 id = "solo", kind = HubModeKind.SOLO, title = "Play", blurb = "Play on your own.",
                 route = GAME_ID, start = HubStart.IMMEDIATE, minSeats = 1, maxSeats = 1,
-                options = listOf(map, theme, gentle)
+                options = listOf(mode, map, theme, gentle)
             )
         )
     )

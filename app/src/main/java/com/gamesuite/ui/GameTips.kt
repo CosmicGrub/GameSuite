@@ -130,8 +130,9 @@ object GameTips {
             "Clear every brick to finish the level."
         ),
         "tower-defence" to listOf(
-            "Build towers along the path before each wave arrives.",
-            "Earn coins for every enemy you stop and spend them on new towers."
+            "Build anywhere you like, but always leave enemies a way to the gate.",
+            "Brutes shrug off Bolt shots. Blast towers hurt them and anything near them.",
+            "Tap a tower to change its targeting, upgrade it or sell it for most of its gold."
         ),
         "air-hockey" to listOf(
             "Drag your paddle to hit the puck into your opponent\'s goal.",
