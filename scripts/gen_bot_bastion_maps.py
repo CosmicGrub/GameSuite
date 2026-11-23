@@ -28,8 +28,7 @@ for m in maps:
     if m['id'] == 'hourglass':
         for l in m['lanes'][1:]:   # lanes 2 and 3 stop at the merge; extend them to the Core like lane 1
             l.append(list(m['core']))
-# furnace is left out: its entry is inside the arena and 7 of its 20 nodes are closer than 0.72 u to the lane
-maps = [m for m in maps if m['id'] != 'furnace']
+# furnace: its data was repaired in MAPS.md (entry on the rim, nodes that pass the T11 rules), so it ships
 maps.sort(key=lambda m: m['order'])
 for m in maps: del m['order']
 out = {"version": 1, "arenaW": 16.0, "arenaH": 9.0, "maps": maps}

@@ -18,7 +18,7 @@ Status: DESIGN DRAFT, 2026-11-22. All twelve layouts are original geometry; none
 | 4 | `cross` | Crosswind | 2 Glass Belt | 4 | 18 | 8.8, 8.8, 6.3, 6.3 | 0.5 | 16 | 4 |
 | 5 | `wake` | Long Wake | 2 Glass Belt | 1 | 22 | 67.5 | 1.6 | 44 | 6 |
 | 6 | `rift` | Rift Split | 2 Glass Belt | 2 | 18 | 17.5, 17.5 | 0.6 | 30 | 8 |
-| 7 | `furnace` | Furnace | 3 Ember Deep | 1 | 20 | 40.9 | 1.4 | 30 | 10 |
+| 7 | `furnace` | Furnace | 3 Ember Deep | 1 | 16 | 40.9 | 1.4 | 30 | 10 |
 | 8 | `pinwheel` | Pinwheel | 3 Ember Deep | 4 | 20 | 10.6, 10.6, 10.6, 10.6 | 0.5 | 22 | 12 |
 | 9 | `hourglass` | Hourglass | 3 Ember Deep | 3 | 18 | 15.8, 8.3, 9.4 | 0.5 | 23 | 14 |
 | 10 | `tidal` | Tidal Lock | 4 Hush Verge | 6 | 20 | 8.5, 8.5, 8.5, 8.5, 5.7, 5.7 | 0.5 | 16 | 16 |
@@ -224,8 +224,10 @@ Two turns of spiral. The slowest route in the game. Features: 1 lane, spiral 1.7
 ................................................................
 ```
 
-- Lane 1 waypoints: (0.07,0.35) (0.33,0.12) (0.67,0.15) (0.86,0.39) (0.81,0.67) (0.57,0.81) (0.32,0.74) (0.23,0.53) (0.31,0.34) (0.49,0.28) (0.64,0.37) (0.67,0.51) (0.59,0.61) (0.50,0.50)
-- Nodes (x, y normalised): (0.111,0.423) (0.056,0.220) (0.184,0.317) (0.132,0.127) (0.257,0.260) (0.343,0.221) (0.435,0.202) (0.528,0.205) (0.614,0.228) (0.689,0.268) (0.738,0.076) (0.818,0.149) (0.770,0.347) (0.880,0.245) (0.921,0.362) (0.814,0.462) (0.924,0.557) (0.867,0.718) (0.772,0.585) (0.772,0.829)
+- Lane 1 waypoints: (-0.02,0.35) (0.07,0.35) (0.33,0.12) (0.67,0.15) (0.86,0.39) (0.81,0.67) (0.57,0.81) (0.32,0.74) (0.23,0.53) (0.31,0.34) (0.49,0.28) (0.64,0.37) (0.67,0.51) (0.59,0.61) (0.50,0.50)
+- Nodes (x, y normalised): (0.111,0.423) (0.056,0.220) (0.132,0.127) (0.343,0.221) (0.614,0.228) (0.738,0.076) (0.818,0.149) (0.880,0.245) (0.921,0.362) (0.924,0.557) (0.867,0.718) (0.772,0.585) (0.772,0.829) (0.219,0.056) (0.531,0.056) (0.625,0.056)
+
+Revised after the T11 map rules: the lane now starts on the rim at (-0.02,0.35), and the 20 first-draft nodes were cut to the 13 that pass the lane gap (0.72 u), Core gap (1.35 u) and node gap (1.2 u) rules, plus 3 added on the top edge (16 nodes). The picture above is the first draft and is no longer exact.
 
 ## 8. Pinwheel (`pinwheel`)
 

@@ -1,6 +1,6 @@
 # Bot Bastion: spec (a Tower Defence mode modelled on a researched space bot-defence game)
 
-Status: DESIGN DRAFT, 2026-11-22. Nothing here is built. No Kotlin was edited, no build was run, nothing was committed or installed.
+Status: design spec, numbers synced to the TUNED `BALANCE.md` (section 10) on 2026-11-22. The mode IS built as its own pure engine (`games/botbastion/`, JVM tested) plus `ui/BotBastionScreen.kt`; sections 4 and 7 describe the original plan (a ruleset on the existing Tower Defence engine) and the shipped code deliberately does NOT reuse that engine. `games/botbastion/integration-notes.md` lists what shipped and what did not.
 Reads with: `RESEARCH.md` (sources, confidence), `BALANCE.md`, `MAPS.md`, `SCOPE-SCALE-SCRIPT.md`, `OPEN-QUESTIONS.md`, and the existing redesign set `docs/design/tower-defence/` (`SCOPE.md`, `MAP-MODEL.md`, `THEMES.md`, `OPEN-QUESTIONS.md`).
 Mockups: `docs/design/canvas/ZS*.dc.html` (8 boards, manifest `RF-manifest-ZS.json`).
 
@@ -28,7 +28,7 @@ You hold a drifting relay station, the Core, at the centre of a top-down space a
 | Shield price rises per buy (M) | Aegis x1.25 each purchase | |
 | Four specials (M) | Scrap Surge, Score Boost (stack), Nova Pulse, Repair Kit (50%) | |
 | 4/5 damage per hit by tier, +25% cash on Easy, swarm every 5 on Hard (M) | Cadet, Hero anchored; Captain, Insanity, Endless ours | |
-| Levels start ~20 weak enemies then grow (H) | `20 + 3(w-1)`, hp x1.11 per wave | |
+| Levels start ~20 weak enemies then grow (H) | `20 + 3(w-1)`, hp x1.15 per wave to wave 30, x1.01 to wave 40, x1.07 after | Tuned values, BALANCE.md section 10 |
 | Six maps, 20+ in remake, progressive unlock (H/M) | 12 maps in 4 sectors, unlock by stars | Fewer maps at launch, more in later waves |
 | Limited build spots (M) | 12 to 22 fixed nodes per map | Sandbox allows open placement later |
 | Drone patrols the edges (M) | Skiff rim patrol | |
@@ -69,7 +69,7 @@ Fixed-step tick and dt clamp, wave scheduler shape, gold economy (renamed Scrap 
 | Tiers | Add `CADET, CAPTAIN, HERO, INSANITY, ENDLESS` to the mode; map to existing EASY / MEDIUM / HARD for Classic migration |
 | Co-op | `Player(id, colour, scrap, pilot)`; ownership on towers; pilot Skiff control input; scrap gifting; hp scaling |
 | Stats | Keys `bb/$mapId:$tier` (best wave, best score, stars); top-10 lists per key; Classic keys untouched |
-| Save | None for runs (same as today); stats only |
+| Save | Validated snapshot through `ResumableGame` (shipped, `BbSnapshot`); stats and boards in DataStore |
 
 Not new engine work: flow field, open placement (Sandbox, later), online boards.
 
@@ -137,14 +137,14 @@ Stylised sci-fi, abstract rock-ships and robot bots, no blood, no humans, no gor
 
 ## 12. Accessibility
 
-Targets: all interactive controls 56 dp minimum (weapon bar cards 86 dp wide on the board); colour is never the only signal: bots differ by silhouette, range rings are solid versus dashed, enemy types differ by shape, status by glyph; red entry rings carry a ring glyph; Core integrity shows number and bar; shield shows number. Colour-blind safe palette check using the CVD filters from the existing TD tooling (to run at build time). Reduced Motion removes shake, trails and flashes (single frame flash for Nova). TalkBack: nodes announced as strings like "Node 7 of 18, empty, covers lane 2"; bot panel reads stats; wave start and Core damage announced politely. One-switch: auto-advance focus cycles nodes, then bots; hold to confirm; pause on focus. Text sizes follow system font scale to 200% with the bar reflowing to two rows. Haptics optional.
+Targets: interactive controls 48 dp minimum (build cards 56 dp tall; the arena node buttons shrink below 48 dp only where nodes are closer than that on a narrow phone, never overlapping); colour is never the only signal: bots differ by silhouette, range rings are solid versus dashed, enemy types differ by shape, status by glyph; red entry rings carry a ring glyph; Core integrity shows number and bar; shield shows number. Colour-blind safe palette check using the CVD filters from the existing TD tooling (to run at build time). Reduced Motion removes shake, trails and flashes (single frame flash for Nova). TalkBack: nodes announced as strings like "Node 7 of 18, empty, covers lane 2"; bot panel reads stats; wave start and Core damage announced politely. One-switch: auto-advance focus cycles nodes, then bots; hold to confirm; pause on focus. Text sizes follow system font scale to 200% with the bar reflowing to two rows. Haptics optional.
 
 ## 13. Performance
 
 Budgets from `docs/design/tower-defence/SCALE.md` apply: 60 enemies on screen (cap 90 per wave but spawn over time), 40 bots (nodes cap 22), 120 projectiles, particle cap by quality tier. Arena rendering is cached (backdrop, lanes, nodes) and only dynamic layers redraw, which requires the P0 per-frame recomposition fix noted in `SCOPE.md` section 6 before Lively motion is allowed.
 
 ## 14. Layout across devices
-See `ZSTabletPhone`: tablet (bar below, upgrade panel right), Fold inner (arena on top, controls pane below), Fold tabletop (co-op with two bars), phone landscape (slim rail). Phone portrait shows a rotate prompt. Fold book posture remains the app-wide untested posture.
+See `ZSTabletPhone`: tablet (bar below, upgrade panel right), Fold inner (arena on top, controls pane below), Fold tabletop (co-op with two bars), phone landscape (slim rail). Phone portrait uses a stacked layout (arena on top, build panel below); there is no rotate prompt. Fold book posture remains the app-wide untested posture.
 
 ## 15. Risks
 
