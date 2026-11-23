@@ -132,6 +132,4 @@ object WarRules {
         }
         return best
     }
-
-    fun label(rank: Rank) = rank.label
 }

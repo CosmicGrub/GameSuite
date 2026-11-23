@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Motion sound haptics spec</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.root{width:1200px;height:1100px;background:#0B0D1A;color:#F3F1EA;font:400 13px/1.4 Inter,sans-serif;padding:30px 56px 28px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.lab{font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8;margin-bottom:4px}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th{font:600 10.5px Inter;color:#9AA0B8;letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:5px 8px;border-bottom:1px solid #2E3558}
+td{padding:3px 8px;height:35px;border-bottom:1px solid #1E2340;vertical-align:middle;font-size:11.5px;line-height:1.28;color:#C9CDE0}
+td:first-child{font:600 12.5px Sora;color:#F3F1EA}
+.rl{display:flex;gap:7px;align-items:flex-start;color:#F3F1EA}
+.n{width:18px;height:18px;border-radius:9px;background:#FF6B7A;color:#2A050A;font:700 10.5px/18px Inter;text-align:center;flex:none;font-style:normal}
+.ef{font:700 10.5px Sora;font-style:normal;border:1px solid #5A6394;border-radius:5px;padding:0 4px;margin-left:3px;color:#F3F1EA}
+.pn{background:#141829;border:1px solid #232943;border-radius:14px;padding:10px 12px;position:relative}
+.mt{flex:1;background:#141829;border:1px solid #232943;border-radius:12px;padding:8px 12px;height:76px;font-size:11.5px;line-height:1.3;color:#C9CDE0;position:relative}
+.mt b{font:600 13px Sora;color:#F3F1EA;display:block}
+.tl{display:flex;align-items:center;gap:8px;background:#1C2138;border:1px solid #2E3558;border-radius:12px;color:#F3F1EA;font-weight:600}
+.ic{border-radius:7px;background:#8B7CFF;flex:none}
+.fn{font-size:11px;line-height:1.3;color:#9AA0B8;margin-top:6px}
+.dt{position:absolute;right:8px;top:8px}
+.chp{width:76px;height:56px;border-radius:12px;color:#0B0D1A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 10.5px/1.25 Inter}
+.bx{height:34px;border-radius:9px;background:#1C2138;border:1px solid #2E3558;display:flex;align-items:center;padding:0 9px;font:500 11px Inter;color:#F3F1EA}
+.bx code{font:600 10.5px/1.2 ui-monospace,Consolas,monospace;color:#FFB547}
+</style>
+</helmet>
+<div class="root">
+<div style="height:54px;display:flex;justify-content:space-between;align-items:flex-end">
+<div><div class="lab" style="margin:0 0 2px">Refinement R1 and R3 · specs</div><h1 style="font-size:28px">Motion, sound, haptics and accessibility</h1></div>
+<div class="mut" style="font-size:12px;text-align:right;max-width:430px">Durations scale with game speed (0.5x, 1x, 2x) except where marked fixed. Reduced Motion removes travel, never the feedback itself.</div>
+</div>
+
+<div>
+<div class="lab">Event vocabulary · one table drives the sound and haptic facade and the motion tokens</div>
+<table>
+<colgroup><col style="width:86px"><col style="width:190px"><col style="width:176px"><col style="width:136px"><col style="width:150px"><col style="width:76px"><col style="width:274px"></colgroup>
+<tr><th>Event</th><th>Motion</th><th>Sound</th><th>Haptic</th><th>Reduced Motion</th><th>Speed</th><th>Redline: scorecard finding, effort</th></tr>
+<tr><td>tap</td><td>80 ms, scale .96, ease-out</td><td>Dry tick, 30 ms, same on every board</td><td>Light tick, 10 ms</td><td>None needed, no travel</td><td>fixed</td><td><div class="rl"><i class="n">1</i><span>Four sound clips for 81 games (finding 4)<i class="ef">L</i></span></div></td></tr>
+<tr><td>place</td><td>160 ms drop 6 dp, settle spring .6</td><td>Thud, tuned by material</td><td>Click, 15 ms</td><td>80 ms fade, no travel</td><td>scales</td><td><div class="rl"><i class="n">2</i><span>reversi: bot move is silent (ReversiScreen.kt:346)<i class="ef">S</i></span></div></td></tr>
+<tr><td>capture</td><td>220 ms lift and fade, ease-in</td><td>Knock plus short tail</td><td>Double tick, 12 and 20 ms</td><td>120 ms cross-fade</td><td>scales</td><td><div class="rl"><i class="n">3</i><span>hanafuda: captures are not announced to TalkBack<i class="ef">S</i></span></div></td></tr>
+<tr><td>flip</td><td>260 ms rotateY, swap at 130 ms, ease-in-out</td><td>Snap: paper or disc click</td><td>Tick at the midpoint</td><td>100 ms dissolve, no spin</td><td>scales</td><td><div class="rl"><i class="n">4</i><span>reversi: only a 350 ms colour tween (ReversiScreen.kt:585-594)<i class="ef">M</i></span></div></td></tr>
+<tr><td>deal</td><td>140 ms per card, 40 ms stagger</td><td>Swish, 8 per second</td><td>Tick on every second card</td><td>Cards appear in place</td><td>scales</td><td><div class="rl"><i class="n">5</i><span>war: reveal timing unchecked at 0.5x and 2x<i class="ef">S</i></span></div></td></tr>
+<tr><td>win</td><td>900 ms, 24 confetti, spring</td><td>Rising three notes, major</td><td>Double pulse, 30 and 60 ms</td><td>Static trophy, no confetti</td><td>fixed</td><td><div class="rl"><i class="n">6</i><span>No score card outside the 5 newest games (finding 9)<i class="ef">M</i></span></div></td></tr>
+<tr><td>lose</td><td>500 ms soft fade-down, no shake</td><td>Falling two notes, warm</td><td>One low pulse, 40 ms</td><td>Same, without movement</td><td>fixed</td><td><div class="rl"><i class="n">7</i><span>Kids get "Nice try", never a buzzer (see RFScoreCard)<i class="ef">S</i></span></div></td></tr>
+<tr><td>draw</td><td>400 ms balanced sway, 3 degrees</td><td>Neutral two-tone</td><td>Single tick</td><td>Static balance icon</td><td>fixed</td><td><div class="rl"><i class="n">8</i><span>Engines emit GameEnded(draw), not a win flag<i class="ef">S</i></span></div></td></tr>
+<tr><td>invalid</td><td>180 ms nudge 4 dp, twice</td><td>Soft low blip, 60 ms</td><td>Two 10 ms taps</td><td>200 ms coral outline, no shake</td><td>fixed</td><td><div class="rl"><i class="n">9</i><span>sliding-puzzle: taps on far tiles do nothing, silently<i class="ef">S</i></span></div></td></tr>
+<tr><td>timer low</td><td>1 s pulse in the last 10 s</td><td>Tick each second under 10</td><td>Taps at 10, 5, 3, 2, 1</td><td>Colour plus icon, no pulse</td><td>stops on pause</td><td><div class="rl"><i class="n">10</i><span>Timers run behind dialogs: airhockey, speed (finding 2)<i class="ef">S</i></span></div></td></tr>
+<tr><td>achieve</td><td>600 ms pop, 1.2 s shine</td><td>Bright two-note chime</td><td>Three light pulses</td><td>Static badge, 2 s hold</td><td>fixed</td><td><div class="rl"><i class="n">11</i><span>10 achievements, no stickers outside new games<i class="ef">M</i></span></div></td></tr>
+</table>
+</div>
+
+<div style="display:flex;gap:12px;position:relative">
+<div class="mt"><b>Wood</b>Chess, Checkers, Mancala. Place: hollow knock, 120 ms. Capture: two knocks. Flip: clack.</div>
+<div class="mt"><b>Felt</b>Cards, Billiards table. Place: soft slap, no ring. Capture: swish then thud. Flip: paper snap.</div>
+<div class="mt"><b>Stone</b>Gomoku, Hex, Nine Men's Morris. Place: clear click, 90 ms, short ring. Capture: click, click.</div>
+<div class="mt"><b>Plastic</b>Connect Four, toys, party games. Place: bright clack, 80 ms. Capture: rattle and drop. Flip: pop.</div>
+<i class="n" style="position:absolute;left:-26px;top:4px">12</i>
+</div>
+
+<div class="pn" style="height:232px">
+<div class="lab">Text scale 100, 150, 200 percent · tiles grow and wrap, labels never truncate</div>
+<div style="display:flex;gap:16px;margin-top:2px">
+<div style="width:340px"><div class="mut" style="font-size:11px;margin-bottom:4px">100% · 12 sp</div>
+<div style="display:flex;gap:6px"><div class="tl" style="width:108px;height:40px;padding:0 8px;font-size:12px"><span class="ic" style="width:20px;height:20px"></span>Chess</div><div class="tl" style="width:108px;height:40px;padding:0 8px;font-size:12px"><span class="ic" style="width:20px;height:20px;background:#4ADE9B"></span>Hangman</div><div class="tl" style="width:108px;height:40px;padding:0 8px;font-size:12px"><span class="ic" style="width:20px;height:20px;background:#FFB547"></span>Word Guess</div></div></div>
+<div style="width:340px"><div class="mut" style="font-size:11px;margin-bottom:4px">150% · 18 sp</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><div class="tl" style="width:167px;height:60px;padding:0 10px;font-size:18px"><span class="ic" style="width:30px;height:30px"></span>Chess</div><div class="tl" style="width:167px;height:60px;padding:0 10px;font-size:18px"><span class="ic" style="width:30px;height:30px;background:#4ADE9B"></span>Hangman</div><div class="tl" style="width:167px;height:60px;padding:0 10px;font-size:18px;white-space:nowrap"><span class="ic" style="width:30px;height:30px;background:#FFB547"></span>Word Guess</div></div></div>
+<div style="width:340px"><div class="mut" style="font-size:11px;margin-bottom:4px">200% · 24 sp · list scrolls</div>
+<div style="display:flex;gap:6px;flex-direction:column"><div class="tl" style="width:340px;height:62px;padding:0 12px;font-size:24px"><span class="ic" style="width:40px;height:40px"></span>Word Guess</div><div class="tl" style="width:340px;height:62px;padding:0 12px;font-size:24px"><span class="ic" style="width:40px;height:40px;background:#4ADE9B"></span>Air Hockey</div></div></div>
+</div>
+<div class="fn" style="margin-top:8px;color:#C9CDE0"><i class="n" style="display:inline-block;vertical-align:middle;margin-right:6px">13</i>Tile height and icon follow the scale; columns drop from 3 to 2 to 1. texasholdem has fixed sp at HoldemScreen.kt:802,858,1276; fix with scaledSp().<i class="ef">S</i></div>
+</div>
+
+<div style="display:flex;gap:16px;height:204px">
+<div class="pn" style="width:262px"><div class="lab">48 dp targets, hit-slop</div>
+<svg width="236" height="104" viewBox="0 0 236 104" role="img" aria-label="Three adjacent 36 dp cells whose 48 dp hit areas overlap; the nearest centre wins">
+<g fill="#1C2138" stroke="#5A6394"><rect x="20" y="30" width="36" height="36" rx="5"/><rect x="56" y="30" width="36" height="36" rx="5"/><rect x="92" y="30" width="36" height="36" rx="5"/></g>
+<g fill="none" stroke="#FFB547" stroke-dasharray="4 3" stroke-width="1.500"><rect x="14" y="24" width="48" height="48" rx="7"/></g>
+<path d="M74 24v48" stroke="#FF8A96" stroke-width="1.500"/>
+<g stroke="#9AA0B8" stroke-width="1"><path d="M20 82h36M20 78v8M56 78v8"/></g>
+<text x="38" y="98" text-anchor="middle" font-family="Inter" font-size="10" fill="#C9CDE0">36 dp</text>
+<text x="38" y="16" text-anchor="middle" font-family="Inter" font-size="10" fill="#FFD08A">48 dp slop</text>
+<rect x="160" y="34" width="28" height="28" rx="6" fill="#8B7CFF"/><rect x="150" y="24" width="48" height="48" rx="8" fill="none" stroke="#FFB547" stroke-dasharray="4 3" stroke-width="1.500"/>
+<text x="174" y="88" text-anchor="middle" font-family="Inter" font-size="10" fill="#C9CDE0">icon 28, target 48</text>
+<text x="138" y="52" font-family="Inter" font-size="10" fill="#FF8A96">tie</text>
+</svg>
+<div class="fn" style="margin-top:2px">Where slop areas overlap, the nearest cell centre wins. 9 by 9 boards on 358 dp are 39 dp cells.</div>
+<div class="fn" style="margin-top:3px;color:#C9CDE0"><i class="n" style="display:inline-block;vertical-align:middle;margin-right:5px">14</i>fitBoard is square only; no hit-slop helper (finding 10)<i class="ef">M</i></div></div>
+
+<div class="pn" style="width:262px"><div class="lab">Colour-blind palette plus shape</div>
+<div style="display:grid;grid-template-columns:repeat(3,76px);gap:6px">
+<div class="chp" style="background:#56B4E9"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#0B0D1A"/></svg>Sky circle<br>#56B4E9</div>
+<div class="chp" style="background:#E69F00"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="1.500" y="1.500" width="13" height="13" rx="1" fill="#0B0D1A"/></svg>Amber square<br>#E69F00</div>
+<div class="chp" style="background:#00B386"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1l7 14H1z" fill="#0B0D1A"/></svg>Green triangle<br>#00B386</div>
+<div class="chp" style="background:#F0663A"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 0.500L15.500 8 8 15.500 0.500 8z" fill="#0B0D1A"/></svg>Vermilion diamond<br>#F0663A</div>
+<div class="chp" style="background:#D98BB8"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 .8l2.200 4.700 5 .6-3.700 3.500.9 5L8 12.200 3.600 14.600l.9-5L.8 6.100l5-.6z" fill="#0B0D1A"/></svg>Pink star<br>#D98BB8</div>
+<div class="chp" style="background:#F0E442"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.500 1.500h7l4 6.500-4 6.500h-7L.5 8z" fill="#0B0D1A"/></svg>Yellow hexagon<br>#F0E442</div>
+</div>
+<div class="fn" style="margin-top:6px">Ink text on every chip is 5:1 or better. Piece sets read in greyscale because each colour owns a silhouette.</div>
+<div class="fn" style="margin-top:3px;color:#C9CDE0"><i class="n" style="display:inline-block;vertical-align:middle;margin-right:5px">15</i>hanafuda never reads LocalColorblindMode<i class="ef">S</i></div></div>
+
+<div class="pn" style="width:262px"><div class="lab">TalkBack announcement rules</div>
+<div style="font-size:11.5px;line-height:1.32;color:#C9CDE0;display:flex;flex-direction:column;gap:4px">
+<div><b style="color:#F3F1EA">Live region only for new events.</b> A recomposition never re-announces.</div>
+<div><b style="color:#F3F1EA">Polite</b> for opponent moves and flips; <b style="color:#F3F1EA">assertive</b> only for errors and game over.</div>
+<div><b style="color:#F3F1EA">One line, 80 characters,</b> bursts within 400 ms merge.</div>
+<div><b style="color:#F3F1EA">Timers</b> speak at 30, 10 and 5 s only.</div>
+<div><b style="color:#F3F1EA">Touch exploration on</b> turns on turn-based assist.</div>
+</div>
+<div class="fn" style="margin-top:5px;color:#C9CDE0"><i class="n" style="display:inline-block;vertical-align:middle;margin-right:5px">16</i>speed: no opponent-play announcements; toyboxing: no assist<i class="ef">S</i></div></div>
+
+<div class="pn" style="width:262px"><div class="lab">Typed message principle</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div class="bx"><span style="flex:1">Engine emits an id</span><code>MustCapture</code></div>
+<div style="text-align:center;color:#5A6394;font-size:11px;line-height:8px">&#9660;</div>
+<div class="bx"><span style="flex:1">Screen maps id to a string</span><code>R.string.</code></div>
+<div style="text-align:center;color:#5A6394;font-size:11px;line-height:8px">&#9660;</div>
+<div class="bx"><span style="flex:1">en and es, one parity test</span><code>strings.xml</code></div>
+<div style="text-align:center;color:#5A6394;font-size:11px;line-height:8px">&#9660;</div>
+<div class="bx"><span style="flex:1">Toast, TalkBack, haptic</span><code>Cue</code></div>
+</div>
+<div class="fn" style="margin-top:6px;color:#C9CDE0"><i class="n" style="display:inline-block;vertical-align:middle;margin-right:5px">17</i>62 games English-only; solitaire parses lastAction text for haptics<i class="ef">L</i></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

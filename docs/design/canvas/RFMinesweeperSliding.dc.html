@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Minesweeper, Sliding, Flood, Lights Out</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;color:#F3F1EA;font:400 14px/1.4 Inter,sans-serif;overflow:hidden}
+.cap{position:absolute;top:12px;height:28px;padding:0 11px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 11px Inter;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;color:#C9CDE0;white-space:nowrap}
+.cap.t{background:#3A1B24;border-color:#7A2E3C;color:#FFB7BF}
+.cap.a{background:#123226;border-color:#1F6B4A;color:#8FF0C0}
+.pw{position:absolute;top:50px;width:242px;height:523px}
+.ph{width:390px;height:844px;transform:scale(.62);transform-origin:0 0;position:absolute;left:0;top:0;background:#0B0D1A;overflow:hidden;font:400 15px/1.4 Inter,sans-serif;box-shadow:0 0 0 3px #232943;border-radius:30px}
+.rd{position:absolute;width:22px;height:22px;border-radius:11px;background:#E5243B;color:#fff;font:700 12px/22px Inter;text-align:center;box-shadow:0 0 0 2px #0B0D1A;z-index:20}
+.rb{position:absolute;border:2px dashed #FF4D5E;border-radius:8px;z-index:19;pointer-events:none}
+.lgt{position:absolute;left:16px;top:582px;font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8}
+.lg{position:absolute;left:16px;top:604px;width:2118px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(6,auto);gap:5px 26px;font-size:11.5px;line-height:1.3;color:#C9CDE0}
+.li{display:flex;gap:8px;align-items:flex-start}
+.li .n{flex:none;width:20px;height:20px;border-radius:10px;background:#E5243B;color:#fff;font:700 11px/20px Inter;text-align:center;margin-top:1px}
+.li b{color:#F3F1EA;font-weight:600}
+.sz{display:inline-block;padding:0 6px;border-radius:8px;background:#2A2F55;color:#FFB547;font:700 11px/16px Inter;margin-left:2px}
+h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.bar{position:absolute;left:0;right:0;top:48px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.chip{height:30px;padding:0 12px;border-radius:15px;background:#1C2138;border:1px solid #2E3558;font:600 13px Inter;display:flex;align-items:center;gap:6px;color:#F3F1EA;white-space:nowrap}
+.btn{height:56px;border-radius:28px;font:600 16px Sora;display:flex;align-items:center;justify-content:center;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558}
+.btn.pri{background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28)}
+.card{position:absolute;border-radius:22px;background:#141829;border:1px solid #232943}
+/* minesweeper */
+.mg{position:absolute;display:grid;gap:2px}
+.mg i{background:#2E3558;border-radius:7px;display:flex;align-items:center;justify-content:center;font:700 22px Sora;font-style:normal;color:#F3F1EA;box-shadow:inset 0 -4px 0 #232943}
+.mg i.r{background:#0F1426;box-shadow:none}
+.mg i.c1{color:#7FB2FF}.mg i.c2{color:#4ADE9B}.mg i.c3{color:#FF8A98}.mg i.c4{color:#B7A8FF}
+.mg i.ch{background:rgba(74,222,155,.28);box-shadow:inset 0 0 0 2px #4ADE9B}
+.mg i svg{width:60%;height:60%}
+.today .mg i{font-size:11px;border-radius:3px;box-shadow:none}
+/* sliding */
+.sg{position:absolute;display:grid;gap:6px}
+.sg i{background:linear-gradient(160deg,#2B3366,#1E2450);border-radius:14px;display:flex;align-items:center;justify-content:center;font:700 30px Sora;font-style:normal;color:#F3F1EA;box-shadow:inset 0 0 0 1px #3A4380,0 4px 0 #0F1330}
+.sg i.z{background:transparent;box-shadow:inset 0 0 0 2px #232943}
+.sg.m i{font-size:20px;border-radius:9px}
+/* flood */
+.fg{position:absolute;display:grid;grid-template-columns:repeat(8,42px);gap:2px;left:20px}
+.fg i{height:42px;border-radius:6px;display:flex;align-items:center;justify-content:center;font:700 18px Inter;font-style:normal;color:#14183A}
+.k1{background:#FF6B7A}.k2{background:#FFB547}.k3{background:#4ADE9B}.k4{background:#8B7CFF}.k5{background:#5CC8FF}.k6{background:#F3F1EA}
+/* lights out */
+.lo{position:absolute;display:grid;grid-template-columns:repeat(7,48px);gap:3px;left:18px;top:196px}
+.lo i{height:48px;border-radius:10px;background:#1C2138;box-shadow:inset 0 0 0 2px #2E3558}
+.lo i.L{background:#FFB547 radial-gradient(circle at 50% 50%,#14183A 0 5px,transparent 6px);box-shadow:0 0 14px rgba(255,181,71,.45)}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="fg" viewBox="0 0 24 24"><path d="M6 3h2v18H6z" fill="#F3F1EA"/><path d="M8 4l12 5-12 5z" fill="#FF6B7A"/></symbol>
+<symbol id="mn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#F3F1EA"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" stroke="#F3F1EA" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="ar" viewBox="0 0 24 24"><path d="M20 12H5M11 5l-7 7 7 7" stroke="#FFB547" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="st" viewBox="0 0 24 24"><path d="M12 2l3 7 7 .6-5.300 4.600 1.700 7L12 17.600 5.600 21.200l1.700-7L2 9.600 9 9z"/></symbol>
+</defs></svg>
+
+<span class="cap t" style="left:16px">1 Minesweeper today</span>
+<span class="cap a" style="left:284px">2 Daily, safe start, flag mode</span>
+<span class="cap a" style="left:552px">3 Chord a number</span>
+<span class="cap a" style="left:820px">4 Sliding, multi-tile</span>
+<span class="cap a" style="left:1088px">5 Sliding, blocked tap</span>
+<span class="cap a" style="left:1356px">6 Flood, move budget</span>
+<span class="cap a" style="left:1624px">7 Flood, lose and par</span>
+<span class="cap a" style="left:1892px">8 Lights Out, 48 dp</span>
+
+<!-- 1 MS today -->
+<div class="pw today" style="left:16px"><div class="ph" style="background:#10141F">
+<div class="bar"><div class="ib" style="background:#232943">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Minesweeper</h2><div style="font-size:12px;color:#9AA0B8">Daily, Hard 16 x 30</div></div><div class="ib" style="background:#232943">=</div></div>
+<div style="position:absolute;left:16px;top:110px;font:600 13px Inter;color:#C9CDE0">Mines left 99    Time 00:48</div>
+<div class="mg" style="left:12px;top:150px;grid-template-columns:repeat(14,26px);gap:1px;width:378px;overflow:hidden;height:520px">
+<i class="r">1</i><i class="r c1">1</i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r c1">1</i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r c2">2</i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r c1">1</i><i class="r c1">1</i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+</div>
+<div style="position:absolute;left:16px;top:690px;font:500 13px Inter;color:#C9CDE0">Board is wider than the screen. Drag to pan.</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Hint</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">New game</div></div>
+</div>
+<div class="rb" style="left:6px;top:90px;width:230px;height:300px"></div><i class="rd" style="left:226px;top:78px">1</i>
+<div class="rb" style="left:8px;top:60px;width:122px;height:20px;border-style:dotted"></div><i class="rd" style="left:122px;top:50px">2</i>
+<div class="rb" style="left:8px;top:424px;width:226px;height:18px;border-style:dotted"></div><i class="rd" style="left:226px;top:412px">5</i>
+</div>
+
+<!-- 2 MS after -->
+<div class="pw" style="left:284px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Minesweeper</h2><div style="display:inline-flex;align-items:center;gap:6px;margin-top:3px;height:22px;padding:0 10px;border-radius:11px;background:#123226;border:1px solid #1F6B4A;color:#8FF0C0;font:600 12px Inter">Daily 21 Nov, same board for all</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip"><svg width="16" height="16" aria-hidden="true"><use href="#fg"/></svg>12 left</span><span class="chip">01:12</span><span class="chip" style="margin-left:auto;color:#FFB547">Medium 16 x 16</span></div>
+<div class="mg" style="left:21px;top:158px;grid-template-columns:repeat(7,48px);gap:2px">
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i class="r c1">1</i><i class="r c2">2</i><i><svg viewBox="0 0 24 24"><use href="#fg"/></svg></i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r c1">1</i><i class="r c2">2</i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r c1">1</i><i class="r c2">2</i><i></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i class="r c1">1</i><i class="r c2">2</i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i></i>
+</div>
+<div style="position:absolute;left:23px;top:458px;width:48px;height:48px;border-radius:9px;box-shadow:0 0 0 3px #FFB547,0 0 18px rgba(255,181,71,.6);display:none"></div>
+<div style="position:absolute;left:21px;top:556px;width:52px;height:52px;border-radius:10px;box-shadow:0 0 0 3px #FFB547,0 0 20px rgba(255,181,71,.7)"></div>
+<div style="position:absolute;left:84px;top:566px;height:30px;padding:0 12px;border-radius:15px;background:#FFB547;color:#1A1203;font:600 13px/30px Inter;white-space:nowrap">Start here, always safe</div>
+<div class="card" style="left:16px;right:16px;top:640px;height:56px;display:flex;align-items:center;gap:12px;padding:0 14px"><svg width="64" height="40" viewBox="0 0 64 40" aria-label="Mini map of the 16 by 16 board"><rect x="1" y="1" width="62" height="38" rx="3" fill="#0F1426" stroke="#2E3558"/><rect x="8" y="8" width="20" height="24" rx="2" fill="rgba(255,181,71,.25)" stroke="#FFB547" stroke-width="2"/></svg><div style="font:500 12px/1.3 Inter;color:#C9CDE0">Columns 1 to 7, rows 3 to 11 of 16. Pinch to zoom, drag to pan.</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div style="flex:1;height:56px;border-radius:28px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;display:flex;padding:4px"><div style="flex:1;border-radius:24px;background:#FFB547;color:#1A1203;font:600 15px/48px Sora;text-align:center">Dig</div><div style="flex:1;border-radius:24px;color:#F3F1EA;font:600 15px/48px Sora;text-align:center">Flag</div></div><div class="btn" style="width:96px">Hint</div></div>
+</div>
+<div class="rb" style="left:6px;top:8px;width:124px;height:12px;display:none"></div>
+<div class="rb" style="left:90px;top:26px;width:150px;height:46px;border-style:dotted"></div><i class="rd" style="left:226px;top:14px">3</i>
+<div class="rb" style="left:12px;top:332px;width:50px;height:50px;border-style:solid;border-color:#FFB547"></div><i class="rd" style="left:50px;top:322px">4</i>
+<div class="rb" style="left:8px;top:94px;width:78px;height:28px;border-style:dotted;display:none"></div>
+<div class="rb" style="left:8px;top:98px;width:226px;height:28px;border-style:dotted"></div><i class="rd" style="left:2px;top:86px">6</i>
+<div class="rb" style="left:8px;top:482px;width:226px;height:40px"></div><i class="rd" style="left:226px;top:470px">7</i>
+</div>
+
+<!-- 3 MS chord -->
+<div class="pw" style="left:552px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Minesweeper</h2><div class="mut" style="font-size:12px">Chording</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip"><svg width="16" height="16" aria-hidden="true"><use href="#fg"/></svg>10 left</span><span class="chip">01:31</span></div>
+<div class="mg" style="left:21px;top:158px;grid-template-columns:repeat(7,48px);gap:2px">
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<i class="r c1">1</i><i class="r c2">2</i><i></i><i></i><i></i><i></i><i></i>
+<i class="r"></i><i class="r c1">1</i><i class="r c2">2</i><i><svg viewBox="0 0 24 24"><use href="#fg"/></svg></i><i><svg viewBox="0 0 24 24"><use href="#fg"/></svg></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r c1">1</i><i class="r c2" style="box-shadow:0 0 0 3px #FFB547">2</i><i class="ch"></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i class="ch"></i><i></i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i class="r c1">1</i><i class="r c2">2</i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i></i>
+<i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r c1">1</i><i></i>
+</div>
+<svg width="390" height="300" style="position:absolute;left:0;top:300px" aria-hidden="true"><circle cx="195" cy="108" r="40" fill="none" stroke="#FFB547" stroke-width="3" stroke-dasharray="6 6"/><circle cx="195" cy="108" r="66" fill="none" stroke="#FFB547" stroke-width="2" opacity=".5"/><path d="M226 106h14M225 130l10 10M195 148v14" stroke="#4ADE9B" stroke-width="3" stroke-linecap="round"/></svg>
+<div class="card" style="left:16px;right:16px;top:620px;padding:14px 16px;border-color:#FFB547">
+<h2 style="font-size:16px">Tap a number to open its neighbours</h2><div class="mut" style="font-size:13px;margin-top:2px">This 2 has 2 flags, so the 2 hidden squares beside it are safe. A wrong flag stops the chord and shakes.</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div style="flex:1;height:56px;border-radius:28px;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558;display:flex;padding:4px"><div style="flex:1;border-radius:24px;background:#FFB547;color:#1A1203;font:600 15px/48px Sora;text-align:center">Dig</div><div style="flex:1;border-radius:24px;color:#F3F1EA;font:600 15px/48px Sora;text-align:center">Flag</div></div><div class="btn" style="width:96px">Undo</div></div>
+</div>
+<div class="rb" style="left:100px;top:226px;width:34px;height:34px;border-style:solid;border-color:#FFB547"></div><i class="rd" style="left:126px;top:214px">8</i>
+<div class="rb" style="left:128px;top:224px;width:28px;height:62px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:150px;top:290px">9</i>
+<div class="rb" style="left:8px;top:386px;width:226px;height:78px;border-style:dotted"></div><i class="rd" style="left:2px;top:374px">10</i>
+</div>
+
+<!-- 4 Sliding multi -->
+<div class="pw" style="left:820px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Sliding Puzzle</h2><div class="mut" style="font-size:12px">4 x 4, numbers</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">23 moves</span><span class="chip">Best 61</span><span class="chip" style="margin-left:auto;color:#FFB547">Par 38</span></div>
+<div class="sg" style="left:22px;top:176px;grid-template-columns:repeat(4,82px);grid-auto-rows:82px">
+<i>1</i><i>2</i><i>3</i><i>4</i><i>9</i><i>6</i><i>7</i><i>8</i><i class="z"></i><i style="box-shadow:inset 0 0 0 3px #FFB547,0 4px 0 #0F1330">10</i><i style="box-shadow:inset 0 0 0 3px #FFB547,0 4px 0 #0F1330">11</i><i style="box-shadow:inset 0 0 0 3px #FFB547,0 4px 0 #0F1330;transform:translate(-6px,-4px) rotate(-2deg)">12</i><i>13</i><i>14</i><i>15</i><i>5</i></div>
+<svg width="390" height="120" style="position:absolute;left:0;top:250px;z-index:3" aria-hidden="true"><g stroke="#FFB547" stroke-width="3" fill="none" stroke-dasharray="6 5"><rect x="25" y="196" width="82" height="82" rx="14" style="display:none"/></g></svg>
+<svg width="390" height="400" style="position:absolute;left:0;top:176px;z-index:3" aria-hidden="true"><g fill="none" stroke="#FFB547" stroke-width="3" stroke-dasharray="6 5"><rect x="22" y="176" width="82" height="82" rx="14"/><rect x="110" y="176" width="82" height="82" rx="14"/><rect x="198" y="176" width="82" height="82" rx="14"/></g><path d="M318 306L50 306" stroke="#FFB547" stroke-width="5" stroke-linecap="round"/><path d="M62 292L44 306 62 320" stroke="#FFB547" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="318" cy="262" r="22" fill="rgba(243,241,234,.22)" stroke="rgba(243,241,234,.7)" stroke-width="2"/></svg>
+<div class="card" style="left:16px;right:16px;top:540px;padding:12px 16px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b style="font:600 15px Sora">Slide 3 tiles left</b><div class="mut" style="font-size:12px">Counts as 1 move. Release to slide, drag back to cancel.</div></div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div><div class="btn" style="flex:1">Reset</div></div>
+</div>
+<div class="rb" style="left:12px;top:218px;width:218px;height:56px;border-style:solid;border-color:#FFB547"></div><i class="rd" style="left:206px;top:208px">11</i>
+<div class="rb" style="left:100px;top:62px;width:130px;height:30px;border-style:dotted"></div><i class="rd" style="left:222px;top:56px">12</i>
+<div class="rb" style="left:8px;top:326px;width:226px;height:38px;border-style:dotted"></div><i class="rd" style="left:2px;top:314px">13</i>
+</div>
+
+<!-- 5 Sliding blocked -->
+<div class="pw" style="left:1088px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">A blocked tap</h2><div class="mut" style="font-size:12px">Today and after</div></div><span style="width:44px"></span></div>
+<div class="card" style="left:16px;right:16px;top:108px;height:300px;border-color:#7A2E3C"><div style="padding:10px 14px"><span style="font:600 11px Inter;letter-spacing:.08em;text-transform:uppercase;color:#FFB7BF">Today</span></div>
+<div class="sg m" style="left:20px;top:44px;grid-template-columns:repeat(4,46px);grid-auto-rows:46px;gap:4px"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i style="box-shadow:inset 0 0 0 3px #FFB547">11</i><i>10</i><i>12</i><i class="z"></i><i>13</i><i>14</i><i>15</i></div>
+<div style="position:absolute;left:222px;top:50px;right:12px;font:500 13px/1.4 Inter;color:#C9CDE0">Tap 11: the gap is not next to it. Nothing moves, no sound, no message.</div></div>
+<div class="card" style="left:16px;right:16px;top:424px;height:372px;border-color:#1F6B4A"><div style="padding:10px 14px"><span style="font:600 11px Inter;letter-spacing:.08em;text-transform:uppercase;color:#8FF0C0">After</span></div>
+<div style="position:absolute;left:20px;top:44px;width:196px;height:50px;border-radius:8px;background:rgba(74,222,155,.14);top:182px;display:none"></div>
+<div class="sg m" style="left:20px;top:44px;grid-template-columns:repeat(4,46px);grid-auto-rows:46px;gap:4px"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i style="box-shadow:inset 0 0 0 3px #FF6B7A;transform:translateY(5px)">11</i><i>10</i><i>12</i><i class="z"></i><i style="background:linear-gradient(160deg,#1F5A4A,#154236)">13</i><i style="background:linear-gradient(160deg,#1F5A4A,#154236)">14</i><i style="background:linear-gradient(160deg,#1F5A4A,#154236)">15</i></div>
+<svg width="330" height="260" style="position:absolute;left:0;top:44px" aria-hidden="true"><path d="M43 106v-4" stroke="#FF6B7A" stroke-width="2"/><path d="M120 94v14" stroke="#FF6B7A" stroke-width="3" stroke-dasharray="4 3" stroke-linecap="round"/><path d="M112 102l8 10 8-10" stroke="#FF6B7A" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<div style="position:absolute;left:222px;top:50px;right:12px;font:500 13px/1.4 Inter;color:#C9CDE0">The tile nudges 6 px toward the gap and springs back. Row and column of the gap tint green.</div>
+<div style="position:absolute;left:14px;right:14px;top:244px"><div style="font:600 12px Inter;color:#9AA0B8;margin-bottom:6px">Nudge, 160 ms</div>
+<svg width="300" height="58" viewBox="0 0 300 58" aria-hidden="true"><g fill="#232A4A" stroke="#3A4380"><rect x="8" y="8" width="42" height="42" rx="8"/><rect x="108" y="14" width="42" height="42" rx="8"/><rect x="208" y="8" width="42" height="42" rx="8"/></g><g font-family="Sora,sans-serif" font-size="16" font-weight="700" fill="#F3F1EA" text-anchor="middle"><text x="29" y="35">11</text><text x="129" y="41">11</text><text x="229" y="35">11</text></g><g fill="#9AA0B8" font-family="Inter,sans-serif" font-size="11"><text x="58" y="34">0 ms</text><text x="158" y="34">80</text><text x="258" y="34">160</text></g></svg></div>
+<div style="position:absolute;left:14px;right:14px;bottom:14px;height:44px;border-radius:22px;background:#0F1426;border:1px solid #2E3558;display:flex;align-items:center;padding:0 14px;font:500 13px Inter">Tile 11 is not in line with the gap.</div></div>
+</div>
+<div class="rb" style="left:12px;top:194px;width:100px;height:116px;border-style:dotted"></div><i class="rd" style="left:100px;top:182px">14</i>
+<div class="rb" style="left:12px;top:342px;width:122px;height:104px;border-style:solid;border-color:#FF6B7A"></div><i class="rd" style="left:126px;top:330px">15</i>
+<div class="rb" style="left:12px;top:480px;width:218px;height:38px;border-style:dotted"></div><i class="rd" style="left:222px;top:468px">16</i>
+</div>
+
+<!-- 6 Flood budget -->
+<div class="pw" style="left:1356px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Color Flood</h2><div class="mut" style="font-size:12px">8 x 8, six colours</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:104px;display:flex;align-items:center;gap:14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-label="Flooded 21 of 64 squares"><circle cx="32" cy="32" r="27" fill="none" stroke="#2E3558" stroke-width="7"/><circle cx="32" cy="32" r="27" fill="none" stroke="#4ADE9B" stroke-width="7" stroke-dasharray="56 170" transform="rotate(-90 32 32)" stroke-linecap="round"/><text x="32" y="37" text-anchor="middle" font-family="Sora,sans-serif" font-size="15" font-weight="700" fill="#F3F1EA">33%</text></svg><div style="flex:1"><b style="font:700 24px Sora">5 moves left</b><div class="mut" style="font-size:13px">21 of 64 squares flooded</div></div><div class="chip" style="color:#FFB547;border-color:#FFB547;height:36px"><svg width="14" height="14" fill="#FFB547" aria-hidden="true"><use href="#st"/></svg>Par 12</div></div>
+<div style="position:absolute;left:15px;top:178px;display:flex;gap:4px"><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#5A6188"></i><i style="width:22px;height:10px;border-radius:3px;background:#4ADE9B"></i><i style="width:22px;height:10px;border-radius:3px;background:#4ADE9B"></i><i style="width:22px;height:10px;border-radius:3px;background:#4ADE9B"></i><i style="width:22px;height:10px;border-radius:3px;background:#4ADE9B"></i><i style="width:22px;height:10px;border-radius:3px;background:#4ADE9B"></i></div>
+<div style="position:absolute;left:15px;top:192px;width:360px;height:12px"><div style="position:absolute;left:286px;top:0;width:2px;height:12px;background:#FFB547"></div></div>
+<div class="fg" style="top:216px">
+<i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k5">&#10010;</i><i class="k2">&#9632;</i><i class="k4">&#9670;</i><i class="k4">&#9670;</i><i class="k1">&#9650;</i>
+<i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k5">&#10010;</i><i class="k5">&#10010;</i><i class="k2">&#9632;</i><i class="k2">&#9632;</i><i class="k4">&#9670;</i><i class="k1">&#9650;</i>
+<i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k1">&#9650;</i><i class="k5">&#10010;</i><i class="k6">&#9733;</i><i class="k2">&#9632;</i><i class="k6">&#9733;</i><i class="k6">&#9733;</i>
+<i class="k1">&#9650;</i><i class="k4">&#9670;</i><i class="k1">&#9650;</i><i class="k6">&#9733;</i><i class="k6">&#9733;</i><i class="k3">&#9679;</i><i class="k2">&#9632;</i><i class="k5">&#10010;</i>
+<i class="k4">&#9670;</i><i class="k4">&#9670;</i><i class="k2">&#9632;</i><i class="k3">&#9679;</i><i class="k1">&#9650;</i><i class="k1">&#9650;</i><i class="k5">&#10010;</i><i class="k5">&#10010;</i>
+<i class="k6">&#9733;</i><i class="k2">&#9632;</i><i class="k2">&#9632;</i><i class="k3">&#9679;</i><i class="k5">&#10010;</i><i class="k4">&#9670;</i><i class="k4">&#9670;</i><i class="k1">&#9650;</i>
+<i class="k6">&#9733;</i><i class="k1">&#9650;</i><i class="k4">&#9670;</i><i class="k4">&#9670;</i><i class="k5">&#10010;</i><i class="k2">&#9632;</i><i class="k3">&#9679;</i><i class="k3">&#9679;</i>
+<i class="k2">&#9632;</i><i class="k1">&#9650;</i><i class="k6">&#9733;</i><i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k3">&#9679;</i><i class="k1">&#9650;</i><i class="k5">&#10010;</i></div>
+<div style="position:absolute;left:14px;right:14px;top:588px;display:flex;gap:10px">
+<div style="flex:1;height:60px;border-radius:16px;background:#FF6B7A;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter"><span style="font-size:20px;line-height:1">&#9650;</span>Coral</div>
+<div style="flex:1;height:60px;border-radius:16px;background:#FFB547;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter"><span style="font-size:20px;line-height:1">&#9632;</span>Saffron</div>
+<div style="flex:1;height:60px;border-radius:16px;background:#4ADE9B;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter;opacity:.4"><span style="font-size:20px;line-height:1">&#9679;</span>Mint</div>
+<div style="flex:1;height:60px;border-radius:16px;background:#8B7CFF;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter"><span style="font-size:20px;line-height:1">&#9670;</span>Iris</div>
+<div style="flex:1;height:60px;border-radius:16px;background:#5CC8FF;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter"><span style="font-size:20px;line-height:1">&#10010;</span>Sky</div>
+<div style="flex:1;height:60px;border-radius:16px;background:#F3F1EA;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px Inter"><span style="font-size:20px;line-height:1">&#9733;</span>Ivory</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div></div>
+</div>
+<div class="rb" style="left:8px;top:60px;width:226px;height:44px"></div><i class="rd" style="left:226px;top:48px">17</i>
+<div class="rb" style="left:8px;top:108px;width:226px;height:22px;border-style:dotted"></div><i class="rd" style="left:2px;top:96px">18</i>
+<div class="rb" style="left:12px;top:364px;width:222px;height:42px"></div><i class="rd" style="left:226px;top:352px">19</i>
+</div>
+
+<!-- 7 Flood lose and par -->
+<div class="pw" style="left:1624px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Color Flood</h2><div class="mut" style="font-size:12px">Result</div></div><span style="width:44px"></span></div>
+<div class="card" style="left:16px;right:16px;top:108px;height:330px;padding:18px;border-color:#7A2E3C">
+<div style="display:flex;align-items:center;gap:14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-label="Flooded 51 of 64 squares"><circle cx="32" cy="32" r="27" fill="none" stroke="#2E3558" stroke-width="7"/><circle cx="32" cy="32" r="27" fill="none" stroke="#FF6B7A" stroke-width="7" stroke-dasharray="135 170" transform="rotate(-90 32 32)" stroke-linecap="round"/><text x="32" y="37" text-anchor="middle" font-family="Sora,sans-serif" font-size="15" font-weight="700" fill="#F3F1EA">80%</text></svg><div><h2 style="font-size:22px">Out of moves</h2><div class="mut" style="font-size:13px">51 of 64 squares flooded, so close</div></div></div>
+<div style="display:flex;gap:8px;margin-top:16px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#5A6188" stroke-width="1.6" aria-label="No stars"><use href="#st"/></svg><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#5A6188" stroke-width="1.6" aria-hidden="true"><use href="#st"/></svg><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#5A6188" stroke-width="1.6" aria-hidden="true"><use href="#st"/></svg></div>
+<div style="margin-top:14px;font:500 14px/1.4 Inter;color:#C9CDE0">Budget was 14 moves. Par is 12. The same board is waiting.</div>
+<div class="btn pri" style="margin-top:16px">Retry this board</div><div class="btn" style="margin-top:10px;height:48px;font-size:15px">New board</div></div>
+<div class="card" style="left:16px;right:16px;top:454px;height:340px;padding:18px;border-color:#1F6B4A">
+<div style="display:flex;align-items:center;gap:14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-label="Flooded all squares"><circle cx="32" cy="32" r="27" fill="none" stroke="#4ADE9B" stroke-width="7"/><path d="M20 33l8 8 16-17" stroke="#4ADE9B" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><div><h2 style="font-size:22px">Par beaten</h2><div class="mut" style="font-size:13px">11 moves, par is 12</div></div></div>
+<div style="display:flex;gap:8px;margin-top:16px"><svg width="40" height="40" viewBox="0 0 24 24" fill="#FFB547" aria-hidden="true"><use href="#st"/></svg><svg width="40" height="40" viewBox="0 0 24 24" fill="#FFB547" aria-hidden="true"><use href="#st"/></svg><svg width="40" height="40" viewBox="0 0 24 24" fill="#FFB547" aria-label="Three stars"><use href="#st"/></svg></div>
+<div style="margin-top:14px;font:500 13px/1.5 Inter;color:#C9CDE0"><b style="color:#F3F1EA">3 stars</b> under par, <b style="color:#F3F1EA">2 stars</b> at par, <b style="color:#F3F1EA">1 star</b> within the budget of 14.</div>
+<div class="btn pri" style="margin-top:14px;height:50px;font-size:15px">Next board</div></div>
+</div>
+<div class="rb" style="left:8px;top:152px;width:226px;height:44px"></div><i class="rd" style="left:226px;top:140px">20</i>
+<div class="rb" style="left:8px;top:326px;width:226px;height:90px;display:none"></div>
+</div>
+
+<!-- 8 Lights Out -->
+<div class="pw" style="left:1892px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Lights Out</h2><div class="mut" style="font-size:12px">7 x 7, Hard</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">12 presses</span><span class="chip">Best 9</span><span class="chip" style="margin-left:auto;color:#FFB547">Min 8</span></div>
+<div class="lo"><i></i><i></i><i></i><i class="L"></i><i></i><i></i><i></i>
+<i></i><i></i><i class="L"></i><i class="L"></i><i class="L"></i><i></i><i></i>
+<i></i><i></i><i></i><i class="L"></i><i></i><i></i><i></i>
+<i></i><i class="L"></i><i></i><i></i><i></i><i class="L"></i><i></i>
+<i class="L"></i><i></i><i></i><i></i><i class="L"></i><i class="L"></i><i></i>
+<i></i><i></i><i></i><i></i><i class="L"></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div style="position:absolute;left:171px;top:349px;width:54px;height:54px;border-radius:12px;box-shadow:0 0 0 4px #4ADE9B,0 0 20px rgba(74,222,155,.7)"></div>
+<svg width="390" height="300" style="position:absolute;left:0;top:350px;z-index:3" aria-hidden="true"><path d="M60 215C100 215 140 120 168 70" stroke="#4ADE9B" stroke-width="4" fill="none" stroke-dasharray="7 6" stroke-linecap="round"/><path d="M168 70l-14 6 4-14z" fill="#4ADE9B" stroke="#4ADE9B" stroke-width="2"/></svg>
+<div style="position:absolute;left:16px;top:550px;height:34px;padding:0 14px;border-radius:17px;background:#4ADE9B;color:#06281A;font:600 13px/34px Inter;z-index:4">Press this light</div>
+<div class="card" style="left:16px;right:16px;top:604px;padding:12px 14px;display:flex;gap:12px;align-items:center"><svg width="70" height="70" viewBox="0 0 70 70" aria-label="Today, 28 dp cells"><rect width="70" height="70" rx="6" fill="#10141F"/><g fill="#232943"><rect x="4" y="4" width="8" height="8"/><rect x="14" y="4" width="8" height="8"/><rect x="24" y="4" width="8" height="8"/><rect x="34" y="4" width="8" height="8"/><rect x="44" y="4" width="8" height="8"/><rect x="54" y="4" width="8" height="8"/><rect x="4" y="14" width="8" height="8"/><rect x="14" y="14" width="8" height="8"/><rect x="24" y="14" width="8" height="8"/><rect x="34" y="14" width="8" height="8"/><rect x="44" y="14" width="8" height="8"/><rect x="54" y="14" width="8" height="8"/><rect x="4" y="24" width="8" height="8"/><rect x="14" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="34" y="24" width="8" height="8"/><rect x="44" y="24" width="8" height="8"/><rect x="54" y="24" width="8" height="8"/></g></svg><div style="font:500 12px/1.4 Inter;color:#C9CDE0"><b style="color:#FFB7BF;font-weight:600">Today: 28 dp cells</b><br>on a short landscape slot the board shrinks below 48 dp and pans.</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div></div>
+</div>
+<div class="rb" style="left:8px;top:116px;width:226px;height:222px"></div><i class="rd" style="left:226px;top:104px">21</i>
+<div class="rb" style="left:104px;top:214px;width:36px;height:36px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:132px;top:202px">22</i>
+<div class="rb" style="left:8px;top:372px;width:226px;height:58px;border-style:dotted"></div><i class="rd" style="left:2px;top:360px">23</i>
+</div>
+
+<div class="lgt">Redlines: finding, evidence, fix, size</div>
+<div class="lg">
+<div class="li"><span class="n">1</span><div><b>MINESWEEPER 9/15.</b> Hard 16 x 30 uses 28 dp min cells (MinesweeperScreen.kt:93), 840 dp wide, so it pans with sub-48 dp targets. Use 48 dp cells, pan and pinch zoom. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">2</span><div><b>English only.</b> 0 stringResource, about 40 literals; cell text is built in code (:974). Move to resources with ES. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">3</span><div><b>Daily badge.</b> Shared UTC date (finding 5). Mines are placed on the first reveal (MinesweeperGame.kt:590-592, :683-692), so two players get different layouts. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">4</span><div><b>Fixed daily start.</b> The seed fixes mines and one pre-opened safe start cell, so every player sees one board. Free play stays first-click-safe. Owner decision. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">5</span><div><b>Best-time write.</b> Runs inside a cancellable LaunchedEffect (:269-277); move it out of composition scope (finding 8). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">6</span><div><b>Counter and toggle.</b> Mines-left live region (:730) kept, flag icon added. A 56 dp Dig and Flag switch replaces long-press as the only way to flag. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">7</span><div><b>Minimap.</b> A small map shows which columns and rows are on screen, so panning never loses the player. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">8</span><div><b>Chord affordance.</b> No chording today (MinesweeperScreen.kt:157): Hard is a long tap marathon. A number with enough flags gets a saffron ring. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">9</span><div><b>Chord result.</b> Tap opens the hidden neighbours (mint tint, ripple); a wrong flag stops the chord and shakes. Add tests for chord vs flood. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">10</span><div><b>Coachmark.</b> One first-run line explains the chord, never shown again; Undo stays available. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">11</span><div><b>SLIDING 10/15.</b> tapTile moves only a tile next to the blank (SlidingPuzzleGame.kt:478-490). Tapping or dragging any tile in the gap's row or column slides the whole run. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">12</span><div><b>Par.</b> No par is shown today; add a solver par for 4 x 4 (hint stays greedy and labelled assisted). Owner decision: one slide counts as 1 move. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">13</span><div><b>Drag preview.</b> Dashed destinations, a chevron arrow and a words line ("Slide 3 tiles left"); release slides, drag back cancels. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">14</span><div><b>Blocked tap.</b> Feedback exists only if moveCount changed (SlidingPuzzleScreen.kt:501-510). Show a 6 px nudge, tint the gap's lines, add a tick. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">15</span><div><b>Why message.</b> "Tile 11 is not in line with the gap" meets gate 4. The solve sound is playShuffle (:279), a mismatch; add a real solve cue. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">16</span><div><b>English only.</b> 0 stringResource: tiers, image chips, "Slide tile n" (:705), result panel. Photo tiles need number overlays for TalkBack. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">17</span><div><b>COLOR FLOOD 10/15, gameplay 1.</b> No budget field (ColorFloodGame.kt:48-56) and pick cannot lose (:410-427). Add moves left with a par flag and a budget bar. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">18</span><div><b>Progress ring.</b> Replaces "N of M cells" in one string (:653); ring plus words, spoken on each move. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">19</span><div><b>Always-on shapes.</b> Shapes appear only under LocalColorblindMode (:95); with six hues on Hard they must be the default. Swatches get shape and name. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">20</span><div><b>Lose and stars.</b> Retry the same board or a new one; stars: under par 3, at par 2, within budget 1. Owner sets thresholds. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">21</span><div><b>LIGHTS OUT 11/15.</b> Min cell 28 dp (LightsOutScreen.kt:77), so a 7 x 7 board pans in short slots. 48 dp cells fit 7 columns on 390 dp. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">22</span><div><b>Hint arrow.</b> Ring, arrow and a spoken line; add a test that each hint press strictly shrinks the minimal solution. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">23</span><div><b>Today.</b> Scramble is size*size*3 random presses (LightsOutGame.kt:512), so Easy can be 1 to 2 presses; add a floor. State sits in contentDescription (:786-789), move to stateDescription. <span class="sz">S</span></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

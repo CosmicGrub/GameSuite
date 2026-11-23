@@ -1,0 +1,15 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+chess,2,3,2,2,2,11,"Underpromotion picker plus net message; engine is auto-queen only (ChessGame.kt:45,372,1924)",M,"Kiwipete/pos3-5 perft and snapshot legality checks (ChessGameTest.kt:93; ChessGame.kt:1144)",S
+checkers,3,3,3,1,3,13,"ES extraction of 34 literals and 4-key strings (CheckersScreen.kt:604,1016,1156,1235,1728)",M,"Replace fixed 9.sp at CheckersScreen.kt:1185 with typography",S
+reversi,3,1,2,1,3,10,"Flip animation plus LocalReducedMotion read (only a 350ms colour tween today; ReversiScreen.kt:585-594)",M,"Sound for bot move/flip/pass/game over (only human tap plays; ReversiScreen.kt:346)",S
+mancala,3,2,3,1,2,11,"ES extraction of help text and labels (MancalaScreen.kt:513,849,869,1005,1467)",M,"Pitch-ramped sow sound plus capture and extra-turn cues (MancalaScreen.kt:372)",S
+connectfour,2,2,3,1,2,10,"Snapshot consistency: gravity, disc counts vs turn, winning line (ConnectFourGame.kt:280-297)",S,"ES extraction of 15 literals and help text (ConnectFourScreen.kt:223,236,263,347,752)",M
+dotsandboxes,2,2,3,1,2,10,"Real HARD: long-chain/loop counting and double-dealing (DotsAndBoxesGame.kt:807-822)",M,"ES extraction of 19 literals (DotsAndBoxesScreen.kt:283,293,323,400,456)",M
+tictactoe,3,2,3,1,3,12,"ES extraction incl. helpTitleFor/helpTextFor/possessive (TicTacToeScreen.kt:436,795,833-900,1088-1138)",M,"Win-line draw animation plus ParticleBurst and material look",S
+dominoes,2,3,2,1,2,10,"Smarter CPU: track pips/passes/ends; MEDIUM currently first legal play (DominoGame.kt:699-706)",M,"Add Hint (engine knows legal plays) and drop English lastAction logic coupling (DominoesScreen.kt:493,1187)",S
+gomoku,2,3,2,2,3,12,"Discard unfinished search depth instead of static eval mid-tree (GomokuEngine.kt:161-164,185-215)",S,"Add swap/Swap2 opening option and honour fitBoard instead of maxOf floor (GomokuScreen.kt:271)",M
+hex,3,3,3,2,3,14,"Discard unfinished search depth on deadline (HexEngine.kt:162-163)",S,"Add fitHexBoard to shared BoardFit and TalkBack row grouping with collectionInfo (HexScreen.kt:276-283)",M
+ninemensmorris,3,3,3,3,3,15,"Add threefold-repetition draw beside quiet-plies limit (MorrisEngine.kt:135)",S,"Read ThinkingLine alpha in graphicsLayer not composition (NineMensMorrisScreen.kt:133-134)",S
+hareandhounds,3,3,3,3,2,14,"HARD-beats-EASY strength test both roles",S,"Snapshot tamper tests for validPosition mirroring MorrisGameTest",S
+chinesecheckers,2,3,3,2,3,13,"2-ply CPU with blocking evaluator (ChineseCheckersRules.kt:262-277)",M,"Replace while(flight!=null) delay(40) busy-poll with awaited signal (ChineseCheckersScreen.kt:240)",S
+ludo,3,3,2,2,3,13,"Pass pulse as State<Float> into draw lambdas; it recomposes the board every frame (LudoScreen.kt:605-608)",S,"Replace while(flight!=null||rolling) delay(40) busy-poll (LudoScreen.kt:283)",S

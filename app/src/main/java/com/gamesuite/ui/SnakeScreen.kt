@@ -92,7 +92,10 @@ import com.gamesuite.games.snake.SnakeSpeed
 import com.gamesuite.games.snake.SnakeState
 import com.gamesuite.games.snake.SnakeStatsStore
 import com.gamesuite.games.snake.SnakeStatus
+import com.gamesuite.haptics.ChangeTracker
 import com.gamesuite.haptics.HapticSignal
+import com.gamesuite.haptics.SnakeHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalReducedMotion
@@ -216,29 +219,28 @@ fun SnakeScreen(
     val bestScore = bestScores[config.bestKey]
     var reportedNewBest by remember(s.runSeq) { mutableStateOf<Boolean?>(null) }
 
+    // HAPTICS (see SnakeHapticCues): eating = NORMAL_ACTION, SUCCESS each time the length crosses a
+    // multiple of 10, death = FAILURE + a strong thud, a new best / cleared board = CELEBRATION.
+    // The length tracker makes the first state seen (a rotation, a recreated screen) a baseline.
+    val sequencer = rememberHapticSequencer()
+    val foodTracker = remember { ChangeTracker<Pair<Int, Int>>() }
     LaunchedEffect(s.foods, s.runSeq) {
-        if (s.foods > 0) {
-            haptics(HapticSignal.LIGHT_TICK)
+        val previous = foodTracker.update(s.runSeq to s.snake.size)
+        if (s.foods > 0 && previous != null && previous.first == s.runSeq) {
+            sequencer(SnakeHapticCues.forFood(previous.second, s.snake.size))
             playSfx(SfxKind.LIGHT_TICK)
         }
     }
     LaunchedEffect(s.level, s.runSeq) {
-        if (s.level > 1) {
-            haptics(HapticSignal.SUCCESS)
-            playSfx(SfxKind.SUCCESS_CHIME)
-        }
+        if (s.level > 1) playSfx(SfxKind.SUCCESS_CHIME)
     }
     LaunchedEffect(phase, s.runSeq) {
         if (phase == SnakePhase.OVER && reportedNewBest == null) {
             val isNewBest = statsStore.recordScore(config, s.score)
             reportedNewBest = isNewBest
-            if (isNewBest || s.status == SnakeStatus.CLEARED) {
-                haptics(HapticSignal.CELEBRATION)
-                playSfx(SfxKind.SUCCESS_CHIME)
-            } else {
-                haptics(HapticSignal.FAILURE)
-                playSfx(SfxKind.INVALID_BUZZ)
-            }
+            val celebrate = isNewBest || s.status == SnakeStatus.CLEARED
+            sequencer(SnakeHapticCues.forRunEnd(celebrate))
+            playSfx(if (celebrate) SfxKind.SUCCESS_CHIME else SfxKind.INVALID_BUZZ)
         }
     }
 

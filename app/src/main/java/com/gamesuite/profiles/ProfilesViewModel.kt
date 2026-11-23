@@ -147,6 +147,7 @@ class ProfilesViewModel(app: Application) : AndroidViewModel(app) {
         val target = _profiles.value?.byId(id) ?: return
         _parentUnlocked.value = false
         ProfileScope.setActive(id)
+        ProfileScope.setActiveKid(target.isKid)
         // Optimistic: access rules must follow the switch at once, not after the DataStore round-trip.
         _profiles.value = _profiles.value?.let { ProfilesLogic.switch(it, id) }
         syncNetworkPolicy()

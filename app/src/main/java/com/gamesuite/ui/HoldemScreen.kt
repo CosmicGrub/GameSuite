@@ -513,6 +513,14 @@ fun HoldemScreen(
         }
     }
 
+    // Idle-turn limit: the host moves on a human seat that has not acted for a minute (networked tables only).
+    LaunchedEffect(s.eventSerial, s.toAct, driving) {
+        val cur = game.state.value ?: return@LaunchedEffect
+        if (!driving || game.idleTimeoutAction(cur) == null) return@LaunchedEffect
+        delay(com.gamesuite.core.IdleTurnPolicy.TURN_LIMIT_MS)
+        game.applyIdleTimeout(cur)
+    }
+
     // ---- words ------------------------------------------------------------------------------------
     fun seatName(i: Int) = s.seats.getOrNull(i)?.displayName ?: ""
     val statusText = holdemStatusLine(

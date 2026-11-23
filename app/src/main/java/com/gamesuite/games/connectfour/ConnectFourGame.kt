@@ -292,7 +292,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             snap.players.size == roster.size &&
             snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
             snap.currentPlayerIndex in snap.players.indices &&
-            snap.nextStartingPlayerIndex in snap.players.indices
+            snap.nextStartingPlayerIndex in snap.players.indices &&
+            ConnectFourPositionCheck.isValid(
+                snap.cells, spec.rows, spec.columns, spec.winLength, snap.players.map { it.playerId },
+                snap.currentPlayerIndex, snap.boardOver, snap.winnerPlayerId, snap.winningLine
+            )
         return if (valid) snap else null
     }
 
@@ -468,6 +472,7 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
      * session. Reuses [startMatch] itself, same as DotsAndBoxesGame.playAgain().
      */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value) return
@@ -673,6 +678,11 @@ class ConnectFourGame : GameModule, ResumableGame, UndoableGame {
             net.currentPlayerIndex in 0 until n &&
             (net.winningLine?.all { it in 0 until spec.cellCount } ?: true)
         if (!valid) return
+        if (!ConnectFourPositionCheck.isValid(
+                net.cells, spec.rows, spec.columns, spec.winLength, context.players.map { it.playerId },
+                net.currentPlayerIndex, net.boardOver, net.winnerPlayerId, net.winningLine
+            )
+        ) return
         if (!com.gamesuite.core.sessionTalliesValid(net.sessionWins, net.sessionDraws, context.players)) return
         lastAppliedRemoteVersion = version
         positionEpoch++

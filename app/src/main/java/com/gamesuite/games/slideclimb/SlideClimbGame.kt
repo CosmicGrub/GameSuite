@@ -72,14 +72,32 @@ data class SlideClimbState(
     val eventLanded: Int = 0,
     val eventTo: Int = 0,
     val eventRerolled: Boolean = false,
+    /** The last move walked past 100 and turned around (it may then have ended on a rope or slide, see [bouncedIntoJump]). */
+    val eventBounced: Boolean = false,
     val rollSerial: Int = 0,
     val moveSerial: Int = 0,
     val over: Boolean = false,
     val winnerPlayerId: String? = null
-)
+) {
+    /** True when the last move bounced off the end and then took a rope or slide: the words must say why it passed 100. */
+    val bouncedIntoJump: Boolean get() = eventBounced && (event == SlideClimbEvent.CLIMB || event == SlideClimbEvent.SLIDE)
+}
+
+/**
+ * Saved-table schema. 1 = the original shape (no version field, no [SlideClimbSnapshot.eventBounced]); 2 adds both.
+ * A snapshot with a higher version than this build understands is refused (the session then starts fresh instead
+ * of misreading a newer shape); bump this whenever the saved shape changes.
+ */
+internal const val SLIDE_CLIMB_SNAPSHOT_VERSION = 2
+
+/** Do two contexts describe the same table? A re-emitted equal context must not restart a board in progress. */
+fun slideClimbSameTable(a: com.gamesuite.core.GameContext?, b: com.gamesuite.core.GameContext?): Boolean =
+    a != null && b != null && a.activeMode == b.activeMode && a.players == b.players && a.localPlayerIndex == b.localPlayerIndex
 
 @Serializable
 private data class SlideClimbSnapshot(
+    /** Absent in saves from before versioning (read as 1). */
+    val version: Int = 1,
     val jumps: List<List<Int>>,
     val players: List<SlideClimbSnapshotPlayer>,
     val positions: List<Int>,
@@ -94,6 +112,7 @@ private data class SlideClimbSnapshot(
     val eventLanded: Int = 0,
     val eventTo: Int = 0,
     val eventRerolled: Boolean = false,
+    val eventBounced: Boolean = false,
     val rollSerial: Int = 0,
     val moveSerial: Int = 0,
     val over: Boolean,
@@ -266,6 +285,7 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }
@@ -345,7 +365,7 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
             currentPlayerIndex = if (won) seat else nextSeat(s),
             pending = false,
             event = SlideClimbEvent.of(step), eventSeat = seat,
-            eventFrom = step.from, eventLanded = step.landed, eventTo = step.to,
+            eventFrom = step.from, eventLanded = step.landed, eventTo = step.to, eventBounced = step.bounced,
             moveSerial = s.moveSerial + 1,
             over = won, winnerPlayerId = if (won) winner.playerId else null
         )
@@ -398,12 +418,13 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
         return slideClimbJson.encodeToString(
             SlideClimbSnapshot.serializer(),
             SlideClimbSnapshot(
+                version = SLIDE_CLIMB_SNAPSHOT_VERSION,
                 jumps = s.layout.jumps.entries.sortedBy { it.key }.map { listOf(it.key, it.value) },
                 players = s.players.map { SlideClimbSnapshotPlayer(it.playerId, it.displayName, it.isBot) },
                 positions = s.positions, rerolls = s.rerolls, currentPlayerIndex = s.currentPlayerIndex,
                 exactFinish = s.exactFinish, dice = s.dice, pending = s.pending,
                 event = s.event, eventSeat = s.eventSeat, eventFrom = s.eventFrom, eventLanded = s.eventLanded,
-                eventTo = s.eventTo, eventRerolled = s.eventRerolled,
+                eventTo = s.eventTo, eventRerolled = s.eventRerolled, eventBounced = s.eventBounced,
                 rollSerial = s.rollSerial, moveSerial = s.moveSerial,
                 over = s.over, winnerPlayerId = s.winnerPlayerId,
                 sessionWins = sessionWins.value, nextStartingPlayerIndex = nextStartingPlayerIndex,
@@ -424,6 +445,7 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
     private fun decodeSnapshot(text: String): Pair<SlideClimbSnapshot, SlideClimbLayout>? {
         return try {
             val snap = slideClimbJson.decodeFromString(SlideClimbSnapshot.serializer(), text)
+            if (snap.version !in 1..SLIDE_CLIMB_SNAPSHOT_VERSION) return null
             val roster = context.players
             val n = roster.size
             val layout = layoutOf(snap.jumps) ?: return null
@@ -469,6 +491,12 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
                         snap.currentPlayerIndex == (if (snap.over) seat else (seat + 1) % n)
                 }
             }
+            if (valid && snap.event !in SlideClimbEvent.MOVES) {
+                valid = !snap.eventBounced
+            }
+            if (valid && snap.event in SlideClimbEvent.MOVES && snap.version >= 2) {
+                valid = SlideClimbRules.step(snap.eventFrom, snap.dice, layout, snap.exactFinish).bounced == snap.eventBounced
+            }
             if (valid && snap.event == SlideClimbEvent.START) {
                 valid = snap.dice == 0 && snap.positions.all { it == SlideClimbBoard.START } && !snap.over
             }
@@ -499,6 +527,9 @@ class SlideClimbGame(private val random: Random = Random.Default) : GameModule, 
             exactFinish = snap.exactFinish, dice = snap.dice, pending = snap.pending,
             event = snap.event, eventSeat = snap.eventSeat, eventFrom = snap.eventFrom, eventLanded = snap.eventLanded,
             eventTo = snap.eventTo, eventRerolled = snap.eventRerolled,
+            // a version 1 save has no flag: it is implied by the roll
+            eventBounced = if (snap.version >= 2) snap.eventBounced else snap.event in SlideClimbEvent.MOVES &&
+                SlideClimbRules.step(snap.eventFrom, snap.dice, layout, snap.exactFinish).bounced,
             rollSerial = snap.rollSerial, moveSerial = snap.moveSerial,
             over = snap.over, winnerPlayerId = snap.winnerPlayerId
         )

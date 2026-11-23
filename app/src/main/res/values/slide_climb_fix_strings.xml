@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A roll that went past 100, bounced back and then landed on a rope or a slide -->
+    <string name="slide_climb_ann_bounce_climb">%1$s rolled %2$d, went past the end and bounced back, found a rope and climbed to square %3$d!</string>
+    <string name="slide_climb_ann_bounce_climb_you">You rolled %1$d, went past the end and bounced back, found a rope and climbed to square %2$d!</string>
+    <string name="slide_climb_ann_bounce_slide">%1$s rolled %2$d, went past the end and bounced back onto a slide, and slid down to square %3$d.</string>
+    <string name="slide_climb_ann_bounce_slide_you">You rolled %1$d, went past the end and bounced back onto a slide, and slid down to square %2$d.</string>
+</resources>

@@ -313,6 +313,7 @@ class PigGame(private val random: Random = Random.Default) : GameModule, Resumab
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (hostLeft.value || state.value?.over != true) return

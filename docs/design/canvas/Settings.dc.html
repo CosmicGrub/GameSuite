@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.grp{background:#141829;border:1px solid #232943;border-radius:20px;padding:0 16px}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin:18px 0 8px 4px}
+.row{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:8px 0;border-bottom:1px solid #1E2340;gap:12px}
+.row:last-child{border:0}
+.row b{font-weight:600}
+.sw{width:48px;height:28px;border-radius:14px;background:#2E3558;position:relative;flex:none}
+.sw.on{background:#FFB547}.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:#fff}.sw.on i{left:23px}
+.seg{display:flex;background:#0B0D1A;border-radius:12px;padding:3px;gap:3px}
+.seg span{height:34px;padding:0 12px;border-radius:9px;display:flex;align-items:center;font:600 13px Inter;color:#9AA0B8}
+.seg span.on{background:#2A2F55;color:#F3F1EA}
+.ic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:52px;display:flex;align-items:center;gap:12px"><a href="Club.dc.html" aria-label="Back" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a><h1 style="font-size:26px">Settings</h1></div>
+<div style="flex:1;overflow:hidden">
+<div class="lab">Look and feel</div>
+<div class="grp">
+<div class="row"><div style="display:flex;gap:12px;align-items:center"><div class="ic" style="background:#2A2F55"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B9B2FF" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></div><b>Theme</b></div><div class="seg"><span class="on">Dark</span><span>Light</span><span>Auto</span></div></div>
+<div class="row" style="flex-direction:column;align-items:stretch;gap:8px;padding:12px 0"><div style="display:flex;justify-content:space-between"><b>Text size</b><span class="mut">125%</span></div><div style="position:relative;height:8px;border-radius:4px;background:#2E3558;margin:6px 6px 4px"><div style="position:absolute;left:0;top:0;height:8px;width:55%;border-radius:4px;background:#FFB547"></div><div style="position:absolute;left:55%;top:-8px;margin-left:-12px;width:24px;height:24px;border-radius:12px;background:#fff"></div></div><div class="mut" style="font-size:12px">Applies to every screen, including games.</div></div>
+<div class="row"><div><b>Reduce motion</b><div class="mut" style="font-size:13px">Calmer transitions, no confetti</div></div><div class="sw"><i></i></div></div>
+<div class="row"><div><b>Colour-blind friendly</b><div class="mut" style="font-size:13px">Adds shapes and patterns to pieces</div></div><div class="sw on"><i></i></div></div>
+</div>
+
+<div class="lab">Sound and touch</div>
+<div class="grp">
+<div class="row"><b>Sound effects</b><div class="sw on"><i></i></div></div>
+<div class="row"><b>Music</b><div class="sw on"><i></i></div></div>
+<div class="row"><b>Vibration</b><div class="seg"><span>Off</span><span class="on">Soft</span><span>Full</span></div></div>
+</div>
+
+<div class="lab">Play</div>
+<div class="grp">
+<div class="row"><b>Computer level</b><div class="seg"><span>Easy</span><span class="on">Medium</span><span>Hard</span></div></div>
+<div class="row"><b>Game speed</b><div class="seg"><span>Slow</span><span class="on">Normal</span><span>Fast</span></div></div>
+<div class="row"><b>Language</b><span class="mut">English</span></div>
+</div>
+
+<div class="lab">People and safety</div>
+<div class="grp">
+<div class="row"><div><b>Profiles</b><div class="mut" style="font-size:13px">Sam, Alex, Mia, Leo</div></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA0B8" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></div>
+<div class="row"><div><b>Online play</b><div class="mut" style="font-size:13px">Rooms, quick match, chat phrases</div></div><div class="sw on"><i></i></div></div>
+<div class="row"><div><b>Blocked players</b><div class="mut" style="font-size:13px">None</div></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA0B8" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
