@@ -16,3 +16,4 @@ session/ws-flick-rink
 session/ws-style
 session/ws-bump-egg
 session/ws-board3
+session/cloud-*   # branches pushed by the cloud routine

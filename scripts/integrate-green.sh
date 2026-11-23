@@ -25,7 +25,7 @@ say() { echo "[$(date '+%F %T')] $*"; }
 note() { printf -- '- %s: %s\n' "$(date '+%F %H:%M')" "$*" >> "$LOGFILE"; }
 
 mkdir "$RUNLOCK" 2>/dev/null || { say "another integrator run is active; exiting"; exit 0; }
-trap 'rmdir "$RUNLOCK" 2>/dev/null' EXIT
+trap 'rmdir "$RUNLOCK" 2>/dev/null; [ -n "${EXPANDED:-}" ] && rm -f "$EXPANDED"' EXIT
 
 cd "$PRIMARY" || exit 1
 [ -f "$LOGFILE" ] || printf '# Integrator log (scripts/integrate-green.sh)\n\n' > "$LOGFILE"
@@ -37,6 +37,28 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then note "skipped: 
 [ -f "$LIST" ] || { note "no branch list at $LIST"; exit 0; }
 
 git fetch -q origin 2>/dev/null || true
+
+# ---- expand patterns (e.g. session/cloud-*) and sync local branches from origin (cloud agents push there) ----
+EXPANDED=$(mktemp)
+while IFS= read -r ent; do
+  ent="${ent%%#*}"; ent="$(echo "$ent" | tr -d '[:space:]')"
+  [ -z "$ent" ] && continue
+  case "$ent" in
+    *\**) git for-each-ref --format='%(refname:short)' "refs/remotes/origin/${ent}" | sed 's#^origin/##' >> "$EXPANDED" ;;
+    *) echo "$ent" >> "$EXPANDED" ;;
+  esac
+done < "$LIST"
+while IFS= read -r br; do
+  git rev-parse --verify -q "refs/remotes/origin/$br" >/dev/null || continue
+  if ! git rev-parse --verify -q "refs/heads/$br" >/dev/null; then git branch -q "$br" "origin/$br"; continue; fi
+  # fast-forward the local branch to origin if it is strictly behind (never overwrite local-only commits)
+  if git merge-base --is-ancestor "refs/heads/$br" "refs/remotes/origin/$br" 2>/dev/null; then
+    wt=$(git worktree list --porcelain | awk -v b="refs/heads/$br" '$1=="worktree"{p=$2} $1=="branch"&&$2==b{print p}')
+    if [ -n "$wt" ]; then git -C "$wt" merge -q --ff-only "origin/$br" 2>/dev/null || true
+    else git branch -q -f "$br" "origin/$br"; fi
+  fi
+done < "$EXPANDED"
+LIST="$EXPANDED"
 start_sha=$(git rev-parse HEAD)
 merged=()
 
