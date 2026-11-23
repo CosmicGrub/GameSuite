@@ -69,6 +69,7 @@ fun SettingsScreen(
     val secAccess = stringResource(R.string.settings_section_access)
     val secOnline = stringResource(R.string.settings_section_online)
     val secAbout = stringResource(R.string.settings_section_about)
+    val secStyle = stringResource(R.string.style_section_title)
 
     val lblCpu = stringResource(R.string.settings_cpu_difficulty)
     val descCpu = stringResource(R.string.settings_cpu_difficulty_desc)
@@ -144,7 +145,8 @@ fun SettingsScreen(
     val showResetRow = row(secAbout, lblReset)
     val showAbout = showVersion || showBlurb || showResetRow
 
-    val anyVisible = showPlay || showLook || showSoundSection || showAccess || showServer || showAbout
+    val showStyle = inSection(secStyle) || settingMatches(query, secLook)
+    val anyVisible = showStyle || showPlay || showLook || showSoundSection || showAccess || showServer || showAbout
 
     // Version name + code via PackageManager (BuildConfig may be disabled in this module).
     val context = LocalContext.current
@@ -295,6 +297,9 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // ---------------- Look and motion (style system) ----------------
+            if (showStyle) com.gamesuite.style.ui.StyleLookSection()
 
             // ---------------- Sound & music ----------------
             if (showSoundSection) {

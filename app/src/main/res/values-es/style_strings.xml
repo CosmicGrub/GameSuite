@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="style_section_title">Aspecto y movimiento</string>
+    <string name="style_intro">Elige cómo se ven y se mueven tus juegos. Puedes cambiarlo cuando quieras.</string>
+    <string name="style_art_title">Estilo artístico</string>
+    <string name="style_art_flat">2D plano</string>
+    <string name="style_art_flat_desc">Limpio y plano</string>
+    <string name="style_art_25d">2.5D</string>
+    <string name="style_art_25d_desc">Profundidad suave y sombras suaves</string>
+    <string name="style_art_3d">3D</string>
+    <string name="style_art_3d_desc">Piezas sólidas y brillantes</string>
+    <string name="style_art_3d_unavailable">El 3D necesita más memoria de la que tiene este dispositivo.</string>
+    <string name="style_art_selected">Seleccionado</string>
+    <string name="style_art_card_desc">%1$s: %2$s</string>
+    <string name="style_preview_label">Vista previa</string>
+    <string name="style_preview_desc">Vista previa en vivo de un tablero de Gem Cascade en el estilo elegido.</string>
+    <string name="style_motion_title">Movimiento</string>
+    <string name="style_motion_calm">Tranquilo: movimiento mínimo</string>
+    <string name="style_motion_standard">Normal: movimientos suaves y con peso</string>
+    <string name="style_motion_locked">El movimiento tranquilo está fijado porque el movimiento reducido está activado. Cámbialo en Accesibilidad.</string>
+    <string name="style_quality_title">Calidad</string>
+    <string name="style_quality_auto">Automática: la mejor para este dispositivo</string>
+    <string name="style_quality_high">Alta: mejor aspecto, usa más batería</string>
+    <string name="style_quality_balanced">Equilibrada: fluida y eficiente</string>
+    <string name="style_quality_saver">Ahorro de batería: gráficos más simples</string>
+    <string name="style_reset">Restablecer valores predeterminados</string>
+    <string name="style_reason_reduced_motion">El movimiento tranquilo está activo porque el movimiento reducido está activado.</string>
+    <string name="style_reason_battery_saver">Se usan gráficos más simples porque el ahorro de batería está activado.</string>
+    <string name="style_reason_thermal">Se usan gráficos más simples mientras el dispositivo se enfría.</string>
+    <string name="style_reason_assets_missing">Las piezas 3D no están listas. Por ahora se usa 2.5D.</string>
+    <string name="style_reason_low_ram">El 3D no está disponible en este dispositivo. Se usa 2.5D.</string>
+    <string name="style_reason_kid_safe">Este perfil usa 2.5D como máximo.</string>
+    <string name="style_reason_eco">El modo ecológico está activado.</string>
+    <string name="style_reason_unsupported">Este juego no tiene ese aspecto. Se usa el más cercano.</string>
+    <string name="style_reason_health">Un aspecto no se pudo cargar. Se usa uno más simple en esta sesión.</string>
+    <string name="style_reason_quality">Se usa un aspecto más simple para que el juego vaya fluido.</string>
+    <string name="style_a11y_note">El movimiento reducido, las marcas para daltónicos y el tamaño del texto se aplican en todos los estilos.</string>
+    <string name="style_menu_look">Aspecto: %1$s</string>
+    <string name="style_menu_look_desc">El aspecto es %1$s. Toca para cambiarlo.</string>
+</resources>

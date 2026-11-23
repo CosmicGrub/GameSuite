@@ -23,6 +23,7 @@ import kotlin.math.sin
 /** The flat 2D look of Gem Cascade, drawn from engine cells. Every gem kind has its own shape AND colour. */
 internal class GemPaints {
     val path = Path()
+    val path2 = Path()
     val ink = Color(0xCC101014)
     val white = Color.White
     val stone = Color(0xFF8A8F98)
@@ -100,6 +101,14 @@ private fun DrawScope.drawGem(cell: Cell, c: Offset, r: Float, alpha: Float, p: 
             drawRoundRect(outline, Offset(c.x - t / 2f, c.y - r), Size(t, r * 2f), CornerRadius(t * 0.3f), style = stroke)
         }
     }
+    drawGemSpecial(cell, c, r, alpha, p, s)
+    drawGemCage(cell, c, r, alpha, p, s)
+    drawGemTimer(cell, c, r, alpha, p, text, s)
+}
+
+/** The special-gem marks (flare bar, prism wedges, burst ring, nova star) drawn over the flat gem. */
+internal fun DrawScope.drawGemSpecial(cell: Cell, c: Offset, r: Float, alpha: Float, p: GemPaints, s: Float) {
+    val outline = p.ink.copy(alpha = alpha * 0.7f)
     val a = alpha
     when (cell.special) {
         SpecialKind.NONE -> Unit
@@ -123,6 +132,11 @@ private fun DrawScope.drawGem(cell: Cell, c: Offset, r: Float, alpha: Float, p: 
         }
         SpecialKind.NOVA -> star(c, r * 1.05f, p.white.copy(alpha = a * 0.9f), outline, Stroke(s * 0.03f), p, points = 8)
     }
+}
+
+/** The cage drawn over a locked gem. */
+internal fun DrawScope.drawGemCage(cell: Cell, c: Offset, r: Float, alpha: Float, p: GemPaints, s: Float) {
+    val a = alpha
     if (cell.locked) {
         val k = r * 1.05f
         val g = p.stoneDark.copy(alpha = a)
@@ -132,6 +146,11 @@ private fun DrawScope.drawGem(cell: Cell, c: Offset, r: Float, alpha: Float, p: 
             drawLine(g, Offset(c.x - k, c.y + i * k * 0.6f), Offset(c.x + k, c.y + i * k * 0.6f), s * 0.035f)
         }
     }
+}
+
+/** The bomb countdown badge. */
+internal fun DrawScope.drawGemTimer(cell: Cell, c: Offset, r: Float, alpha: Float, p: GemPaints, text: TextMeasurer, s: Float) {
+    val a = alpha
     if (cell.timer > 0) {
         val b = Offset(c.x + r * 0.7f, c.y + r * 0.7f)
         drawCircle(p.spider.copy(alpha = a), r * 0.5f, b)

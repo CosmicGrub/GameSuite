@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -106,6 +107,25 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
+import com.gamesuite.style.ArtTier
+import com.gamesuite.style.BoardCamera
+import com.gamesuite.style.DrawCommandBudget
+import com.gamesuite.style.GameStyleSupport
+import com.gamesuite.style.RamClass
+import com.gamesuite.style.gem.ActiveBurst
+import com.gamesuite.style.gem.BurstKind
+import com.gamesuite.style.gem.GemBoardPainter
+import com.gamesuite.style.gem.GemDrawState
+import com.gamesuite.style.gem.GemFrame
+import com.gamesuite.style.gem.GemHapticCue
+import com.gamesuite.style.gem.GemParticles
+import com.gamesuite.style.gem.GemPalette
+import com.gamesuite.style.gem.GemSfxCue
+import com.gamesuite.style.gem.GemTimeline
+import com.gamesuite.style.gem.MotionSpec
+import com.gamesuite.style.gem.StepKind
+import com.gamesuite.style.gem.particleShapeFor
+import com.gamesuite.style.ui.rememberGameStyle
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
@@ -223,21 +243,6 @@ private fun announcement(ctx: Context, s: GemBatchSummary): String {
     return out.joinToString(" ")
 }
 
-private class GemAnim {
-    var board: GemBoard = GemBoard(8, 8)
-    val offsets = HashMap<Pos, Offset>()
-    val fading = HashSet<Pos>()
-    val glow = HashSet<Pos>()
-    val pop = HashSet<Pos>()
-    val rings = HashSet<Pos>()
-    var hint: Set<Pos> = emptySet()
-    var selected: Pos? = null
-    var scan: Pos? = null
-    var chainText: String? = null
-    var scoreText: String? = null
-    var textAt: Offset = Offset(3f, 3f)
-}
-
 private fun off(from: Pos, to: Pos) = Offset((from.c - to.c).toFloat(), (from.r - to.r).toFloat())
 
 /**
@@ -270,6 +275,12 @@ fun GemCascadeScreen(
     val textMeasurer = rememberTextMeasurer()
     val paints = remember { GemPaints() }
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    // ---- look (Flat 2D / 2.5D / baked 3D) resolved from the style system ----
+    val gs = rememberGameStyle(GameStyleSupport.GEM_CASCADE)
+    val style = gs.style
+    val fxNow = remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    var burstEpoch by remember { mutableIntStateOf(0) }
+    val spriteDemoted = remember { booleanArrayOf(false) }
 
     // ---- start / resume ---------------------------------------------------------------------
     val dealtFor = remember { arrayOfNulls<GameContext>(1) }
@@ -295,7 +306,7 @@ fun GemCascadeScreen(
     val paused = game.paused.value
 
     // ---- animation state (mutated by the playback coroutine, read only in draw scopes) --------
-    val anim = remember { GemAnim() }
+    val anim = remember { GemDrawState() }
     val frame = remember { mutableIntStateOf(0) }
     val t = remember { Animatable(1f) }
     val floatT = remember { Animatable(1f) }
@@ -329,80 +340,121 @@ fun GemCascadeScreen(
         frame.intValue = frame.intValue + 1
     }
 
+    fun spawnBursts(step: com.gamesuite.style.gem.GemStep, ev: List<GemEvent>, serial: Int) {
+        if (step.burst == BurstKind.NONE || style.particleBudget <= 0) return
+        val now = android.os.SystemClock.uptimeMillis()
+        anim.bursts.removeAll { now - it.startMs >= it.lifeMs }
+        val shape = particleShapeFor(style.celebrationTier)
+        val seed = serial * 31 + step.firstIndex
+        val e = ev[step.firstIndex]
+        val budget = style.particleBudget
+        fun add(col: Int, row: Int, argb: Long, count: Int, k: Int, reach: Float = 1f) {
+            if (count > 0) anim.bursts.add(ActiveBurst(col.toFloat(), row.toFloat(), argb, count, now, 450, shape, seed + k, reach))
+        }
+        when (step.burst) {
+            BurstKind.CLEAR -> if (e is GemEvent.Clear) {
+                GemParticles.plan(e.cells, budget).forEachIndexed { k, (pos, n) ->
+                    val c = anim.board[pos]
+                    add(pos.c, pos.r, if (c.type == PieceType.GEM) com.gamesuite.games.gemcascade.GemKinds.argb[c.kind.coerceIn(0, 6)] else 0xFFFFFFFF, n, k)
+                }
+            }
+            BurstKind.SPECIAL_CREATE -> if (e is GemEvent.SpecialCreated) add(e.at.c, e.at.r, 0xFFFFFFFF, (budget / 3).coerceAtLeast(1), 0, 0.9f)
+            BurstKind.SPECIAL_FIRE -> {
+                val cells = when (e) { is GemEvent.SpecialActivated -> e.affected; is GemEvent.ComboActivated -> e.affected; else -> emptyList() }
+                GemParticles.plan(cells, budget).forEachIndexed { k, (pos, n) -> add(pos.c, pos.r, 0xFFFFFFFF, n, k) }
+            }
+            BurstKind.CHAIN -> add(anim.board.cols / 2, anim.board.rows / 2, 0xFFFFD54F, (budget / 2).coerceAtLeast(1), 0, 2.5f)
+            BurstKind.LEVEL_COMPLETE -> add(anim.board.cols / 2, anim.board.rows / 2, 0xFFFFD54F, budget, 0, 3.5f)
+            BurstKind.NONE -> Unit
+        }
+        if (anim.bursts.isNotEmpty()) burstEpoch++
+    }
+
     suspend fun play(b: GemBatch, v: GemView) {
         val ev = b.events
+        val steps = GemTimeline.build(ev, MotionSpec.of(style.motion, reduced))
         anim.board = b.before.copy()
         anim.offsets.clear(); anim.fading.clear(); anim.glow.clear(); anim.pop.clear(); anim.rings.clear()
+        anim.chainLevel = 0
         var lastClear: Pos? = null
-        var i = 0
-        while (i < ev.size) {
+        for (step in steps) {
             awaitUnpaused()
-            when (val e = ev[i]) {
-                is GemEvent.Deal -> { anim.board = v.board.copy(); poke(); i++ }
-                is GemEvent.Swap -> {
+            val e = ev[step.firstIndex]
+            when (step.sfx) {
+                GemSfxCue.INVALID -> playSfx(SfxKind.INVALID_BUZZ)
+                GemSfxCue.WHOOSH -> playSfx(SfxKind.WHOOSH)
+                GemSfxCue.THUNK -> playSfx(SfxKind.SOLID_THUNK)
+                GemSfxCue.SUCCESS -> playSfx(SfxKind.SUCCESS_CHIME)
+                GemSfxCue.NONE -> Unit
+            }
+            when (step.haptic) {
+                GemHapticCue.LIGHT_TICK -> haptics(HapticSignal.LIGHT_TICK)
+                GemHapticCue.FAILURE -> haptics(HapticSignal.FAILURE)
+                GemHapticCue.STRONG -> haptics(HapticSignal.STRONG_ACTION)
+                GemHapticCue.NORMAL -> haptics(HapticSignal.NORMAL_ACTION)
+                GemHapticCue.ESCALATING -> haptics(HapticSignal.ESCALATING)
+                GemHapticCue.CELEBRATION -> haptics(HapticSignal.CELEBRATION)
+                GemHapticCue.NONE -> Unit
+            }
+            spawnBursts(step, ev, b.serial)
+            when (step.kind) {
+                StepKind.DEAL -> { anim.board = v.board.copy(); poke() }
+                StepKind.SWAP, StepKind.SWAP_BACK -> {
+                    val pa = if (e is GemEvent.Swap) e.a else (e as GemEvent.SwapBack).a
+                    val pb = if (e is GemEvent.Swap) e.b else (e as GemEvent.SwapBack).b
                     GemEventApplier.apply(anim.board, e)
-                    anim.offsets[e.a] = off(e.b, e.a); anim.offsets[e.b] = off(e.a, e.b)
-                    haptics(HapticSignal.LIGHT_TICK)
-                    animate(150); anim.offsets.clear(); poke(); i++
+                    anim.offsets[pa] = off(pb, pa); anim.offsets[pb] = off(pa, pb)
+                    animate(step.durationMs); anim.offsets.clear(); poke()
                 }
-                is GemEvent.SwapBack -> {
-                    GemEventApplier.apply(anim.board, e)
-                    anim.offsets[e.a] = off(e.b, e.a); anim.offsets[e.b] = off(e.a, e.b)
-                    playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE)
-                    animate(150); anim.offsets.clear(); poke(); i++
-                }
-                is GemEvent.Rotate -> {
+                StepKind.ROTATE -> {
+                    e as GemEvent.Rotate
                     GemEventApplier.apply(anim.board, e)
                     for (q in listOf(e.topLeft, Pos(e.topLeft.r, e.topLeft.c + 1), Pos(e.topLeft.r + 1, e.topLeft.c), Pos(e.topLeft.r + 1, e.topLeft.c + 1))) anim.pop += q
-                    haptics(HapticSignal.LIGHT_TICK)
-                    animate(200); anim.pop.clear(); poke(); i++
+                    animate(step.durationMs); anim.pop.clear(); poke()
                 }
-                is GemEvent.RotateBack -> { playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE); i++ }
-                is GemEvent.Match -> {
+                StepKind.ROTATE_BACK -> Unit
+                StepKind.MATCH -> {
+                    e as GemEvent.Match
                     anim.glow.clear(); anim.glow.addAll(e.cells)
-                    animate(130); i++
+                    animate(step.durationMs)
                 }
-                is GemEvent.SpecialCreated -> {
+                StepKind.SPECIAL_CREATED -> {
+                    e as GemEvent.SpecialCreated
                     GemEventApplier.apply(anim.board, e)
                     anim.pop += e.at
-                    animate(160); anim.pop.clear(); poke(); i++
+                    animate(step.durationMs); anim.pop.clear(); poke()
                 }
-                is GemEvent.SpecialActivated -> {
-                    anim.rings.clear(); anim.rings.addAll(e.affected)
-                    playSfx(SfxKind.WHOOSH); haptics(HapticSignal.STRONG_ACTION)
-                    animate(170); anim.rings.clear(); poke(); i++
+                StepKind.SPECIAL_FIRE, StepKind.COMBO -> {
+                    val cells = if (e is GemEvent.SpecialActivated) e.affected else (e as GemEvent.ComboActivated).affected
+                    anim.rings.clear(); anim.rings.addAll(cells)
+                    animate(step.durationMs); anim.rings.clear(); poke()
                 }
-                is GemEvent.ComboActivated -> {
-                    anim.rings.clear(); anim.rings.addAll(e.affected)
-                    playSfx(SfxKind.WHOOSH); haptics(HapticSignal.STRONG_ACTION)
-                    animate(240); anim.rings.clear(); poke(); i++
-                }
-                is GemEvent.ObstacleDamaged -> { GemEventApplier.apply(anim.board, e); poke(); i++ }
-                is GemEvent.Clear -> {
+                StepKind.OBSTACLE, StepKind.BOMB_TICK -> { GemEventApplier.apply(anim.board, e); poke() }
+                StepKind.CLEAR -> {
+                    e as GemEvent.Clear
                     anim.glow.clear()
                     anim.fading.addAll(e.cells)
                     lastClear = e.cells.getOrNull(e.cells.size / 2)
-                    playSfx(SfxKind.SOLID_THUNK); haptics(HapticSignal.NORMAL_ACTION)
-                    animate(170)
+                    animate(step.durationMs)
                     GemEventApplier.apply(anim.board, e)
-                    anim.fading.clear(); poke(); i++
+                    anim.fading.clear(); poke()
                 }
-                is GemEvent.ChainStep -> {
+                StepKind.CHAIN -> {
+                    e as GemEvent.ChainStep
                     if (e.n >= 2) {
                         anim.chainText = androidContext.getString(R.string.gem_cascade_chain_pop, e.n)
-                        if (e.n >= 3) haptics(HapticSignal.ESCALATING)
+                        anim.chainLevel = e.n
+                        poke()
                     }
-                    i++
                 }
-                is GemEvent.ScoreDelta -> {
+                StepKind.SCORE -> {
+                    e as GemEvent.ScoreDelta
                     anim.scoreText = "+" + e.points
                     lastClear?.let { anim.textAt = Offset(it.c + 0.5f, it.r + 0.5f) }
                     scope.launch { floatT.snapTo(0f); floatT.animateTo(1f, tween(if (reduced) 1 else gameSpeed.scale(900L).toInt())) }
-                    i++
                 }
-                is GemEvent.Fall, is GemEvent.Spawn, is GemEvent.Escaped -> {
-                    var j = i
-                    while (j < ev.size && (ev[j] is GemEvent.Fall || ev[j] is GemEvent.Spawn || ev[j] is GemEvent.Escaped)) {
+                StepKind.SETTLE -> {
+                    for (j in step.firstIndex until step.endIndex) {
                         val x = ev[j]
                         GemEventApplier.apply(anim.board, x)
                         when (x) {
@@ -410,29 +462,38 @@ fun GemCascadeScreen(
                             is GemEvent.Spawn -> anim.offsets[x.at] = Offset(0f, (x.fromRow - x.at.r).toFloat())
                             else -> Unit
                         }
-                        j++
                     }
-                    animate(280); anim.offsets.clear(); poke(); i = j
+                    animate(step.durationMs); anim.offsets.clear(); poke()
                 }
-                is GemEvent.PieceMoved -> {
+                StepKind.PIECE_MOVED -> {
+                    e as GemEvent.PieceMoved
                     GemEventApplier.apply(anim.board, e)
                     anim.offsets[e.to] = off(e.from, e.to); anim.offsets[e.from] = off(e.to, e.from)
-                    animate(200); anim.offsets.clear(); poke(); i++
+                    animate(step.durationMs); anim.offsets.clear(); poke()
                 }
-                is GemEvent.NoMovesShuffle -> {
+                StepKind.SHUFFLE -> {
+                    e as GemEvent.NoMovesShuffle
                     GemEventApplier.apply(anim.board, e)
                     for (m in e.moves) anim.offsets[m.to] = off(m.from, m.to)
-                    animate(320); anim.offsets.clear(); poke(); i++
+                    animate(step.durationMs); anim.offsets.clear(); poke()
                 }
-                is GemEvent.BombTick -> { GemEventApplier.apply(anim.board, e); poke(); i++ }
-                is GemEvent.LevelComplete -> { playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.CELEBRATION); i++ }
-                is GemEvent.GameOver -> { haptics(HapticSignal.LIGHT_TICK); i++ }
-                else -> i++
+                StepKind.LEVEL_COMPLETE, StepKind.GAME_OVER -> Unit
             }
         }
         anim.board = v.board.copy()
-        anim.chainText = null; anim.scoreText = null
+        anim.chainText = null; anim.scoreText = null; anim.chainLevel = 0
         poke()
+    }
+
+    // burst clock: runs only while bursts are alive and the game is not paused; the draw scope reads fxNow
+    LaunchedEffect(burstEpoch) {
+        while (anim.bursts.isNotEmpty()) {
+            awaitUnpaused()
+            val now = androidx.compose.runtime.withFrameMillis { it }
+            fxNow.longValue = now
+            anim.bursts.removeAll { android.os.SystemClock.uptimeMillis() - it.startMs >= it.lifeMs }
+        }
+        fxNow.longValue = fxNow.longValue + 1
     }
 
     LaunchedEffect(batch?.serial) {
@@ -605,7 +666,22 @@ fun GemCascadeScreen(
         matchInProgress = sv.status == GemStatus.PLAYING,
         onLeave = game::finish,
         onAbort = { game.abortMatch() },
-        leaveKeepsProgress = true
+        leaveKeepsProgress = true,
+        extraItems = {
+            val offered = GameStyleSupport.tiersOffered(GameStyleSupport.GEM_CASCADE).filter { it != ArtTier.FULL_3D || gs.caps.ramClass != RamClass.LOW }
+            val current = gs.prefs.artFor(GameStyleSupport.GEM_CASCADE)
+            val curName = stringResource(com.gamesuite.style.ui.artNameRes(current))
+            val itemText = stringResource(R.string.style_menu_look, curName)
+            val itemDesc = stringResource(R.string.style_menu_look_desc, curName)
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(itemText) },
+                onClick = {
+                    val next = offered[(offered.indexOf(current) + 1).mod(offered.size)]
+                    gs.viewModel.setOverride(GameStyleSupport.GEM_CASCADE, next)
+                },
+                modifier = Modifier.semantics { contentDescription = itemDesc }
+            )
+        }
     ) {
         BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 8.dp)) {
             val landscape = maxWidth > maxHeight * 1.2f
@@ -691,6 +767,18 @@ fun GemCascadeScreen(
                     val fit = fitBoard(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), sv.cols, sv.rows, minCellPx = minCell, maxCellPx = with(density) { 80.dp.toPx() })
                     val cellPx = fit.cellPx
                     val cellDp = with(density) { cellPx.toDp() }
+                    val cam = remember(cellPx, sv.rows, sv.cols, style.tiltDegrees, fit.boardWidthPx, fit.boardHeightPx) {
+                        BoardCamera(sv.cols * cellPx, sv.rows * cellPx, style.tiltDegrees, fit.boardWidthPx, fit.boardHeightPx)
+                    }
+                    val palette = remember(dark, fg, accent, bgBoard, tileA, tileB) { GemPalette(dark, fg, accent, bgBoard, tileA, tileB) }
+                    val drawBudget = remember { DrawCommandBudget(2400) }
+                    drawBudget.limit = DrawCommandBudget.limitFor(style.quality)
+                    anim.scanBlock = twist
+                    val onSpriteMissing = remember {
+                        {
+                            if (!spriteDemoted[0]) { spriteDemoted[0] = true; scope.launch { gs.demote() } }
+                        }
+                    }
                     Box(
                         Modifier.align(Alignment.Center)
                             .size(with(density) { fit.boardWidthPx.toDp() }, with(density) { fit.boardHeightPx.toDp() })
@@ -699,10 +787,11 @@ fun GemCascadeScreen(
                         Canvas(
                             Modifier.fillMaxSize()
                                 .semantics { contentDescription = boardDesc }
-                                .pointerInput(sv.rows, sv.cols, cellPx) {
+                                .pointerInput(sv.rows, sv.cols, cellPx, cam) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(requireUnconsumed = false)
-                                        val start = GemInput.cellAt(down.position.x, down.position.y, cellPx, sv.rows, sv.cols)
+                                        val downPlane = cam.unproject(down.position.x, down.position.y)
+                                        val start = GemInput.cellAt(downPlane.first, downPlane.second, cellPx, sv.rows, sv.cols)
                                         var dragged = false
                                         while (true) {
                                             val event = awaitPointerEvent()
@@ -712,8 +801,8 @@ fun GemCascadeScreen(
                                                 break
                                             }
                                             if (!dragged && start != null) {
-                                                val d = ch.position - down.position
-                                                val target = GemInput.dragTarget(start, d.x, d.y, cellPx, sv.rows, sv.cols)
+                                                val now = cam.unproject(ch.position.x, ch.position.y)
+                                                val target = GemInput.dragTarget(start, now.first - downPlane.first, now.second - downPlane.second, cellPx, sv.rows, sv.cols)
                                                 if (target != null) { dragged = true; dragState.value(start, target) }
                                             }
                                             if (dragged) ch.consume()
@@ -722,53 +811,38 @@ fun GemCascadeScreen(
                                 }
                         ) {
                             frame.intValue // draw-scope read: invalidates the canvas only
-                            val tv = t.value
-                            val fv = floatT.value
-                            val s = cellPx
-                            drawRoundRect(bgBoard, Offset.Zero, Size(size.width, size.height), CornerRadius(s * 0.15f))
-                            val b = anim.board
-                            if (b.rows != sv.rows || b.cols != sv.cols) return@Canvas
-                            for (r in 0 until b.rows) for (c in 0 until b.cols) {
-                                drawRect(if ((r + c) % 2 == 0) tileA else tileB, Offset(c * s, r * s), Size(s, s))
-                            }
-                            for (r in 0 until b.rows) for (c in 0 until b.cols) drawIce(Offset(c * s, r * s), s, b.iceAt(Pos(r, c)), paints)
-                            for (r in 0 until b.rows) for (c in 0 until b.cols) {
-                                val p = Pos(r, c)
-                                val cell = b[p]
-                                if (cell.type == PieceType.EMPTY) continue
-                                val o = anim.offsets[p]
-                                val cx = (c + 0.5f + (o?.x ?: 0f) * (1f - tv)) * s
-                                val cy = (r + 0.5f + (o?.y ?: 0f) * (1f - tv)) * s
-                                var scale = 1f
-                                var alpha = 1f
-                                if (p in anim.fading) { alpha = 1f - tv; scale = if (reduced) 1f else 1f - 0.4f * tv }
-                                if (p in anim.pop) scale = 1f + 0.35f * sin(PI.toFloat() * tv)
-                                drawPiece(cell, Offset(cx, cy), s, scale, alpha, paints, textMeasurer)
-                            }
-                            for (p in anim.glow) drawRoundRect(Color.White.copy(alpha = 0.45f), Offset(p.c * s + s * 0.06f, p.r * s + s * 0.06f), Size(s * 0.88f, s * 0.88f), CornerRadius(s * 0.2f))
-                            for (p in anim.rings) drawCircle(accent.copy(alpha = 0.55f * (1f - tv)), s * (0.3f + 0.4f * tv), Offset((p.c + 0.5f) * s, (p.r + 0.5f) * s), style = Stroke(s * 0.08f))
-                            for (p in anim.hint) drawRoundRect(accent, Offset(p.c * s + s * 0.05f, p.r * s + s * 0.05f), Size(s * 0.9f, s * 0.9f), CornerRadius(s * 0.2f), style = Stroke(s * 0.08f))
-                            anim.selected?.let { p -> drawRoundRect(fg, Offset(p.c * s + s * 0.04f, p.r * s + s * 0.04f), Size(s * 0.92f, s * 0.92f), CornerRadius(s * 0.2f), style = Stroke(s * 0.07f)) }
-                            anim.scan?.let { p ->
-                                val w = if (twist) 2f else 1f
-                                drawRoundRect(accent, Offset(p.c * s + s * 0.03f, p.r * s + s * 0.03f), Size(s * w * 0.94f, s * w * 0.94f), CornerRadius(s * 0.2f), style = Stroke(s * 0.1f))
-                            }
-                            val fa = if (fv >= 1f) 0f else (1f - fv)
-                            if (fa > 0f) {
-                                anim.scoreText?.let {
-                                    val lay = textMeasurer.measure(it, TextStyle(color = fg.copy(alpha = fa), fontSize = (s * 0.34f).toSp(), fontWeight = FontWeight.Bold))
-                                    drawText(lay, topLeft = Offset(anim.textAt.x * s - lay.size.width / 2f, (anim.textAt.y - 0.5f * fv) * s))
-                                }
-                                anim.chainText?.let {
-                                    val lay = textMeasurer.measure(it, TextStyle(color = accent.copy(alpha = fa), fontSize = (s * 0.5f).toSp(), fontWeight = FontWeight.ExtraBold))
-                                    drawText(lay, topLeft = Offset(size.width / 2f - lay.size.width / 2f, size.height * 0.4f - 0.3f * fv * s))
-                                }
-                            }
+                            GemBoardPainter.paint(
+                                this,
+                                GemFrame(anim, t.value, floatT.value, fxNow.longValue, cellPx, sv.rows, sv.cols, reduced, textMeasurer, palette, paints, style, cam, gs.atlas, drawBudget, onSpriteMissing)
+                            )
                         }
                         // one labelled button per cell for TalkBack; no pointer handling here (the canvas does the touching)
                         val sb = settledBoard
                         if (sb != null && sb.rows == sv.rows && sb.cols == sv.cols) {
-                            Column(Modifier.fillMaxSize()) {
+                            if (!cam.isIdentity) {
+                                // tilted board: each cell button sits over its projected cell so TalkBack focus matches what is drawn
+                                Box(Modifier.fillMaxSize()) {
+                                    for (r in 0 until sv.rows) for (c in 0 until sv.cols) {
+                                        val p = Pos(r, c)
+                                        val isSel = (selCell ?: armedFirst) == p
+                                        val desc = describeCell(androidContext, sb, p, isSel)
+                                        val label = stringResource(R.string.gem_cascade_select_action)
+                                        val pr = cam.project((c + 0.5f) * cellPx, (r + 0.5f) * cellPx)
+                                        val side = cellPx * pr.scale
+                                        Box(
+                                            Modifier
+                                                .offset { androidx.compose.ui.unit.IntOffset((pr.x - side / 2f).toInt(), (pr.y - side / 2f).toInt()) }
+                                                .size(with(density) { side.toDp() })
+                                                .semantics {
+                                                    contentDescription = desc
+                                                    role = Role.Button
+                                                    selected = isSel
+                                                    onClick(label) { handleTap(p); true }
+                                                }
+                                        )
+                                    }
+                                }
+                            } else Column(Modifier.fillMaxSize()) {
                                 for (r in 0 until sv.rows) Row(Modifier.fillMaxWidth()) {
                                     for (c in 0 until sv.cols) {
                                         val p = Pos(r, c)

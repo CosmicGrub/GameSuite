@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="style_section_title">Look and motion</string>
+    <string name="style_intro">Choose how your games look and move. You can change this any time.</string>
+    <string name="style_art_title">Art style</string>
+    <string name="style_art_flat">Flat 2D</string>
+    <string name="style_art_flat_desc">Clean and flat</string>
+    <string name="style_art_25d">2.5D</string>
+    <string name="style_art_25d_desc">Gentle depth and soft shadows</string>
+    <string name="style_art_3d">3D</string>
+    <string name="style_art_3d_desc">Solid, shiny pieces</string>
+    <string name="style_art_3d_unavailable">3D needs more memory than this device has.</string>
+    <string name="style_art_selected">Selected</string>
+    <string name="style_art_card_desc">%1$s: %2$s</string>
+    <string name="style_preview_label">Preview</string>
+    <string name="style_preview_desc">Live preview of a Gem Cascade board in the chosen style.</string>
+    <string name="style_motion_title">Motion</string>
+    <string name="style_motion_calm">Calm: minimal movement</string>
+    <string name="style_motion_standard">Standard: smooth, weighted moves</string>
+    <string name="style_motion_locked">Calm motion is locked because Reduced Motion is on. Change it in Accessibility.</string>
+    <string name="style_quality_title">Quality</string>
+    <string name="style_quality_auto">Auto: best for this device</string>
+    <string name="style_quality_high">High: best looks, uses more battery</string>
+    <string name="style_quality_balanced">Balanced: smooth and efficient</string>
+    <string name="style_quality_saver">Battery saver: simplest visuals</string>
+    <string name="style_reset">Reset to defaults</string>
+    <string name="style_reason_reduced_motion">Calm motion is on because Reduced Motion is on.</string>
+    <string name="style_reason_battery_saver">Using simpler visuals because battery saver is on.</string>
+    <string name="style_reason_thermal">Using simpler visuals while your device cools down.</string>
+    <string name="style_reason_assets_missing">The 3D pieces are not ready. Using 2.5D for now.</string>
+    <string name="style_reason_low_ram">3D is not available on this device. Using 2.5D.</string>
+    <string name="style_reason_kid_safe">This profile uses 2.5D at most.</string>
+    <string name="style_reason_eco">Eco mode is on.</string>
+    <string name="style_reason_unsupported">This game does not have that look. Using the nearest one.</string>
+    <string name="style_reason_health">A look failed to load. Using a simpler one for this session.</string>
+    <string name="style_reason_quality">Using a simpler look to keep play smooth.</string>
+    <string name="style_a11y_note">Reduce motion, colour-blind marks and text size apply in every style.</string>
+    <string name="style_menu_look">Look: %1$s</string>
+    <string name="style_menu_look_desc">Look is %1$s. Tap to change.</string>
+</resources>
