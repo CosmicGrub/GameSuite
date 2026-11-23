@@ -25,3 +25,4 @@ session/ws-gem2
 session/ws-td3
 session/ws-style2
 session/ws-a11y
+session/ws-planner

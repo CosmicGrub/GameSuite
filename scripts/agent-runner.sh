@@ -52,3 +52,29 @@ P
       --max-turns 250 < "$prompt" > "$RUN/logs/$name.log" 2>&1 & echo $! > "$RUN/pids/$name.pid" )
   live=$((live+1))
 done < "$LIST"
+
+# ---- planner: when every listed job is finished (or none left), generate the next roadmap jobs proactively ----
+unfinished=0
+while IFS='|' read -r name wt br scope grp needs; do
+  case "$name" in ''|\#*) continue ;; esac
+  [ -f "$PRIMARY/docs/handoff/done/$name.done" ] || [ -f "$wt/docs/handoff/done/$name.done" ] || unfinished=$((unfinished+1))
+done < "$LIST"
+PLAN_WT=/z/GameSuite-wt-ws-planner
+if [ "$unfinished" -eq 0 ] && [ ! -f "$RUN/pids/planner.pid" ] && [ -z "${DRY_RUN:-}" ]; then
+  last=$(cat "$RUN/planner.last" 2>/dev/null || echo 0)
+  if [ $(( $(date +%s) - last )) -ge 21600 ]; then
+    if [ ! -d "$PLAN_WT" ]; then
+      git -C "$PRIMARY" worktree add -q -b session/ws-planner "$PLAN_WT" session/wave-3 2>/dev/null || git -C "$PRIMARY" worktree add -q "$PLAN_WT" session/ws-planner
+    fi
+    date +%s > "$RUN/planner.last"
+    cat > "$RUN/logs/planner.prompt.txt" <<'P'
+You are the unattended ROADMAP PLANNER for GameSuite. Every job in docs/handoff/AGENT-JOBS.txt is finished, so queue the next work, proactively, without waiting for the owner.
+In THIS worktree (branch session/ws-planner): `git merge session/wave-3`. Read docs/handoff/AGENT-BRIEFS.md (COMMON RULES), RESUME-2026-11-22.md, QUEUE.md, docs/roadmap/UNBUILT-ITEMS.md, docs/roadmap/TEAM-PLAN-2026-11.md, docs/audit/ (esp. 08-quality-scorecard), docs/design/ scope packs, docs/research/, and the CI/test state in /z/GameSuite-testq/done/ and docs/handoff/INTEGRATOR-LOG.md.
+Produce up to 8 NEW, concrete, non-overlapping jobs that move the roadmap forward and are NOT owner-gated (never plan: trademark decisions, native Spanish review, device testing or any device access, relay host, store listing, anything needing the owner's decision). Prefer: remaining unbuilt games and features, quality-scorecard fixes, test gaps, performance fixes, accessibility, style-system roll-out, polish of the weakest games, and verification of merged-but-unplayed screens via JVM/layout tests.
+For each job: (1) append one line to docs/handoff/AGENT-JOBS.txt in the exact format name|worktree(/z/GameSuite-wt-ws-<name>)|branch(session/ws-<name>)|scope|group|needs (needs = names of jobs whose done marker must exist; empty if none; keep dependencies honest and avoid two jobs editing the same files at once by chaining them), (2) append a row to the table in docs/handoff/AGENT-BRIEFS.md and QUEUE.md, (3) append the branch to docs/handoff/INTEGRATE-BRANCHES.txt. Also make sure every finished new game has a register-* job. Do NOT edit any Kotlin, resources or shared registration files in this job: plan only. Preserve existing line endings. Commit path-scoped with trailer 'Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>' and plain-push `git push origin session/ws-planner` (never force, never main, never wave-3). Then write docs/handoff/PLANNER-LOG.md with the date, what you queued and why. End with a short plain report. If you find nothing worthwhile left, say so in PLANNER-LOG.md and queue nothing.
+P
+    ( cd "$PLAN_WT" && nohup claude -p --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+        --disallowedTools "Bash(git push --force*)" "Bash(git push -f*)" "Bash(git push origin main*)" "Bash(git push origin session/wave-3*)" "Bash(adb*)" "Bash(*connectedAndroidTest*)" "Bash(*installDebug*)" \
+        --max-turns 120 < "$RUN/logs/planner.prompt.txt" > "$RUN/logs/planner.log" 2>&1 & echo $! > "$RUN/pids/planner.pid" )
+  fi
+fi
