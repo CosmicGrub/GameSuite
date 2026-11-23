@@ -9,6 +9,9 @@
 # Usage: bash scripts/integrate-green.sh            (real run)
 #        DRY_RUN=1 bash scripts/integrate-green.sh  (report only)
 set -u
+# Gradle needs JDK 17 (CLAUDE.md); a scheduled task has no interactive profile.
+export JAVA_HOME="${JAVA_HOME:-/c/Users/Obliv/AppData/Local/Programs/Microsoft/jdk-17.0.10.7-hotspot}"
+export PATH="$JAVA_HOME/bin:$PATH:/c/Users/Obliv/.cargo/bin"
 PRIMARY="/z/GameSuite-wt-game-kit"
 BASE="session/wave-3"
 LOG_DIR="$PRIMARY/docs/handoff"
