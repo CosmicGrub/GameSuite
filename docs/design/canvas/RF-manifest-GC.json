@@ -1,0 +1,50 @@
+[
+ {
+  "file": "GCModes.dc.html",
+  "title": "Gem Cascade: mode select hub and rules sheet",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCGems.dc.html",
+  "title": "Gem Cascade: gem set, special gems and combos",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCStyles.dc.html",
+  "title": "Gem Cascade: 2D, 2.5D, 3D and themed packs",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCAnimation.dc.html",
+  "title": "Gem Cascade: animation storyboards and motion levels",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCLevels.dc.html",
+  "title": "Gem Cascade: Journey levels, obstacles and goals",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCModesInPlay.dc.html",
+  "title": "Gem Cascade: modes in play",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCKidsAccess.dc.html",
+  "title": "Gem Cascade: kids and accessibility",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "GCResults.dc.html",
+  "title": "Gem Cascade: results, stickers, best scores, daily streak",
+  "w": 2150,
+  "h": 920
+ }
+]

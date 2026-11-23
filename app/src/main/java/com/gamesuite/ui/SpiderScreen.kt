@@ -207,7 +207,7 @@ fun SpiderScreen(
         if (dealing) return // a deal (possibly a long winnable search) is already running
         scope.launch {
             dealing = true
-            game.newDeal(if (daily) java.time.LocalDate.now().toEpochDay() else null)
+            game.newDeal(if (daily) com.gamesuite.core.DailySeed.todayEpochDay() else null)
             dealing = false
         }
     }
@@ -235,7 +235,7 @@ fun SpiderScreen(
         }
         if (!sessionManager.tryResume(game)) {
             dealing = true
-            game.newDeal(if (daily) java.time.LocalDate.now().toEpochDay() else null)
+            game.newDeal(if (daily) com.gamesuite.core.DailySeed.todayEpochDay() else null)
             sounds.playShuffle()
         }
         dealing = false

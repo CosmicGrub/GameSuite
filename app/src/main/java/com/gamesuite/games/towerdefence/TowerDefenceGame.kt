@@ -79,7 +79,7 @@ import kotlin.math.roundToInt
  * no procedural level generation, no enemy variety beyond stat scaling. All explicitly flagged in
  * the design doc for future revisit, not oversights.
  */
-class TowerDefenceGame : GameModule {
+class TowerDefenceGame : GameModule, ResumableGame {
     override val gameId = "tower-defence"
     override val displayName = "Tower Defence"
     override val category = GameCategory.ARCADE
@@ -100,6 +100,9 @@ class TowerDefenceGame : GameModule {
         const val ENEMY_GOLD_REWARD = 10
         const val SPAWN_INTERVAL_SECONDS = 0.8f
         const val INTER_WAVE_SECONDS = 5f
+        /** Open maps give more build time: a long first countdown, then a medium one. */
+        const val OPEN_FIRST_WAVE_SECONDS = 20f
+        const val OPEN_INTER_WAVE_SECONDS = 10f
 
         const val BASE_TOWER_COST = 50
         const val UPGRADE_BASE_COST = 40
@@ -195,14 +198,32 @@ class TowerDefenceGame : GameModule {
         )
 
         val LEVELS = listOf(LEVEL_SWITCHBACK, LEVEL_SPIRAL, LEVEL_GAUNTLET)
+
+        // -- Open-field "Castle Siege" maps (docs/design/tower-defence/MAP-MODEL.md). --
+        val OPEN_LEVELS = TdMaps.ALL.map { TowerDefenceLevel(id = it.id, displayName = it.id, terrain = it) }
+
+        /** Open maps first, then the three Classic fixed-lane maps (their ids and stats keys are unchanged). */
+        val ALL_LEVELS: List<TowerDefenceLevel> = OPEN_LEVELS + LEVELS
+
+        fun levelById(id: String): TowerDefenceLevel? = ALL_LEVELS.firstOrNull { it.id == id }
+
+        /** Gentle: a fourth, Tower Defence only tier (open question 12): gold 200, hp x0.6, speed x0.7, count x0.7, castle x1.5. */
+        val GENTLE = TdTierConfig(startingGold = 200, hpMultiplier = 0.6f, speedMultiplier = 0.7f, countMultiplier = 0.7f, castleMultiplier = 1.5f)
     }
 
+    /** A fixed-lane Classic level (path + zones) or, when [terrain] is set, an open-field map. */
     data class TowerDefenceLevel(
         val id: String,
         val displayName: String,
-        val path: List<Offset>,
-        val towerZones: List<Offset>
-    )
+        val path: List<Offset> = emptyList(),
+        val towerZones: List<Offset> = emptyList(),
+        val terrain: TdTerrain? = null
+    ) {
+        val isOpen: Boolean get() = terrain != null
+    }
+
+    /** A leak hit the castle for [damage] (5 for a boss); the UI shakes and flashes off [seq]. */
+    data class CastleHitEvent(val seq: Long, val damage: Int)
 
     enum class TowerDefenceRunResult { WON, LOST }
 
@@ -212,21 +233,46 @@ class TowerDefenceGame : GameModule {
         val hp: Float,
         val maxHp: Float,
         val speed: Float,
-        val goldReward: Int
+        val goldReward: Int,
+        // Open-field only (Classic enemies keep the defaults and walk by distanceTraveled):
+        val kind: TdEnemyKind = TdEnemyKind.RUNNER,
+        /** Position in tiles (0..24 x 0..14). */
+        val pos: Offset = Offset.Zero,
+        val slow: Float = 0f,
+        val slowRemaining: Float = 0f,
+        val stunRemaining: Float = 0f
     )
+
+    /** A patch of burning ground left by a Blast fire branch: walkers inside take [TdRules.BURN_DPS] until [remaining] runs out. Radius in tiles. */
+    data class TdFirePatch(val id: Int, val pos: Offset, val radius: Float, val remaining: Float)
 
     data class TowerDefenceTower(
         val id: Int,
         val zoneIndex: Int,
         val upgradeLevel: Int,
-        val cooldownRemaining: Float
+        val cooldownRemaining: Float,
+        // Open-field only: role, branch, targeting mode, anchor cell (2x2 cells), gold spent, age, shots fired.
+        val role: TdRole = TdRole.BOLT,
+        val branch: TdBranch = TdBranch.NONE,
+        val target: TdTarget = TdTarget.FIRST,
+        val cx: Int = -1,
+        val cy: Int = -1,
+        val invested: Int = 0,
+        val age: Float = 0f,
+        val shots: Int = 0
     )
 
     data class TowerDefenceProjectile(
         val id: Int,
         val position: Offset,
         val targetEnemyId: Int,
-        val damage: Float
+        val damage: Float,
+        val role: TdRole = TdRole.BOLT,
+        val splash: Float = 0f,
+        val slow: Float = 0f,
+        val stunSeconds: Float = 0f,
+        val burnSeconds: Float = 0f,
+        val bossBonus: Float = 0f
     )
 
     /** A kill's own position and a monotonic [seq] — the UI keys a one-shot effect (a particle
@@ -260,7 +306,18 @@ class TowerDefenceGame : GameModule {
         /** Bumped by every [startMatch]/[playAgain] — lets the UI reliably detect "a new run
          *  just started/ended" without relying on a Boolean transition that [playAgain] could
          *  otherwise flip past unobserved. */
-        val runSeq: Int = 0
+        val runSeq: Int = 0,
+        /** Castle health ceiling ([lives] is the current health; 20 by default, x1.5 on Gentle). */
+        val castleMax: Int = STARTING_LIVES,
+        val gentle: Boolean = false,
+        /** Open maps: the kinds still to walk out this wave, in order. */
+        val pendingSpawns: List<TdEnemyKind> = emptyList(),
+        val lastCastleHit: CastleHitEvent? = null,
+        val firePatches: List<TdFirePatch> = emptyList(),
+        val mode: TdMode = TdMode.CAMPAIGN,
+        /** Daily only: the UTC day number and that day's twist. */
+        val dailyDay: Long = 0L,
+        val modifier: TdModifier? = null
     ) {
         val waveInProgress: Boolean get() = enemiesRemainingToSpawn > 0 || enemies.isNotEmpty()
         val runOver: Boolean get() = runResult != null
@@ -278,6 +335,35 @@ class TowerDefenceGame : GameModule {
         CpuDifficulty.MEDIUM to DifficultyConfig(startingGold = 100, enemyHpMultiplier = 1.0f, enemySpeedMultiplier = 1.0f, enemyCountMultiplier = 1.0f),
         CpuDifficulty.HARD to DifficultyConfig(startingGold = 70, enemyHpMultiplier = 1.4f, enemySpeedMultiplier = 1.2f, enemyCountMultiplier = 1.3f)
     )
+
+    /** Gentle tier (Tower Defence only): applies on top of any [difficulty]; stats are filed under "<map>:GENTLE". */
+    var gentle: Boolean = false
+
+    private fun tierConfig(difficulty: CpuDifficulty, gentle: Boolean, modifier: TdModifier? = null): TdTierConfig {
+        val base = if (gentle) GENTLE else {
+            val c = difficultyConfig.getValue(difficulty)
+            TdTierConfig(c.startingGold, c.enemyHpMultiplier, c.enemySpeedMultiplier, c.enemyCountMultiplier, 1f)
+        }
+        return modifier?.apply(base) ?: base
+    }
+
+    private fun tierOf(s: TowerDefenceState): TdTierConfig = tierConfig(s.difficulty, s.gentle, s.modifier)
+
+    /** Campaign (default), Endless or Daily; set by the screen before [startMatch]. Non-campaign modes need an open map. */
+    var mode: TdMode = TdMode.CAMPAIGN
+
+    /** Daily: the UTC day number to play (the screen sets it from DailySeed). Its map, modifier and fixed Medium tier override [level] and [difficulty]. */
+    var dailyDay: Long = 0L
+
+    /** Number of skins the screen has, so a Daily plan's theme index maps the same way everywhere. */
+    var themeCount: Int = 1
+
+    /** The Daily plan being played, or null outside Daily. */
+    fun dailyPlan(): TdDailyPlan? = if (state.value.mode == TdMode.DAILY) TdDaily.plan(state.value.dailyDay, themeCount) else null
+
+    private fun classicConfig(s: TowerDefenceState): DifficultyConfig =
+        if (s.gentle) DifficultyConfig(GENTLE.startingGold, GENTLE.hpMultiplier, GENTLE.speedMultiplier, GENTLE.countMultiplier)
+        else difficultyConfig.getValue(s.difficulty)
 
     val state = mutableStateOf(
         TowerDefenceState(
@@ -300,6 +386,16 @@ class TowerDefenceGame : GameModule {
     /** Pre-set by the UI's level-select control before startMatch() — a fully separate axis from
      *  [difficulty], per the class KDoc's DIFFICULTY section. */
     var level: TowerDefenceLevel = LEVELS.first()
+
+    // Open-field caches: the flow field and tower occupancy are derived from the towers and rebuilt
+    // whenever they change (place / sell / move / restore), never per frame.
+    private val ids = TdIds()
+    private var flow: TdFlow? = null
+    private var occupied: BooleanArray = BooleanArray(TdGrid.CELLS)
+    private var flowSignature = 0
+
+    /** The build-phase save of the wave now running (see [snapshot]); null between waves and before the first. */
+    private var checkpoint: String? = null
 
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
@@ -329,18 +425,36 @@ class TowerDefenceGame : GameModule {
     }
 
     override fun startMatch() {
-        val cfg = difficultyConfig.getValue(difficulty)
+        var modifier: TdModifier? = null
+        if (mode != TdMode.CAMPAIGN && !level.isOpen) level = OPEN_LEVELS.first()
+        if (mode == TdMode.DAILY) {
+            val plan = TdDaily.plan(dailyDay, themeCount)
+            level = levelById(plan.mapId) ?: OPEN_LEVELS.first()
+            difficulty = CpuDifficulty.MEDIUM
+            gentle = false
+            modifier = plan.modifier
+        }
+        val cfg = tierConfig(difficulty, gentle, modifier)
+        val castleStart = (STARTING_LIVES * cfg.castleMultiplier).roundToInt()
         nextEnemyId = 0; nextTowerId = 0; nextProjectileId = 0; eventSeq = 0L
+        ids.enemy = 0; ids.tower = 0; ids.projectile = 0; ids.patch = 0; ids.event = 0L
         state.value = TowerDefenceState(
             level = level,
             difficulty = difficulty,
             waveNumber = 1,
             totalWaves = TOTAL_WAVES,
-            lives = STARTING_LIVES,
+            lives = castleStart,
             gold = cfg.startingGold,
-            interWaveCooldown = INTER_WAVE_SECONDS,
-            runSeq = state.value.runSeq + 1
+            interWaveCooldown = if (level.isOpen) OPEN_FIRST_WAVE_SECONDS else INTER_WAVE_SECONDS,
+            runSeq = state.value.runSeq + 1,
+            castleMax = castleStart,
+            gentle = gentle,
+            mode = mode,
+            dailyDay = if (mode == TdMode.DAILY) dailyDay else 0L,
+            modifier = modifier
         )
+        rebuildFlow()
+        checkpoint = null
         matchOver.value = false
         pausedByLifecycle = false
     }
@@ -392,6 +506,7 @@ class TowerDefenceGame : GameModule {
     fun placeTower(zoneIndex: Int) {
         val s = state.value
         if (matchOver.value || s.runOver) return
+        if (s.level.isOpen) return
         if (zoneIndex !in s.level.towerZones.indices) return
         if (s.towers.any { it.zoneIndex == zoneIndex }) return
         if (s.gold < BASE_TOWER_COST) return
@@ -401,10 +516,28 @@ class TowerDefenceGame : GameModule {
         )
     }
 
-    fun upgradeTower(towerId: Int) {
+    fun upgradeTower(towerId: Int, branch: TdBranch = TdBranch.NONE) {
         val s = state.value
         if (matchOver.value || s.runOver) return
         val tower = s.towers.firstOrNull { it.id == towerId } ?: return
+        if (s.level.isOpen) {
+            if (tower.upgradeLevel >= TdRules.MAX_LEVEL) return
+            val choosing = TdRules.needsBranch(tower.upgradeLevel, tower.branch)
+            if (choosing && branch == TdBranch.NONE) return
+            val openCost = TdRules.upgradeCost(tower.role, tower.upgradeLevel)
+            if (s.gold < openCost) return
+            state.value = s.copy(
+                gold = s.gold - openCost,
+                towers = s.towers.map {
+                    if (it.id == towerId) it.copy(
+                        upgradeLevel = it.upgradeLevel + 1,
+                        branch = if (choosing) branch else it.branch,
+                        invested = it.invested + openCost
+                    ) else it
+                }
+            )
+            return
+        }
         if (tower.upgradeLevel >= MAX_UPGRADE_LEVEL) return
         val cost = upgradeCost(tower.upgradeLevel)
         if (s.gold < cost) return
@@ -446,8 +579,9 @@ class TowerDefenceGame : GameModule {
     fun tick(dtSeconds: Float) {
         val s = state.value
         if (matchOver.value || s.runOver || s.paused) return
+        if (s.level.isOpen) { tickOpen(s, dtSeconds); return }
         val dt = dtSeconds.coerceIn(0f, 0.05f)
-        val cfg = difficultyConfig.getValue(s.difficulty)
+        val cfg = classicConfig(s)
 
         var lives = s.lives
         var gold = s.gold
@@ -595,10 +729,233 @@ class TowerDefenceGame : GameModule {
         )
     }
 
+    // -- Open-field API ------------------------------------------------------------------------
+
+    private fun towerAnchors(towers: List<TowerDefenceTower>, except: Int? = null): List<Pair<Int, Int>> =
+        towers.filter { it.id != except }.map { it.cx to it.cy }
+
+    private fun signatureOf(towers: List<TowerDefenceTower>, levelId: String): Int {
+        var h = levelId.hashCode()
+        for (t in towers) h = h * 31 + (t.cx * 64 + t.cy)
+        return h * 31 + towers.size
+    }
+
+    /** Rebuilds the occupancy mask and the flow field from the current towers. */
+    private fun rebuildFlow() {
+        val s = state.value
+        val terrain = s.level.terrain
+        if (terrain == null) { flow = null; return }
+        occupied = TdPlacement.occupancy(towerAnchors(s.towers))
+        flow = TdFlowField.compute(terrain, occupied)
+        flowSignature = signatureOf(s.towers, s.level.id)
+    }
+
+    private fun ensureFlow(s: TowerDefenceState) {
+        if (flow == null || flowSignature != signatureOf(s.towers, s.level.id)) rebuildFlow()
+    }
+
+    private fun tickOpen(s: TowerDefenceState, dtSeconds: Float) {
+        val terrain = s.level.terrain ?: return
+        ensureFlow(s)
+        val next = TdSiege.step(s, dtSeconds, tierOf(s), terrain, flow!!, occupied, ids)
+        if (!s.waveInProgress && next.waveInProgress && !next.runOver) checkpoint = exportSnapshot()
+        if (next.runResult == TowerDefenceRunResult.WON) everWonThisSession = true
+        if (next.runResult != null) {
+            bestWaveThisSession = maxOf(bestWaveThisSession, next.waveNumber)
+            runsFinished.value += 1
+        }
+        state.value = next
+    }
+
+    /** The flow field for the current towers (the UI's route preview). Null on Classic maps. */
+    fun currentFlow(): TdFlow? {
+        val s = state.value
+        if (!s.level.isOpen) return null
+        ensureFlow(s)
+        return flow
+    }
+
+    /** One tile-space polyline per entrance, from the spawn to the gate along the current flow. */
+    fun routePreview(): List<List<Offset>> {
+        val terrain = state.value.level.terrain ?: return emptyList()
+        val f = currentFlow() ?: return emptyList()
+        return terrain.spawns.map { TdFlowField.route(f, it) }
+    }
+
+    /** What building [role] at anchor ([cx], [cy]) would do, without building it. */
+    fun previewPlacement(cx: Int, cy: Int, role: TdRole): TdPlaceResult {
+        val s = state.value
+        val terrain = s.level.terrain ?: return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        return TdPlacement.validate(terrain, TdPlacement.occupancy(towerAnchors(s.towers)), cx, cy, s.gold, TdRules.baseCost(role))
+    }
+
+    /** Builds [role] at anchor cell ([cx], [cy]) if the placement rules allow; otherwise returns why not. Allowed while paused. */
+    fun placeTower(cx: Int, cy: Int, role: TdRole): TdPlaceResult {
+        val s = state.value
+        if (matchOver.value || s.runOver || !s.level.isOpen) return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        val result = previewPlacement(cx, cy, role)
+        if (result is TdPlaceResult.Ok) {
+            val cost = TdRules.baseCost(role)
+            state.value = s.copy(
+                gold = s.gold - cost,
+                towers = s.towers + TowerDefenceTower(
+                    id = nextTowerId++, zoneIndex = -1, upgradeLevel = 1, cooldownRemaining = 0f,
+                    role = role, cx = cx, cy = cy, invested = cost
+                )
+            )
+            rebuildFlow()
+        }
+        return result
+    }
+
+    /** Gold a sale would return right now: everything within the undo window, else 75 percent of what was spent. */
+    fun sellValue(tower: TowerDefenceTower): Int =
+        if (tower.age <= TdRules.UNDO_WINDOW_SECONDS) tower.invested else (tower.invested * TdRules.SELL_REFUND).toInt()
+
+    /** Sells a tower (open maps only); returns the refund, or -1 if nothing was sold. Selling never fails the route rule. */
+    fun sellTower(towerId: Int): Int {
+        val s = state.value
+        if (matchOver.value || s.runOver || !s.level.isOpen) return -1
+        val tower = s.towers.firstOrNull { it.id == towerId } ?: return -1
+        val refund = sellValue(tower)
+        state.value = s.copy(gold = s.gold + refund, towers = s.towers.filter { it.id != towerId })
+        rebuildFlow()
+        return refund
+    }
+
+    /** Move fee: free between waves, otherwise 20 percent of what the tower cost in total. */
+    fun moveFee(tower: TowerDefenceTower): Int =
+        if (state.value.waveInProgress) (tower.invested * TdRules.MOVE_FEE).roundToInt() else 0
+
+    fun previewMove(towerId: Int, cx: Int, cy: Int): TdPlaceResult {
+        val s = state.value
+        val terrain = s.level.terrain ?: return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        val tower = s.towers.firstOrNull { it.id == towerId } ?: return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        val occ = TdPlacement.occupancy(towerAnchors(s.towers, except = towerId))
+        return TdPlacement.validate(terrain, occ, cx, cy, s.gold, moveFee(tower))
+    }
+
+    fun moveTower(towerId: Int, cx: Int, cy: Int): TdPlaceResult {
+        val s = state.value
+        if (matchOver.value || s.runOver || !s.level.isOpen) return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        val tower = s.towers.firstOrNull { it.id == towerId } ?: return TdPlaceResult.Rejected(TdReject.UNBUILDABLE)
+        val result = previewMove(towerId, cx, cy)
+        if (result is TdPlaceResult.Ok) {
+            val fee = moveFee(tower)
+            state.value = s.copy(
+                gold = s.gold - fee,
+                towers = s.towers.map { if (it.id == towerId) it.copy(cx = cx, cy = cy, cooldownRemaining = 0f) else it }
+            )
+            rebuildFlow()
+        }
+        return result
+    }
+
+    fun setTargeting(towerId: Int, mode: TdTarget) {
+        val s = state.value
+        if (matchOver.value || s.runOver || !s.level.isOpen) return
+        if (s.towers.none { it.id == towerId }) return
+        state.value = s.copy(towers = s.towers.map { if (it.id == towerId) it.copy(target = mode) else it })
+    }
+
+    /**
+     * What the next wave will contain, counts grouped by archetype (the screen's next-wave card):
+     * the wave about to start between waves, the following one while a wave is running. Empty on
+     * Classic maps and after the last wave.
+     */
+    fun nextWavePreview(): List<Pair<TdEnemyKind, Int>> {
+        val s = state.value
+        if (!s.level.isOpen || s.runOver) return emptyList()
+        val wave = if (s.waveInProgress) s.waveNumber + 1 else s.waveNumber
+        if (s.mode != TdMode.ENDLESS && wave > s.totalWaves) return emptyList()
+        val order = TdWaves.spawnOrder(wave, tierOf(s).countMultiplier)
+        return TdEnemyKind.entries.map { k -> k to order.count { it == k } }.filter { it.second > 0 }
+    }
+
+    /** Starts the next wave now instead of waiting for the countdown. */
+    fun callNextWave() {
+        val s = state.value
+        if (matchOver.value || s.runOver || !s.level.isOpen) return
+        if (s.waveInProgress || s.interWaveCooldown <= 0f) return
+        state.value = s.copy(interWaveCooldown = 0.001f)
+    }
+
+    /**
+     * A save of the current run, or null when there is nothing safe to save: only open maps between
+     * waves are saved (no enemy, projectile or cooldown to store). See [TdSnapshot].
+     */
+    fun exportSnapshot(): String? {
+        val s = state.value
+        if (!s.level.isOpen || s.runOver || s.waveInProgress || matchOver.value) return null
+        return TdSnapshot.encode(
+            TdSnapshot.Data(
+                mapId = s.level.id, difficulty = s.difficulty.name, gentle = s.gentle, wave = s.waveNumber,
+                castle = s.lives, castleMax = s.castleMax, gold = s.gold,
+                towers = s.towers.map {
+                    TdSnapshot.TowerS(it.role.name, it.branch.name, it.target.name, it.upgradeLevel, it.cx, it.cy, it.invested)
+                },
+                mode = s.mode.name, day = s.dailyDay
+            )
+        )
+    }
+
+    /** Restores a save made by [exportSnapshot]; false (and the game untouched) if it fails validation. */
+    fun restoreSnapshot(raw: String?): Boolean {
+        val d = TdSnapshot.decode(raw) ?: return false
+        val lvl = levelById(d.mapId) ?: return false
+        difficulty = CpuDifficulty.valueOf(d.difficulty)
+        gentle = d.gentle
+        level = lvl
+        mode = TdMode.valueOf(d.mode)
+        dailyDay = d.day
+        startMatch()
+        nextTowerId = d.towers.size
+        state.value = state.value.copy(
+            waveNumber = d.wave, lives = d.castle, castleMax = d.castleMax, gold = d.gold,
+            interWaveCooldown = OPEN_INTER_WAVE_SECONDS,
+            towers = d.towers.mapIndexed { i, t ->
+                TowerDefenceTower(
+                    id = i, zoneIndex = -1, upgradeLevel = t.level, cooldownRemaining = 0f,
+                    role = TdRole.valueOf(t.role), branch = TdBranch.valueOf(t.branch),
+                    target = TdTarget.valueOf(t.target), cx = t.cx, cy = t.cy, invested = t.invested,
+                    age = TdRules.UNDO_WINDOW_SECONDS + 1f
+                )
+            }
+        )
+        rebuildFlow()
+        return true
+    }
+
+    /**
+     * [ResumableGame]: between waves the build phase itself; while a wave runs, the checkpoint taken when
+     * that wave began (so a resume restarts the wave with the towers and gold it began with). Null on
+     * Classic maps, after the run ends, outside a single-player launch, or before a first wave.
+     */
+    override fun snapshot(): String? {
+        return try {
+            if (!this::context.isInitialized || context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT) return null
+            val s = state.value
+            if (matchOver.value || s.runOver) return null
+            exportSnapshot() ?: if (s.waveInProgress) checkpoint else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            if (!this::context.isInitialized) return false
+            restoreSnapshot(snapshot)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** Called from the finished-run panel's "Play Again" button — restarts the SAME level and
      *  difficulty, keeps [bestWaveThisSession] running. A no-op unless the current run has
      *  actually ended, same idempotency guard every solo game's own `playAgain()` has. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || !state.value.runOver) return
         startMatch()
     }

@@ -39,3 +39,14 @@ jobs:
 
       - run: npm ci
       - run: npm test
+
+  # Builds the relay image from server/Dockerfile without pushing it, so a broken Dockerfile or a
+  # missing file in the build context fails here and not on the first deploy.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker build (no push)
+        run: docker build --tag gamesuite-relay:ci server/

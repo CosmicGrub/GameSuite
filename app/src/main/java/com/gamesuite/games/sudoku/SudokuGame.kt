@@ -381,9 +381,7 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     fun startMatch(dailySeed: Long?) {
         val random = dailySeed?.let { Random(it) } ?: Random.Default
         currentDailySeed = dailySeed
-        val solved = generateSolvedGrid(random)
-        val target = difficultyClueTarget[difficulty] ?: difficultyClueTarget.getValue(CpuDifficulty.MEDIUM)
-        val puzzle = carvePuzzle(solved, target, random)
+        val (solved, puzzle) = generateOrFallback(difficulty, random)
 
         timerStartElapsedRealtime.value = null
         finishedElapsedMillis.value = null
@@ -569,6 +567,7 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     /** Called from the finished-board panel's "New Puzzle" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }
@@ -605,6 +604,30 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * in practice (this is the standard technique; see [SudokuGameTest] for
      * an actual measured timing, not just an assumption).
      */
+    /** Test seam: invoked at the start of every generation attempt; a test makes it throw to force a failure. */
+    internal var generationHook: (() -> Unit)? = null
+
+    /**
+     * Never lets generation crash the app: a failed attempt is retried with a new seed up to [GENERATION_RETRIES]
+     * times, then a bundled, verified puzzle for the tier is used ([SudokuFallbackPuzzles]). Deterministic for a
+     * daily seed (every retry seed comes from the same Random). Returns (solution, puzzle with 0 = empty).
+     */
+    private fun generateOrFallback(difficulty: CpuDifficulty, random: Random): Pair<IntArray, IntArray> {
+        var r = random
+        repeat(GENERATION_RETRIES) {
+            try {
+                generationHook?.invoke()
+                val solved = generateSolvedGrid(r)
+                val target = difficultyClueTarget[difficulty] ?: difficultyClueTarget.getValue(CpuDifficulty.MEDIUM)
+                return solved to carvePuzzle(solved, target, r)
+            } catch (_: Exception) {
+                r = Random(r.nextLong())
+            }
+        }
+        val f = SudokuFallbackPuzzles.pick(difficulty, r.nextInt(Int.MAX_VALUE))
+        return f.solution.copyOf() to f.puzzle.copyOf()
+    }
+
     private fun generateSolvedGrid(random: Random): IntArray {
         val grid = IntArray(81)
         val rowMask = IntArray(9)
@@ -795,6 +818,9 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
         /** See [countSolutions]'s KDoc for why this exists at all and how the number was chosen. */
         const val SOLVE_CALL_BUDGET = 200_000
+
+        /** How many times a failed generation is retried with a fresh seed before the bundled puzzle is used. */
+        const val GENERATION_RETRIES = 3
 
         /** Sentinel [countSolutions] result meaning "ran out of budget before reaching a verdict," never a real solution count. */
         const val INCONCLUSIVE = -1

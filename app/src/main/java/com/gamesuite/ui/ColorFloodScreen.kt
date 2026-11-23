@@ -75,6 +75,8 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -269,7 +271,7 @@ fun ColorFloodScreen(
                     reportedResult = false to false
                 } else {
                     val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-                    val result = statsStore.recordSolve(game.difficulty, s.moves, finalTime)
+                    val result = withContext(NonCancellable) { statsStore.recordSolve(game.difficulty, s.moves, finalTime) }
                     reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
                 }
             }

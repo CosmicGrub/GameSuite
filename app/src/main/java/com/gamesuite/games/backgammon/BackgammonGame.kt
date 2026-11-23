@@ -230,6 +230,7 @@ class BackgammonGame(
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (state.value?.phase != BackgammonPhase.OVER) return
         startMatch()

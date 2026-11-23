@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The card words are looked up by name at runtime (Resources.getIdentifier in ActItOutScreen.cardText), so the
-     resource shrinker cannot see them being used. Keep them in release builds. -->
+<!-- String resources that are looked up BY NAME at runtime (Resources.getIdentifier), so the resource shrinker
+     cannot see them being used. Keep them in release builds. Every dynamic lookup in the app, and its pattern:
+       act_it_out_card_<id>   ActItOutScreen.cardText   (ActItOutCard.stringName)
+       fsh_fish_<id>          FishingScreen.fishName
+       tip_<game_id>_<n>      GameTips.localized        (GameTips.resourceName)
+       hub_<slug>             HubText.resolve           (core hubKey)
+     Add a pattern here when you add a new getIdentifier call. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@string/act_it_out_card_*" />
+    tools:keep="@string/act_it_out_card_*,@string/fsh_fish_*,@string/tip_*,@string/hub_*" />

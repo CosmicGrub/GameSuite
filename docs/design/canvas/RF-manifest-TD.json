@@ -1,0 +1,74 @@
+[
+ {
+  "file": "TDOverview.dc.html",
+  "title": "Tower Defence: redesign overview, before and after",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "TDCastleSiege.dc.html",
+  "title": "Tower Defence: Castle Siege hero screen and three states",
+  "w": 2150,
+  "h": 1300
+ },
+ {
+  "file": "TDOpenPlacement.dc.html",
+  "title": "Tower Defence: open placement mechanics",
+  "w": 2150,
+  "h": 1200
+ },
+ {
+  "file": "TDThemesA.dc.html",
+  "title": "Tower Defence: themes A (Castle Siege, Space Station, Roman Frontier, Cherry Ridge)",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "TDThemesB.dc.html",
+  "title": "Tower Defence: themes B (Sunstone Oasis, Frostfjord, Toy Room, Coral Reef)",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "TDTowerEnemyCodex.dc.html",
+  "title": "Tower Defence: tower trees, enemy roster, theme skin map",
+  "w": 2150,
+  "h": 1300
+ },
+ {
+  "file": "TDLivingWorld.dc.html",
+  "title": "Tower Defence: living world, motion levels, day/night and weather",
+  "w": 2150,
+  "h": 1400
+ },
+ {
+  "file": "TDModes.dc.html",
+  "title": "Tower Defence: modes hub, rules sheet, difficulty, theme picker",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "TDPrePostMatch.dc.html",
+  "title": "Tower Defence: pre-match, wave complete, results, score card",
+  "w": 2150,
+  "h": 920
+ },
+ {
+  "file": "TDTabletFold.dc.html",
+  "title": "Tower Defence: tablet, Fold and phone layouts",
+  "w": 2150,
+  "h": 1230
+ },
+ {
+  "file": "TDKidsAccess.dc.html",
+  "title": "Tower Defence: kids variant and accessibility",
+  "w": 2150,
+  "h": 1080
+ },
+ {
+  "file": "TDStoryboards.dc.html",
+  "title": "Tower Defence: storyboards for key moments",
+  "w": 2150,
+  "h": 1400
+ }
+]

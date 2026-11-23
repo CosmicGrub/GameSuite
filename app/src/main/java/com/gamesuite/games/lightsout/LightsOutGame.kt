@@ -455,6 +455,7 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** Called from the finished-board panel's "New Board" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

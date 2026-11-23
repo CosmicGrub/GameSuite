@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos del Hub de Tower Defence (nombres hubKey) -->
+    <string name="hub_map">Mapa</string>
+    <string name="hub_castle_siege_maps_let_you_build_anywhere_classic_5fb0d9">Los mapas de asedio te dejan construir donde quieras. Los clásicos conservan sus puestos fijos.</string>
+    <string name="hub_castle_pass">Paso del castillo</string>
+    <string name="hub_an_open_meadow_with_a_pond_and_one_entrance">Un prado abierto con un estanque y una entrada.</string>
+    <string name="hub_river_bend">Recodo del río</string>
+    <string name="hub_a_river_with_a_bridge_and_a_muddy_ford_two_entra_d1501a">Un río con un puente y un vado fangoso. Dos entradas.</string>
+    <string name="hub_twin_gates">Puertas gemelas</string>
+    <string name="hub_a_long_wall_with_two_gaps_two_entrances">Un muro largo con dos huecos. Dos entradas.</string>
+    <string name="hub_classic_switchback">Zigzag clásico</string>
+    <string name="hub_the_original_fixed_lane_map">El mapa original de camino fijo.</string>
+    <string name="hub_classic_spiral_keep">Fortín espiral clásico</string>
+    <string name="hub_the_original_spiral_map">El mapa original en espiral.</string>
+    <string name="hub_classic_zigzag_gauntlet">Pasillo en zigzag clásico</string>
+    <string name="hub_the_original_zigzag_map">El mapa original en zigzag.</string>
+    <string name="hub_theme">Tema</string>
+    <string name="hub_only_changes_how_it_looks_never_how_it_plays">Solo cambia el aspecto, nunca el juego.</string>
+    <string name="hub_castle_siege">Asedio al castillo</string>
+    <string name="hub_medieval_pass_archers_and_mages">Paso medieval, arqueros y magos.</string>
+    <string name="hub_space_station">Estación espacial</string>
+    <string name="hub_drone_attack_on_an_orbital_station">Ataque de drones a una estación orbital.</string>
+    <string name="hub_toy_room">Cuarto de juguetes</string>
+    <string name="hub_soft_cartoon_toys_in_a_child_room">Juguetes suaves y de dibujos en un cuarto infantil.</string>
+    <string name="hub_gentle_mode">Modo suave</string>
+    <string name="hub_softer_waves_extra_gold_and_a_sturdier_castle">Oleadas más suaves, más oro y un castillo más resistente.</string>
+    <string name="hub_mode">Modo</string>
+    <string name="hub_campaign_is_ten_waves_endless_goes_on_until_the_61de93">La campaña son diez oleadas. El modo sin fin sigue hasta que cae el castillo. El diario es un asedio compartido cada día.</string>
+    <string name="hub_campaign">Campaña</string>
+    <string name="hub_ten_waves_on_the_map_you_pick">Diez oleadas en el mapa que elijas.</string>
+    <string name="hub_keep_going_your_score_is_the_wave_you_reach">Sigue adelante. Tu puntuación es la oleada que alcances.</string>
+    <string name="hub_daily_siege">Asedio diario</string>
+    <string name="hub_the_map_and_twist_of_the_day_the_same_for_everyo_c247ee">El mapa y la variante del día, iguales para todos.</string>
+    <string name="hub_roman_frontier">Frontera romana</string>
+    <string name="hub_a_legion_fort_on_a_dusty_frontier_road">Un fuerte de legión en un polvoriento camino fronterizo.</string>
+    <string name="hub_cherry_ridge">Cresta del cerezo</string>
+    <string name="hub_a_mountain_keep_among_cherry_blossom_at_dusk">Una fortaleza de montaña entre cerezos en flor al anochecer.</string>
+</resources>

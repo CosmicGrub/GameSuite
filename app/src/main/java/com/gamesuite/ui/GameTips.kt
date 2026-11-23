@@ -130,8 +130,9 @@ object GameTips {
             "Clear every brick to finish the level."
         ),
         "tower-defence" to listOf(
-            "Build towers along the path before each wave arrives.",
-            "Earn coins for every enemy you stop and spend them on new towers."
+            "Build anywhere you like, but always leave enemies a way to the gate.",
+            "Brutes shrug off Bolt shots. Blast towers hurt them and anything near them.",
+            "Tap a tower to change its targeting, upgrade it or sell it for most of its gold."
         ),
         "air-hockey" to listOf(
             "Drag your paddle to hit the puck into your opponent\'s goal.",
@@ -375,6 +376,16 @@ object GameTips {
             "Tap a move to lock it in. Your neighbours only ever see a lock, never your pick. Tap Undo to change your mind.",
             "When everyone is locked in, a countdown runs and all moves flip face up together. Ties are played again.",
             "Against the computer, Hard learns your habits. Mix up your moves and do not repeat what just won."
+        ),
+        "bot-bastion" to listOf(
+            "Put a Tender near the entry and your guns near the Core.",
+            "Lobbers clear crowds but miss ships right beside them.",
+            "Keep a Nova Pulse for the boss wave."
+        ),
+        "gem-cascade" to listOf(
+            "Swap two neighbouring gems so three or more of a kind line up.",
+            "Match four for a Flare, five for a Prism, or an L or T for a Burst.",
+            "Stuck? Tap Hint. Boosters are free but limited in each game."
         ),
         "chutes-race" to listOf(
             "Tap the big die to roll. Your piece hops that many squares.",

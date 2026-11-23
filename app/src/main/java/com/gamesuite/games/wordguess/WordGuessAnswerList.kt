@@ -1,6 +1,7 @@
 package com.gamesuite.games.wordguess
 
 import android.content.Context
+import com.gamesuite.games.wordgames.WordSafety
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -22,22 +23,32 @@ import java.io.InputStreamReader
  */
 object WordGuessAnswerList {
     private var answers: List<String> = emptyList()
+    private var answerSet: Set<String> = emptySet()
     private var loaded = false
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         val words = mutableListOf<String>()
         context.assets.open("word_guess_answers.txt").use { stream ->
-            BufferedReader(InputStreamReader(stream)).useLines { lines ->
-                lines.forEach { line ->
-                    val w = line.trim()
-                    if (w.isNotEmpty()) words.add(w)
-                }
-            }
+            BufferedReader(InputStreamReader(stream)).useLines { lines -> words.addAll(parse(lines)) }
         }
+        install(words)
+    }
+
+    /** Trims, lowercases, drops blanks and anything [WordSafety] blocks. Pure, for tests and the loader. */
+    fun parse(lines: Sequence<String>): List<String> =
+        lines.map { it.trim().lowercase() }.filter { it.isNotEmpty() && WordSafety.isSafe(it) }.toList()
+
+    internal fun install(words: List<String>) {
         answers = words
+        answerSet = words.toSet()
         loaded = true
     }
+
+    /** All curated, safe answers (empty until loaded). */
+    fun all(): List<String> = answers
+
+    fun isAnswer(word: String): Boolean = word.lowercase() in answerSet
 
     fun randomAnswer(random: kotlin.random.Random): String = answers.random(random)
 }

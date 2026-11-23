@@ -598,7 +598,7 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     /** See this class's KDoc / MinesweeperGame.startMatch(dailySeed)'s KDoc for what this is for. */
     fun startMatch(dailySeed: Long?) {
         val random = dailySeed?.let { Random(it) } ?: Random.Default
-        val generated = generatePuzzle(difficulty, random)
+        val generated = generateOrFallback(difficulty, random)
 
         timerStartElapsedRealtime.value = null
         finishedElapsedMillis.value = null
@@ -761,6 +761,7 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     /** Called from the finished-board panel's "New Puzzle" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }
@@ -790,6 +791,30 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
     // -------------------------------------------------------------------
 
     private data class GeneratedPuzzle(val size: Int, val solution: IntArray, val cages: List<KenKenCage>)
+
+    /** Test seam: invoked at the start of every generation attempt; a test makes it throw to force a failure. */
+    internal var generationHook: (() -> Unit)? = null
+
+    /**
+     * Never lets generation crash the app: a failed attempt (generatePuzzle gives up with an exception) is retried
+     * with a new seed up to [GENERATION_RETRIES] times, and after that a bundled, verified puzzle for the tier is
+     * used ([KenKenFallbackPuzzles]). Deterministic for a daily seed: every retry seed comes from the same Random.
+     */
+    private fun generateOrFallback(difficulty: CpuDifficulty, random: Random): GeneratedPuzzle {
+        var r = random
+        repeat(GENERATION_RETRIES) {
+            try {
+                generationHook?.invoke()
+                return generatePuzzle(difficulty, r)
+            } catch (_: Exception) {
+                r = Random(r.nextLong())
+            }
+        }
+        val size = boardSizePerTier[difficulty] ?: boardSizePerTier.getValue(CpuDifficulty.MEDIUM)
+        val f = KenKenFallbackPuzzles.pick(difficulty, r.nextInt(Int.MAX_VALUE))
+        check(f.size == size) { "fallback KenKen puzzle has the wrong size for $difficulty" }
+        return GeneratedPuzzle(f.size, f.solution, f.cages)
+    }
 
     /**
      * Picks a random hand-authored cage template for [difficulty], fills a
@@ -1019,6 +1044,9 @@ class KenKenGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     private companion object {
         const val MAX_GENERATION_ATTEMPTS = 500
+
+        /** How many times a failed generation is retried with a fresh seed before the bundled puzzle is used. */
+        const val GENERATION_RETRIES = 3
         const val SOLVE_CALL_BUDGET = 200_000
         const val INCONCLUSIVE = -1
     }

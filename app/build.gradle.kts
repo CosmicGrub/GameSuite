@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.gamesuite"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.gamesuite"
@@ -19,10 +21,46 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing. Nothing secret lives in the repo: the upload key is read from a gitignored
+    // keystore.properties at the repo root (storeFile, storePassword, keyAlias, keyPassword) or, if that
+    // file is absent, from the GAMESUITE_KEYSTORE_FILE / GAMESUITE_KEYSTORE_PASSWORD / GAMESUITE_KEY_ALIAS /
+    // GAMESUITE_KEY_PASSWORD environment variables. With neither present the release build still works and
+    // produces an UNSIGNED apk/aab (Play upload needs a key; see docs/release/SIGNING.md). Pass
+    // -PdebugSignRelease=true to sign a local release build with the debug key so it can be sideloaded.
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.isFile) f.inputStream().use { load(it) }
+    }
+    fun signingValue(propKey: String, envKey: String): String? =
+        (keystoreProps.getProperty(propKey) ?: System.getenv(envKey))?.takeIf { it.isNotBlank() }
+    val releaseStoreFile = signingValue("storeFile", "GAMESUITE_KEYSTORE_FILE")
+    val releaseStorePassword = signingValue("storePassword", "GAMESUITE_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = signingValue("keyAlias", "GAMESUITE_KEY_ALIAS")
+    val releaseKeyPassword = signingValue("keyPassword", "GAMESUITE_KEY_PASSWORD")
+    val hasReleaseKey = releaseStoreFile != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!).takeIf { it.isFile } ?: File(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = when {
+                hasReleaseKey -> signingConfigs.getByName("release")
+                providers.gradleProperty("debugSignRelease").orNull == "true" -> signingConfigs.getByName("debug")
+                else -> null
+            }
         }
     }
 

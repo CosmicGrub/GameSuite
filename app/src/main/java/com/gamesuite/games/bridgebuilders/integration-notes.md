@@ -91,7 +91,7 @@ the Hub's first-visit auto-open is the only first-run card. (`rememberClCoach` m
 - Cooperative result: win = every lane has all planks AND the crossing finished before the water reached 100%.
   Lose = water covered it. Result text is "We did it!" / "Try again together" (no winner/loser words; tested).
   `GameResult` marks everyone `isWinner = true` only if at least one bridge was built in the session (so the stats layer sees
-  a team WIN); leaving with none built is a team LOSS; leaving before any try ends goes through `abortMatch()`.
+  a team WIN); leaving with none built is an abort (nothing recorded, nobody loses alone); leaving before any try ends goes through `abortMatch()`.
 - Game speed: Slow slows the cart (pace = 1 / delayScale, clamped 0.4..1.8); the water is not scaled.
 - Resume: a try is saved with its planks, sturdiness and water; the cart and green spots are not, so a resumed try restarts
   from the 3 second countdown. Backgrounding calls `pause()`, which stops the water and cart.

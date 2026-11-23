@@ -420,7 +420,11 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
             snap.sessionDraws >= 0 &&
             snap.sessionWins.keys == roster.map { it.playerId }.toSet() &&
             snap.sessionWins.values.all { it >= 0 } &&
-            (snap.winnerPlayerId == null || snap.players.any { it.playerId == snap.winnerPlayerId })
+            (snap.winnerPlayerId == null || snap.players.any { it.playerId == snap.winnerPlayerId }) &&
+            DotsAndBoxesPositionCheck.isValid(
+                snap.boxRows, snap.boxCols, snap.horizontalEdges, snap.verticalEdges, snap.boxOwner,
+                snap.players.map { it.playerId }, snap.scores, snap.boardOver, snap.winnerPlayerId
+            )
         return if (valid) snap else null
     }
 
@@ -613,6 +617,7 @@ class DotsAndBoxesGame : GameModule, ResumableGame, UndoableGame {
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworkedMode) {
             // Either seat may ask; only the host deals, and only once the board is over.

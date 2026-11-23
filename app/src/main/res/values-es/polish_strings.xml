@@ -77,8 +77,9 @@
     <string name="tip_mastermind_2">Cada intento recibe clavijas de respuesta: un tipo para un color correcto en su sitio y otro para un color correcto en un sitio equivocado.</string>
     <string name="tip_breakout_1">Arrastra para mover la pala y mantener la bola en juego.</string>
     <string name="tip_breakout_2">Elimina todos los ladrillos para terminar el nivel.</string>
-    <string name="tip_tower_defence_1">Construye torres a lo largo del camino antes de que llegue cada oleada.</string>
-    <string name="tip_tower_defence_2">Gana monedas por cada enemigo que detengas y gástalas en torres nuevas.</string>
+    <string name="tip_tower_defence_1">Construye donde quieras, pero deja siempre a los enemigos un camino hasta la puerta.</string>
+    <string name="tip_tower_defence_2">Los brutos aguantan los Disparos. Las torres de Explosión los dañan a ellos y a todo lo cercano.</string>
+    <string name="tip_tower_defence_3">Toca una torre para cambiar su objetivo, mejorarla o venderla por casi todo su oro.</string>
     <string name="tip_air_hockey_1">Arrastra tu pala para meter el disco en la portería de tu rival.</string>
     <string name="tip_air_hockey_2">Gana el primero que alcance la puntuación objetivo.</string>
     <string name="tip_party_toolkit_1">Elige una herramienta del kit: dados, ruletas, temporizadores o marcadores.</string>

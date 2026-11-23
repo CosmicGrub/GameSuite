@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New games markup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.root{width:1200px;height:960px;background:#0B0D1A;color:#F3F1EA;font:400 14px/1.5 Inter,sans-serif;padding:48px 64px;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.lab{font:600 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.it{background:#141829;border:1px solid #232943;border-radius:16px;padding:14px 16px}
+.it b{font:600 15px Sora;display:block;margin-bottom:3px}
+table{border-collapse:collapse;width:100%}
+td,th{text-align:left;padding:8px 12px;border-bottom:1px solid #1E2340;vertical-align:top;font-size:13px}
+th{font:600 12px Inter;color:#9AA0B8;letter-spacing:.08em;text-transform:uppercase}
+.tag{display:inline-block;height:22px;line-height:22px;padding:0 10px;border-radius:11px;background:#2A2F55;color:#C9CDE0;font:600 12px Inter}
+</style>
+</helmet>
+<div class="root">
+<div><div class="lab" style="margin:0 0 8px">New games, five-state pattern</div><h1 style="font-size:38px">Markup and specs</h1><div class="mut" style="margin-top:6px;font-size:16px;max-width:860px">Every new game follows the same five states so a child or grandparent learns the flow once: set up, start, play, finish, score card.</div></div>
+
+<div class="grid">
+<div class="it"><b>1 Setup</b>Who plays, one or two game rules, a handicap switch, and one saffron-or-accent Start button pinned to the bottom. Names, tokens and avatars are chosen here, never mid-game. Pre-readers see icons and big numbers; the grown-up reads the labels.</div>
+<div class="it"><b>2 Start</b>A curtain or countdown, never a blank wait. Secret-information games (Draw and Guess, Act It Out) show "Pass to Name" with a press-and-hold reveal, so peeking needs deliberate effort. Echo Pads and Bridge Builders count in with a big 3, 2, 1.</div>
+<div class="it"><b>3 Mid-game</b>One thing to do per screen. Timers are a ring plus a number, milestones only for screen readers. Waiting is shown in words ("Leo's lane is waiting"), never colour alone.</div>
+<div class="it"><b>4 Post-game</b>One celebration, one primary action (play again). Competitive games name a winner with a podium; cooperative games say "We did it!" or "Try again together". Reduced Motion: no confetti, no pulse.</div>
+<div class="it"><b>5 Score card</b>One shareable card per game: date, standings, three small stats, one highlight. Card text avoids "loser" wording for kids. Buttons: Save to stickers, Done. Saved cards live in the Sticker book and the Parent dashboard.</div>
+<div class="it"><b>Handicap, everywhere</b>A single "extra help" row in setup, same wording and placement in every game: extra roll (Slide and Climb), bonus points for little kids (Draw and Guess, Act It Out), wider spots (Bridge Builders), one free mistake (Echo Pads). Never shown on the score card as a penalty.</div>
+</div>
+
+<div>
+<div class="lab">Per game</div>
+<table>
+<tr><th style="width:17%">Game</th><th style="width:13%">Players</th><th style="width:12%">Ages</th><th style="width:30%">Theme and feel</th><th>Key rules the design shows</th></tr>
+<tr><td><b>Slide and Climb</b></td><td>2 to 4 <span class="tag">humans or robot</span></td><td>4+ <span class="tag">Kids</span></td><td>Warm cream, rounded Baloo type, chunky 56 dp targets</td><td>Players tell apart by shape and colour. Ropes and slides are marked by shape. Toast explains every jump in words and icons.</td></tr>
+<tr><td><b>Draw and Guess</b></td><td>2 to 8, or teams</td><td>6+ <span class="tag">Family</span></td><td>Midnight with a coral accent, paper-white canvas</td><td>Guessers pick from six picture-and-word cards, no typing needed. Six colour-blind-safe pen colours, three sizes, undo, eraser.</td></tr>
+<tr><td><b>Echo Pads</b></td><td>1 to 6</td><td>4+ <span class="tag">Kids</span></td><td>Deep violet, four glowing pads</td><td>Each pad has its own shape, colour and pitch. Sound off still works through flashes. Progress dots show how much is copied.</td></tr>
+<tr><td><b>Act It Out</b></td><td>3 to 12, two teams</td><td>4+ <span class="tag">Family</span></td><td>Midnight with a magenta accent, big picture cards</td><td>Cards show a picture first and a word second. Little-kids deck, skips limited to 3, +1 point bonus for child-led turns.</td></tr>
+<tr><td><b>Bridge Builders</b></td><td>2 to 4 <span class="tag">co-op</span></td><td>5+ <span class="tag">Kids</span></td><td>Sky blue, green banks, rising water</td><td>One shared strength bar. A lane may lead by at most 2 planks; a diamond knot shows when the rope is tight. Helper robot fills empty lanes.</td></tr>
+</table>
+</div>
+
+<div>
+<div class="lab">Rules for all five</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 40px;font-size:13px;color:#C9CDE0">
+<div>Targets 56 dp or more; pad and zone hit areas 72 dp or more for Echo Pads and Bridge Builders.</div><div>No online play and no chat. Same-screen and pass-and-play only this round.</div>
+<div>Kids profiles see Slide and Climb, Echo Pads, Bridge Builders; Family games also appear for kids 6 and up.</div><div>Every state has a pause that returns to the same state, never to Home by accident.</div>
+<div>Text honours the in-app size slider; no fixed font sizes ignoring it.</div><div>Score cards render offline and contain no personal data beyond first names the family typed.</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":960}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

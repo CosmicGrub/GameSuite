@@ -1,0 +1,26 @@
+# name|worktree|branch|scope|group|needs  (needs = comma list of job names whose docs/handoff/done/<n>.done must already be merged into session/wave-3; empty = none)
+# A job is finished when docs/handoff/done/<name>.done exists on its branch (the agent creates it when its scope is complete).
+style|/z/GameSuite-wt-ws-style|session/ws-style|ws-style row of docs/handoff/AGENT-BRIEFS.md (style system + Gem Cascade pilot)|style|
+bb2|/z/GameSuite-wt-ws-bb2|session/ws-bb2|ws-bb2 row (Bot Bastion follow-ups)|bb2|
+td2|/z/GameSuite-wt-ws-td2|session/ws-td2|ws-td2 row (Tower Defence follow-ups)|td2|
+plat2|/z/GameSuite-wt-ws-plat2|session/ws-plat2|ws-plat2 row (platform leftovers)|plat2|
+bb3d|/z/GameSuite-wt-ws-bb3d|session/ws-bb3d|ws-bb3d row (Bot Bastion baked 3D atlas)|bb3d|
+release|/z/GameSuite-wt-ws-release|session/ws-release|ws-release row (release build verification)|release|
+sweet-trail|/z/GameSuite-wt-ws-sweet-trail|session/ws-sweet-trail|Sweet Trail (kids games A row)|kidsA|
+trail-together|/z/GameSuite-wt-ws-trail-together|session/ws-trail-together|Trail Together (kids games A row)|kidsA|
+find-it|/z/GameSuite-wt-ws-find-it|session/ws-find-it|Find It Frenzy (kids games A row)|kidsA|
+pie-detective|/z/GameSuite-wt-ws-pie-detective|session/ws-pie-detective|Pie Detective (kids games B row)|kidsB|
+stack-zoo|/z/GameSuite-wt-ws-stack-zoo|session/ws-stack-zoo|Stack Zoo (kids games B row)|kidsB|
+flick-rink|/z/GameSuite-wt-ws-flick-rink|session/ws-flick-rink|Flick Rink (kids games B row)|kidsB|
+kids|/z/GameSuite-wt-ws-kids|session/ws-kids|ws-kids part of the ws-kids/ws-arena row|kidsArena|
+arena|/z/GameSuite-wt-ws-arena|session/ws-arena|ws-arena part of the ws-kids/ws-arena row|kidsArena|
+bump-egg|/z/GameSuite-wt-ws-bump-egg|session/ws-bump-egg|Bump and Run then Egg Garden (phase-3 batch C)|bump-egg|
+board3|/z/GameSuite-wt-ws-board3|session/ws-board3|Life Road, Property Tycoon, Territory Wars (phase-3 batch D)|board3|
+register-a|/z/GameSuite-wt-ws-register-a|session/ws-register-a|Register every merged-but-unregistered game from batch kids A (Sweet Trail, Trail Together, Find It Frenzy) in the shared files from each integration-notes.md (hub spec, glyph, accent, route, tips, coach), keeping each file line endings; verify with targeted hub/audience/coach/tips/string tests via testq|register-a|sweet-trail,trail-together,find-it
+register-b|/z/GameSuite-wt-ws-register-b|session/ws-register-b|Same registration work for batch kids B (Pie Detective, Stack Zoo, Flick Rink)|register-b|pie-detective,stack-zoo,flick-rink
+register-c|/z/GameSuite-wt-ws-register-c|session/ws-register-c|Same registration work for phase-3 games (Bump and Run, Egg Garden, Life Road, Property Tycoon, Territory Wars)|register-c|bump-egg,board3
+bb3d-render|/z/GameSuite-wt-ws-bb3d-render|session/ws-bb3d-render|Bot Bastion 3D Phase 1 renderer: wire the baked atlases from assets/styles/bot-bastion into BotBastionScreen via the StylePack infrastructure (Flat/2.5D/3D, fallback chain, Eco rules, settings), docs/design/tower-defence/bot-bastion-3d/SPEC.md and RECOMMENDATION.md|bb3d-render|style,bb3d
+gem2|/z/GameSuite-wt-ws-gem2|session/ws-gem2|Gem Cascade extras: personal-best store, haptic cue sheet wiring (docs/design/haptics-cue-sheet.md), richer sound set, Arena hook if missing|gem2|style
+td3|/z/GameSuite-wt-ws-td3|session/ws-td3|Tower Defence remaining 5 themes (Sunstone Oasis, Frostfjord, Coral Reef, and the two others in docs/design/tower-defence/THEMES.md) + Sandbox + Co-op modes|td3|td2
+style2|/z/GameSuite-wt-ws-style2|session/ws-style2|Style system roll-out to the next games per docs/design/style-packs/GAME-STYLE-MATRIX.md (chess, cards, dice, Connect Four, Reversi, Mahjong), original art|style2|style
+a11y|/z/GameSuite-wt-ws-a11y|session/ws-a11y|Accessibility + Spanish-completeness sweep: contrast, 48dp, TalkBack, reduced motion, string parity; use docs/audit/09-a11y-new-games.md from the cloud lane if present; native Spanish review stays with the owner|a11y|plat2

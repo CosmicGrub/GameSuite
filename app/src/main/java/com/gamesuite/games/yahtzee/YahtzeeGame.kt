@@ -365,6 +365,7 @@ class YahtzeeGame(private val random: Random = Random.Default) : GameModule, Res
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (state.value?.gameOver != true) return
         dealNewGame()

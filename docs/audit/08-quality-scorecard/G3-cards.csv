@@ -1,0 +1,13 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+uno,2,3,2,1,2,10,"Localise all UnoScreen/UnoHouseRules strings and engine lastAction to EN+ES with parity test",M,"Seeded UnoBot plus self-play fuzz test with card conservation",S
+solitaire,2,2,2,1,1,8,"Localise screen and engine messages; replace lastAction string parsing for haptics with event enum",M,"Seeded/daily/winnable deal using a solver (Spider dealer as template)",M
+blackjack,3,3,3,3,3,15,"Surface resplit/DAS rule options and confirm visible basic-strategy hint button",S,"Adopt shared StandardCardFace for consistent deck look",M
+war,3,2,3,3,3,14,"Device-verify reveal animation timing at 0.5x/2x game speed",S,"Announce each war round and pot size via live region",S
+texasholdem,3,3,3,2,3,14,"Confirm HoldemEquity Monte-Carlo runs on Dispatchers.Default with a time budget",S,"scaledSp() on HoldemScreen fixed sp literals (802/858/1276)",S
+president,3,2,3,2,3,13,"scaledSp() for PsCardUi fixed sp 11-15 literals",S,"Semantics test that every hand card has a spoken name via PsLabels",S
+sevens,3,2,3,2,2,12,"Seeded multi-seat self-play fuzz test (penalty on/off) with 52-card conservation",S,"scaledSp() in PsCardUi and per-card TalkBack names for board suit rows",S
+speed,3,2,1,2,2,10,"Implement real pause (empty pause()/resume(); tick loop runs during dialogs and in background); shift timers by paused time",M,"Live-region announcements for opponent plays and flips",S
+matching,3,2,3,2,2,12,"Live-region announcements for flip/match/mismatch/turn plus per-cell state descriptions",S,"Bot-vs-bot self-play fuzz at all levels",S
+spidersolitaire,3,3,3,3,3,15,"Live TalkBack pass on device for custom move actions",S,"Check jank of 104 animateOffsetAsState cards with gfxinfo",S
+hanafuda,3,2,3,2,3,13,"Read LocalColorblindMode and add month/ribbon markers on card faces",S,"Expose yaku progress with TalkBack summary and capture announcements",S
+mahjongsolitaire,3,1,2,2,3,11,"Real tile art (dots/bamboo/characters/winds/dragons/flowers) cached in drawWithCache",M,"Pair-match and select animation plus sound/haptic gated by reducedMotion and game speed",S

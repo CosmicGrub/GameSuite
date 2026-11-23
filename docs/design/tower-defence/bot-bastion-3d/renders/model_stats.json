@@ -1,0 +1,57 @@
+{
+ "Picket": {
+  "tris": 288,
+  "verts": 172,
+  "materials": 4,
+  "size": [
+   1.82,
+   2.49,
+   1.09
+  ],
+  "glb_bytes": 25252
+ },
+ "Lobber": {
+  "tris": 296,
+  "verts": 178,
+  "materials": 4,
+  "size": [
+   2.62,
+   2.62,
+   2.42
+  ],
+  "glb_bytes": 24180
+ },
+ "Skiff": {
+  "tris": 188,
+  "verts": 114,
+  "materials": 5,
+  "size": [
+   2.1,
+   2.12,
+   0.61
+  ],
+  "glb_bytes": 18704
+ },
+ "Core": {
+  "tris": 752,
+  "verts": 414,
+  "materials": 4,
+  "size": [
+   4.4,
+   4.4,
+   3.55
+  ],
+  "glb_bytes": 57008
+ },
+ "Drifter": {
+  "tris": 220,
+  "verts": 124,
+  "materials": 4,
+  "size": [
+   1.53,
+   1.85,
+   1.48
+  ],
+  "glb_bytes": 23176
+ }
+}

@@ -81,6 +81,7 @@ import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.SecureWindowEffect
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -112,11 +113,16 @@ fun DrawGuessScreen(
     val androidContext = LocalContext.current
     val haptics = rememberHaptics()
     val playSfx = rememberProceduralSfx()
-    val lang = remember { WordLang.fromLanguageTag(Locale.getDefault().language) }
+    // Keyed on the live locale (the manifest handles locale changes without recreating), so a runtime switch is followed.
+    val localeTag = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]?.language ?: Locale.getDefault().language
+    val lang = remember(localeTag) { WordLang.fromLanguageTag(localeTag) }
     val s = game.state.value
 
     LaunchedEffect(context) {
         val ctx = context ?: return@LaunchedEffect
+        // A context that re-emits (a new instance) while a match is live must not start another one over it.
+        if (game.hasLiveMatch) return@LaunchedEffect
+        game.firstMover = sessionManager.launchOptions.firstMoverIndex
         game.config = DrawGuessConfig.fromExtras(sessionManager.launchOptions.extras, lang)
         game.init(ctx)
         game.setOnMatchEnd { result ->
@@ -200,7 +206,7 @@ fun DrawGuessScreen(
             onLeave = { game.abortMatch() }, onAbort = { game.abortMatch() }, leaveTitle = leaveTitle
         ) {
             Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.draw_guess_loading), fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                Text(stringResource(if (game.unplayable.value) R.string.draw_guess_need_two else R.string.draw_guess_loading), fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }
         }
         return
@@ -272,6 +278,8 @@ private fun HoldToReveal(word: DrawWord, lang: WordLang, glyphSize: Dp, modifier
     var holding by remember { mutableStateOf(false) }
     var toggled by remember { mutableStateOf(false) }
     val showing = holding || toggled
+    // The word is on screen only now: keep it out of the Recents thumbnail and screenshots for exactly this long.
+    SecureWindowEffect(showing)
     // The screen-reader toggle must not leave the word shown (and so speakable) for the whole turn.
     LaunchedEffect(toggled) { if (toggled) { delay(5_000); toggled = false } }
     val holdLabel = stringResource(R.string.draw_guess_hold_to_see)
@@ -315,6 +323,8 @@ private fun HoldToReveal(word: DrawWord, lang: WordLang, glyphSize: Dp, modifier
 private fun ChooseStep(game: DrawGuessGame, s: DrawState, lang: WordLang, haptics: (HapticSignal) -> Unit) {
     var shown by rememberSaveable(s.turn) { mutableStateOf(false) }
     val name = game.playerName(s.drawerSeat)
+    // The three offered words are visible once the curtain is gone.
+    SecureWindowEffect(shown)
     if (!shown) {
         Curtain(
             title = stringResource(R.string.draw_guess_pass_title, name),
@@ -508,7 +518,7 @@ private fun DrawControls(
         for (i in 0 until DrawLimits.BRUSH_COUNT) {
             BrushButton(i, selected = tool.size == i, name = brushNames[i], selectedWord = selectedWord) { onTool(tool.copy(size = i)) }
         }
-        ToolTextButton(stringResource(R.string.draw_guess_tool_eraser), selected = tool.eraser) { onTool(tool.copy(eraser = !tool.eraser)) }
+        ToolTextButton(stringResource(R.string.draw_guess_tool_eraser), selected = tool.eraser, toggle = true) { onTool(tool.copy(eraser = !tool.eraser)) }
         ToolTextButton(stringResource(R.string.draw_guess_tool_undo), enabled = hasStrokes) { if (game.undoStroke()) haptics(HapticSignal.LIGHT_TICK) }
         ToolTextButton(stringResource(R.string.draw_guess_tool_clear), enabled = hasStrokes) { game.clearBoard(); haptics(HapticSignal.NORMAL_ACTION) }
     }
