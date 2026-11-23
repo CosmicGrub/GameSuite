@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  In-app update detector, sideload builds only (this file exists in src/debug and src/sideload, NEVER in src/main or
+  src/release, so the Play release manifest has neither the permission nor the provider; Play forbids self-updating).
+  The owner taps the system installer themselves; nothing is installed silently.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_file_paths" />
+        </provider>
+    </application>
+
+</manifest>

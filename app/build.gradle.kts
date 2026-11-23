@@ -40,7 +40,24 @@ android {
     val hasReleaseKey = releaseStoreFile != null && releaseStorePassword != null &&
         releaseKeyAlias != null && releaseKeyPassword != null
 
+    // In-app update detector (sideload builds only; see docs/release/SIDELOAD-UPDATES.md). CI's sideload.yml decodes the
+    // repository-secret keystore to a temp file and exports these; absent = the sideload build uses the debug key.
+    val sideloadStoreFile = System.getenv("SIDELOAD_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+    val sideloadStorePassword = System.getenv("SIDELOAD_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+    val sideloadKeyAlias = System.getenv("SIDELOAD_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+    val sideloadKeyPassword = System.getenv("SIDELOAD_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+    val hasSideloadKey = sideloadStoreFile != null && sideloadStorePassword != null &&
+        sideloadKeyAlias != null && sideloadKeyPassword != null
+
     signingConfigs {
+        if (hasSideloadKey) {
+            create("sideload") {
+                storeFile = File(sideloadStoreFile!!)
+                storePassword = sideloadStorePassword
+                keyAlias = sideloadKeyAlias
+                keyPassword = sideloadKeyPassword
+            }
+        }
         if (hasReleaseKey) {
             create("release") {
                 storeFile = rootProject.file(releaseStoreFile!!).takeIf { it.isFile } ?: File(releaseStoreFile)
@@ -52,7 +69,22 @@ android {
     }
 
     buildTypes {
+        // BuildConfig.SIDELOAD_UPDATES gates the whole in-app updater: true for debug and sideload, FALSE for the Play
+        // release. The REQUEST_INSTALL_PACKAGES permission and the update FileProvider live only in src/debug and
+        // src/sideload manifests, so the release manifest never has them (SideloadGateTest checks both).
+        debug {
+            buildConfigField("boolean", "SIDELOAD_UPDATES", "true")
+        }
+        create("sideload") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            isMinifyEnabled = false
+            buildConfigField("boolean", "SIDELOAD_UPDATES", "true")
+            matchingFallbacks += listOf("debug")
+            signingConfig = if (hasSideloadKey) signingConfigs.getByName("sideload") else signingConfigs.getByName("debug")
+        }
         release {
+            buildConfigField("boolean", "SIDELOAD_UPDATES", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -74,6 +106,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

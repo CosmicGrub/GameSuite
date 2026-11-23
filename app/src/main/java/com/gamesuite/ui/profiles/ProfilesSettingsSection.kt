@@ -53,5 +53,7 @@ fun ProfilesSettingsSection(
                 Switch(checked = controls.onlinePlayEnabled, onCheckedChange = vm::setOnlinePlayEnabled)
             }
         }
+        // In-app update detector: sideload/debug builds and adult profiles only (the Play release has the flag off).
+        com.gamesuite.update.UpdateSettingsSection(isAdult = !active.isKid)
     }
 }

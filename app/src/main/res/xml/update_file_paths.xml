@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider roots for the in-app updater (sideload builds): only the app-private cache/updates folder. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

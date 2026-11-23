@@ -12,4 +12,12 @@
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />
+    <!-- The in-app update check (sideload builds) talks only to these GitHub hosts, HTTPS only. The updater also
+         enforces the same allow-list and a redirect cap in code (update/UrlPolicy.kt). -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.github.com</domain>
+        <domain includeSubdomains="false">github.com</domain>
+        <domain includeSubdomains="false">objects.githubusercontent.com</domain>
+        <domain includeSubdomains="false">release-assets.githubusercontent.com</domain>
+    </domain-config>
 </network-security-config>
