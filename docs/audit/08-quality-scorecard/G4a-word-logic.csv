@@ -1,0 +1,10 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+wordtiles,2,3,3,2,3,13,"Replace dwyl validator with a real Scrabble-style word list and add challenge option",M,"Enforce standard swap rule (bag >= 7) and localise engine error strings",S
+hangman,1,2,2,2,1,8,"Add shared profanity/slur blocklist and filter wordPoolFor (cunt and faggot are in the asset)",S,"Replace raw dictionary sampling with bundled tiered frequency-ranked word lists plus categories",M
+wordsearch,1,2,3,2,2,10,"Use a safe common-word list instead of raw wordsOfLength (profanity and obscure words today)",S,"Reject substring/reverse/duplicate-occurrence placements and verify each word appears once",S
+crossword,1,2,2,2,1,8,"Fix canPlace to reject adjacent or collinear placements and add a run validator plus property tests",M,"Type letters directly into the grid with auto-advance and hardware keys",M
+wordguess,2,2,2,2,2,10,"Fix 9 unwinnable answers (detox geeky inbox latte penne pesto ramen rehab wimpy) and add answers-subset-of-dictionary test",S,"Add Spanish answer list and dictionary with locale selection",M
+sudoku,2,2,1,2,3,10,"Generate off main thread via shared rememberAsyncPuzzle with deadline and fallback puzzle",M,"Make daily puzzle independent of player default difficulty",S
+kenken,2,2,1,2,3,10,"Generate off main thread and catch the error() path with a bundled fallback puzzle",M,"Procedural cage topologies instead of 3 hand templates per tier",M
+kakuro,2,2,2,2,3,11,"Add ensureActive and wall-clock deadline to generation and catch failure with fallback puzzle",S,"Add more templates or procedural layout and per-tier daily",M
+nonogram,2,2,1,2,3,10,"Generate off main thread with deadline and fallback (15x15 up to 500 attempts x 200k steps)",M,"Generate from a pixel-art bank so completion reveals a real picture",L

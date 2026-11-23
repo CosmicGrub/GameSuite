@@ -206,6 +206,7 @@ class LightTrailGame(
 
     /** "Play again" on the result panel: a fresh match, session tally kept. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || phase != LtPhase.MATCH_OVER) return
         startMatch()
     }

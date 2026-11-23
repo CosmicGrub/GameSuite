@@ -152,6 +152,7 @@ class RpsGame(
     fun noteFinished() = tally()
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         tally()
         startMatch()

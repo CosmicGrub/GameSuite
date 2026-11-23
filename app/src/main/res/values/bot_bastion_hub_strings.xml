@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Bot Bastion (hubKey names); shared texts such as Play already exist elsewhere -->
+    <string name="hub_bot_bastion">Bot Bastion</string>
+    <string name="hub_build_bots_and_defend_the_core">Build bots and defend the Core.</string>
+    <string name="hub_defend_the_core_friends_can_fly_pilot_ships">Defend the Core. Friends can fly pilot ships.</string>
+    <string name="hub_skill_level">Skill level</string>
+    <string name="hub_cadet_is_gentle_endless_never_stops">Cadet is gentle; Endless never stops.</string>
+    <string name="hub_cadet">Cadet</string>
+    <string name="hub_softer_ships_and_extra_scrap">Softer ships and extra Scrap.</string>
+    <string name="hub_captain">Captain</string>
+    <string name="hub_the_standard_challenge">The standard challenge.</string>
+    <string name="hub_galactic_hero">Galactic Hero</string>
+    <string name="hub_tough_waves_and_swarm_attacks">Tough waves and swarm attacks.</string>
+    <string name="hub_insanity">Insanity</string>
+    <string name="hub_for_experts_fast_strong_and_pricey">For experts: fast, strong and pricey.</string>
+    <string name="hub_endless">Endless</string>
+    <string name="hub_hold_on_as_long_as_you_can">Hold on as long as you can.</string>
+    <string name="hub_crew_size">Crew size</string>
+    <string name="hub_people_sharing_this_device">People sharing this device.</string>
+</resources>

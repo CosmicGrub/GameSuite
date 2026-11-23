@@ -248,7 +248,7 @@ class MinesweeperGameTest {
         // result ever reported.
         val game = newGame(CpuDifficulty.EASY)
         game.startMatch(dailySeed = 1L)
-        game.revealCell(0)
+        game.revealCell(game.state.value!!.cells.indexOfFirst { it.state == CellState.HIDDEN && !it.isMine })
         assertFalse(game.state.value!!.isOver)
 
         game.leaveSession()
@@ -436,7 +436,7 @@ class MinesweeperGameTest {
         assertNull("no stopwatch before the first reveal", game.activeElapsedMillis())
 
         clock = 1_000L
-        game.revealCell(0) // starts the timer at t=1000
+        game.revealCell(game.state.value!!.cells.indexOfFirst { it.state == CellState.HIDDEN && !it.isMine }) // starts the timer at t=1000
         assertFalse(game.state.value!!.isOver)
         assertEquals(0L, game.activeElapsedMillis())
 

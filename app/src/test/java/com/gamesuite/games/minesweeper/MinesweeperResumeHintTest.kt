@@ -38,17 +38,22 @@ class MinesweeperResumeHintTest {
 
     private fun started(seed: Long? = null): MinesweeperGame = newGame().also { it.startMatch(seed) }
 
-    /** A daily seed whose first reveal at cell 0 leaves the EASY board still live. */
-    private fun liveSeed(): Long = (1L..200L).first { seed ->
-        val probe = newGame()
-        probe.startMatch(seed)
-        probe.revealCell(0)
-        !probe.state.value!!.isOver
+    /**
+     * Reveals the first hidden safe square. A Daily board has its mines and a pre-opened start from the first frame,
+     * so the old "reveal cell 0" shortcut could now hit a mine or an already-open square.
+     */
+    private fun MinesweeperGame.revealSafe(): Int {
+        val i = state.value!!.cells.indexOfFirst { it.state == CellState.HIDDEN && !it.isMine }
+        revealCell(i)
+        return i
     }
+
+    /** Any daily seed works now (a safe reveal never loses); kept so the tests read the same. */
+    private fun liveSeed(): Long = 7L
 
     private fun liveGame(): MinesweeperGame {
         val game = started(liveSeed())
-        game.revealCell(0)
+        game.revealSafe()
         return game
     }
 
@@ -103,7 +108,7 @@ class MinesweeperResumeHintTest {
         assertTrue("the daily flag survives", b.isDailyBoard)
         assertNull("the clock had not started and stays unstarted", b.timerStartElapsedRealtime.value)
         assertNull(b.activeElapsedMillis())
-        assertNull("no hint before the first reveal", b.hint())
+        assertEquals("the pre-placed daily deal comes back as it was", a.state.value, b.state.value)
 
         a.revealCell(40)
         b.revealCell(40)
@@ -145,7 +150,7 @@ class MinesweeperResumeHintTest {
     fun `the clock continues from the active time and ignores the time the app was gone`() {
         clock = 1_000L
         val a = started(liveSeed())
-        a.revealCell(0)
+        a.revealSafe()
         clock = 6_000L
         assertEquals(5_000L, a.activeElapsedMillis())
         val snapshot = a.snapshot()!!
@@ -162,7 +167,7 @@ class MinesweeperResumeHintTest {
     fun `a snapshot taken while paused stores the paused-adjusted time`() {
         clock = 1_000L
         val a = started(liveSeed())
-        a.revealCell(0)
+        a.revealSafe()
         clock = 3_000L
         a.pause()
         clock = 9_000L
@@ -209,11 +214,12 @@ class MinesweeperResumeHintTest {
 
     @Test
     fun `hint is null before the first reveal, once the board is over and after the session ends`() {
-        val game = started(liveSeed())
-        assertNull("no mines exist before the first reveal", game.hint())
-        assertEquals(0, game.hintsUsed.value)
+        val fresh = started()
+        assertNull("free play places no mines before the first reveal", fresh.hint())
+        assertEquals(0, fresh.hintsUsed.value)
 
-        game.revealCell(0)
+        val game = started(liveSeed())
+        game.revealSafe()
         winBoard(game)
         assertTrue(game.state.value!!.won)
         assertNull("nothing to suggest on a finished board", game.hint())
@@ -229,7 +235,7 @@ class MinesweeperResumeHintTest {
         var guesses = 0
         for (seed in 1L..120L) {
             val game = started(seed)
-            game.revealCell(40)
+            game.revealSafe()
             var steps = 0
             while (steps++ < 300) {
                 val s = game.state.value!!

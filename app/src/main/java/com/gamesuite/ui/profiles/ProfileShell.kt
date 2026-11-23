@@ -171,7 +171,13 @@ fun ProfileShellObserver(
     if (profile == null || !profile.isKid) return
     val kc = controls.forKid(profile.id)
     val inRound = !isIdleRoute(route)
-    val status = remember(kc, inRound, tick) { vm.limiter.check(kc, inRound, System.currentTimeMillis()) }
+    // An in-place restart ("Play again", a result-panel button) refused by LaunchPolicy.requestNewRound means the
+    // round is over and the kid tried to begin another: treat it as "between rounds" so time-up shows at once.
+    val blockedStarts by LaunchPolicy.blockedStarts.collectAsStateWithLifecycle()
+    val blockedAtEntry = remember(route) { LaunchPolicy.blockedStarts.value }
+    val roundEndedByRefusal = blockedStarts > blockedAtEntry
+    val limiterInRound = inRound && !roundEndedByRefusal
+    val status = remember(kc, limiterInRound, tick, blockedStarts) { vm.limiter.check(kc, limiterInRound, System.currentTimeMillis()) }
     SideEffect { LaunchPolicy.timeUp = !status.canStartNewGame }
 
     // Opening a game route while time is up (a launch was refused, or a stale back stack): back to Kids home,

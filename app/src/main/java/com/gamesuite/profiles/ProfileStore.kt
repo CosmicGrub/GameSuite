@@ -38,7 +38,21 @@ class ProfilesUnreadableException : Exception("Stored profiles are unreadable; t
  * quarantine key, a copy of the last good state (written with every successful write) is used to recover, and when
  * even that is missing the write is refused.
  */
-class ProfileStore(private val context: Context, private val clock: () -> Long = System::currentTimeMillis) {
+class ProfileStore internal constructor(
+    private val ds: DataStore<Preferences>,
+    private val clock: () -> Long,
+    /** The pre-profiles Club profile (read once on first run); null when unreadable. */
+    private val legacyClub: suspend () -> com.gamesuite.core.ClubProfile?,
+    /** Deletes a removed profile's files (blocking IO, called off the main thread). */
+    private val deleteData: (String) -> Unit
+) {
+    constructor(context: Context, clock: () -> Long = System::currentTimeMillis) : this(
+        ds = context.profilesDataStore,
+        clock = clock,
+        legacyClub = { try { ClubProfileStore(context).profile.first() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
+        deleteData = { id -> ProfileScope.deleteProfileData(context, id) }
+    )
+
     private object Keys {
         val STATE = stringPreferencesKey("state_json")
         val LAST_GOOD = stringPreferencesKey("state_last_good")
@@ -46,10 +60,10 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
     }
 
     /** Null until the first run has migrated the single user into the default profile (also null when unreadable, see [load]). */
-    val state: Flow<ProfilesState?> = context.profilesDataStore.data.map { loadOf(it).state }
+    val state: Flow<ProfilesState?> = ds.data.map { loadOf(it).state }
 
     /** [state] plus whether the stored value was unreadable (the app then fails closed instead of showing an adult default). */
-    val load: Flow<ProfilesLoad> = context.profilesDataStore.data.map { loadOf(it) }
+    val load: Flow<ProfilesLoad> = ds.data.map { loadOf(it) }
 
     private fun loadOf(prefs: Preferences): ProfilesLoad =
         when (val r = ProfilesLogic.read(prefs[Keys.STATE], prefs[Keys.LAST_GOOD])) {
@@ -65,7 +79,7 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
      */
     private suspend fun mutate(transform: (ProfilesState) -> ProfilesState?) {
         var blocked = false
-        context.profilesDataStore.edit { prefs ->
+        ds.edit { prefs ->
             val cur: ProfilesState = when (val r = ProfilesLogic.read(prefs[Keys.STATE], prefs[Keys.LAST_GOOD])) {
                 ProfilesRead.Missing -> ProfilesLogic.sanitize(null, clock())
                 is ProfilesRead.Ok -> ProfilesLogic.sanitize(r.state, clock())
@@ -90,17 +104,17 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
      * cannot be recovered (the caller then fails closed; nothing was overwritten).
      */
     suspend fun ensureInitialized(): ProfilesState? {
-        val prefs = context.profilesDataStore.data.first()
+        val prefs = ds.data.first()
         return when (val r = ProfilesLogic.read(prefs[Keys.STATE], prefs[Keys.LAST_GOOD])) {
             is ProfilesRead.Ok -> ProfilesLogic.sanitize(r.state, clock())
             is ProfilesRead.Corrupt -> {
-                context.profilesDataStore.edit { p ->
+                ds.edit { p ->
                     quarantineValue(p[Keys.QUARANTINE], r.raw)?.let { p[Keys.QUARANTINE] = it }
                 }
                 r.recovered?.let { ProfilesLogic.sanitize(it, clock()) }
             }
             ProfilesRead.Missing -> {
-                val club = runCatching { ClubProfileStore(context).profile.first() }.getOrNull()
+                val club = legacyClub()
                 val fresh = ProfilesLogic.initial(club?.displayName ?: "", club?.avatar?.encode(), clock())
                 var written: ProfilesState = fresh
                 // Inside the edit: if another writer created the list meanwhile, keep theirs.
@@ -111,7 +125,7 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
     }
 
     private suspend fun mutateFirstRun(fresh: ProfilesState, onResult: (ProfilesState) -> Unit) {
-        context.profilesDataStore.edit { prefs ->
+        ds.edit { prefs ->
             when (val r = ProfilesLogic.read(prefs[Keys.STATE], prefs[Keys.LAST_GOOD])) {
                 ProfilesRead.Missing -> {
                     val encoded = ProfilesLogic.encode(fresh)
@@ -158,7 +172,7 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
         }
         if (result is DeleteResult.Deleted) {
             // File deletes (and a recursive delete of saved games) are blocking IO: never on the main thread.
-            withContext(Dispatchers.IO) { ProfileScope.deleteProfileData(context, id) }
+            withContext(Dispatchers.IO) { deleteData(id) }
         }
         return result
     }
@@ -211,6 +225,7 @@ class ProfileStore(private val context: Context, private val clock: () -> Long =
                         val st = store.ensureInitialized()
                         if (st != null) {
                             ProfileScope.setActive(st.active.id)
+                            ProfileScope.setActiveKid(st.active.isKid)
                             profiles = st
                         } else {
                             unreadable = true

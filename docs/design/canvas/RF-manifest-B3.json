@@ -1,0 +1,50 @@
+[
+ {
+  "file": "B3Overview.dc.html",
+  "title": "Bot Bastion 3D: four ways to look at one arena, compared",
+  "w": 2150,
+  "h": 1060
+ },
+ {
+  "file": "B3InGame.dc.html",
+  "title": "Bot Bastion 3D: in-game screen, baked-isometric Look",
+  "w": 2150,
+  "h": 1300
+ },
+ {
+  "file": "B3Camera.dc.html",
+  "title": "Bot Bastion 3D: camera modes, ray-pick placement, readability",
+  "w": 2150,
+  "h": 1000
+ },
+ {
+  "file": "B3Assets.dc.html",
+  "title": "Bot Bastion 3D: model sheets, turnarounds, wireframes, budgets",
+  "w": 2150,
+  "h": 1490
+ },
+ {
+  "file": "B3Sectors.dc.html",
+  "title": "Bot Bastion 3D: four sector environments and lighting variants",
+  "w": 2150,
+  "h": 1180
+ },
+ {
+  "file": "B3Motion.dc.html",
+  "title": "Bot Bastion 3D: animation storyboards and motion levels",
+  "w": 2150,
+  "h": 1560
+ },
+ {
+  "file": "B3Settings.dc.html",
+  "title": "Bot Bastion 3D: Look, Quality, Motion, thermal toast, pack download",
+  "w": 2150,
+  "h": 1180
+ },
+ {
+  "file": "B3TabletPhone.dc.html",
+  "title": "Bot Bastion 3D: tablet, Fold inner, cover, tabletop, phone",
+  "w": 2150,
+  "h": 1160
+ }
+]

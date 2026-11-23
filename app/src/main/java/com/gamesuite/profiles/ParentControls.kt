@@ -104,7 +104,9 @@ class ControlsUnreadableException : Exception("Stored parent controls are unread
 private val Context.controlsDataStore: DataStore<Preferences> by gameDataStore("profile_controls")
 
 /** Device-level persistence ("profile_controls") of [ControlsState] (plus the parent gate's lock state). */
-class ParentControlsStore(private val context: Context) {
+class ParentControlsStore internal constructor(private val ds: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.controlsDataStore)
+
     private object Keys {
         val STATE = stringPreferencesKey("controls_json")
         /** The first unreadable value is parked here and never replaced (see StatsCodec's quarantine). */
@@ -113,17 +115,17 @@ class ParentControlsStore(private val context: Context) {
     }
 
     /** The usable state plus whether the stored value was unreadable. */
-    val load: Flow<ControlsLoad> = context.controlsDataStore.data.map { ControlsCodec.load(it[Keys.STATE]) }
+    val load: Flow<ControlsLoad> = ds.data.map { ControlsCodec.load(it[Keys.STATE]) }
 
     val state: Flow<ControlsState> = load.map { it.state }
 
     /** One read (bootstrap). */
-    suspend fun loadOnce(): ControlsLoad = ControlsCodec.load(context.controlsDataStore.data.first()[Keys.STATE])
+    suspend fun loadOnce(): ControlsLoad = ControlsCodec.load(ds.data.first()[Keys.STATE])
 
-    suspend fun loadGateOnce(): GateLockState = GateStateCodec.decode(context.controlsDataStore.data.first()[Keys.GATE])
+    suspend fun loadGateOnce(): GateLockState = GateStateCodec.decode(ds.data.first()[Keys.GATE])
 
     suspend fun saveGate(s: GateLockState) {
-        context.controlsDataStore.edit { it[Keys.GATE] = GateStateCodec.encode(s) }
+        ds.edit { it[Keys.GATE] = GateStateCodec.encode(s) }
     }
 
     /**
@@ -133,7 +135,7 @@ class ParentControlsStore(private val context: Context) {
      */
     suspend fun update(transform: (ControlsState) -> ControlsState) {
         var unreadable = false
-        context.controlsDataStore.edit { prefs ->
+        ds.edit { prefs ->
             when (val r = ControlsCodec.read(prefs[Keys.STATE])) {
                 is ControlsRead.Corrupt -> {
                     com.gamesuite.stats.quarantineValue(prefs[Keys.QUARANTINE], r.raw)?.let { prefs[Keys.QUARANTINE] = it }
@@ -151,7 +153,7 @@ class ParentControlsStore(private val context: Context) {
      * value stays in the quarantine key. Only called after a parent confirmed it.
      */
     suspend fun resetUnreadable() {
-        context.controlsDataStore.edit { prefs ->
+        ds.edit { prefs ->
             val raw = prefs[Keys.STATE]
             if (ControlsCodec.read(raw) is ControlsRead.Corrupt) {
                 com.gamesuite.stats.quarantineValue(prefs[Keys.QUARANTINE], raw)?.let { prefs[Keys.QUARANTINE] = it }

@@ -312,6 +312,7 @@ class GalleryGame(
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (hostLeft.value || state.value?.phase != PHASE_OVER) return

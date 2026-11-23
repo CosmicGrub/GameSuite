@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hangman, Word Guess, Word Search, Crossword</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;color:#F3F1EA;font:400 14px/1.4 Inter,sans-serif;overflow:hidden}
+.cap{position:absolute;top:12px;height:28px;padding:0 11px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 11px Inter;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;color:#C9CDE0;white-space:nowrap}
+.cap.t{background:#3A1B24;border-color:#7A2E3C;color:#FFB7BF}
+.cap.a{background:#123226;border-color:#1F6B4A;color:#8FF0C0}
+.pw{position:absolute;top:50px;width:242px;height:523px}
+.ph{width:390px;height:844px;transform:scale(.62);transform-origin:0 0;position:absolute;left:0;top:0;background:#0B0D1A;overflow:hidden;font:400 15px/1.4 Inter,sans-serif;box-shadow:0 0 0 3px #232943;border-radius:30px}
+.rd{position:absolute;width:22px;height:22px;border-radius:11px;background:#E5243B;color:#fff;font:700 12px/22px Inter;text-align:center;box-shadow:0 0 0 2px #0B0D1A;z-index:20}
+.rb{position:absolute;border:2px dashed #FF4D5E;border-radius:8px;z-index:19;pointer-events:none}
+.lgt{position:absolute;left:16px;top:582px;font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8}
+.lg{position:absolute;left:16px;top:604px;width:2118px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(6,auto);gap:5px 26px;font-size:11.5px;line-height:1.3;color:#C9CDE0}
+.li{display:flex;gap:8px;align-items:flex-start}
+.li .n{flex:none;width:20px;height:20px;border-radius:10px;background:#E5243B;color:#fff;font:700 11px/20px Inter;text-align:center;margin-top:1px}
+.li b{color:#F3F1EA;font-weight:600}
+.sz{display:inline-block;padding:0 6px;border-radius:8px;background:#2A2F55;color:#FFB547;font:700 11px/16px Inter;margin-left:2px}
+h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.bar{position:absolute;left:0;right:0;top:48px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.chip{height:30px;padding:0 12px;border-radius:15px;background:#1C2138;border:1px solid #2E3558;font:600 13px Inter;display:flex;align-items:center;gap:6px;color:#F3F1EA;white-space:nowrap}
+.chip.on{background:#FFB547;border-color:#FFB547;color:#1A1203}
+.btn{height:56px;border-radius:28px;font:600 16px Sora;display:flex;align-items:center;justify-content:center;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558}
+.btn.pri{background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28)}
+.card{position:absolute;border-radius:22px;background:#141829;border:1px solid #232943}
+.kb{position:absolute;left:0;right:0;display:flex;justify-content:center;gap:4px}
+.k{position:relative;width:34px;height:48px;border-radius:8px;background:#232943;color:#F3F1EA;font:600 15px Sora;display:flex;align-items:center;justify-content:center}
+.k.ok{background:#4ADE9B;color:#06281A}.k.pr{background:#FFB547;color:#1A1203}.k.ab{background:#14182B;color:#9AA0B8;box-shadow:inset 0 0 0 1px #2E3558}
+.k.no{background:#14182B;color:#9AA0B8;box-shadow:inset 0 0 0 2px #FF6B7A}
+.mk{position:absolute;right:3px;top:3px;width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tl{position:absolute;width:56px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;font:700 26px Sora;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 2px #2E3558}
+.tl.ok{background:#4ADE9B;color:#06281A;box-shadow:none}.tl.pr{background:#FFB547;color:#1A1203;box-shadow:none}.tl.ab{background:#2E3558;box-shadow:none}
+.tl .mk{width:14px;height:14px;right:4px;top:4px}
+.ws{position:absolute;left:24px;top:170px;display:grid;grid-template-columns:repeat(9,38px);z-index:2}
+.ws i{height:38px;display:flex;align-items:center;justify-content:center;font:600 19px Sora;font-style:normal;color:#F3F1EA}
+.cp{position:absolute;border-radius:19px;z-index:1}
+.cw{position:absolute;left:49px;top:240px;display:grid;grid-template-columns:repeat(5,56px);gap:3px}
+.cw i{position:relative;height:56px;border-radius:6px;background:#F8F6F0;color:#14183A;font:700 26px Sora;font-style:normal;display:flex;align-items:center;justify-content:center}
+.cw i.x{background:#232943}
+.cw i u{position:absolute;left:4px;top:2px;font:600 11px Inter;text-decoration:none;color:#3A4060}
+.cw i.a{background:#FFE2A8;box-shadow:inset 0 0 0 3px #FFB547}
+.cw i.w{background:#FFD0D5}
+.cw i.w s{position:absolute;right:4px;top:4px;width:11px;height:11px}
+.cl{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:14px;background:#1C2138;font:500 13px Inter;color:#F3F1EA}
+.cl b{font:700 13px Sora;width:34px;flex:none}
+.cl.dn{color:#9AA0B8;text-decoration:line-through}
+.cl.cur{box-shadow:inset 0 0 0 2px #FFB547;background:#2A2410}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="mkok" viewBox="0 0 10 10"><path d="M1.500 5.500l2.500 2.500 5-5.500"/></symbol>
+<symbol id="mkpr" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="currentColor"/></symbol>
+<symbol id="mkab" viewBox="0 0 10 10"><path d="M2 5h6"/></symbol>
+<symbol id="mkno" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8"/></symbol>
+</defs></svg>
+
+<span class="cap t" style="left:16px">1 Hangman today</span>
+<span class="cap a" style="left:284px">2 Hangman, pick a topic</span>
+<span class="cap a" style="left:552px">3 Hangman, petals</span>
+<span class="cap a" style="left:820px">4 Word Guess keyboard</span>
+<span class="cap a" style="left:1088px">5 Word Guess share</span>
+<span class="cap a" style="left:1356px">6 Word Search</span>
+<span class="cap a" style="left:1624px">7 Crossword grid</span>
+<span class="cap a" style="left:1892px">8 Crossword clues</span>
+
+<!-- 1 Hangman today -->
+<div class="pw" style="left:16px"><div class="ph" style="background:#10141F">
+<div class="bar"><div class="ib" style="background:#232943">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Hangman</h2><div style="font-size:12px;color:#9AA0B8">Medium, 6 to 8 letters</div></div><div class="ib" style="background:#232943">=</div></div>
+<svg width="390" height="260" viewBox="0 0 390 260" style="position:absolute;left:0;top:130px" aria-label="Gallows with a partly drawn figure"><g stroke="#C9CDE0" stroke-width="5" fill="none" stroke-linecap="round"><path d="M80 240h140M120 240V30h110v34"/><circle cx="230" cy="86" r="22"/><path d="M230 108v68M230 130l-26 24M230 130l26 24M230 176l-22 40"/></g></svg>
+<div style="position:absolute;left:0;right:0;top:420px;text-align:center;font:700 34px Sora;letter-spacing:.2em;color:#F3F1EA">C A R B _ _ Y L</div>
+<div style="position:absolute;left:16px;top:480px;font:500 13px Inter;color:#C9CDE0">Wrong 4 of 6. New Word.</div>
+<div class="kb" style="top:560px"><i class="k">Q</i><i class="k">W</i><i class="k">E</i><i class="k">R</i><i class="k">T</i><i class="k">Y</i><i class="k">U</i><i class="k">I</i><i class="k">O</i><i class="k">P</i></div>
+<div class="kb" style="top:616px"><i class="k">A</i><i class="k">S</i><i class="k">D</i><i class="k">F</i><i class="k">G</i><i class="k">H</i><i class="k">J</i><i class="k">K</i><i class="k">L</i></div>
+<div class="kb" style="top:672px"><i class="k">Z</i><i class="k">X</i><i class="k">C</i><i class="k">V</i><i class="k">B</i><i class="k">N</i><i class="k">M</i></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Hint (1 hint)</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">New Word</div></div>
+</div>
+<div class="rb" style="left:46px;top:100px;width:128px;height:116px"></div><i class="rd" style="left:166px;top:88px">3</i>
+<div class="rb" style="left:12px;top:248px;width:218px;height:30px"></div><i class="rd" style="left:222px;top:236px">1</i>
+<div class="rb" style="left:60px;top:66px;width:122px;height:22px;border-style:dotted"></div><i class="rd" style="left:174px;top:54px">2</i>
+</div>
+
+<!-- 2 Hangman topic -->
+<div class="pw" style="left:284px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Hangman</h2><div class="mut" style="font-size:12px">Pick a topic</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:112px;display:flex;gap:8px"><span class="chip on">Easy</span><span class="chip">Medium</span><span class="chip">Hard</span><span class="chip" style="margin-left:auto">EN</span></div>
+<div class="mut" style="position:absolute;left:18px;top:150px;font-size:12px">Easy: short words you hear every day, 4 to 5 letters</div>
+<div style="position:absolute;left:16px;right:16px;top:186px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div class="card" style="position:relative;height:112px;padding:14px;border-color:#FFB547"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><ellipse cx="19" cy="25" rx="9" ry="7.500" fill="#FFB547"/><circle cx="8" cy="15" r="4" fill="#FFB547"/><circle cx="15" cy="9" r="4" fill="#FFB547"/><circle cx="23" cy="9" r="4" fill="#FFB547"/><circle cx="30" cy="15" r="4" fill="#FFB547"/></svg><div style="font:600 16px Sora;margin-top:6px">Animals</div><div class="mut" style="font-size:12px">240 words</div></div>
+<div class="card" style="position:relative;height:112px;padding:14px"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><path d="M19 12C10 4 3 14 7 26c3 8 8 8 12 6 4 2 9 2 12-6 4-12-3-22-12-14z" fill="#FF6B7A"/><path d="M19 12c0-4 2-7 6-8" stroke="#4ADE9B" stroke-width="3" fill="none" stroke-linecap="round"/></svg><div style="font:600 16px Sora;margin-top:6px">Food</div><div class="mut" style="font-size:12px">210 words</div></div>
+<div class="card" style="position:relative;height:112px;padding:14px"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><path d="M19 3c7 0 12 5 12 11 0 8-12 21-12 21S7 22 7 14C7 8 12 3 19 3z" fill="#8B7CFF"/><circle cx="19" cy="14" r="4.500" fill="#14183A"/></svg><div style="font:600 16px Sora;margin-top:6px">Places</div><div class="mut" style="font-size:12px">180 words</div></div>
+<div class="card" style="position:relative;height:112px;padding:14px"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="10" fill="#5CC8FF"/><ellipse cx="19" cy="19" rx="17" ry="5" fill="none" stroke="#F3F1EA" stroke-width="2.500" transform="rotate(-20 19 19)"/></svg><div style="font:600 16px Sora;margin-top:6px">Space</div><div class="mut" style="font-size:12px">120 words</div></div>
+<div class="card" style="position:relative;height:112px;padding:14px"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="15" fill="#F3F1EA"/><path d="M19 4v30M4 19h30M9 9c6 5 6 15 0 20M29 9c-6 5-6 15 0 20" stroke="#14183A" stroke-width="2" fill="none"/></svg><div style="font:600 16px Sora;margin-top:6px">Sports</div><div class="mut" style="font-size:12px">150 words</div></div>
+<div class="card" style="position:relative;height:112px;padding:14px"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><path d="M6 32C6 14 16 6 32 6c0 18-8 26-26 26z" fill="#4ADE9B"/><path d="M8 30L26 12" stroke="#0F5A3A" stroke-width="2.500"/></svg><div style="font:600 16px Sora;margin-top:6px">Nature</div><div class="mut" style="font-size:12px">200 words</div></div>
+</div>
+<div class="card" style="left:16px;right:16px;top:566px;height:56px;display:flex;align-items:center;gap:12px;padding:0 16px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4ADE9B" stroke-width="2.200" stroke-linecap="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/></svg><div style="font:500 13px/1.3 Inter;color:#C9CDE0">Kid-safe list. Every word is checked and ranked by how common it is.</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="width:120px">Mix all</div><div class="btn pri" style="flex:1">Play Animals</div></div>
+</div>
+<div class="rb" style="left:8px;top:70px;width:226px;height:30px"></div><i class="rd" style="left:222px;top:58px">2</i>
+<div class="rb" style="left:8px;top:112px;width:226px;height:176px"></div><i class="rd" style="left:2px;top:100px">1</i>
+<div class="rb" style="left:8px;top:346px;width:226px;height:36px"></div><i class="rd" style="left:222px;top:336px">4</i>
+</div>
+
+<!-- 3 Hangman petals -->
+<div class="pw" style="left:552px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Hangman</h2><div class="mut" style="font-size:12px">Animals, Medium, English</div></div><div class="ib">=</div></div>
+<svg width="390" height="270" viewBox="0 0 390 270" style="position:absolute;left:0;top:110px" aria-label="A flower with 4 of 6 petals left"><g transform="translate(150 110)"><g fill="#FF8AD8"><ellipse cx="0" cy="-50" rx="20" ry="32"/><ellipse cx="0" cy="-50" rx="20" ry="32" transform="rotate(60)"/><ellipse cx="0" cy="-50" rx="20" ry="32" transform="rotate(120)"/><ellipse cx="0" cy="-50" rx="20" ry="32" transform="rotate(180)"/></g><g fill="rgba(255,138,216,.28)"><ellipse cx="0" cy="-50" rx="20" ry="32" transform="rotate(240)" stroke="#FF8AD8" stroke-dasharray="4 4" stroke-width="2" fill="none"/><ellipse cx="0" cy="-50" rx="20" ry="32" transform="rotate(300)" stroke="#FF8AD8" stroke-dasharray="4 4" stroke-width="2" fill="none"/></g><circle r="22" fill="#FFB547"/><circle r="9" fill="#C77A00"/></g>
+<path d="M150 134V250" stroke="#4ADE9B" stroke-width="7" stroke-linecap="round"/><path d="M150 210c-30-4-44-20-44-36 24 0 40 12 44 36z" fill="#4ADE9B"/><path d="M150 190c26-2 40-16 42-34-24 0-38 12-42 34z" fill="#4ADE9B"/><rect x="118" y="244" width="64" height="22" rx="6" fill="#6B4E2E"/>
+<g fill="#FF8AD8" opacity=".8"><ellipse cx="270" cy="150" rx="9" ry="14" transform="rotate(30 270 150)"/><ellipse cx="300" cy="200" rx="9" ry="14" transform="rotate(-30 300 200)"/></g></svg>
+<div style="position:absolute;right:24px;top:122px;width:116px;font:500 12px/1.4 Inter;color:#C9CDE0">4 petals left. Each miss lets one drift away. At zero the flower naps and the word is shown.</div>
+<div style="position:absolute;left:0;right:0;top:408px;text-align:center;font:700 38px Sora;letter-spacing:.22em;color:#F3F1EA">Z E _ R A</div>
+<div style="position:absolute;left:16px;right:16px;top:466px;display:flex;align-items:center;gap:8px"><span class="chip" style="color:#FFB547;border-color:#FFB547"><svg width="16" height="16" viewBox="0 0 24 24" fill="#FFB547" aria-hidden="true"><path d="M12 2a7 7 0 0 0-4 12.700V18h8v-3.300A7 7 0 0 0 12 2zM9 20h6v2H9z"/></svg>Hint letter, 1 left</span><span class="chip" style="margin-left:auto">Misses: K, P</span></div>
+<div class="kb" style="top:526px"><i class="k">Q</i><i class="k">W</i><i class="k ok">E<svg class="mk"><use href="#mkok"/></svg></i><i class="k ok">R<svg class="mk"><use href="#mkok"/></svg></i><i class="k">T</i><i class="k">Y</i><i class="k">U</i><i class="k">I</i><i class="k">O</i><i class="k no">P<svg class="mk"><use href="#mkno"/></svg></i></div>
+<div class="kb" style="top:582px"><i class="k ok">A<svg class="mk"><use href="#mkok"/></svg></i><i class="k">S</i><i class="k">D</i><i class="k">F</i><i class="k">G</i><i class="k">H</i><i class="k">J</i><i class="k no">K<svg class="mk"><use href="#mkno"/></svg></i><i class="k">L</i></div>
+<div class="kb" style="top:638px"><i class="k ok">Z<svg class="mk"><use href="#mkok"/></svg></i><i class="k">X</i><i class="k">C</i><i class="k">V</i><i class="k">B</i><i class="k">N</i><i class="k">M</i></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Next word</div><div class="btn pri" style="flex:1">Reveal a letter</div></div>
+</div>
+<div class="rb" style="left:62px;top:76px;width:130px;height:104px"></div><i class="rd" style="left:184px;top:64px">3</i>
+<div class="rb" style="left:8px;top:286px;width:116px;height:24px"></div><i class="rd" style="left:116px;top:274px">6</i>
+<div class="rb" style="left:2px;top:322px;width:238px;height:100px;border-style:dotted"></div><i class="rd" style="left:222px;top:310px">5</i>
+</div>
+
+<!-- 4 Word Guess keyboard -->
+<div class="pw" style="left:820px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Word Guess</h2><div style="display:inline-block;margin-top:3px;height:22px;padding:0 10px;border-radius:11px;background:#123226;border:1px solid #1F6B4A;color:#8FF0C0;font:600 12px/20px Inter">Daily 21 Nov</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:0;top:130px;width:390px;height:380px">
+<i class="tl ab" style="left:43px;top:0">C<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ab" style="left:105px;top:0">R<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ab" style="left:167px;top:0">A<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ab" style="left:229px;top:0">N<svg class="mk"><use href="#mkab"/></svg></i><i class="tl pr" style="left:291px;top:0">E<svg class="mk"><use href="#mkpr"/></svg></i>
+<i class="tl ab" style="left:43px;top:62px">L<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ab" style="left:105px;top:62px">A<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ab" style="left:167px;top:62px">T<svg class="mk"><use href="#mkab"/></svg></i><i class="tl ok" style="left:229px;top:62px">T<svg class="mk"><use href="#mkok"/></svg></i><i class="tl pr" style="left:291px;top:62px">E<svg class="mk"><use href="#mkpr"/></svg></i>
+<i class="tl" style="left:43px;top:124px;box-shadow:inset 0 0 0 2px #F3F1EA">P</i><i class="tl" style="left:105px;top:124px;box-shadow:inset 0 0 0 2px #F3F1EA">E</i><i class="tl" style="left:167px;top:124px;box-shadow:inset 0 0 0 2px #F3F1EA">S</i><i class="tl" style="left:229px;top:124px"></i><i class="tl" style="left:291px;top:124px"></i>
+<i class="tl" style="left:43px;top:186px"></i><i class="tl" style="left:105px;top:186px"></i><i class="tl" style="left:167px;top:186px"></i><i class="tl" style="left:229px;top:186px"></i><i class="tl" style="left:291px;top:186px"></i>
+</div>
+<div style="position:absolute;left:16px;right:16px;top:392px;height:44px;border-radius:22px;background:#141829;border:1px solid #2E3558;display:flex;align-items:center;padding:0 16px;font:500 13px Inter">LATTE is now a word you can guess. Every answer is.</div>
+<div class="kb" style="top:600px"><i class="k">Q</i><i class="k">W</i><i class="k pr">E<svg class="mk"><use href="#mkpr"/></svg></i><i class="k ab">R<svg class="mk"><use href="#mkab"/></svg></i><i class="k ok">T<svg class="mk"><use href="#mkok"/></svg></i><i class="k">Y</i><i class="k">U</i><i class="k">I</i><i class="k">O</i><i class="k">P</i></div>
+<div class="kb" style="top:656px"><i class="k ab">A<svg class="mk"><use href="#mkab"/></svg></i><i class="k">S</i><i class="k">D</i><i class="k">F</i><i class="k">G</i><i class="k">H</i><i class="k">J</i><i class="k">K</i><i class="k ab">L<svg class="mk"><use href="#mkab"/></svg></i></div>
+<div class="kb" style="top:712px"><i class="k" style="width:52px;font-size:12px">Enter</i><i class="k">Z</i><i class="k">X</i><i class="k ab">C<svg class="mk"><use href="#mkab"/></svg></i><i class="k">V</i><i class="k">B</i><i class="k ab">N<svg class="mk"><use href="#mkab"/></svg></i><i class="k">M</i><i class="k" style="width:52px">Del</i></div>
+<div style="position:absolute;left:16px;right:16px;top:108px;display:flex;gap:16px;font:600 12px Inter;color:#C9CDE0"><span style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;border-radius:3px;background:#4ADE9B;display:inline-block;position:relative"></i>Right place</span><span style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;border-radius:3px;background:#FFB547;display:inline-block"></i>In the word</span><span style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;border-radius:3px;background:#2E3558;display:inline-block"></i>Not in it</span></div>
+</div>
+<div class="rb" style="left:162px;top:80px;width:36px;height:36px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:188px;top:70px">8</i>
+<div class="rb" style="left:2px;top:366px;width:238px;height:100px"></div><i class="rd" style="left:222px;top:354px">9</i>
+<div class="rb" style="left:12px;top:240px;width:218px;height:26px;border-style:dotted"></div><i class="rd" style="left:2px;top:228px">11</i>
+</div>
+
+<!-- 5 Word Guess share -->
+<div class="pw" style="left:1088px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Word Guess</h2><div class="mut" style="font-size:12px">Solved</div></div><span style="width:44px"></span></div>
+<div class="card" style="left:24px;right:24px;top:116px;padding:22px 20px;background:linear-gradient(160deg,#1C2138,#141829);border-color:#2E3558">
+<div style="font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8">Word Guess, daily</div>
+<h2 style="font-size:34px;margin-top:4px">21 Nov, 3 of 6</h2>
+<svg width="300" height="130" viewBox="0 0 300 130" style="margin-top:14px" aria-label="Result grid, 3 rows: not in word, in the word, right place"><g><rect x="0" y="0" width="38" height="38" rx="7" fill="#2E3558"/><rect x="46" y="0" width="38" height="38" rx="7" fill="#2E3558"/><rect x="92" y="0" width="38" height="38" rx="7" fill="#2E3558"/><rect x="138" y="0" width="38" height="38" rx="7" fill="#2E3558"/><rect x="184" y="0" width="38" height="38" rx="7" fill="#FFB547"/><circle cx="203" cy="19" r="6" fill="#1A1203"/>
+<rect x="0" y="46" width="38" height="38" rx="7" fill="#2E3558"/><rect x="46" y="46" width="38" height="38" rx="7" fill="#2E3558"/><rect x="92" y="46" width="38" height="38" rx="7" fill="#2E3558"/><rect x="138" y="46" width="38" height="38" rx="7" fill="#4ADE9B"/><rect x="184" y="46" width="38" height="38" rx="7" fill="#FFB547"/><circle cx="203" cy="65" r="6" fill="#1A1203"/>
+<rect x="0" y="92" width="38" height="38" rx="7" fill="#4ADE9B"/><rect x="46" y="92" width="38" height="38" rx="7" fill="#4ADE9B"/><rect x="92" y="92" width="38" height="38" rx="7" fill="#4ADE9B"/><rect x="138" y="92" width="38" height="38" rx="7" fill="#4ADE9B"/><rect x="184" y="92" width="38" height="38" rx="7" fill="#4ADE9B"/></g>
+<g stroke="#06281A" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M154 66l5 5 9-10"/><path d="M12 112l5 5 9-10M58 112l5 5 9-10M104 112l5 5 9-10M150 112l5 5 9-10M196 112l5 5 9-10"/></g><g stroke="#C9CDE0" stroke-width="3" stroke-linecap="round"><path d="M12 19h14M58 19h14M104 19h14M150 19h14M12 65h14M58 65h14M104 65h14"/></g></svg>
+<div style="display:flex;gap:18px;margin-top:16px"><div><div style="font:700 26px Sora">7</div><div class="mut" style="font-size:12px">day streak</div></div><div><div style="font:700 26px Sora">12</div><div class="mut" style="font-size:12px">best streak</div></div><div><div style="font:700 26px Sora">3</div><div class="mut" style="font-size:12px">guesses</div></div></div></div>
+<div class="card" style="left:24px;right:24px;top:480px;padding:12px 16px"><div style="font:600 12px Inter;color:#9AA0B8">Text version, read aloud by TalkBack</div><div style="font:500 13px/1.5 'Courier New',monospace;color:#F3F1EA;margin-top:4px">Word Guess 21 Nov 3/6<br>. . . . Y<br>. . . G Y<br>G G G G G</div><div class="mut" style="font-size:11px;margin-top:4px">G right place, Y in the word, dot not in it. The answer is never shown.</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Copy text</div><div class="btn pri" style="flex:1">Share card</div></div>
+</div>
+<div class="rb" style="left:12px;top:68px;width:218px;height:140px"></div><i class="rd" style="left:222px;top:56px">10</i>
+<div class="rb" style="left:12px;top:296px;width:218px;height:70px;border-style:dotted"></div><i class="rd" style="left:222px;top:284px">12</i>
+</div>
+
+<!-- 6 Word Search -->
+<div class="pw" style="left:1356px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Word Search</h2><div class="mut" style="font-size:12px">Animals, 9 x 9, 4 left</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:108px;display:flex;gap:8px"><span class="chip">02:05</span><span class="chip" style="color:#FFB547;border-color:#FFB547">Snap to lines</span><span class="chip" style="margin-left:auto">Daily 21 Nov</span></div>
+<div class="cp" style="left:26px;top:172px;width:186px;height:34px;background:rgba(74,222,155,.3);border:2px solid #4ADE9B"></div>
+<div class="cp" style="left:26px;top:324px;width:186px;height:34px;background:rgba(74,222,155,.3);border:2px solid #4ADE9B"></div>
+<div class="cp" style="left:254px;top:172px;width:34px;height:186px;background:rgba(255,181,71,.34);border:2px solid #FFB547"></div>
+<div class="ws"><i>Z</i><i>E</i><i>B</i><i>R</i><i>A</i><i>M</i><i>T</i><i>N</i><i>P</i><i>K</i><i>U</i><i>W</i><i>S</i><i>Q</i><i>V</i><i>I</i><i>D</i><i>B</i><i>P</i><i>C</i><i>J</i><i>F</i><i>L</i><i>Y</i><i>G</i><i>H</i><i>E</i><i>D</i><i>X</i><i>N</i><i>U</i><i>O</i><i>T</i><i>E</i><i>V</i><i>A</i><i>H</i><i>O</i><i>R</i><i>S</i><i>E</i><i>Q</i><i>R</i><i>K</i><i>R</i><i>L</i><i>T</i><i>P</i><i>K</i><i>D</i><i>U</i><i>C</i><i>Z</i><i>Y</i><i>I</i><i>F</i><i>V</i><i>B</i><i>N</i><i>O</i><i>Q</i><i>H</i><i>J</i><i>O</i><i>A</i><i>Q</i><i>D</i><i>J</i><i>X</i><i>W</i><i>E</i><i>C</i><i>N</i><i>N</i><i>K</i><i>Y</i><i>V</i><i>P</i><i>I</i><i>L</i><i>T</i></div>
+<div style="position:absolute;left:206px;top:140px;height:26px;padding:0 10px;border-radius:13px;background:#FFB547;color:#1A1203;font:600 12px/26px Inter;z-index:3">TIGER, 5 letters, straight down</div>
+<div class="card" style="left:16px;right:16px;top:536px;padding:12px 14px"><div style="display:flex;justify-content:space-between;font:600 12px Inter;color:#9AA0B8"><span>Words to find</span><span>2 of 6</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+<span class="chip" style="color:#9AA0B8;text-decoration:line-through;border-color:#1F6B4A"><svg width="12" height="12" viewBox="0 0 10 10" style="fill:none;stroke:#4ADE9B;stroke-width:1.800"><use href="#mkok"/></svg>ZEBRA</span><span class="chip" style="color:#9AA0B8;text-decoration:line-through;border-color:#1F6B4A"><svg width="12" height="12" viewBox="0 0 10 10" style="fill:none;stroke:#4ADE9B;stroke-width:1.800"><use href="#mkok"/></svg>HORSE</span><span class="chip" style="border-color:#FFB547;color:#FFB547">TIGER</span><span class="chip">OWL</span><span class="chip">LION</span><span class="chip">BEAR</span></div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Pan mode</div><div class="btn pri" style="flex:1">Hint</div></div>
+</div>
+<div class="rb" style="left:152px;top:102px;width:28px;height:120px;border-style:solid;border-color:#FFB547"></div><i class="rd" style="left:172px;top:90px">15</i>
+<div class="rb" style="left:8px;top:326px;width:226px;height:62px"></div><i class="rd" style="left:226px;top:314px">16</i>
+<div class="rb" style="left:12px;top:208px;width:130px;height:12px;display:none"></div>
+<div class="rb" style="left:8px;top:66px;width:226px;height:30px;border-style:dotted"></div><i class="rd" style="left:2px;top:54px">17</i>
+<i class="rd" style="left:96px;top:306px">14</i>
+</div>
+
+<!-- 7 Crossword grid -->
+<div class="pw" style="left:1624px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Crossword</h2><div class="mut" style="font-size:12px">Mini, Easy, 6 clues</div></div><div class="ib">=</div></div>
+<div class="card" style="left:16px;right:16px;top:108px;height:92px;border-color:#FFB547;padding:12px 14px;display:flex;align-items:center;gap:10px"><div class="ib" style="width:40px;height:40px;flex:none">&lt;</div><div style="flex:1;text-align:center"><div style="font:600 12px Inter;color:#FFB547">4 Across, 3 letters</div><div style="font:600 16px Sora;margin-top:2px">Something you hang on a wall</div></div><div class="ib" style="width:40px;height:40px;flex:none">&gt;</div></div>
+<div class="cw">
+<i><u>1</u>S</i><i>U</i><i><u>2</u>N</i><i class="x"></i><i><u>3</u>H</i>
+<i>T</i><i class="x"></i><i>E</i><i class="x"></i><i>E</i>
+<i class="a"><u>4</u>A</i><i class="a w" style="background:#FFD0D5;box-shadow:inset 0 0 0 3px #FFB547">R<svg class="mk" style="position:absolute;right:4px;top:4px;width:12px;height:12px;stroke:#B3192E;fill:none;stroke-width:2.200;stroke-linecap:round"><use href="#mkno"/></svg></i><i class="a"></i><i class="x"></i><i>N</i>
+<i>R</i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i>
+<i class="x"></i><i><u>5</u>O</i><i>W</i><i>L</i><i class="x"></i>
+</div>
+<div class="card" style="left:16px;right:16px;top:560px;height:48px;display:flex;align-items:center;gap:10px;padding:0 14px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF6B7A" stroke-width="2.500" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg><div style="font:500 13px Inter">1 letter needs another look. It is marked with a cross.</div></div>
+<div class="kb" style="top:628px"><i class="k">Q</i><i class="k">W</i><i class="k">E</i><i class="k">R</i><i class="k">T</i><i class="k">Y</i><i class="k">U</i><i class="k">I</i><i class="k">O</i><i class="k">P</i></div>
+<div class="kb" style="top:684px"><i class="k">A</i><i class="k">S</i><i class="k">D</i><i class="k">F</i><i class="k">G</i><i class="k">H</i><i class="k">J</i><i class="k">K</i><i class="k">L</i></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Clues</div><div class="btn pri" style="flex:1">Check grid</div><div class="btn" style="width:76px;font-size:14px">Del</div></div>
+</div>
+<div class="rb" style="left:8px;top:68px;width:226px;height:60px"></div><i class="rd" style="left:226px;top:56px">20</i>
+<div class="rb" style="left:28px;top:142px;width:188px;height:110px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:208px;top:130px">18</i>
+<div class="rb" style="left:8px;top:346px;width:226px;height:30px;border-style:solid"></div><i class="rd" style="left:2px;top:334px">21</i>
+</div>
+
+<!-- 8 Crossword clues -->
+<div class="pw" style="left:1892px"><div class="ph"><div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Crossword</h2><div class="mut" style="font-size:12px">3 of 6 clues done</div></div><div class="ib">=</div></div>
+<div class="cw" style="top:112px;transform:scale(.7);transform-origin:50% 0;opacity:.55"><i><u>1</u>S</i><i>U</i><i><u>2</u>N</i><i class="x"></i><i><u>3</u>H</i><i>T</i><i class="x"></i><i>E</i><i class="x"></i><i>E</i><i class="a"><u>4</u>A</i><i class="a">R</i><i class="a"></i><i class="x"></i><i>N</i><i>R</i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i><u>5</u>O</i><i>W</i><i>L</i><i class="x"></i></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:520px;border-radius:28px 28px 0 0;background:#141829;border-top:1px solid #2E3558;padding:12px 16px">
+<div style="width:40px;height:4px;border-radius:2px;background:#2E3558;margin:0 auto 12px"></div>
+<div style="height:8px;border-radius:4px;background:#2E3558"><div style="width:50%;height:8px;border-radius:4px;background:#4ADE9B"></div></div>
+<div style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin:14px 0 6px">Across</div>
+<div style="display:flex;flex-direction:column;gap:6px"><div class="cl dn"><b>1</b>Shines in the day sky (3)</div><div class="cl cur"><b>4</b>Something you hang on a wall (3)</div><div class="cl"><b>5</b>Night bird that hoots (3)</div></div>
+<div style="font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin:14px 0 6px">Down</div>
+<div style="display:flex;flex-direction:column;gap:6px"><div class="cl dn"><b>1</b>Twinkles at night (4)</div><div class="cl dn"><b>2</b>Used to catch fish (3)</div><div class="cl"><b>3</b>A female chicken (3)</div></div>
+<div style="display:flex;gap:10px;margin-top:16px"><div class="btn pri" style="flex:1;height:48px;font-size:15px">Back to grid</div><div class="btn" style="flex:1;height:48px;font-size:15px">Check grid</div></div>
+</div></div>
+<div class="rb" style="left:8px;top:326px;width:226px;height:76px;display:none"></div>
+<div class="rb" style="left:8px;top:218px;width:226px;height:30px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:226px;top:206px">19</i>
+<div class="rb" style="left:8px;top:296px;width:226px;height:46px"></div><i class="rd" style="left:226px;top:284px">22</i>
+</div>
+
+<div class="lgt">Redlines: finding, evidence, fix, size</div>
+<div class="lg">
+<div class="li"><span class="n">1</span><div><b>HANGMAN 8/15, gameplay 1.</b> Words come from the raw 359k list, filtered only by isLetter (HangmanGame.kt:188-199); two slurs are in the asset [V]. Add a shared WordSafety blocklist and a curated, ranked list per topic. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">2</span><div><b>Difficulty is word length only</b> (:155-159); Hard picks obscure words. Chips say what each tier means and Easy uses common words. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">3</span><div><b>Gallows.</b> The hanged figure goes; a flower loses a petal per miss, then naps and shows the word. Owner decision: keep a classic toggle? <span class="sz">S</span></div></div>
+<div class="li"><span class="n">4</span><div><b>Topics and language.</b> Animals, Food, Places, Space, Sports, Nature (about 1,500 words, bundled). Language chip EN or ES; 15 English literals, 0 stringResource (:377-390, :817-820). <span class="sz">M</span></div></div>
+<div class="li"><span class="n">5</span><div><b>Keys.</b> 48 dp tall keys kept, good states get a check, misses get a cross (no colour-only). Add Ene for ES and hardware keys via onPreviewKeyEvent. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">6</span><div><b>Hint letter.</b> Shows how many are left and uses plural resources ("hint" or "hints" is hard-coded, :817-818). Pools move off the main thread (359k filter per New Word). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">7</span><div><b>Tests.</b> 15 tests all cover resume and hint; add guess, win, lose, pickWord history and a pool-never-blocked scan. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">8</span><div><b>WORD GUESS 10/15.</b> Nine answers are not valid guesses (detox geeky inbox latte penne pesto ramen rehab wimpy), so those rounds cannot be won. Mock shows PESTO and LATTE accepted. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">9</span><div><b>Keyboard.</b> Best state per key with colour and a corner shape: check, dot, dash. Tiles already have corner marks; keys now match. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">10</span><div><b>Share card.</b> A grid made from shapes and a streak, plus a text version using G, Y and dots so it reads aloud. The answer is never shown. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">11</span><div><b>Test and loader.</b> Add a unit test that answers are a subset of the dictionary, and synchronise WordGuessAnswerList.ensureLoaded (not volatile, throws on empty). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">12</span><div><b>ES mode.</b> Spanish answers and guesses with accents and N with tilde; hardware keyboard (letters, Enter, Backspace) is missing today (:94). <span class="sz">M</span></div></div>
+<div class="li"><span class="n">13</span><div><b>WORD SEARCH 10/15, gameplay 1.</b> Words are raw dwyl entries, so obscure or profane words reach the board. Use WordSafety and a 5 to 8k frequency list. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">14</span><div><b>Duplicate and nested words.</b> No check that a word occurs twice or hides inside another. Reject substrings and reversals, then rescan the finished grid. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">15</span><div><b>Drag and snap.</b> Drag from a letter and the capsule snaps to one of 8 straight lines with a live word label; long-press pan mode (:869-916) stays. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">16</span><div><b>Word panel.</b> Found words are struck through with a check; found-state description exists (:1071). Add the 2 of 6 count and a completion moment scaled by LocalGameSpeed. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">17</span><div><b>Daily.</b> Same board for all by shared UTC date, from a bundled versioned word pool, not words.txt file order (:309-315). Add themed puzzles. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">18</span><div><b>CROSSWORD 8/15.</b> canPlace (CrosswordGame.kt:629-643) allows side-by-side runs that are not entries. Every run of 2 or more must be a clued entry; add a validator and property tests over all seeds. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">19</span><div><b>Bank.</b> 229 clues only (CrosswordClueBank.kt), English only. Grow to 1,000+ in tiers EN and ES; a seeded daily follows. <span class="sz">L</span></div></div>
+<div class="li"><span class="n">20</span><div><b>Active clue banner.</b> Letters are not typed into the grid today. Type in place with a custom keyboard and auto-advance; banner has previous and next. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">21</span><div><b>Check grid.</b> Wrong letters get a cross plus a tint, with a spoken count. Replace per-cell Animatable (up to 225 cells) with one draw-layer animation. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">22</span><div><b>Clue sheet and empty grid.</b> Done clues struck through with progress; the empty-grid fallback has no message today (about :565), and generate has zero tests. <span class="sz">S</span></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

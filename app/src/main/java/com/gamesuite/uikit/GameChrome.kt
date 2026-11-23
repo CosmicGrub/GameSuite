@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,6 +113,13 @@ fun GameChrome(
     onUndo: (() -> Unit)? = null,
     canUndo: Boolean = true,
     onHint: (() -> Unit)? = null,
+    /**
+     * The screen's own pause for state the game module cannot see (a local paused flag). Optional:
+     * while ANY overlay is open (menu, help, leave dialog, or one reported through
+     * [OverlayPauseEffect]) the chrome pauses the active game module through
+     * [LocalOverlayPauseHost] and calls this too; both resume when the last overlay closes.
+     */
+    overlayPause: OverlayPauseHook? = null,
     extraItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {},
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -123,6 +132,10 @@ fun GameChrome(
     // A double-tap on "Leave" (or back while the abort is still propagating) must not end the
     // match twice -- the second endMatch would fire the game's onMatchEnd/navigation again.
     var leaving by remember { mutableStateOf(false) }
+    val overlayPauseController = rememberOverlayPauseController(overlayPause)
+    OverlayPauseEffect0(overlayPauseController, "chrome-menu", showMenu)
+    OverlayPauseEffect0(overlayPauseController, "chrome-leave", showLeaveConfirm)
+    OverlayPauseEffect0(overlayPauseController, "chrome-help", showHelp)
 
     fun requestLeave() {
         if (leaving) return
@@ -131,12 +144,12 @@ fun GameChrome(
     BackHandler(onBack = ::requestLeave)
 
     Box(modifier = modifier.fillMaxSize()) {
-        content()
+        CompositionLocalProvider(LocalOverlayPause provides overlayPauseController) { content() }
 
         // Networked matches only (a no-op for everything else): a reconnecting banner, and a clean "Host left" /
         // "Connection lost" end through the game's own abort, so no game needs code for it. Nothing is saved: a
         // match whose room is gone cannot be resumed.
-        SessionHealthOverlay(onEnded = { if (!leaving) { leaving = true; onAbort() } })
+        SessionHealthOverlay(onEnded = { if (!leaving) { leaving = true; overlayPauseController.abandon(); onAbort() } })
 
         Box(
             modifier = Modifier
@@ -201,6 +214,7 @@ fun GameChrome(
                         // Save BEFORE aborting: abortMatch() ends the match, after which the
                         // engine has nothing left to snapshot.
                         if (savesProgress) progressSaver?.save?.invoke()
+                        overlayPauseController.abandon() // the match is ending: do not wake its timers
                         onAbort()
                     }
                 }) { Text(stringResource(R.string.gc_leave)) }
@@ -217,5 +231,14 @@ fun GameChrome(
             text = { Text(helpText, modifier = Modifier.verticalScroll(rememberScrollState())) },
             confirmButton = { TextButton(onClick = { showHelp = false }) { Text(stringResource(R.string.gc_got_it)) } }
         )
+    }
+}
+
+/** Same as [OverlayPauseEffect] but bound to an explicit controller (the chrome owns it, so the local is not set yet). */
+@Composable
+private fun OverlayPauseEffect0(controller: OverlayPauseController, key: String, open: Boolean) {
+    DisposableEffect(controller, key, open) {
+        if (open) controller.setOpen(key, true)
+        onDispose { if (open) controller.setOpen(key, false) }
     }
 }

@@ -276,6 +276,7 @@ class ToySoccerGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         val s = state.value
         if (s == null || !s.matchOver) return
