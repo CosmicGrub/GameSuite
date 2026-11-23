@@ -563,7 +563,9 @@ fun TowerDefenceScreen(
             modifier = Modifier.fillMaxSize().background(skin.skyBottom).victoryGlow(trigger = won && !reducedMotion, tint = skin.accent)
                 .onKeyEvent { onGlobalKey(it) }
         ) {
-            val kind = TdLayoutMath.kindFor(maxWidth.value, maxHeight.value).let { if (!isOpen && it == TdLayoutKind.PHONE_PORTRAIT) TdLayoutKind.STACKED else it }
+            // Hoisted: BoxWithConstraintsScope is a @LayoutScopeMarker, so maxWidth is not reachable from a nested Row/Column scope.
+            val screenWidthDp = maxWidth.value
+            val kind = TdLayoutMath.kindFor(screenWidthDp, maxHeight.value).let { if (!isOpen && it == TdLayoutKind.PHONE_PORTRAIT) TdLayoutKind.STACKED else it }
 
             // Backdrop: sky, far and mid layers, clouds, stars. One Canvas, driven by the ambient clock.
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -960,7 +962,7 @@ fun TowerDefenceScreen(
                 ) {
                     boardBlock(Modifier.weight(1f).fillMaxHeight())
                     Column(
-                        modifier = Modifier.width(TdLayoutMath.sideColumnWidth(maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        modifier = Modifier.width(TdLayoutMath.sideColumnWidth(screenWidthDp).dp).fillMaxHeight().verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         hudBlock()
