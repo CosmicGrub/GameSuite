@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coach cards of Reaction Duel and Whack-a-Mole Race -->
+<resources>
+    <string name="coach_reaction_duel_s1">Everyone gets a zone facing them and you all play at the same time. Win a round by being the first to answer correctly.</string>
+    <string name="coach_reaction_duel_s2">Classic: wait for the pad to turn green and say GO, then press. Press early and you are out of the round.</string>
+    <string name="coach_reaction_duel_s3">Colour match: shapes flash by. Press only when the target shape shows. The shape and its name decide, never just the colour.</string>
+    <string name="coach_reaction_duel_s4">Echo: watch four shapes light up, then be first to tap the same pattern back. One wrong tap puts you out.</string>
+    <string name="coach_reaction_duel_s5">Hard to press fast? Turn on Relaxed for longer windows and no penalties, or One-switch play, where Echo scans the pads for you. This version is same-screen only, with computers filling empty zones: there is no Nearby or Online mode yet.</string>
+    <string name="coach_reaction_duel_fact">Sprinters are called for a false start if they move less than a tenth of a second after the gun, because nobody can truly react that fast.</string>
+    <string name="coach_whack_a_mole_s1">Everyone gets a grid of holes facing them, and every grid shows the same critters at the same moments. Score the most before time runs out.</string>
+    <string name="coach_whack_a_mole_s2">Tap Moxie the mole for 10 points. Goldie the gopher, the one with a star on her cap, is worth 30 but leaves fast.</string>
+    <string name="coach_whack_a_mole_s3">Never tap the spiky urchin: it costs 20 points and breaks your streak. A tap on an empty hole breaks the streak too.</string>
+    <string name="coach_whack_a_mole_s4">Hit in a row without a mistake to build a streak: five makes your points count double and ten triple.</string>
+    <string name="coach_whack_a_mole_s5">Want it easier? Relaxed removes penalties and slows the critters, and One-switch play sweeps a cursor over the holes so one press does it all. This version is same-screen only, with computers filling empty zones: there is no Nearby or Online mode yet.</string>
+    <string name="coach_whack_a_mole_fact">Arcade whack-a-mole machines date from the mid-1970s, and tapping pop-up critters has been a party favourite ever since.</string>
+</resources>

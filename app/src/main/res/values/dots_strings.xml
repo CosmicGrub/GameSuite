@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dots and Boxes How to Play body; %1$d and %2$d are the board's boxes across and down. -->
+    <string name="dots_help_body">Take turns drawing one line between two neighboring dots. Draw the fourth side of a box and you claim it, then you must draw again. One line can finish two boxes at once.\n\nWhen every box on the %1$d by %2$d board is claimed, whoever claimed more wins. A tie is possible on a board with an even number of boxes.\n\nPlay Again keeps the session tally and the board size, and the player who moves first alternates each board.</string>
+</resources>

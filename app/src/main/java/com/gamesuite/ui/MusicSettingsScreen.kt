@@ -3,10 +3,11 @@ package com.gamesuite.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,11 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -43,7 +45,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +67,7 @@ import com.gamesuite.settings.SettingsViewModel
  * options and Now Playing controls. Talks to [MusicManager] for library state and to
  * [SettingsViewModel] for the persisted options.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -87,9 +96,15 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
         ) {
             item {
                 TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("← " + stringResource(R.string.music_back))
+                    Text("\u2190", modifier = Modifier.clearAndSetSemantics { })
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.music_back))
                 }
-                Text(stringResource(R.string.music_title), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(R.string.music_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.semantics { heading() }
+                )
                 Spacer(Modifier.height(16.dp))
                 MusicHeader(stringResource(R.string.music_section_source))
             }
@@ -127,7 +142,8 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                     Text(
                         stringResource(messageRes(msg)),
                         color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }
                     )
                     Spacer(Modifier.height(12.dp))
                 }
@@ -151,13 +167,14 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                     Text(
                         if (state.scanning) stringResource(R.string.music_scanning, state.scanCount)
                         else stringResource(R.string.music_track_count, lib.tracks.size),
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = { folderPicker.launch(null) },
@@ -184,11 +201,12 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                 MusicHeader(stringResource(R.string.music_section_playback))
                 val pct = (settings.musicVolume * 100f).toInt()
                 Text(stringResource(R.string.music_volume, pct), style = MaterialTheme.typography.bodyMedium)
+                val volumeState = stringResource(R.string.music_a11y_volume_state, pct)
                 Slider(
                     value = settings.musicVolume,
                     onValueChange = settingsViewModel::setMusicVolume,
                     valueRange = 0f..1f,
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier.heightIn(min = 48.dp).semantics { stateDescription = volumeState }
                 )
                 Row(
                     modifier = Modifier
@@ -212,12 +230,15 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                     else stringResource(R.string.music_crossfade_label, settings.musicCrossfadeSeconds),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                val crossfadeState = if (settings.musicCrossfadeSeconds == 0)
+                    stringResource(R.string.music_a11y_crossfade_state_off)
+                else stringResource(R.string.music_a11y_crossfade_state, settings.musicCrossfadeSeconds)
                 Slider(
                     value = settings.musicCrossfadeSeconds.toFloat(),
                     onValueChange = { settingsViewModel.setMusicCrossfadeSeconds(it.toInt()) },
                     valueRange = 0f..8f,
                     steps = 7,
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier.heightIn(min = 48.dp).semantics { stateDescription = crossfadeState }
                 )
                 Spacer(Modifier.height(24.dp))
             }
@@ -226,16 +247,17 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                 MusicHeader(stringResource(R.string.music_section_playlists))
                 Text(stringResource(R.string.music_playlists_hint), style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    modifier = Modifier.selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MusicContext.values().forEach { c ->
                         FilterChip(
                             selected = c == tab,
                             onClick = { tabName = c.name },
                             label = { Text(stringResource(contextRes(c))) },
-                            modifier = Modifier.heightIn(min = 48.dp)
+                            modifier = Modifier.heightIn(min = 48.dp).semantics { role = Role.RadioButton }
                         )
                     }
                 }
@@ -279,12 +301,12 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
                         onClick = { manager.moveTrack(tab, index, -1) },
                         enabled = index > 0,
                         modifier = Modifier.size(48.dp).semantics { contentDescription = upDesc }
-                    ) { Text("▲") }
+                    ) { Text("\u25B2", modifier = Modifier.clearAndSetSemantics { }) }
                     IconButton(
                         onClick = { manager.moveTrack(tab, index, +1) },
                         enabled = index < playlist.lastIndex,
                         modifier = Modifier.size(48.dp).semantics { contentDescription = downDesc }
-                    ) { Text("▼") }
+                    ) { Text("\u25BC", modifier = Modifier.clearAndSetSemantics { }) }
                 }
             }
         }
@@ -293,7 +315,11 @@ fun MusicSettingsScreen(settingsViewModel: SettingsViewModel, onBack: () -> Unit
 
 @Composable
 private fun MusicHeader(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(bottom = 8.dp).semantics { heading() }
+    )
 }
 
 @Composable
@@ -314,6 +340,7 @@ private fun SourceRow(selected: Boolean, title: String, description: String, onS
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NowPlayingCard(
     title: String?,
@@ -328,7 +355,8 @@ private fun NowPlayingCard(
         MusicHeader(stringResource(R.string.music_section_now_playing))
         Text(
             title ?: stringResource(R.string.music_nothing_playing),
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )
         if (!artist.isNullOrBlank()) Text(artist, style = MaterialTheme.typography.labelSmall)
         if (emptyPlaylist) {
@@ -336,7 +364,10 @@ private fun NowPlayingCard(
             Text(stringResource(R.string.music_empty_playlist), style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedButton(onClick = onPrevious, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.music_previous))
             }

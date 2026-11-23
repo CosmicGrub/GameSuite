@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -41,7 +40,7 @@ import kotlinx.coroutines.flow.map
  */
 enum class CheckersMotionTier { OFF, STANDARD, MAXIMUM }
 
-private val Context.checkersPrefsDataStore: DataStore<Preferences> by preferencesDataStore(name = "checkers_prefs")
+private val Context.checkersPrefsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("checkers_prefs")
 
 /**
  * Checkers' own tiny persisted preference: which [CheckersMotionTier] the

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips for Spider Solitaire and Hanafuda. GameTipsTest requires GameTips.tips to list these exact lines -->
+    <string name="tip_spider_solitaire_1">Arrastra una escalera, o tócala y luego toca una columna. Una carta va sobre otra de un rango más, de cualquier palo.</string>
+    <string name="tip_spider_solitaire_2">Solo se mueven juntas las escaleras de un palo: forma cada una con un solo palo y descubre pronto las cartas boca abajo.</string>
+    <string name="tip_spider_solitaire_3">Llena las columnas vacías antes de repartir. Una escalera del Rey al As de un palo se retira sola. Deshacer es ilimitado.</string>
+    <string name="tip_hanafuda_1">Toca una carta de tu mano: las de la mesa que coinciden brillan. Coincide el mismo mes; sin pareja, la carta se queda en la mesa.</string>
+    <string name="tip_hanafuda_2">Tras jugar, toca el mazo para dar la vuelta a una carta. Reúne luces, animales, cintas y simples para formar combinaciones.</string>
+    <string name="tip_hanafuda_3">Con una combinación, di Koi-Koi para seguir y ganar más, o Shobu para puntuar ya. Siete puntos o más valen el doble.</string>
+</resources>

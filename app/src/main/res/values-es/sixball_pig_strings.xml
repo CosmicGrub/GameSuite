@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Six-Ball Puzzle and Pig: Game Hub catalog texts (name = hubKey(text)) and screen strings -->
+    <string name="hub_six_ball_puzzle">Puzle de seis bolas</string>
+    <string name="hub_tilt_the_tray_and_roll_six_balls_onto_their_slot_e8b199">Inclina la bandeja y haz rodar seis bolas hasta sus huecos.</string>
+    <string name="hub_levels">Niveles</string>
+    <string name="hub_48_trays_from_easy_to_fiendish_earn_stars_by_bea_b214b9">48 bandejas, de fáciles a endiabladas. Gana estrellas superando el par.</string>
+    <string name="hub_today_s_tray">La bandeja de hoy</string>
+    <string name="hub_the_same_tray_for_everyone_today">La misma bandeja para todos hoy.</string>
+    <string name="hub_race_the_same_tray_in_turns_the_fewest_tilts_win_036b99">Compitan por turnos en la misma bandeja: gana quien use menos inclinaciones.</string>
+    <string name="hub_start_at">Empezar en</string>
+    <string name="hub_you_can_switch_to_any_level_from_the_level_picke_000841">Puedes cambiar a cualquier nivel desde el selector de niveles mientras juegas.</string>
+    <string name="hub_next_unsolved_level">Siguiente nivel sin resolver</string>
+    <string name="hub_opens_the_first_level_you_have_not_solved_yet">Abre el primer nivel que aún no has resuelto.</string>
+    <string name="hub_level_1">Nivel 1</string>
+    <string name="hub_starts_from_the_very_beginning">Empieza desde el principio.</string>
+    <string name="hub_pig">Pig</string>
+    <string name="hub_push_your_luck_roll_or_hold_but_never_roll_a_one">Tienta a la suerte: tira o planta, pero que no te salga un uno.</string>
+    <string name="hub_race_1_to_5_computer_players_to_the_goal">Compite contra 1 a 5 jugadores de la computadora hasta la meta.</string>
+    <string name="hub_game">Juego</string>
+    <string name="hub_four_ways_to_push_your_luck">Cuatro formas de tentar a la suerte.</string>
+    <string name="hub_classic_pig">Pig clásico</string>
+    <string name="hub_one_die_a_1_loses_your_turn_total">Un dado. Un 1 pierde el total de tu turno.</string>
+    <string name="hub_big_pig">Big Pig</string>
+    <string name="hub_two_dice_one_1_busts_two_1s_score_25_doubles_cou_5e8d67">Dos dados. Un 1 arruina el turno, dos 1 suman 25 y los dobles valen el doble.</string>
+    <string name="hub_hog">Hog</string>
+    <string name="hub_one_roll_per_turn_you_choose_how_many_dice_and_a_d756a1">Una tirada por turno: eliges cuántos dados y cualquier 1 no suma nada.</string>
+    <string name="hub_twenty_one_plus">Veintiuno Plus</string>
+    <string name="hub_classic_but_a_turn_total_of_exactly_21_banks_its_84f795">Clásico, pero un total de turno de exactamente 21 se guarda solo con 10 puntos de bonificación.</string>
+    <string name="hub_the_first_player_to_reach_the_goal_wins">Gana el primero en llegar a la meta.</string>
+    <string name="hub_50_points">50 puntos</string>
+    <string name="hub_100_points">100 puntos</string>
+    <string name="hub_150_points">150 puntos</string>
+    <string name="hub_the_classic_goal">La meta clásica.</string>
+    <string name="sbp_help_title">Puzle de seis bolas</string>
+    <string name="sbp_help_text">Inclina la bandeja con los cuatro botones de flecha o deslizando el tablero. Cada bola rueda hasta que un poste, el borde u otra bola la detiene. Coloca cada bola en el hueco con su propio símbolo y color. Termina en el par de inclinaciones o menos para conseguir tres estrellas. Deshacer es ilimitado y la pista muestra la siguiente inclinación de una solución más corta.</string>
+    <string name="sbp_setting_up">Preparando la bandeja…</string>
+    <string name="sbp_level">Nivel %1$d</string>
+    <string name="sbp_daily">La bandeja de hoy</string>
+    <string name="sbp_counts">Inclinaciones %1$d · par %2$d · %3$d de %4$d en su hueco</string>
+    <string name="sbp_best">mejor %1$d</string>
+    <string name="sbp_levels">Niveles</string>
+    <string name="sbp_restart">Reiniciar</string>
+    <string name="sbp_give_up">Rendirse</string>
+    <string name="sbp_next_level">Siguiente nivel</string>
+    <string name="sbp_replay">Repetir</string>
+    <string name="sbp_tilt_desc">Inclinar hacia %1$s</string>
+    <string name="sbp_suggested">(sugerido)</string>
+    <string name="sbp_board_desc">Bandeja de %1$d por %2$d. %3$s.</string>
+    <string name="sbp_ball_desc">Bola %2$s de color %1$s, fila %3$d, columna %4$d%5$s</string>
+    <string name="sbp_on_slot">, en su hueco</string>
+    <string name="sbp_ann_start">Pon cada bola en su hueco. El par es de %1$d inclinaciones.</string>
+    <string name="sbp_ann_moved">Inclinación hacia %1$s. %2$d de 6 bolas están en su hueco.</string>
+    <string name="sbp_ann_undo">Inclinación deshecha. %1$d de 6 bolas están en su hueco.</string>
+    <string name="sbp_ann_restart">De vuelta al inicio de la bandeja.</string>
+    <string name="sbp_ann_solved">Resuelto en %1$d inclinaciones, el par es %2$d. Estrellas: %3$d.</string>
+    <string name="sbp_ann_solved_race">Resolviste la bandeja en %1$d inclinaciones.</string>
+    <string name="sbp_hint_line">Pista: inclina hacia %1$s.</string>
+    <string name="sbp_hint_dead">Pista: desde aquí no hay solución. Deshaz algunas inclinaciones o reinicia.</string>
+    <string name="sbp_why_blocked">Nada se movería en ese sentido: cada bola ya está contra un poste, el borde u otra bola.</string>
+    <string name="sbp_why_solved">Esta bandeja está resuelta. Elige Siguiente nivel, Repetir o Volver al menú.</string>
+    <string name="sbp_why_handoff">Pasa primero el dispositivo.</string>
+    <string name="sbp_why_not_playing">Ahora no estás compitiendo.</string>
+    <string name="sbp_solved_title">¡Bandeja resuelta!</string>
+    <string name="sbp_solved_line">%1$d inclinaciones, par %2$d</string>
+    <string name="sbp_new_best">¡Nuevo récord!</string>
+    <string name="sbp_assisted">Se usó una pista, así que lo máximo son dos estrellas.</string>
+    <string name="sbp_stars_desc">%1$d de 3 estrellas</string>
+    <string name="sbp_status_solved">resuelto en %1$d</string>
+    <string name="sbp_status_gave_up">se rindió</string>
+    <string name="sbp_status_left">se fue</string>
+    <string name="sbp_status_waiting">esperando</string>
+    <string name="sbp_status_playing">compitiendo</string>
+    <string name="sbp_handoff_title">Pasa el dispositivo a %1$s</string>
+    <string name="sbp_handoff_body">Todos compiten en la misma bandeja. Gana quien use menos inclinaciones.</string>
+    <string name="sbp_handoff_ready">%1$s está listo</string>
+    <string name="sbp_race_over">Carrera terminada</string>
+    <string name="sbp_race_line">%1$d. %2$s: %3$s</string>
+    <string name="sbp_race_winner">¡%1$s gana con %2$d inclinaciones!</string>
+    <string name="sbp_race_winner_you">¡Ganas la carrera!</string>
+    <string name="sbp_race_nowinner">Nadie resolvió la bandeja.</string>
+    <string name="sbp_waiting_race">Esperando a que terminen los demás jugadores…</string>
+    <string name="sbp_picker_title">Elige un nivel</string>
+    <string name="sbp_picker_stars">Estrellas: %1$d de %2$d</string>
+    <string name="sbp_level_tile">Nivel %1$d, par %2$d, %3$d estrellas</string>
+    <string name="sbp_close">Cerrar</string>
+    <string name="sbp_leave_body">Esta bandeja sigue en curso. Salir ahora no cuenta como victoria ni derrota.</string>
+    <string name="pig_help_title">Pig</string>
+    <string name="pig_help_text">Tira el dado tantas veces como quieras; los números se suman en el bote. Planta para guardar el bote en tu puntuación. Si sacas un 1 pierdes el bote y el turno. Gana el primero en llegar a la meta. Big Pig usa dos dados (un 1 arruina el turno, dos 1 suman 25 y los dobles valen el doble). Hog es una sola tirada con los dados que elijas (cualquier 1 no suma nada). Veintiuno Plus guarda por ti un bote de exactamente 21 con 10 puntos de bonificación.</string>
+    <string name="pig_ann_roll">%1$s sacó %2$s: +%3$d. Total del turno: %4$d.</string>
+    <string name="yg_pig_ann_roll">Sacaste %1$s: +%2$d. Total del turno: %3$d.</string>
+    <string name="pig_ann_bust">%1$s se pasó con %2$s y pierde %3$d.</string>
+    <string name="yg_pig_ann_bust">Te pasaste con %1$s y pierdes %2$d.</string>
+    <string name="pig_ann_bust_zero">%1$s se pasó con %2$s.</string>
+    <string name="yg_pig_ann_bust_zero">Te pasaste con %1$s.</string>
+    <string name="pig_ann_snake">¡%1$s sacó ojos de serpiente: +%2$d!</string>
+    <string name="yg_pig_ann_snake">¡Sacaste ojos de serpiente: +%1$d!</string>
+    <string name="pig_ann_doubles">%1$s sacó dobles (%2$s): +%3$d.</string>
+    <string name="yg_pig_ann_doubles">Sacaste dobles (%1$s): +%2$d.</string>
+    <string name="pig_ann_exact">%1$s llegó a 21 exactos y guardó %2$d con la bonificación.</string>
+    <string name="yg_pig_ann_exact">Llegaste a 21 exactos y guardas %1$d con la bonificación.</string>
+    <string name="pig_ann_hog">%1$s sacó %2$s y guardó %3$d.</string>
+    <string name="yg_pig_ann_hog">Sacaste %1$s y guardas %2$d.</string>
+    <string name="pig_ann_hog_bust">%1$s sacó %2$s, con un 1, y no suma nada.</string>
+    <string name="yg_pig_ann_hog_bust">Sacaste %1$s, con un 1, y no sumas nada.</string>
+    <string name="pig_ann_hold">%1$s plantó y guardó %2$d.</string>
+    <string name="yg_pig_ann_hold">Plantas y guardas %1$d.</string>
+    <string name="pig_ann_win">¡%1$s gana con %2$d puntos!</string>
+    <string name="yg_pig_ann_win">¡Ganas con %1$d puntos!</string>
+    <string name="pig_ann_start">%1$s empieza. Carrera hasta %2$d.</string>
+    <string name="yg_pig_ann_start">Empiezas tú. Carrera hasta %1$d.</string>
+    <string name="pig_turn_roll">Tu turno: tira o planta.</string>
+    <string name="pig_turn_hog">Tu turno: elige cuántos dados y tira.</string>
+    <string name="pig_turn_named_roll">%1$s: tira o planta.</string>
+    <string name="pig_turn_named">Es el turno de %1$s.</string>
+    <string name="pig_thinking">%1$s está pensando…</string>
+    <string name="pig_chip_desc">%1$s: %2$d de %3$d puntos</string>
+    <string name="pig_chip_pot">%1$d puntos en el bote este turno.</string>
+    <string name="pig_dice_count">Dados: %1$d</string>
+    <string name="pig_fewer_dice">Tirar un dado menos</string>
+    <string name="pig_more_dice">Tirar un dado más</string>
+    <string name="pig_dice_desc">Dados que muestran %1$s</string>
+    <string name="pig_dice_none">Aún no se han tirado los dados</string>
+    <string name="pig_dice_waiting">¡Tira los dados!</string>
+    <string name="pig_die_desc">El dado %1$d muestra %2$d</string>
+    <string name="pig_pot_line">En el bote: %1$d. Puntuación si plantas: %2$d</string>
+    <string name="pig_roll">Tirar</string>
+    <string name="pig_hold">Plantar (+%1$d)</string>
+    <string name="pig_final_line">%1$s: %2$d puntos</string>
+    <string name="pig_wins">¡%1$s gana!</string>
+    <string name="pig_hint_roll">Pista: tira otra vez. Cerca de un %1$d%% de ganar.</string>
+    <string name="pig_hint_hold">Pista: planta. Cerca de un %1$d%% de ganar.</string>
+    <string name="pig_hint_dice">Pista: tira %1$d dados. Cerca de un %2$d%% de ganar.</string>
+    <string name="pig_why_nothing_to_hold">Tira al menos una vez antes de plantar.</string>
+    <string name="pig_why_hog_no_hold">En Hog cada turno es una sola tirada, así que no hay nada que plantar.</string>
+    <string-array name="sbp_dir_names">
+        <item>arriba</item>
+        <item>la derecha</item>
+        <item>abajo</item>
+        <item>la izquierda</item>
+    </string-array>
+    <string-array name="sbp_color_names">
+        <item>naranja</item>
+        <item>azul</item>
+        <item>amarilla</item>
+        <item>verde</item>
+        <item>rosa</item>
+        <item>celeste</item>
+    </string-array>
+</resources>

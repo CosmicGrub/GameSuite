@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hub catalog texts (name = hub_ + slug of the English text) -->
+    <string name="hub_flow_lines">Flow Lines</string>
+    <string name="hub_join_each_pair_of_dots_and_fill_the_board">Join each pair of dots and fill the board.</string>
+
+    <!-- Screen -->
+    <string name="flowlines_help_title">How to Play Flow Lines</string>
+    <string name="flowlines_help_text">Join each pair of matching dots with a path. Drag from a dot to draw; the path follows your finger one square at a time.\n\nPaths can never cross. Drawing over another path cuts it, and you cannot run through a dot of another colour. Drag back along your path to retrace it, or drag onto an earlier square to shorten it.\n\nThe puzzle is solved when every pair is joined and every square is covered. Every puzzle can be solved.\n\nEach dot and path carries a letter or a shape as well as a colour. Your clock starts on your first stroke, and your best moves and best time are saved for each size. A hint shows part of a correct path, and a puzzle solved with a hint sets no record. The daily puzzle is the same for every player at the same size.</string>
+    <string name="flowlines_leave_title">Leave this puzzle?</string>
+    <string name="flowlines_leave_body">This puzzle is still unsolved. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="flowlines_leave_body_keeps">This puzzle is still unsolved and won\'t count, but the puzzles you\'ve already solved stay on your record.</string>
+    <string name="flowlines_daily_tag">Daily puzzle</string>
+
+    <string name="flowlines_tier_label">%1$d×%1$d</string>
+    <string name="flowlines_tier_desc">%1$d by %1$d grid</string>
+    <string name="flowlines_tier_group">Puzzle size</string>
+
+    <string name="flowlines_moves">Moves: %1$d</string>
+    <string name="flowlines_flows">Flows: %1$d/%2$d</string>
+    <string name="flowlines_filled">Filled: %1$d%%</string>
+    <string name="flowlines_status_desc">%1$d moves, %2$d of %3$d flows connected, %4$d percent filled</string>
+
+    <string name="flowlines_new_puzzle_desc">New puzzle</string>
+    <string name="flowlines_new_puzzle_action">Deal a new puzzle</string>
+    <string name="flowlines_undo">Undo</string>
+    <string name="flowlines_undo_ready">Takes back your last stroke</string>
+    <string name="flowlines_undo_none">Nothing to undo</string>
+    <string name="flowlines_hint">Hint</string>
+    <string name="flowlines_hint_ready">Reveals part of a correct path. Using a hint means this puzzle will not set a record.</string>
+    <string name="flowlines_hint_none">Nothing to suggest, the puzzle is solved</string>
+
+    <string name="flowlines_board_desc">Flow Lines board, %1$d by %1$d</string>
+    <string name="flowlines_cell_empty">Row %1$d, column %2$d, empty</string>
+    <string name="flowlines_cell_path">Row %1$d, column %2$d, %3$s path</string>
+    <string name="flowlines_cell_dot">Row %1$d, column %2$d, %3$s dot</string>
+    <string name="flowlines_cell_suggested">, suggested</string>
+    <string name="flowlines_cell_action">Select this colour or extend its path here</string>
+    <string name="flowlines_color_with_letter">%1$s, letter %2$s</string>
+    <string name="flowlines_letter_only">letter %1$s</string>
+
+    <string name="flowlines_color_red">red</string>
+    <string name="flowlines_color_blue">blue</string>
+    <string name="flowlines_color_green">green</string>
+    <string name="flowlines_color_yellow">yellow</string>
+    <string name="flowlines_color_orange">orange</string>
+    <string name="flowlines_color_purple">purple</string>
+    <string name="flowlines_color_cyan">cyan</string>
+    <string name="flowlines_color_pink">pink</string>
+
+    <!-- Solved panel -->
+    <string name="flowlines_solved_title">Puzzle solved!</string>
+    <string name="flowlines_result_hint_one">Solved with 1 hint</string>
+    <string name="flowlines_result_hint_many">Solved with %1$d hints</string>
+    <string name="flowlines_result_assisted">Assisted puzzles do not set records.</string>
+    <string name="flowlines_result_time">Time: %1$s</string>
+    <string name="flowlines_new_best_moves">New best move count!</string>
+    <string name="flowlines_best_moves">Best moves: %1$d</string>
+    <string name="flowlines_new_best_time">New best time!</string>
+    <string name="flowlines_best_time">Best time: %1$s</string>
+    <string name="flowlines_new_puzzle_button">New Puzzle</string>
+    <string name="flowlines_back_to_menu">Back to Menu</string>
+</resources>

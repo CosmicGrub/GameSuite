@@ -273,7 +273,7 @@ class DominoGameTest {
     }
 
     @Test
-    fun `a blocked hand goes to the lowest pip total and scores the other hand's pips`() {
+    fun `a blocked hand goes to the lowest pip total and scores the difference`() {
         val game = newGame()
         game.startMatch()
         drainBoneyard(game)
@@ -293,13 +293,14 @@ class DominoGameTest {
         val s = game.state.value!!
         assertTrue(s.handOver)
         assertEquals("p0", s.winnerPlayerId)
-        assertEquals(11, game.sessionScores.value["p0"])
+        assertEquals(5, game.sessionScores.value["p0"]) // 11 - 6
         assertEquals(0, game.sessionScores.value["p1"])
     }
 
     @Test
-    fun `a blocked hand with level lowest totals goes to the first seat`() {
-        // The screen's help text and result panel state this rule, so it is pinned here.
+    fun `a blocked hand with level lowest totals is a tie that nobody scores`() {
+        // Standard rule, documented on DominoGame: a shared lowest total is a tie. The hand still
+        // counts as finished and Play Again deals a fresh one.
         val game = newGame()
         game.startMatch()
         drainBoneyard(game)
@@ -315,9 +316,13 @@ class DominoGameTest {
 
         val s = game.state.value!!
         assertTrue(s.handOver)
-        assertEquals("p0", s.winnerPlayerId)
-        assertEquals(2, game.sessionScores.value["p0"])
+        assertNull(s.winnerPlayerId)
+        assertEquals(0, game.sessionScores.value["p0"])
         assertEquals(0, game.sessionScores.value["p1"])
+        assertEquals(1, game.handsFinished.value)
+        game.playAgain()
+        assertFalse(game.state.value!!.handOver)
+        assertEquals(7, game.state.value!!.players[0].hand.size)
     }
 
     // ---- the CPU ----

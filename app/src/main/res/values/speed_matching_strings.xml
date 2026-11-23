@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Speed and Matching: screen, hub and tip strings (own file). Coach text is in speed_matching_coach_strings.xml. -->
+    <string name="hub_speed">Speed</string>
+    <string name="hub_play_cards_onto_the_centre_piles_one_rank_up_or_64bffd">Play cards onto the centre piles, one rank up or down, faster than your rival.</string>
+    <string name="hub_race_the_computer_to_empty_your_cards">Race the computer to empty your cards.</string>
+    <string name="hub_two_players_race_on_one_device_one_on_each_side">Two players race on one device, one on each side.</string>
+    <string name="hub_turn_based_assist">Turn-based assist</string>
+    <string name="hub_take_turns_instead_of_racing_with_no_countdown_f_51cba6">Take turns instead of racing, with no countdown. For players who can\'t play at speed.</string>
+    <string name="hub_matching">Matching</string>
+    <string name="hub_flip_two_cards_to_find_pairs_remember_where_ever_6aa05e">Flip two cards to find pairs. Remember where everything is.</string>
+    <string name="hub_find_every_pair_in_as_few_moves_as_you_can">Find every pair in as few moves as you can.</string>
+    <string name="hub_find_more_pairs_than_1_to_3_computer_players">Find more pairs than 1 to 3 computer players.</string>
+    <string name="hub_cards">Cards</string>
+    <string name="hub_more_cards_make_a_longer_harder_board">More cards make a longer, harder board.</string>
+    <string name="hub_12_cards">12 cards</string>
+    <string name="hub_20_cards">20 cards</string>
+    <string name="hub_30_cards">30 cards</string>
+    <string name="hub_40_cards">40 cards</string>
+    <string name="hub_picture_set">Picture set</string>
+    <string name="hub_what_is_drawn_on_the_cards">What is drawn on the cards.</string>
+    <string name="hub_critters">Critters</string>
+    <string name="hub_friendly_animal_faces">Friendly animal faces.</string>
+    <string name="hub_bold_shapes_that_never_rely_on_colour_alone">Bold shapes that never rely on colour alone.</string>
+    <string name="hub_playing_cards">Playing cards</string>
+    <string name="hub_pairs_of_the_same_rank_and_colour">Pairs of the same rank and colour.</string>
+    <string name="tip_speed_1">There are no turns: play any card one rank above or below a centre card, as fast as you can.</string>
+    <string name="tip_speed_2">Aces connect kings and twos. When you are both stuck, tap Flip to turn up new centre cards.</string>
+    <string name="tip_speed_3">Too fast? Turn on Turn-based assist in the setup to take turns without a clock.</string>
+    <string name="tip_matching_1">Tap two cards to find a pair. A pair stays up and you go again.</string>
+    <string name="tip_matching_2">Watch every card the other players turn: the best memory wins.</string>
+    <string name="tip_matching_3">Stuck? Hint points to a pair you have already seen, or to a card you have not.</string>
+    <string name="speed_help_title">How to Play Speed</string>
+    <string name="speed_help_text">Race to play all your cards.
+
+There are no turns. Put a card from your hand on either centre pile when it is exactly one rank higher or lower (the ace is next to both the king and the two). Your hand refills from your draw pile.
+
+If neither of you can play, press Flip: new cards turn up in the centre. The first player to play every card of their hand and draw pile wins.
+
+Turn-based assist, in the game setup, removes the clock: you take turns and can pass when stuck. It is also the best way to play with a screen reader.</string>
+    <string name="speed_status_countdown">Get ready…</string>
+    <string name="speed_go">Go!</string>
+    <string name="speed_race">Play as fast as you can.</string>
+    <string name="speed_ann_start">New board. Play a card one rank up or down from a centre card.</string>
+    <string name="speed_ann_play">%1$s played %2$s on the %3$s pile.</string>
+    <string name="speed_ann_play_you">You played %1$s on the %2$s pile.</string>
+    <string name="speed_ann_flip">Both stuck. New centre cards.</string>
+    <string name="speed_ann_reshuffle">The spare piles ran out. The centre was shuffled and dealt again.</string>
+    <string name="speed_ann_pass">%1$s is stuck.</string>
+    <string name="speed_ann_pass_you">You are stuck.</string>
+    <string name="speed_ann_win">%1$s wins the board!</string>
+    <string name="speed_ann_win_you">You win the board!</string>
+    <string name="speed_ann_draw">Nobody could play. It\'s a draw.</string>
+    <string name="speed_assist_turn_you">Your turn: play a card or pass.</string>
+    <string name="speed_assist_turn_named">%1$s\'s turn: play a card or pass.</string>
+    <string name="speed_assist_wait">Waiting for %1$s.</string>
+    <string name="speed_assist_badge">Turn-based assist</string>
+    <string name="speed_pile_left">left</string>
+    <string name="speed_pile_right">right</string>
+    <string name="speed_btn_flip">Stuck: flip</string>
+    <string name="speed_btn_pass">Pass</string>
+    <string name="speed_btn_waiting">Waiting for the other player…</string>
+    <string name="speed_chip">%1$s · %2$d left</string>
+    <string name="speed_chip_desc">%1$s, cards left: %2$d</string>
+    <string name="speed_draw_desc">%1$s, draw pile: %2$d</string>
+    <string name="speed_spare_desc">%1$s, spare pile: %2$d</string>
+    <string name="speed_pile_desc">The %1$s pile: top card %2$s, size %3$d.</string>
+    <string name="speed_empty_slot">Empty slot.</string>
+    <string name="speed_opp_card">Opponent\'s card, face down.</string>
+    <string name="speed_opp_left">Your opponent has left the game.</string>
+    <string name="speed_card_name">%1$s of %2$s</string>
+    <string name="speed_card_desc_both">%1$s. Can go on either pile.</string>
+    <string name="speed_card_desc_pile">%1$s. Can go on the %2$s pile.</string>
+    <string name="speed_card_desc_none">%1$s. Cannot be played now.</string>
+    <string name="speed_selected">Selected.</string>
+    <string name="speed_suggested">Suggested.</string>
+    <string name="speed_why_not_started">Wait for Go!</string>
+    <string name="speed_why_illegal">A card must be exactly one rank above or below a centre card.</string>
+    <string name="speed_why_lost_race">Photo finish! The other player was first. Your card stays in your hand.</string>
+    <string name="speed_why_not_turn">Wait for your turn.</string>
+    <string name="speed_why_still_play">You still have a play.</string>
+    <string name="speed_why_pick">Pick a card first.</string>
+    <string name="speed_why_over">This board is over.</string>
+    <string name="match_help_title">How to Play Matching</string>
+    <string name="match_help_text">Find all the pairs.
+
+The cards lie face down. On your turn, turn over two cards. If the pictures are the same, you keep the pair and go again. If not, they turn back over and the next player goes.
+
+The board ends when every pair is found. With several players, the most pairs wins. Playing alone, try to finish in as few moves and as little time as you can: Hint and Undo are there to help, but a run that uses them is not saved as a personal best.
+
+The menu lets you change the pictures: friendly critters, bold symbols or playing cards.</string>
+    <string name="match_ann_start">New board. Turn over two cards to find a pair.</string>
+    <string name="match_ann_flip">%1$s turned card %2$d: %3$s.</string>
+    <string name="match_ann_flip_you">You turned card %1$d: %2$s.</string>
+    <string name="match_ann_match">%1$s found a pair: %2$s!</string>
+    <string name="match_ann_match_you">You found a pair: %1$s!</string>
+    <string name="match_ann_miss">%1$s did not find a pair.</string>
+    <string name="match_ann_miss_you">No pair this time.</string>
+    <string name="match_ann_win">%1$s wins! Pairs: %2$d.</string>
+    <string name="match_ann_win_you">You win! Pairs: %1$d.</string>
+    <string name="match_ann_tie">It\'s a tie!</string>
+    <string name="match_ann_solo_done">Board cleared! Moves: %1$d.</string>
+    <string name="match_turn_you">Your turn: turn over a card.</string>
+    <string name="match_turn_named">%1$s\'s turn.</string>
+    <string name="match_thinking">%1$s is thinking…</string>
+    <string name="match_opp_left">A player has left the game.</string>
+    <string name="match_why_cpu">The computer is playing.</string>
+    <string name="match_why_wait">Wait for your turn.</string>
+    <string name="match_why_taken">That pair is already found.</string>
+    <string name="match_hint_known">Try these two cards: they match.</string>
+    <string name="match_hint_explore">No pair known yet. Try this card.</string>
+    <string name="match_hint_none">No hint available right now.</string>
+    <string name="match_chip">%1$s: %2$d</string>
+    <string name="match_chip_desc">%1$s, pairs: %2$d</string>
+    <string name="match_pairs_found">Pairs: %1$d of %2$d</string>
+    <string name="match_moves">Moves: %1$d</string>
+    <string name="match_time">Time: %1$s</string>
+    <string name="match_card_down">Card %1$d of %2$d, face down.</string>
+    <string name="match_card_up">Card %1$d, face up: %2$s.</string>
+    <string name="match_card_matched">Card %1$d: %2$s, matched by %3$s.</string>
+    <string name="match_face_critter">%1$s %2$s</string>
+    <string name="match_face_solid">%1$s, solid</string>
+    <string name="match_face_outline">%1$s, outline</string>
+    <string name="match_face_rank">%1$s, %2$s</string>
+    <string name="match_red">red</string>
+    <string name="match_black">black</string>
+    <string name="match_theme_critters">Critters</string>
+    <string name="match_theme_symbols">Symbols</string>
+    <string name="match_theme_cards">Playing cards</string>
+    <string name="match_menu_theme">Pictures: %1$s</string>
+    <string name="match_done_title">Board cleared!</string>
+    <string name="match_done_stats">Moves: %1$d. Time: %2$s.</string>
+    <string name="match_new_best">New personal best!</string>
+    <string name="match_record">Best moves: %1$d. Best time: %2$s.</string>
+    <string name="match_unclean">Hints or undo were used, so this run is not saved as a best.</string>
+    <string-array name="speed_rank_names">
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+        <item>Ace</item>
+    </string-array>
+    <string-array name="speed_suit_names">
+        <item>clubs</item>
+        <item>diamonds</item>
+        <item>hearts</item>
+        <item>spades</item>
+    </string-array>
+    <string-array name="match_species_names">
+        <item>cat</item>
+        <item>bunny</item>
+        <item>bear</item>
+        <item>mouse</item>
+        <item>owl</item>
+    </string-array>
+    <string-array name="match_coat_names">
+        <item>plain</item>
+        <item>striped</item>
+        <item>spotted</item>
+        <item>pale-muzzled</item>
+    </string-array>
+    <string-array name="match_shape_names">
+        <item>circle</item>
+        <item>square</item>
+        <item>triangle</item>
+        <item>diamond</item>
+        <item>star</item>
+        <item>plus</item>
+        <item>heart</item>
+        <item>hexagon</item>
+        <item>crescent</item>
+        <item>arrow</item>
+    </string-array>
+    <string-array name="match_rank_names">
+        <item>Ace</item>
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+    </string-array>
+</resources>

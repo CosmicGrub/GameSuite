@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Territory Wars (id territory-wars). SCAFFOLD: not registered anywhere. Keys mirror docs/design/boardgames/territory-wars.md section 2.9. -->
+    <!-- Hub texts use hubKey(text) names. Texts that already exist in strings.xml (vs Computers, Pass and Play, the Pass and Play blurb, You) are reused, not redefined. -->
+    <!-- Phases -->
+    <string name="tw_title">Territory Wars</string>
+    <string name="tw_phase_deal">Dealing territories</string>
+    <string name="tw_phase_place">Place your armies</string>
+    <string name="tw_phase_cards">Turn in cards</string>
+    <string name="tw_phase_reinforce">Reinforce</string>
+    <string name="tw_phase_attack">Attack</string>
+    <string name="tw_phase_move_in">Move in</string>
+    <string name="tw_phase_fortify">Fortify</string>
+    <string name="tw_phase_gameover">The war is over</string>
+    <string name="tw_round_cap_fmt">Round %1$d of %2$d</string>
+    <string name="tw_round_nocap_fmt">Round %1$d</string>
+    <string name="tw_turn_you">Your turn</string>
+    <string name="tw_turn_other_fmt">%1$s is playing</string>
+    <string name="tw_armies_to_place_fmt">%1$d armies to place</string>
+    <!-- Buttons -->
+    <string name="tw_btn_end_attack">End attack</string>
+    <string name="tw_btn_end_turn">End turn</string>
+    <string name="tw_btn_skip_fortify">Skip fortify</string>
+    <string name="tw_btn_attack_one">Attack (1 die)</string>
+    <string name="tw_btn_attack_dice_fmt">Attack (%1$d dice)</string>
+    <string name="tw_btn_keep_attacking">Keep attacking</string>
+    <string name="tw_btn_stop">Stop</string>
+    <string name="tw_btn_confirm">Confirm</string>
+    <string name="tw_btn_cancel">Cancel</string>
+    <string name="tw_btn_undo_placement">Undo placement</string>
+    <string name="tw_btn_turn_in">Turn in set</string>
+    <string name="tw_btn_territory_list">Territory list</string>
+    <string name="tw_btn_fit_map">Fit map</string>
+    <string name="tw_btn_ready">I am ready</string>
+    <string name="tw_btn_play_again">Play again</string>
+    <string name="tw_btn_score_card">War summary</string>
+    <string name="tw_btn_leave">Leave</string>
+    <string name="tw_btn_next">Next</string>
+    <string name="tw_btn_skip_tutorial">Skip tutorial</string>
+    <string name="tw_btn_start">Start the war</string>
+    <!-- Prompts -->
+    <string name="tw_prompt_place">Tap one of your territories to add an army</string>
+    <string name="tw_prompt_attack_from">Choose the territory to attack from</string>
+    <string name="tw_prompt_attack_to">Choose a neighbouring enemy territory</string>
+    <string name="tw_prompt_move_in_fmt">Move armies into %1$s (at least %2$d)</string>
+    <string name="tw_prompt_fortify_from">Choose a territory to move armies from</string>
+    <string name="tw_prompt_fortify_to">Now choose where they go</string>
+    <string name="tw_prompt_fortify_amount_fmt">Move %1$d armies</string>
+    <string name="tw_handover_fmt">Pass the device to %1$s</string>
+    <string name="tw_handover_hint">Cards stay hidden until the next player taps I am ready.</string>
+    <!-- Events -->
+    <string name="tw_battle_title">Battle</string>
+    <string name="tw_battle_result_fmt">Attacker lost %1$d, defender lost %2$d</string>
+    <string name="tw_battle_conquered_fmt">%1$s conquered %2$s</string>
+    <string name="tw_battle_held_fmt">%1$s held %2$s</string>
+    <string name="tw_event_eliminated_fmt">%1$s has been eliminated</string>
+    <string name="tw_event_region_fmt">%1$s now holds all of %2$s (+%3$d)</string>
+    <string name="tw_event_reinforce_fmt">%1$s receives %2$d armies</string>
+    <string name="tw_event_reinforce_breakdown_fmt">Territories %1$d, regions %2$d, cards %3$d</string>
+    <string name="tw_event_round_cap">Round limit reached</string>
+    <string name="tw_event_target_fmt">%1$s reached the capture target</string>
+    <string name="tw_event_stalemate">No territory changed hands for five rounds</string>
+    <!-- Cards -->
+    <string name="tw_cards_title">Your cards</string>
+    <string name="tw_cards_count_fmt">%1$d cards</string>
+    <string name="tw_card_torch">Torch</string>
+    <string name="tw_card_compass">Compass</string>
+    <string name="tw_card_anchor">Anchor</string>
+    <string name="tw_card_wild">Wild</string>
+    <string name="tw_card_drawn_fmt">New card: %1$s</string>
+    <string name="tw_cards_forced">You hold 5 or more cards: turn in a set to continue</string>
+    <string name="tw_cards_set_value_fmt">This set is worth %1$d armies</string>
+    <string name="tw_cards_not_a_set">These cards do not make a set</string>
+    <string name="tw_cards_hidden_fmt">%1$s holds %2$d cards</string>
+    <!-- Why -->
+    <string name="tw_why_not_your_turn">It is not your turn</string>
+    <string name="tw_why_not_yours">That territory is not yours</string>
+    <string name="tw_why_own_target">You cannot attack your own territory</string>
+    <string name="tw_why_not_adjacent">Those territories do not touch</string>
+    <string name="tw_why_need_two">You need at least 2 armies to attack</string>
+    <string name="tw_why_none_left">No armies left to place</string>
+    <string name="tw_why_place_first">Place all your armies before attacking</string>
+    <string name="tw_why_turn_in_first">Turn in a set of cards before continuing</string>
+    <string name="tw_why_no_path">No chain of your territories connects them</string>
+    <string name="tw_why_leave_one">Leave at least 1 army behind</string>
+    <string name="tw_why_already_fortified">You already fortified this turn</string>
+    <string name="tw_why_move_in_first">Move armies into the conquered territory first</string>
+    <string name="tw_why_over">The war is over</string>
+    <!-- Setup -->
+    <string name="tw_setup_title">New war</string>
+    <string name="tw_setup_blurb">Territories are dealt at random. Plan your opening.</string>
+    <!-- Post-game -->
+    <string name="tw_win_title_fmt">%1$s wins the war!</string>
+    <string name="tw_win_domination">By total conquest</string>
+    <string name="tw_win_target">By reaching the capture target</string>
+    <string name="tw_win_round_cap">On points when the round limit ended</string>
+    <string name="tw_score_title">War summary</string>
+    <string name="tw_score_row_fmt">%1$s: %2$d territories, %3$d armies</string>
+    <string name="tw_score_rounds_fmt">Rounds played: %1$d</string>
+    <string name="tw_score_battles_fmt">Battles fought: %1$d</string>
+    <string name="tw_score_conquests_fmt">Territories conquered: %1$d</string>
+    <string name="tw_score_seed_fmt">Seed: %1$s</string>
+    <!-- Accessibility -->
+    <string name="tw_a11y_map_fmt">Map of %1$d territories. Pinch to zoom or open the territory list.</string>
+    <string name="tw_a11y_territory_fmt">%1$s, %2$s region, owned by %3$s, %4$d armies</string>
+    <string name="tw_a11y_selected">selected</string>
+    <string name="tw_a11y_neighbours_fmt">Neighbours: %1$s</string>
+    <string name="tw_a11y_owner_pattern_fmt">%1$s, pattern %2$s</string>
+    <string name="tw_pattern_solid">solid</string>
+    <string name="tw_pattern_stripes">stripes</string>
+    <string name="tw_pattern_dots">dots</string>
+    <string name="tw_pattern_crosshatch">crosshatch</string>
+    <string name="tw_pattern_bars">bars</string>
+    <string name="tw_pattern_checks">checks</string>
+    <string name="tw_list_sort_owner">By owner</string>
+    <string name="tw_list_sort_region">By region</string>
+    <!-- Tutorial -->
+    <string name="tw_tut_01">Welcome, commander. Your goal is to conquer the whole map.</string>
+    <string name="tw_tut_02">The map is split into territories. Each one holds your armies or an enemy\'s.</string>
+    <string name="tw_tut_03">Every turn has three steps: reinforce, attack, then fortify.</string>
+    <string name="tw_tut_04">You get armies for territories held, plus a bonus for whole regions.</string>
+    <string name="tw_tut_05">Tap one of your territories to place an army there.</string>
+    <string name="tw_tut_06">Now attack: pick a territory with 2 or more armies, then a neighbour.</string>
+    <string name="tw_tut_07">Dice decide each fight. The highest dice are compared and ties go to the defender.</string>
+    <string name="tw_tut_08">If the defender runs out of armies, you take the territory and move in.</string>
+    <string name="tw_tut_09">Conquer at least one territory in a turn to earn a card.</string>
+    <string name="tw_tut_10">Three matching or three different cards make a set. Turn it in for armies.</string>
+    <string name="tw_tut_11">Finish by fortifying: move armies between two connected territories.</string>
+    <string name="tw_tut_12">Pinch the map to zoom, or open the territory list to pick one.</string>
+    <string name="tw_tut_13">Hold every territory of a region to earn its bonus each turn.</string>
+    <string name="tw_tut_14">The last commander standing wins. Good luck!</string>
+    <!-- Regions (proper nouns) -->
+    <string name="tw_region_cinderwake">Cinderwake</string>
+    <string name="tw_region_glasswater">Glasswater</string>
+    <string name="tw_region_heartmark">Heartmark</string>
+    <string name="tw_region_dunescar">Dunescar</string>
+    <string name="tw_region_mistwood">Mistwood</string>
+    <string name="tw_region_stormcrown">Stormcrown</string>
+    <!-- Territories (proper nouns) -->
+    <string name="tw_terr_ashgate">Ashgate</string>
+    <string name="tw_terr_kilnmoor">Kilnmoor</string>
+    <string name="tw_terr_cinder_ridge">Cinder Ridge</string>
+    <string name="tw_terr_frostmere">Frostmere</string>
+    <string name="tw_terr_mirrorlake">Mirrorlake</string>
+    <string name="tw_terr_saltspire">Saltspire</string>
+    <string name="tw_terr_furnace_vale">Furnace Vale</string>
+    <string name="tw_terr_smolder_bay">Smolder Bay</string>
+    <string name="tw_terr_crownfield">Crownfield</string>
+    <string name="tw_terr_tidewhistle">Tidewhistle</string>
+    <string name="tw_terr_kelp_harbour">Kelp Harbour</string>
+    <string name="tw_terr_brinehollow">Brinehollow</string>
+    <string name="tw_terr_charwick">Charwick</string>
+    <string name="tw_terr_millstead">Millstead</string>
+    <string name="tw_terr_goldhaven">Goldhaven</string>
+    <string name="tw_terr_rivermeet">Rivermeet</string>
+    <string name="tw_terr_sunspire">Sunspire</string>
+    <string name="tw_terr_duskreach">Duskreach</string>
+    <string name="tw_terr_fernhollow">Fernhollow</string>
+    <string name="tw_terr_thornwick">Thornwick</string>
+    <string name="tw_terr_barleyford">Barleyford</string>
+    <string name="tw_terr_sandpass">Sandpass</string>
+    <string name="tw_terr_mirage_flats">Mirage Flats</string>
+    <string name="tw_terr_oasis_gate">Oasis Gate</string>
+    <string name="tw_terr_mossgate">Mossgate</string>
+    <string name="tw_terr_hushpine">Hushpine</string>
+    <string name="tw_terr_lanternfen">Lanternfen</string>
+    <string name="tw_terr_gale_point">Gale Point</string>
+    <string name="tw_terr_scorchwind">Scorchwind</string>
+    <string name="tw_terr_thunderlip">Thunderlip</string>
+    <string name="tw_terr_owlmere">Owlmere</string>
+    <string name="tw_terr_dewcrest">Dewcrest</string>
+    <string name="tw_terr_coral_sound">Coral Sound</string>
+    <string name="tw_terr_reefhaven">Reefhaven</string>
+    <string name="tw_terr_squallrock">Squallrock</string>
+    <string name="tw_terr_pearl_strand">Pearl Strand</string>
+    <!-- Game Hub texts -->
+    <string name="hub_territory_wars">Territory Wars</string>
+    <string name="hub_reinforce_roll_the_dice_and_conquer_the_map">Reinforce, roll the dice and conquer the map.</string>
+    <string name="hub_conquer_the_map_against_1_to_5_computers">Conquer the map against 1 to 5 computers.</string>
+    <string name="hub_war_length">War length</string>
+    <string name="hub_blitz_plays_half_the_map_long_plays_to_total_con_efe024">Blitz plays half the map. Long plays to total conquest.</string>
+    <string name="hub_blitz_about_15_min">Blitz (about 15 min)</string>
+    <string name="hub_standard_about_45_min">Standard (about 45 min)</string>
+    <string name="hub_long_about_90_min">Long (about 90 min)</string>
+    <string name="hub_fortify_reach">Fortify reach</string>
+    <string name="hub_move_armies_along_any_chain_of_your_territories_089e46">Move armies along any chain of your territories, or only next door.</string>
+    <string name="hub_any_connected_chain">Any connected chain</string>
+    <string name="hub_next_door_only">Next door only</string>
+    <string name="hub_starting_handicap">Starting handicap</string>
+    <string name="hub_extra_armies_at_the_start_to_even_out_a_mixed_ta_ae629c">Extra armies at the start to even out a mixed table.</string>
+    <string name="hub_no_handicap">No handicap</string>
+    <string name="hub_i_start_with_6_extra_armies">I start with 6 extra armies</string>
+    <string name="hub_computers_start_with_6_extra_armies">Computers start with 6 extra armies</string>
+    <string name="hub_auto_place_armies">Auto-place armies</string>
+    <string name="hub_skips_the_opening_placement_round">Skips the opening placement round.</string>
+</resources>

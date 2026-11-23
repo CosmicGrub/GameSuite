@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Slot Cars and Fishing (coach_ID_s1..sN and _fact). -->
+    <string name="coach_slot_cars_s1">Race the slot cars round the track and be first across the line after the chosen number of laps.</string>
+    <string name="coach_slot_cars_s2">You only control the throttle. Hold your pad to speed up and let go to brake.</string>
+    <string name="coach_slot_cars_s3">The skill is braking before a bend. A car that is too fast in a bend leaves the slot, loses all its speed and is put back after a moment.</string>
+    <string name="coach_slot_cars_s4">Amber signs mark the bends ahead. The grip bar above your pad fills as you reach the limit: keep it out of the hatched zone in a bend. Hint says whether to ease off.</string>
+    <string name="coach_slot_cars_s5">Want to take your time? Slow motion halves the speed, and Step by step turns the race turn-based: choose throttle or coast for each half second, then press Go.</string>
+    <string name="coach_slot_cars_fact">Slot car racing took off in the 1960s, when cheap electric sets let anybody run tiny cars along a groove in the track.</string>
+    <string name="coach_fishing_s1">Take turns to fish. Each angler casts once per round, and the most total weight of fish wins.</string>
+    <string name="coach_fishing_s2">Choose a spot on the lake, then hold the button: the power meter swings out and back. Let go to cast. Farther out means deeper water and bigger, rarer fish.</string>
+    <string name="coach_fishing_s3">Wait for a bite. Small tugs are only nibbles, so keep still. When the bobber plunges, press the button at once to hook the fish.</string>
+    <string name="coach_fishing_s4">Hold the button to reel in and let go to ease the line. Too tight and the line snaps, too loose and the fish slips away.</string>
+    <string name="coach_fishing_s5">When a fish gets ready to pull, a ripple and a warning show: let go and give it line. Hint tells you what to do, and Relaxed fishing gives you longer to react.</string>
+    <string name="coach_fishing_fact">A fish that fights hard is not always the biggest. Anglers have long played a tiring fish on a loose line instead of hauling it in.</string>
+</resources>

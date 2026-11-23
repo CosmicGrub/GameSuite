@@ -5,7 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -21,12 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -34,10 +39,13 @@ import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
+import com.gamesuite.games.reversi.ReversiBoardSizes
 import com.gamesuite.games.reversi.ReversiGame
 import com.gamesuite.games.reversi.ReversiState
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.HapticRules
+import com.gamesuite.haptics.ReversiHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
 import com.gamesuite.settings.SettingsViewModel
@@ -46,6 +54,19 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/** What the haptics effect remembers about the previous board to tell a change from a restore. */
+private data class ReversiHapticSnapshot(
+    val cells: List<Int?>,
+    val boardOver: Boolean,
+    val justPassed: Boolean,
+    val lastAction: String
+)
+
+/** Smallest cell the board shrinks to before it stops shrinking and pans instead. */
+private const val REVERSI_MIN_CELL_DP = 28f
+private const val REVERSI_MAX_CELL_DP = 56f
 
 /**
  * Renders ReversiGame's state reactively — same overall shape as ConnectFourScreen (the other
@@ -97,7 +118,6 @@ fun ReversiScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
     val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.REVERSI, enabled = musicEnabled)
@@ -113,6 +133,8 @@ fun ReversiScreen(
         // first mover: its snapshot restores its own alternation).
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
+        // Board size ("small" 6x6 / "standard" 8x8 / "large" 10x10); a resumed save carries its own size.
+        game.boardSize = ReversiBoardSizes.fromOptionId(sessionManager.launchOptions.extras["board"])
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -137,13 +159,23 @@ fun ReversiScreen(
     // turn straight back to the bot -- this effect re-fires on that state change too since it's
     // keyed on currentPlayerIndex/justPassed, so a bot-passes-back-to-bot chain still resolves
     // without the human needing to do anything.
-    LaunchedEffect(state?.currentPlayerIndex, state?.boardOver, state?.justPassed) {
+    // The search itself runs off the main thread (playBotTurnAsync) and is dropped if the position
+    // changed meanwhile (undo, restart, leave); the effect's keys also cancel it on those changes.
+    var botThinking by remember { mutableStateOf(false) }
+    val thinkingText = stringResource(R.string.reversi_thinking)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(state, state?.currentPlayerIndex, state?.boardOver, state?.justPassed) {
         val s = state ?: return@LaunchedEffect
         if (s.boardOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
-            val thinkMs = gameSpeed.scale(800L)
-            if (thinkMs > 60L) delay(thinkMs)
-            game.playBotTurn()
+            botThinking = true
+            try {
+                val thinkMs = gameSpeed.scale(800L)
+                if (thinkMs > 60L) delay(thinkMs)
+                game.playBotTurnAsync()
+            } finally {
+                botThinking = false
+            }
         }
     }
 
@@ -169,11 +201,28 @@ fun ReversiScreen(
         return
     }
 
-    LaunchedEffect(s.boardOver) {
-        if (s.boardOver) haptics(if (s.winnerPlayerId != null) HapticSignal.CELEBRATION else HapticSignal.NORMAL_ACTION)
-    }
-    LaunchedEffect(s.justPassed) {
-        if (s.justPassed) haptics(HapticSignal.NORMAL_ACTION)
+    // HAPTICS: one effect per state change, deriving the event from the board itself (previous vs
+    // current cells), so a resume (first board seen), an undo, a restart and an arena series never
+    // vibrate; see ReversiHapticCues and docs/design/haptics-cue-sheet.md.
+    val sequencer = rememberHapticSequencer()
+    val hapticTracker = remember { ChangeTracker<ReversiHapticSnapshot>() }
+    LaunchedEffect(s) {
+        val previous = hapticTracker.update(ReversiHapticSnapshot(s.cells, s.boardOver, s.justPassed, s.lastAction))
+        if (previous == null) return@LaunchedEffect
+        val isBot = s.players.map { it.isBot }
+        if (!HapticRules.shouldPlay(sessionManager.arenaActive, isBot)) return@LaunchedEffect
+        val move = ReversiHapticCues.detectMove(previous.cells, s.cells, s.size)
+        val lighter = move != null &&
+            HapticRules.isLighterMover(move.mover, isBot, if (isNetworked) localSeat else null)
+        val passed = s.justPassed && !(previous.justPassed && previous.lastAction == s.lastAction)
+        val end = if (s.boardOver && !previous.boardOver) {
+            HapticRules.outcomeFor(
+                s.players.indexOfFirst { it.playerId == s.winnerPlayerId },
+                isBot,
+                if (isNetworked) localSeat else null
+            )
+        } else null
+        sequencer(ReversiHapticCues.compose(move, lighter, passed, end))
     }
 
     // A seat is playable by touch when it is not a bot -- seat 0 is NOT assumed to be the human, so
@@ -208,7 +257,7 @@ fun ReversiScreen(
         leaveKeepsProgress = finishedBoards == 0,
         onUndo = if (isNetworked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = if (isNetworked) null else ({ game.hint() }),
+        onHint = if (isNetworked) null else ({ scope.launch { game.requestHint() } }),
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -261,6 +310,15 @@ fun ReversiScreen(
                 }
             }
 
+            if (botThinking && !s.boardOver) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    thinkingText,
+                    color = palette.textPrimary.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
             Spacer(Modifier.height(10.dp))
 
             if (s.justPassed) {
@@ -272,28 +330,34 @@ fun ReversiScreen(
                 // fitBoard never returns a footprint larger than this BoxWithConstraints's own
                 // measured space -- see its KDoc for the exact Chess/Checkers/Mancala bug class
                 // this replaces (a touch-target floor that could exceed its container).
-                val fit = remember(maxWidth, maxHeight) {
+                val boardSize = s.size
+                val fit = remember(maxWidth, maxHeight, boardSize) {
                     fitBoard(
                         availableWidthPx = maxWidth.value,
                         availableHeightPx = maxHeight.value,
-                        columns = 8,
-                        rows = 8,
-                        minCellPx = 40f,
-                        maxCellPx = 56f
+                        columns = boardSize,
+                        rows = boardSize,
+                        minCellPx = REVERSI_MIN_CELL_DP,
+                        maxCellPx = REVERSI_MAX_CELL_DP
                     )
                 }
-                val squareSize = fit.cellPx.dp
+                // Below the floor the cells stop shrinking and the board pans in both axes instead.
+                val scrolls = !fit.meetsMinimum
+                val squareSize = if (scrolls) REVERSI_MIN_CELL_DP.dp else fit.cellPx.dp
+                val hScroll = rememberScrollState()
+                val vScroll = rememberScrollState()
 
+                Box(modifier = if (scrolls) Modifier.horizontalScroll(hScroll).verticalScroll(vScroll) else Modifier) {
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(palette.boardFelt)
                         .border(3.dp, palette.boardFrame, RoundedCornerShape(6.dp))
                 ) {
-                    for (row in 0 until 8) {
+                    for (row in 0 until boardSize) {
                         Row {
-                            for (col in 0 until 8) {
-                                val index = row * 8 + col
+                            for (col in 0 until boardSize) {
+                                val index = row * boardSize + col
                                 val isLegal = isMyTurn && !s.boardOver && index in s.legalMoves
                                 CellView(
                                     owner = s.cells[index],
@@ -306,12 +370,13 @@ fun ReversiScreen(
                                     onTap = {
                                         game.placeDisc(index)
                                         sounds.playTap()
-                                        haptics(HapticSignal.NORMAL_ACTION)
+                                        // The vibration comes from the board-change effect above (only legal cells are tappable).
                                     }
                                 )
                             }
                         }
                     }
+                }
                 }
             }
 
@@ -322,7 +387,7 @@ fun ReversiScreen(
                     canHint = isMyTurn && !s.boardOver,
                     hintUnavailableReason = if (s.boardOver) "the board is over" else "the CPU is playing",
                     onUndo = { game.undo() },
-                    onHint = { game.hint() },
+                    onHint = { scope.launch { game.requestHint() } },
                     palette = palette
                 )
             }

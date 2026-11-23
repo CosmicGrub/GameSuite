@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paddle Duel: cadenas de la pantalla (archivo propio). -->
+    <string name="pdl_help_title">Cómo se juega a Paddle Duel</string>
+    <string name="pdl_help_text">Evita que la bola salga por tu borde y mándala más allá de todos los demás.\n\nPon un pulgar en cualquier punto de tu lado de la pista y desliza: tu pala te sigue. Cada jugador tiene su propio dedo, así que todos juegan a la vez. También puedes mantener pulsados los dos botones de flecha junto a tu nombre, o jugar con un solo botón (se elige en la configuración): la pala sigue a la bola sola y el botón cambia el ángulo de tu devolución.\n\nGolpea la bola con el extremo de la pala para mandarla de lado. Una pala en movimiento da efecto a la bola y esta se curva. La bola va más rápida con cada devolución.\n\nEn una partida por puntos, cada bola que supera a un rival puntúa para ti (con dos jugadores) o para el último jugador que la tocó. En una partida por vidas, cada bola que te supera cuesta una vida; con cero, tu borde se convierte en una pared y gana la última pala en pie.\n\nPotenciadores, si están activados: una pala ancha para quien lo recoge, una bola más lenta para todos o bolas extra. La ayuda Relajada hace la bola más lenta y las palas más anchas.\n\nEste juego es para personas en la misma pantalla. Todavía no hay modo Cercano ni En línea.</string>
+    <string name="pdl_goal_points">El primero en llegar a %1$d puntos</string>
+    <string name="pdl_goal_lives">Gana la última pala en pie: %1$d vidas cada uno</string>
+    <string name="pdl_arena_desc">Pista de Paddle Duel. %1$s</string>
+    <string name="pdl_tag_points">%1$s, puntos: %2$d</string>
+    <string name="pdl_tag_lives">%1$s, vidas restantes: %2$d</string>
+    <string name="pdl_tag_out">%1$s está fuera de la partida</string>
+    <string name="pdl_dir_left">a la izquierda</string>
+    <string name="pdl_dir_right">a la derecha</string>
+    <string name="pdl_dir_up">hacia arriba</string>
+    <string name="pdl_dir_down">hacia abajo</string>
+    <string name="pdl_btn_move">%1$s: mover la pala %2$s. Mantén pulsado para seguir moviéndola.</string>
+    <string name="pdl_btn_switch">%1$s: cambiar el ángulo de la devolución. Ahora: %2$s</string>
+    <string name="pdl_aim_straight">recto</string>
+    <string name="pdl_ann_launch">Bola en juego.</string>
+    <string name="pdl_ann_point">Punto para %1$s. %2$s</string>
+    <string name="pdl_ann_life">Vida perdida: %1$s. %2$s</string>
+    <string name="pdl_ann_out">Eliminado: %1$s.</string>
+    <string name="pdl_ann_wide">Pala ancha para %1$s.</string>
+    <string name="pdl_ann_slow">%1$s ralentiza la bola para todos.</string>
+    <string name="pdl_ann_multi">%1$s añade bolas extra.</string>
+    <string name="pdl_ann_stale">Nadie llegó. Se saca otra vez.</string>
+    <string name="pdl_ann_win">¡Partida para %1$s!</string>
+    <string name="pdl_result_winner">¡%1$s gana la partida!</string>
+    <string name="pdl_result_scores">Final: %1$s</string>
+</resources>

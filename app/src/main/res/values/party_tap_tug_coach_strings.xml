@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Tap Race and Tug of War (coach_<id>_s1..sN and _fact) -->
+    <string name="coach_tap_race_s1">Everyone gets a lane and a big pad in their own zone, and everybody plays at the same time. Use as many fingers as you like.</string>
+    <string name="coach_tap_race_s2">Sprint: when the countdown ends, tap your pad as fast as you can. First to fill the track wins the round. Tapping before GO freezes your pad for a moment.</string>
+    <string name="coach_tap_race_s3">Rhythm: a ring shrinks onto your pad. Tap just as it lands. Perfect and good taps move you on; early, late and extra taps set you back.</string>
+    <string name="coach_tap_race_s4">Mash and Brake: tap fast on green, slow down on amber, and take your hands off on red. A tap on red costs ground and freezes your pad.</string>
+    <string name="coach_tap_race_s5">Computers fill empty lanes. Choose Relaxed tapping or Hold to tap in the setup if fast tapping is hard: the target is smaller, the windows wider, and a held pad taps for you. Same screen only: there is no Nearby or Online mode.</string>
+    <string name="coach_tap_race_fact">Drumming tests of tapping speed find most people top out at around six to eight taps a second with one finger, which is why this game limits each finger.</string>
+    <string name="coach_tug_of_war_s1">Two to four people pull one marker, each from their own pad, all at once. Teams pull along a rope; in a free-for-all the marker is pulled toward everyone\'s corner.</string>
+    <string name="coach_tug_of_war_s2">Tap your pad to pull the marker toward your line. Bring it over the line to win the round, and win most rounds to win the match.</string>
+    <string name="coach_tug_of_war_s3">Every pull costs stamina, and a pull is only as strong as the stamina behind it. Mash the pad and you run dry in about two seconds.</string>
+    <string name="coach_tug_of_war_s4">Hold a finger down to rest and charge up, then let go for a heave that pulls up to four times harder. Hold, release, tap, repeat.</string>
+    <string name="coach_tug_of_war_s5">Uneven teams pull in proportion, so a lone player is stronger against three. Computers fill empty pads. Relaxed pulling and Hold to pull help if fast tapping is hard. Same screen only: there is no Nearby or Online mode.</string>
+    <string name="coach_tug_of_war_fact">Tug of war was an Olympic event from 1900 to 1920, and the winning team in 1908 was a team of London police officers.</string>
+</resources>

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="party2_cancel">Cancel</string>
+    <string name="party2_off">Off</string>
+    <string name="party2_players">Players</string>
+    <string name="party2_player_n">Player %1$d</string>
+    <string name="party2_decrease">Decrease %1$s</string>
+    <string name="party2_increase">Increase %1$s</string>
+    <string name="party2_copied">Copied to the clipboard</string>
+
+    <!-- Turn order -->
+    <string name="party2_turn_title">Turn order</string>
+    <string name="party2_turn_hint">Lock a seat to keep that player there when you shuffle again.</string>
+    <string name="party2_turn_reshuffle">Shuffle again</string>
+    <string name="party2_turn_copy">Copy order</string>
+    <string name="party2_turn_clip_label">Turn order</string>
+    <string name="party2_turn_lock_seat">Lock seat %1$d (%2$s)</string>
+    <string name="party2_turn_unlock_seat">Unlock seat %1$d (%2$s)</string>
+    <string name="party2_turn_all_locked">Unlock at least two seats to shuffle.</string>
+
+    <!-- First player -->
+    <string name="party2_first_title">Who goes first?</string>
+    <string name="party2_first_pick">Pick first player</string>
+    <string name="party2_first_choosing">Choosing…</string>
+    <string name="party2_first_result">First player: %1$s</string>
+    <string name="party2_first_history">Earlier picks</string>
+    <string name="party2_first_clear">Clear history</string>
+
+    <!-- Game clock -->
+    <string name="party2_clock_title">Game clock</string>
+    <string name="party2_clock_minutes">Minutes per player</string>
+    <string name="party2_clock_increment">Seconds added per turn</string>
+    <string name="party2_clock_turn_limit">Turn limit</string>
+    <string name="party2_clock_min_fmt">%1$d min</string>
+    <string name="party2_clock_sec_fmt">%1$d s</string>
+    <string name="party2_clock_tap_start">Tap the clock to start with %1$s.</string>
+    <string name="party2_clock_tap_pass">Pass the turn</string>
+    <string name="party2_clock_summary">Game clock. %1$s is up with %2$s left. Tap to pass the turn.</string>
+    <string name="party2_clock_summary_idle">Game clock. Tap to start with %1$s.</string>
+    <string name="party2_clock_start">Start</string>
+    <string name="party2_clock_pause">Pause</string>
+    <string name="party2_clock_resume">Resume</string>
+    <string name="party2_clock_skip">Skip</string>
+    <string name="party2_clock_reset">Reset</string>
+    <string name="party2_clock_paused">Paused</string>
+    <string name="party2_clock_out">OUT OF TIME</string>
+    <string name="party2_clock_out_status">%1$s is out of time. Tap to pass the turn.</string>
+    <string name="party2_clock_turn_over_label">TURN OVER</string>
+    <string name="party2_clock_turn_over">%1$s used up the turn limit. Tap to pass the turn.</string>
+    <string name="party2_clock_turn_left">Turn: %1$s</string>
+    <string name="party2_clock_winner">%1$s wins on time</string>
+    <string name="party2_clock_all_out">Everyone is out of time</string>
+    <string name="party2_clock_reset_title">Reset the clock?</string>
+    <string name="party2_clock_reset_body">Every time bank goes back to the start.</string>
+
+    <!-- Round / bid tracker -->
+    <string name="party2_round_title">Round tracker</string>
+    <string name="party2_round_mode_bid">Bid and tricks</string>
+    <string name="party2_round_mode_manual">Manual points</string>
+    <string name="party2_round_rules">Scoring</string>
+    <string name="party2_round_made_bonus">Bonus for making the bid</string>
+    <string name="party2_round_miss">If the bid is missed</string>
+    <string name="party2_miss_minus_bid">Lose the bid</string>
+    <string name="party2_miss_minus_diff">Lose the difference</string>
+    <string name="party2_miss_zero">Score nothing</string>
+    <string name="party2_round_over_makes">Extra tricks still make the bid</string>
+    <string name="party2_round_step">Step</string>
+    <string name="party2_round_n">Round %1$d</string>
+    <string name="party2_round_bid">Bid</string>
+    <string name="party2_round_won">Tricks won</string>
+    <string name="party2_round_points">Points</string>
+    <string name="party2_round_preview">Scores %1$s</string>
+    <string name="party2_round_add">Add round</string>
+    <string name="party2_round_undo">Undo last round</string>
+    <string name="party2_round_reset">Reset game</string>
+    <string name="party2_round_reset_title">Reset the game?</string>
+    <string name="party2_round_reset_body">All rounds and totals are deleted.</string>
+    <string name="party2_round_totals">Totals</string>
+    <string name="party2_round_none">No rounds yet.</string>
+    <string name="party2_round_leader">Leader: %1$s</string>
+    <string name="party2_round_leading">Leading.</string>
+    <string name="party2_round_total_desc">%1$s: %2$d points.</string>
+    <string name="party2_round_history">History</string>
+    <string name="party2_round_history_line">Round %1$d: %2$s</string>
+
+    <!-- Card dealer -->
+    <string name="party2_deal_title">Card dealer</string>
+    <string name="party2_deal_standard">Standard deck</string>
+    <string name="party2_deal_custom">Numbered deck</string>
+    <string name="party2_deal_jokers">Jokers</string>
+    <string name="party2_deal_custom_size">Cards in the deck</string>
+    <string name="party2_deal_per">Cards each</string>
+    <string name="party2_deal_limit">This deck covers up to %1$d cards each.</string>
+    <string name="party2_deal_deal">Deal</string>
+    <string name="party2_deal_reshuffle">Reshuffle and deal</string>
+    <string name="party2_deal_draw">Draw 1 each</string>
+    <string name="party2_deal_collect">Collect cards</string>
+    <string name="party2_deal_stock">In the stock: %1$s</string>
+    <string name="party2_deal_hint">Hand the device to each player and let them hold their button. Cards hide again when released.</string>
+    <string name="party2_deal_hold">Hold to reveal</string>
+    <string name="party2_deal_hold_desc">Hold to reveal the cards of %1$s</string>
+    <string name="party2_deal_hold_action">Reveal the cards for three seconds</string>
+    <string name="party2_card_spoken">%1$s of %2$s</string>
+    <string name="party2_joker">Joker</string>
+    <plurals name="party2_cards">
+        <item quantity="one">%d card</item>
+        <item quantity="other">%d cards</item>
+    </plurals>
+    <string-array name="party2_ranks">
+        <item>Ace</item>
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+    </string-array>
+    <string-array name="party2_suits">
+        <item>spades</item>
+        <item>hearts</item>
+        <item>diamonds</item>
+        <item>clubs</item>
+    </string-array>
+</resources>

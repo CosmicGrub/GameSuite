@@ -1,6 +1,8 @@
 package com.gamesuite.games.wordgames
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -14,11 +16,29 @@ import java.io.InputStreamReader
 object WordDictionary {
     private var allWords: Set<String> = emptySet()
     private var byLength: Map<Int, List<String>> = emptyMap()
+    // Same order as [byLength] but with blocklisted words removed ([WordSafety]); this is what the games CHOOSE from.
+    private var safeByLength: Map<Int, List<String>> = emptyMap()
     // @Volatile + @Synchronized: Word Search loads this off the main thread (Dispatchers.Default)
     // while other word games may call ensureLoaded from the main thread.
     @Volatile
     private var loaded = false
 
+    /** True once the word list has been parsed. Safe to read from any thread. */
+    val isLoaded: Boolean get() = loaded
+
+    /**
+     * Loads the dictionary on [Dispatchers.IO]; the main-thread-safe entry point. Call from any
+     * coroutine (UI effects included) and the ~359k-line parse never runs on the caller's thread.
+     */
+    suspend fun preload(context: Context) {
+        if (loaded) return
+        withContext(Dispatchers.IO) { ensureLoaded(context) }
+    }
+
+    /**
+     * Blocking load. Parses the whole asset, so it must only be called off the main thread
+     * (use [preload] from coroutines).
+     */
     @Synchronized
     fun ensureLoaded(context: Context) {
         if (loaded) return
@@ -35,6 +55,7 @@ object WordDictionary {
         }
         allWords = words
         byLength = words.groupBy { it.length }
+        safeByLength = byLength.mapValues { (_, list) -> list.filter { WordSafety.isSafe(it) } }
         loaded = true
     }
 
@@ -42,15 +63,19 @@ object WordDictionary {
 
     /** Random words of a given length, e.g. for word search grid seeding. */
     fun randomWordsOfLength(length: Int, count: Int, excluding: Set<String> = emptySet()): List<String> {
-        val pool = (byLength[length] ?: emptyList()).filterNot { it in excluding }
+        val pool = (safeByLength[length] ?: emptyList()).filterNot { it in excluding }
         return pool.shuffled().take(count)
     }
 
     /** Random words within a length range, e.g. for tile-game bot vocabulary sampling. */
     fun randomWords(minLength: Int, maxLength: Int, count: Int): List<String> {
-        val pool = allWords.filter { it.length in minLength..maxLength }
+        val pool = allWords.filter { it.length in minLength..maxLength && WordSafety.isSafe(it) }
         return pool.shuffled().take(count)
     }
 
-    fun wordsOfLength(length: Int): List<String> = byLength[length] ?: emptyList()
+    /** Words a game may CHOOSE and show: the raw list minus anything [WordSafety] blocks, in stable file order. */
+    fun wordsOfLength(length: Int): List<String> = safeByLength[length] ?: emptyList()
+
+    /** The unfiltered list, only for validating what a player typed. */
+    fun rawWordsOfLength(length: Int): List<String> = byLength[length] ?: emptyList()
 }

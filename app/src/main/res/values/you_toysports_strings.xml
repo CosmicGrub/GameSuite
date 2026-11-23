@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Second-person twins ("You win!" not "You wins!") of the Darts, Bowling, Carrom and Curling lines that follow a seat name.
+         Their arguments are renumbered from 1 (the name is not passed). -->
+    <string name="dt_wins_you">You win!</string>
+    <string name="dt_ann_start_you">You throw first.</string>
+    <string name="dt_ann_throw_you">You hit %1$s for %2$d.</string>
+    <string name="dt_ann_miss_you">You missed the board.</string>
+    <string name="dt_ann_bust_you">You went bust. The score goes back to %1$d.</string>
+    <string name="dt_ann_180_you">You scored 180!</string>
+    <string name="dt_ann_win_you">You win!</string>
+    <string name="dt_ann_up_you">You are up.</string>
+    <string name="dt_turn_named_you">You are on dart %1$d of 3.</string>
+    <string name="bw_wins_you">You win with %1$d!</string>
+    <string name="bw_ann_start_you">You bowl first.</string>
+    <string name="bw_ann_strike_you">You bowled a strike!</string>
+    <string name="bw_ann_spare_you">You picked up the spare.</string>
+    <string name="bw_ann_gutter_you">You rolled it in the gutter.</string>
+    <string name="bw_ann_miss_you">You missed every pin.</string>
+    <string name="bw_ann_roll_you">You knocked down %1$d. %2$d left standing.</string>
+    <string name="bw_ann_win_you">You win with %1$d!</string>
+    <string name="carrom_ann_start_you">You break.</string>
+    <string name="carrom_ann_miss_you">You missed.</string>
+    <string name="carrom_ann_foul_you">You pocketed the striker: a foul.</string>
+    <plurals name="carrom_ann_own_you">
+        <item quantity="one">You pocketed a coin.</item>
+        <item quantity="other">You pocketed %1$d coins.</item>
+    </plurals>
+    <string name="curling_ann_hogged_you">Your stone stopped short of the hog line and is out.</string>
+    <string name="curling_ann_out_you">Your stone slid out of play.</string>
+    <string name="curling_ann_takeout_you">You knocked a rival stone out of play.</string>
+    <string name="curling_ann_hit_you">You hit a stone.</string>
+    <string name="curling_ann_slid_you">You slid a stone.</string>
+</resources>

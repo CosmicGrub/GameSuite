@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Whack-a-Mole Race (ES) -->
+<resources>
+    <string name="wm_help_title">Carrera de topos</string>
+    <string name="wm_help_text">Cada jugador tiene una cuadrícula de agujeros y todos juegan a la vez: toca un agujero para golpear lo que asoma. Moxi el topo da 10, Goldie la ardilla de tierra (con una estrella en el gorro) da 30, y Pincho el erizo resta 20 puntos y rompe tu racha. Cinco aciertos seguidos cuentan doble, diez cuentan triple. Todas las cuadrículas reciben los mismos bichos a la vez.</string>
+    <string name="wm_status_ready">¡Prepárate! Toca a los bichos de cara redonda y perdona a los de púas.</string>
+    <string name="wm_grid_reduced">La cuadrícula se redujo a 3 x 3 para que cada agujero sea lo bastante grande.</string>
+    <string name="wm_status_time">Quedan %1$d segundos. %2$s</string>
+    <string name="wm_status_leader">%1$s lidera con %2$d.</string>
+    <string name="wm_status_tied">Empate a %1$d.</string>
+    <string name="wm_time_left">%1$d:%2$02d</string>
+    <string name="wm_zone_desc">Zona de %1$s, %2$d puntos, racha %3$d.</string>
+    <string name="wm_scan_desc">Juego con un solo pulsador: pulsa en cualquier parte de la zona para golpear el agujero que marca el cursor.</string>
+    <string name="wm_zone_whack">Golpear</string>
+    <string name="wm_hole_desc">Agujero %1$d de %2$d: %3$s</string>
+    <string name="wm_critter_none">Vacío</string>
+    <string name="wm_critter_mole">Moxi el topo</string>
+    <string name="wm_critter_gold">Goldie la ardilla de tierra, bonificación</string>
+    <string name="wm_critter_decoy">Pincho el erizo, no lo toques</string>
+    <string name="wm_combo">Racha %1$d (x%2$d)</string>
+    <string name="wm_countdown">%1$d</string>
+    <string name="wm_popup_plus">+%1$d</string>
+    <string name="wm_popup_minus">%1$d</string>
+    <string name="wm_score_line">%1$s: %2$d</string>
+    <string name="wm_over_title">¡%1$s gana la carrera!</string>
+    <string name="wm_over_title_you">¡Ganas la carrera!</string>
+    <string name="wm_over_line">%1$s: %2$d puntos · mejor racha %3$d · %4$d bonificaciones · %5$d señuelos golpeados</string>
+</resources>

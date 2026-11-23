@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Choca y Corre (id del juego bump-run): misma lista de claves que values/bump_run_strings.xml. TODO native review: Spanish written by the author, not yet read by a native speaker. -->
+
+    <!-- Screen -->
+    <string name="bump_run_help_title">Choca y Corre</string>
+    <string name="bump_run_help_text">Saca una carta y mueve una ficha. Lleva todas tus fichas por el circuito y por tu carril hasta la Casa. Si caes sobre un rival, lo mandas de vuelta a su Nido. Las cartas de Cambio, Persecución y Escudo cambian la carrera. Necesitas el número exacto para llegar a la Casa.</string>
+    <string name="bump_run_tap_pile">Toca el montón de cartas</string>
+    <string name="bump_run_pile_label">Montón de cartas, quedan %1$d</string>
+    <string name="bump_run_last_card">Última carta: %1$s</string>
+    <string name="bump_run_card_label">Carta: %1$s. %2$s</string>
+    <string name="bump_run_do_over_button">Repetir carta</string>
+    <string name="bump_run_do_overs_left">Repeticiones que quedan: %1$d</string>
+    <string name="bump_run_pass_button">Pasar</string>
+    <string name="bump_run_pick_pawn">Toca una de tus fichas.</string>
+    <string name="bump_run_pick_target">Toca la casilla iluminada.</string>
+    <string name="bump_run_pick_rival">Toca la ficha rival con la que cambiar de sitio.</string>
+    <string name="bump_run_nest_label">Nido de %1$s, %2$d fichas</string>
+    <string name="bump_run_home_label">Casa de %1$s, %2$d de %3$d fichas</string>
+    <string name="bump_run_pawn_label">%1$s, ficha %2$d, %3$s</string>
+    <string name="bump_run_state_nest">en el Nido</string>
+    <string name="bump_run_state_loop">en la casilla %1$d</string>
+    <string name="bump_run_state_lane">en el carril, paso %1$d de %2$d</string>
+    <string name="bump_run_state_home">en la Casa</string>
+    <string name="bump_run_state_shielded">con escudo</string>
+    <string name="bump_run_square_label">Casilla %1$d</string>
+    <string name="bump_run_square_exit_label">Casilla %1$d, casilla de salida de %2$s</string>
+    <string name="bump_run_square_pad_label">Casilla %1$d, trampolín</string>
+    <string name="bump_run_leave_title">¿Salir de este juego?</string>
+    <string name="bump_run_leave_body">La partida sigue en marcha. Si sales ahora, no cuenta como victoria ni derrota.</string>
+
+    <!-- Teams -->
+    <string name="bump_run_team_1">Equipo 1</string>
+    <string name="bump_run_team_2">Equipo 2</string>
+
+    <!-- Player shapes -->
+    <string name="bump_run_shape_circle">círculo</string>
+    <string name="bump_run_shape_square">cuadrado</string>
+    <string name="bump_run_shape_triangle">triángulo</string>
+    <string name="bump_run_shape_diamond">rombo</string>
+
+    <!-- Card names -->
+    <string name="bump_run_card_hop">Salto %1$d</string>
+    <string name="bump_run_card_swap">Cambio de sitio</string>
+    <string name="bump_run_card_chase">Persecución</string>
+    <string name="bump_run_card_free_exit">Salida libre</string>
+    <string name="bump_run_card_again">Otra vez</string>
+    <string name="bump_run_card_shield">Escudo</string>
+
+    <!-- Card descriptions -->
+    <string name="bump_run_desc_hop">Mueve una ficha %1$d casillas hacia delante.</string>
+    <string name="bump_run_desc_hop_star">Mueve una ficha %1$d casillas, o saca una ficha del Nido.</string>
+    <string name="bump_run_desc_swap">Cambia de sitio con una ficha rival del circuito.</string>
+    <string name="bump_run_desc_chase">Salta hasta el siguiente rival y empújalo. ¿Ninguno delante? Salto 4.</string>
+    <string name="bump_run_desc_free_exit">Saca una ficha del Nido. ¿Ninguna en el Nido? Salto 3.</string>
+    <string name="bump_run_desc_again">Saca otra carta y juégala también.</string>
+    <string name="bump_run_desc_shield">Protege una ficha del circuito hasta tu próximo turno. ¿Ninguna? Salto 2.</string>
+
+    <!-- Announcements -->
+    <string name="bump_run_ann_start">Empieza %1$s. Toca el montón de cartas.</string>
+    <string name="bump_run_ann_start_you">Empiezas tú. Toca el montón de cartas.</string>
+    <string name="bump_run_ann_turn">%1$s, saca una carta.</string>
+    <string name="bump_run_ann_turn_you">Tu turno. Toca el montón de cartas.</string>
+    <string name="bump_run_ann_draw">%1$s sacó %2$s.</string>
+    <string name="bump_run_ann_draw_you">Sacaste %1$s.</string>
+    <string name="bump_run_ann_hop">%1$s movió una ficha %2$d casillas.</string>
+    <string name="bump_run_ann_hop_you">Moviste una ficha %1$d casillas.</string>
+    <string name="bump_run_ann_exit">%1$s sacó una ficha del Nido.</string>
+    <string name="bump_run_ann_exit_you">Sacaste una ficha del Nido.</string>
+    <string name="bump_run_ann_bump">¡%1$s mandó una ficha de %2$s de vuelta al Nido!</string>
+    <string name="bump_run_ann_bump_you">¡Mandaste una ficha de %1$s de vuelta al Nido!</string>
+    <string name="bump_run_ann_bumped_you">%1$s mandó tu ficha de vuelta al Nido.</string>
+    <string name="bump_run_ann_swap">%1$s cambió de sitio con una ficha de %2$s.</string>
+    <string name="bump_run_ann_swap_you">Cambiaste de sitio con una ficha de %1$s.</string>
+    <string name="bump_run_ann_shield">%1$s protegió una ficha hasta el próximo turno.</string>
+    <string name="bump_run_ann_shield_you">Protegiste una ficha hasta tu próximo turno.</string>
+    <string name="bump_run_ann_pad">¡Un trampolín lanza la ficha 3 casillas adelante!</string>
+    <string name="bump_run_ann_home">%1$s llevó una ficha a la Casa: %2$d de %3$d.</string>
+    <string name="bump_run_ann_home_you">Llevaste una ficha a la Casa: %1$d de %2$d.</string>
+    <string name="bump_run_ann_again">%1$s saca otra vez.</string>
+    <string name="bump_run_ann_again_you">¡Otra vez! Saca otra carta.</string>
+    <string name="bump_run_ann_no_move">%1$s no tiene jugada y pasa.</string>
+    <string name="bump_run_ann_no_move_you">No tienes jugada. Pasa tu turno.</string>
+    <string name="bump_run_ann_do_over">%1$s usó una repetición.</string>
+    <string name="bump_run_ann_do_over_you">Usaste una repetición. Sacando otra vez.</string>
+    <string name="bump_run_ann_reshuffle">El montón está vacío. Barajando las cartas.</string>
+    <string name="bump_run_ann_win">¡%1$s gana!</string>
+    <string name="bump_run_ann_win_you">¡Ganas!</string>
+    <string name="bump_run_ann_win_team">¡%1$s ganan como equipo!</string>
+
+    <!-- Why lines -->
+    <string name="bump_run_why_wait">Todavía no es tu turno.</string>
+    <string name="bump_run_why_cpu">El ordenador está jugando su turno.</string>
+    <string name="bump_run_why_draw_first">Primero saca una carta.</string>
+    <string name="bump_run_why_cannot_move">Esa ficha no puede moverse con esta carta.</string>
+    <string name="bump_run_why_exact">Necesitas el número exacto para llegar a la Casa.</string>
+    <string name="bump_run_why_own">Una ficha tuya está en el camino.</string>
+    <string name="bump_run_why_shield">Un escudo protege esa ficha.</string>
+    <string name="bump_run_why_over">La partida ha terminado.</string>
+
+    <!-- Post-game -->
+    <string name="bump_run_result_win">¡Gana %1$s!</string>
+    <string name="bump_run_result_win_you">¡Has ganado!</string>
+    <string name="bump_run_result_win_team">¡%1$s ganan como equipo!</string>
+    <string name="bump_run_play_again">Jugar otra vez</string>
+    <string name="bump_run_back_to_menu">Volver al menú</string>
+
+    <!-- Score card -->
+    <string name="bump_run_score_title">Informe de la carrera</string>
+    <string name="bump_run_score_line">%1$s: %2$d de %3$d fichas en la Casa</string>
+    <string name="bump_run_score_bumps">%1$s: empujó %2$d, fue empujado %3$d</string>
+    <string name="bump_run_score_turns">Turnos jugados: %1$d</string>
+    <string name="bump_run_score_session">Sesión: %1$s</string>
+
+    <!-- Coach card -->
+    <string name="coach_bump_run_s1">Toca el montón de cartas. Cada carta te dice cómo mover.</string>
+    <string name="coach_bump_run_s2">Lleva tus fichas por el circuito y luego por tu carril hasta la Casa.</string>
+    <string name="coach_bump_run_s3">Si caes sobre una ficha rival, la mandas de vuelta a su Nido.</string>
+    <string name="coach_bump_run_s4">Las estrellas sacan una ficha. Cambio, Persecución y Escudo cambian la carrera.</string>
+    <string name="coach_bump_run_s5">Necesitas el número exacto para llegar a la Casa. Gana quien lleve todas sus fichas.</string>
+    <string name="coach_bump_run_fact">Los juegos de carrera y empujón descienden del Pachisi, un antiguo juego de la India que aún se juega hoy.</string>
+
+    <!-- Tips -->
+    <string name="draft_tip_bump_run_1">Toca el montón de cartas y luego una ficha para moverla.</string>
+    <string name="draft_tip_bump_run_2">Caer sobre un rival lo manda a su Nido. ¡Cuidado con las fichas justo detrás de ti!</string>
+    <string name="draft_tip_bump_run_3">Una estrella en la carta puede sacar una ficha del Nido.</string>
+
+    <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
+    <string name="hub_bump_and_run">Choca y Corre</string>
+    <string name="hub_draw_a_card_race_your_pawns_home_and_bump_your_r_86712b">Saca una carta, lleva tus fichas a casa y manda a tus rivales de vuelta.</string>
+    <string name="hub_race_length">Duración de la carrera</string>
+    <string name="hub_more_pawns_each_makes_a_longer_race">Más fichas por jugador hacen una carrera más larga.</string>
+    <string name="hub_quick_race">Carrera rápida</string>
+    <string name="hub_2_pawns_each">2 fichas cada uno.</string>
+    <string name="hub_classic_race">Carrera clásica</string>
+    <string name="hub_3_pawns_each">3 fichas cada uno.</string>
+    <string name="hub_long_race">Carrera larga</string>
+    <string name="hub_4_pawns_each">4 fichas cada uno.</string>
+    <string name="hub_spring_pads">Trampolines</string>
+    <string name="hub_on_landing_on_a_pad_hops_the_pawn_3_squares_ahea_79cf36">Activado: al caer en un trampolín la ficha salta 3 casillas.</string>
+    <string name="hub_skip_obvious_moves">Saltar jugadas obvias</string>
+    <string name="hub_on_when_only_one_move_is_possible_it_is_played_f_292999">Activado: si solo hay una jugada posible, se hace por ti.</string>
+    <string name="hub_helper_pack">Paquete de ayuda</string>
+    <string name="hub_three_do_overs_and_one_pawn_already_out_of_the_n_dd5f4c">Tres repeticiones y una ficha que ya salió del Nido.</string>
+    <string name="hub_no_helper_pack">Sin paquete de ayuda</string>
+    <string name="hub_helper_pack_for_everyone">Paquete de ayuda para todos</string>
+    <string name="hub_helper_pack_player_1">Paquete de ayuda: Jugador 1</string>
+    <string name="hub_helper_pack_player_2">Paquete de ayuda: Jugador 2</string>
+    <string name="hub_helper_pack_player_3">Paquete de ayuda: Jugador 3</string>
+    <string name="hub_helper_pack_player_4">Paquete de ayuda: Jugador 4</string>
+</resources>

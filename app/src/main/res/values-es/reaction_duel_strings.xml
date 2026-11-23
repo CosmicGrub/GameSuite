@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reaction Duel (ES) -->
+<resources>
+    <string name="rd_help_title">Duelo de reflejos</string>
+    <string name="rd_help_text">Cada jugador tiene una zona y todos juegan a la vez: pulsa tu zona con cualquier dedo. Clásico: espera la señal YA; si pulsas antes, quedas fuera de la ronda. Color y forma: pulsa solo cuando salga la forma objetivo. Eco: repite antes el patrón. La primera respuesta correcta gana la ronda; un empate se repite.</string>
+    <string name="rd_status_ready">Prepárate. No toques los botones hasta la señal.</string>
+    <string name="rd_status_wait_classic">Espera la señal YA. Si pulsas antes, quedas fuera de la ronda.</string>
+    <string name="rd_status_wait_colour">Mira las formas. Pulsa solo con la forma objetivo: %1$s.</string>
+    <string name="rd_status_watch">Mira el patrón.</string>
+    <string name="rd_status_go">¡YA! ¡Pulsa ahora!</string>
+    <string name="rd_status_your_turn">Tu turno. Repite el patrón.</string>
+    <string name="rd_ann_false">%1$s se adelantó y queda fuera de la ronda.</string>
+    <string name="rd_ann_false_you">Te adelantaste y quedas fuera de la ronda.</string>
+    <string name="rd_ann_wrong">%1$s tocó el botón equivocado y queda fuera de la ronda.</string>
+    <string name="rd_ann_wrong_you">Tocaste el botón equivocado y quedas fuera de la ronda.</string>
+    <string name="rd_ann_win">%1$s gana la ronda en %2$d ms.</string>
+    <string name="rd_ann_win_you">Ganas la ronda en %1$d ms.</string>
+    <string name="rd_ann_default">%1$s gana la ronda: los demás quedan fuera.</string>
+    <string name="rd_ann_default_you">Ganas la ronda: los demás quedan fuera.</string>
+    <string name="rd_ann_dead_heat">¡Empate! Se repite la ronda.</string>
+    <string name="rd_ann_too_slow">Nadie respondió a tiempo. Se repite la ronda.</string>
+    <string name="rd_ann_match">¡%1$s gana el duelo!</string>
+    <string name="rd_ann_match_you">¡Ganas el duelo!</string>
+    <string name="rd_ann_match_draw">El duelo termina en empate.</string>
+    <string name="rd_best_ms">Mejor %1$d ms</string>
+    <string name="rd_pad_get_ready">Prepárate</string>
+    <string name="rd_pad_wait">Espera…</string>
+    <string name="rd_pad_go">¡YA!</string>
+    <string name="rd_pad_out_early">¡Demasiado pronto!</string>
+    <string name="rd_pad_out_wrong">¡Botón equivocado!</string>
+    <string name="rd_pad_done">¡Hecho!</string>
+    <string name="rd_pad_done_ms">%1$d ms</string>
+    <string name="rd_pad_fastest">¡El más rápido!</string>
+    <string name="rd_pad_dash">—</string>
+    <string name="rd_pad_not_it">No es</string>
+    <string name="rd_pad_progress">%1$d de %2$d</string>
+    <string name="rd_hint_one_switch">Pulsa en cualquier parte de tu zona cuando el aro esté sobre el botón que quieres.</string>
+    <string name="rd_round_banner">Ronda %1$d · gana el primero en llegar a %2$d</string>
+    <string name="rd_score_line">%1$s: %2$d de %3$d</string>
+    <string name="rd_zone_desc">Zona de %1$s. %2$d de %3$d rondas ganadas. %4$s</string>
+    <string name="rd_zone_press">Pulsar</string>
+    <string name="rd_target_label">Objetivo: %1$s</string>
+    <string name="rd_symbol_desc">%2$s %1$s</string>
+    <string name="rd_shape_circle">Círculo</string>
+    <string name="rd_shape_square">Cuadrado</string>
+    <string name="rd_shape_triangle">Triángulo</string>
+    <string name="rd_shape_diamond">Rombo</string>
+    <string name="rd_shape_star">Estrella</string>
+    <string name="rd_colour_orange">naranja</string>
+    <string name="rd_colour_blue">azul</string>
+    <string name="rd_colour_yellow">amarillo</string>
+    <string name="rd_colour_green">verde</string>
+    <string name="rd_over_title">¡%1$s gana el duelo!</string>
+    <string name="rd_over_title_you">¡Ganas el duelo!</string>
+    <string name="rd_over_summary">Rondas ganadas: %1$s</string>
+</resources>

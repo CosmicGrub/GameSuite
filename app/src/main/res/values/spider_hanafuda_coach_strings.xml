@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Spider Solitaire and Hanafuda (see GameCoach.kt entries) -->
+    <string name="coach_spider_solitaire_s1">Build columns downward: put a card on a card one rank higher, in any suit.</string>
+    <string name="coach_spider_solitaire_s2">A run moves only if all its cards are one suit and in order. Drag it, or tap it and then a column.</string>
+    <string name="coach_spider_solitaire_s3">Out of moves? Deal a row from the stock, once every column holds a card.</string>
+    <string name="coach_spider_solitaire_s4">A full run from King to Ace in one suit leaves the table. Clear all eight to win.</string>
+    <string name="coach_spider_solitaire_s5">Stuck? Use Hint, or Undo as often as you like.</string>
+    <string name="coach_spider_solitaire_fact">Spider Solitaire uses two decks, 104 cards in all, and is named for the eight finished runs that clear the table, one for each leg of a spider.</string>
+    <string name="coach_hanafuda_s1">Each turn, play one card from your hand onto a field card of the same month.</string>
+    <string name="coach_hanafuda_s2">No match? The card stays on the field. Two matches? You choose one.</string>
+    <string name="coach_hanafuda_s3">Then turn up the top card of the deck and match it the same way.</string>
+    <string name="coach_hanafuda_s4">Captured cards are Brights, Animals, Ribbons or Plains. Sets of them make combinations called yaku.</string>
+    <string name="coach_hanafuda_s5">With a combination, call Koi-Koi to keep playing for more, or Shobu to score and end the round.</string>
+    <string name="coach_hanafuda_s6">Seven points or more count double, and so do points won after an opponent\'s Koi-Koi.</string>
+    <string name="coach_hanafuda_fact">Hanafuda means flower cards. The deck has 48 cards, four for each of the twelve months, and Koi-Koi, which means come on, is one of the most popular games played with it.</string>
+</resources>

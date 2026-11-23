@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connect4_help_body">Por turnos, suelta una ficha en una de las %1$d columnas. Toca en cualquier punto de una columna: la ficha cae hasta el hueco libre más bajo.\n\nUne %2$d fichas tuyas en línea recta, en horizontal, en vertical o en diagonal, para ganar la partida. Si se llenan los %3$d huecos sin que nadie forme una línea de %2$d, es un empate.\n\nJugar de nuevo conserva el marcador de la sesión, y el jugador que empieza se alterna en cada partida.</string>
+    <string name="connect4_board_info">%1$d columnas por %2$d filas, une %3$d</string>
+</resources>

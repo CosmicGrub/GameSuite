@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ttt_help_big_board">Por turnos, marca una casilla vacía de la cuadrícula de %1$dx%1$d; un jugador es X y el otro es O. Cuatro marcas iguales en línea, en horizontal, vertical o diagonal, terminan la ronda y gana quien complete esa línea. Si la cuadrícula se llena sin ninguna línea, la ronda es un empate. Las puntuaciones se acumulan entre rondas y Jugar de nuevo cambia quién empieza.</string>
+</resources>

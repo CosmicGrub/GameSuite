@@ -5,11 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.mancalaMotionDataStore: DataStore<Preferences> by preferencesDataStore(name = "mancala_motion_prefs")
+private val Context.mancalaMotionDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("mancala_motion_prefs")
 
 /**
  * Mancala's own motion-intensity tier (premium 2026 vision pitch, Mancala section) --

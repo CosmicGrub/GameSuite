@@ -317,6 +317,9 @@ class ChessGameTest {
         val board = emptyBoard()
         board[sq('a', 1)] = Piece(PieceType.KING, PieceColor.WHITE)
         board[sq('h', 8)] = Piece(PieceType.KING, PieceColor.BLACK)
+        // A parked pawn: bare kings alone would now be an automatic insufficient-material draw
+        // on the first move, long before any repetition.
+        board[sq('d', 4)] = Piece(PieceType.PAWN, PieceColor.WHITE)
         game.state.value = ChessState(
             board = board,
             sideToMove = PieceColor.WHITE,

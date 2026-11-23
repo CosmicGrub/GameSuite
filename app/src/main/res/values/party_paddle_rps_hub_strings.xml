@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paddle Duel and Rock-Paper-Showdown: Game Hub catalog strings (English). Only texts that no other file defines. -->
+    <string name="hub_paddle_duel">Paddle Duel</string>
+    <string name="hub_slide_your_paddle_add_spin_and_outlast_the_other_9ccc60">Slide your paddle, add spin and outlast the other edges. Up to four on one screen.</string>
+    <string name="hub_duel_the_computer_add_more_computers_to_fill_the_4d0adf">Duel the computer. Add more computers to fill the other edges.</string>
+    <string name="hub_two_to_four_people_on_one_screen_each_with_a_thu_601fc7">Two to four people on one screen, each with a thumb on their own edge.</string>
+    <string name="hub_first_to_a_number_of_points_or_last_paddle_stand_0ed108">First to a number of points, or last paddle standing with lives. With three or four players, lives work best.</string>
+    <string name="hub_first_to_5_points">First to 5 points</string>
+    <string name="hub_3_lives">3 lives</string>
+    <string name="hub_5_lives">5 lives</string>
+    <string name="hub_power_ups">Power-ups</string>
+    <string name="hub_a_wide_paddle_a_slow_ball_or_extra_balls_appear_2349b2">A wide paddle, a slow ball or extra balls appear on the court. The last player to touch the ball gets the prize.</string>
+    <string name="hub_relaxed_assist">Relaxed assist</string>
+    <string name="hub_a_slower_ball_wider_paddles_and_a_longer_countdo_ff4b2c">A slower ball, wider paddles and a longer countdown, for players who find fast games hard.</string>
+    <string name="hub_paddle_control">Paddle control</string>
+    <string name="hub_drag_with_a_thumb_arrow_buttons_work_too_or_use_ca6c09">Drag with a thumb (arrow buttons work too), or use one switch: the paddle follows the ball by itself and the switch changes your return angle.</string>
+    <string name="hub_drag_or_buttons">Drag or buttons</string>
+    <string name="hub_one_switch">One switch</string>
+    <string name="hub_face_each_player">Face each player</string>
+    <string name="hub_turn_each_player_s_labels_toward_their_own_edge_038455">Turn each player\'s labels toward their own edge. Switch off to keep everything upright.</string>
+    <string name="hub_rock_paper_showdown">Rock-Paper-Showdown</string>
+    <string name="hub_everybody_picks_in_secret_then_the_hands_are_rev_a4222c">Everybody picks in secret, then the hands are revealed together.</string>
+    <string name="hub_outguess_the_computer_add_more_computers_for_a_b_5b74da">Outguess the computer. Add more computers for a bigger showdown.</string>
+    <string name="hub_two_to_four_people_on_one_screen_everyone_picks_ad9469">Two to four people on one screen. Everyone picks on their own side and nobody can peek.</string>
+    <string name="hub_moves">Moves</string>
+    <string name="hub_classic_is_rock_paper_and_scissors_lizard_spock_32431a">Classic is rock, paper and scissors. Lizard-Spock adds two more moves, so ties are rarer.</string>
+    <string name="hub_classic_3_moves">Classic (3 moves)</string>
+    <string name="hub_lizard_spock_5_moves">Lizard-Spock (5 moves)</string>
+    <string name="hub_best_of_3_5_or_7_rounds_or_elimination_the_loser_83df32">Best of 3, 5 or 7 rounds, or Elimination: the losers of each round drop out and the last player standing wins. Ties replay.</string>
+    <string name="hub_elimination">Elimination</string>
+    <string name="hub_pick_timer">Pick timer</string>
+    <string name="hub_how_long_players_have_to_lock_in_a_move_when_tim_8cad6f">How long players have to lock in a move. When time runs out a random move is picked.</string>
+    <string name="hub_no_timer">No timer</string>
+    <string name="hub_10_seconds">10 seconds</string>
+    <string name="hub_20_seconds">20 seconds</string>
+    <string name="hub_30_seconds">30 seconds</string>
+    <string name="hub_no_time_pressure_a_doubled_pick_timer_a_slower_c_5f10a7">No time pressure: a doubled pick timer, a slower countdown, and the result stays until someone taps Next round.</string>
+</resources>

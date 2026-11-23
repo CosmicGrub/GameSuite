@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gc_game_menu">Game menu</string>
+    <string name="gc_open_game_menu">Open game menu</string>
+    <string name="gc_how_to_play">How to Play</string>
+    <string name="gc_undo">Undo</string>
+    <string name="gc_hint">Hint</string>
+    <string name="gc_back_to_menu">Back to Menu</string>
+    <string name="gc_leave_title">Leave this game?</string>
+    <string name="gc_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="gc_progress_saved">Your progress is saved: pick this game from the menu to resume it.</string>
+    <string name="gc_leave">Leave</string>
+    <string name="gc_keep_playing">Keep Playing</string>
+    <string name="gc_got_it">Got it</string>
+</resources>

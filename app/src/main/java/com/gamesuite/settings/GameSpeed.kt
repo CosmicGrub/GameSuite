@@ -17,7 +17,13 @@ enum class GameSpeed(val label: String, val description: String, val delayScale:
     SLOW("Slow", "Long, deliberate pauses: time to study every turn.", 2.4f),
     RELAXED("Relaxed", "A little slower than the original pacing.", 1.5f),
     NORMAL("Normal", "The original pacing.", 1.0f),
-    QUICK("Quick", "Opponents move fast.", 0.55f);
+    QUICK("Quick", "Opponents move fast.", 0.55f),
+
+    /** Computer Arena only (never offered in Settings): about 4x the original pacing. */
+    ARENA_X4("Arena 4x", "Computer Arena: fast.", 0.25f),
+
+    /** Computer Arena only (never offered in Settings): as fast as the animations allow. */
+    ARENA_MAX("Arena max", "Computer Arena: near-instant moves.", 0.04f);
 
     /** Scales a base delay in milliseconds; a positive delay never collapses to zero. */
     fun scale(baseMs: Long): Long {
@@ -26,12 +32,15 @@ enum class GameSpeed(val label: String, val description: String, val delayScale:
     }
 
     /** The next speed in the cycle Slow -> Relaxed -> Normal -> Quick -> Slow (for a one-tap menu item). */
-    fun next(): GameSpeed = values()[(ordinal + 1) % values().size]
+    fun next(): GameSpeed = selectable[(selectable.indexOf(this) + 1).mod(selectable.size)]
 
     companion object {
+        /** The speeds a player can choose in Settings (the Arena-only ones are left out). */
+        val selectable: List<GameSpeed> get() = listOf(SLOW, RELAXED, NORMAL, QUICK)
+
         /** Tolerant parse for a stored value: anything unknown falls back to [NORMAL]. */
         fun fromName(name: String?): GameSpeed =
-            values().firstOrNull { it.name == name } ?: NORMAL
+            selectable.firstOrNull { it.name == name } ?: NORMAL
     }
 }
 

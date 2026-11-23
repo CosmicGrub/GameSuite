@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Catálogo del Hub de juegos -->
+    <string name="hub_yahtzee">Yahtzee</string>
+    <string name="hub_roll_five_dice_fill_thirteen_boxes">Tira cinco dados y rellena trece casillas.</string>
+    <string name="hub_beat_your_best">Supera tu récord</string>
+    <string name="hub_play_against_1_to_3_computers">Juega contra 1 a 3 CPU.</string>
+    <string name="hub_2_to_4_people_one_device">De 2 a 4 personas, un dispositivo.</string>
+
+    <!-- Marco del juego -->
+    <string name="yahtzee_help_title">Cómo jugar a Yahtzee</string>
+    <string name="yahtzee_help_body">En cada turno tiras cinco dados hasta tres veces. Después de una tirada, toca los dados que quieres conservar; los demás se vuelven a tirar. Luego rellena una casilla de la hoja con los dados que te hayan quedado.\n\nSección superior: de Unos a Seises suman el total de ese número. Con 63 o más en la sección superior ganas un bonus de 35 puntos.\n\nSección inferior: Trío y Póker suman el total de los cinco dados. Full vale 25, Escalera menor (cuatro seguidos) 30, Escalera mayor (cinco seguidos) 40, Yahtzee (cinco iguales) 50, y Azar suma todos los dados.\n\nCada casilla se usa una sola vez, así que a veces toca anotar un cero. Un segundo Yahtzee cuando ya anotaste 50 da un bonus de 100 puntos y debe ir a la casilla superior que corresponda, o a cualquier casilla inferior si esa ya está ocupada (la regla del Comodín).\n\nUna partida dura 13 rondas. Deshacer anula una retención o la elección de una casilla hasta la siguiente tirada.</string>
+    <string name="yahtzee_leave_title">¿Salir de la partida?</string>
+    <string name="yahtzee_leave_body">La partida sigue en curso. Si sales ahora, no cuenta como victoria ni derrota.</string>
+    <string name="yahtzee_leave_body_session">La partida sigue en curso y no contará, pero las partidas que ya terminaste se conservan en tu historial.</string>
+    <string name="yahtzee_loading">Preparando los dados…</string>
+
+    <!-- Estado -->
+    <string name="yahtzee_round_of">Ronda %1$d de %2$d</string>
+    <string name="yahtzee_your_turn">Tu turno</string>
+    <string name="yahtzee_turn_of">Turno de %1$s</string>
+    <string name="yahtzee_cpu_playing">%1$s está jugando…</string>
+    <string name="yahtzee_tap_to_hold">Toca un dado para conservarlo y vuelve a tirar.</string>
+    <string name="yahtzee_choose_box">Toca una casilla de la hoja para anotar.</string>
+    <string name="yahtzee_last_scored">%1$s anotó %2$d en %3$s.</string>
+    <string name="yahtzee_last_scored_bonus">%1$s anotó %2$d en %3$s, ¡más un bonus de Yahtzee de %4$d puntos!</string>
+    <string name="yahtzee_game_over">Fin de la partida</string>
+
+    <!-- Dados y botón de tirar -->
+    <string name="yahtzee_roll_first">Tirar los dados</string>
+    <string name="yahtzee_roll_again">Tirar otra vez (%1$d restantes)</string>
+    <string name="yahtzee_roll_done">Elige una casilla abajo</string>
+    <string name="yahtzee_roll_all_held">Suelta un dado para tirar otra vez</string>
+    <string name="yahtzee_die_held">FIJO</string>
+    <string name="yahtzee_die_keep">DEJAR</string>
+    <string name="yahtzee_cd_die">Dado %1$d, muestra %2$d</string>
+    <string name="yahtzee_cd_die_blank">Dado %1$d, aún sin tirar</string>
+    <string name="yahtzee_cd_die_suggested">, se sugiere conservarlo</string>
+    <string name="yahtzee_state_held">Fijado</string>
+    <string name="yahtzee_state_free">Sin fijar</string>
+    <string name="yahtzee_undo">Deshacer</string>
+    <string name="yahtzee_hint">Pista</string>
+    <string name="yahtzee_hint_holds">Pista: conserva los dados marcados con DEJAR y tira el resto.</string>
+    <string name="yahtzee_hint_category">Pista: anota %1$s (marcada con una estrella).</string>
+
+    <!-- Hoja de puntuación -->
+    <string name="yahtzee_cat_aces">Unos</string>
+    <string name="yahtzee_cat_twos">Doses</string>
+    <string name="yahtzee_cat_threes">Treses</string>
+    <string name="yahtzee_cat_fours">Cuatros</string>
+    <string name="yahtzee_cat_fives">Cincos</string>
+    <string name="yahtzee_cat_sixes">Seises</string>
+    <string name="yahtzee_cat_three_kind">Trío</string>
+    <string name="yahtzee_cat_four_kind">Póker</string>
+    <string name="yahtzee_cat_full_house">Full</string>
+    <string name="yahtzee_cat_small_straight">Escalera menor</string>
+    <string name="yahtzee_cat_large_straight">Escalera mayor</string>
+    <string name="yahtzee_cat_yahtzee">Yahtzee</string>
+    <string name="yahtzee_cat_chance">Azar</string>
+    <string name="yahtzee_section_upper">Sección superior</string>
+    <string name="yahtzee_section_lower">Sección inferior</string>
+    <string name="yahtzee_row_upper_bonus">Bonus superior (63+ da 35)</string>
+    <string name="yahtzee_row_yahtzee_bonus">Bonus Yahtzee (100 cada uno)</string>
+    <string name="yahtzee_row_total">Total</string>
+    <string name="yahtzee_progress">%1$d/%2$d</string>
+    <string name="yahtzee_cd_row_choose">%1$s, anota %2$d puntos</string>
+    <string name="yahtzee_cd_row_choose_best">%1$s, anota %2$d puntos, elección sugerida</string>
+    <string name="yahtzee_cd_row_blocked">%1$s, no permitida con estos dados</string>
+    <string name="yahtzee_click_label">Anotar %1$s</string>
+    <string name="yahtzee_cd_cell_scored">%1$s %2$d</string>
+    <string name="yahtzee_cd_cell_open">%1$s libre</string>
+    <string name="yahtzee_cd_row">%1$s: %2$s</string>
+    <string name="yahtzee_cd_header_turn">%1$s, %2$d puntos, turno actual</string>
+    <string name="yahtzee_cd_header">%1$s, %2$d puntos</string>
+    <string name="yahtzee_cd_total_row">%1$s: %2$s</string>
+
+    <!-- Resultado -->
+    <string name="yahtzee_result_solo">Puntuación final: %1$d</string>
+    <string name="yahtzee_result_winner">¡%1$s gana con %2$d!</string>
+    <string name="yahtzee_result_tie">¡Empate a %1$d!</string>
+    <string name="yahtzee_result_rank">%1$d. %2$s: %3$d</string>
+    <string name="yahtzee_result_best_session">Mejor de esta sesión: %1$d</string>
+    <string name="yahtzee_result_best_ever">Récord personal: %1$d</string>
+    <string name="yahtzee_result_new_record">¡Nuevo récord personal!</string>
+    <string name="yahtzee_result_session_wins">Partidas ganadas: %1$s</string>
+    <string name="yahtzee_play_again">Jugar de nuevo</string>
+    <string name="yahtzee_back_to_menu">Volver al menú</string>
+</resources>

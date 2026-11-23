@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Tap Race and Tug of War (coach_<id>_s1..sN and _fact) -->
+    <string name="coach_tap_race_s1">Cada uno tiene un carril y un botón grande en su zona, y todos juegan a la vez. Usa tantos dedos como quieras.</string>
+    <string name="coach_tap_race_s2">Velocidad: cuando acabe la cuenta atrás, toca tu botón lo más rápido que puedas. Gana la ronda quien llene primero la pista. Tocar antes del YA congela tu botón un momento.</string>
+    <string name="coach_tap_race_s3">Ritmo: un anillo se encoge sobre tu botón. Toca justo cuando llegue. Los toques perfectos y buenos te hacen avanzar; los adelantados, tardíos o de más te hacen retroceder.</string>
+    <string name="coach_tap_race_s4">Machaca y frena: toca rápido en verde, frena en ámbar y quita las manos en rojo. Un toque en rojo te hace perder terreno y congela tu botón.</string>
+    <string name="coach_tap_race_s5">La CPU ocupa los carriles vacíos. Si tocar rápido es difícil, activa Toques relajados o Mantener para tocar: la meta es menor, los márgenes más amplios y un botón pulsado toca por ti. Solo en la misma pantalla: no hay modo Cerca ni En línea.</string>
+    <string name="coach_tap_race_fact">Las pruebas de velocidad de golpeteo muestran que la mayoría llega a unos seis u ocho toques por segundo con un dedo, por eso este juego limita cada dedo.</string>
+    <string name="coach_tug_of_war_s1">De dos a cuatro personas tiran de un mismo marcador, cada una desde su botón, todas a la vez. Los equipos tiran a lo largo de una cuerda; en el todos contra todos el marcador se tira hacia la esquina de cada uno.</string>
+    <string name="coach_tug_of_war_s2">Toca tu botón para llevar el marcador hacia tu línea. Pásalo por la línea para ganar la ronda y gana la partida con más rondas.</string>
+    <string name="coach_tug_of_war_s3">Cada tirón gasta aguante, y un tirón solo es tan fuerte como el aguante que lo respalda. Si machacas el botón, te quedas sin fuerzas en unos dos segundos.</string>
+    <string name="coach_tug_of_war_s4">Mantén un dedo pulsado para descansar y cargar, y suéltalo para un tirón hasta cuatro veces más fuerte. Mantén, suelta, toca y repite.</string>
+    <string name="coach_tug_of_war_s5">Los equipos desiguales tiran en proporción, así que un jugador solo es más fuerte contra tres. La CPU ocupa los botones vacíos. Tirones relajados y Mantener para tirar ayudan si tocar rápido es difícil. Solo en la misma pantalla: no hay modo Cerca ni En línea.</string>
+    <string name="coach_tug_of_war_fact">El tira y afloja fue deporte olímpico de 1900 a 1920, y en 1908 ganó un equipo de policías de Londres.</string>
+</resources>

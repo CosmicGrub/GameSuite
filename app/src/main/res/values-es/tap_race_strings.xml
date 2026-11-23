@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tap Race screen strings -->
+    <string name="trc_help_title">Carrera de toques</string>
+    <string name="trc_help_text">Cada uno tiene un carril y un botón grande en su zona. Toca tu botón lo más rápido que puedas cuando termine la cuenta atrás. Velocidad: gana quien llene primero la pista. Ritmo: toca solo al compás. Machaca y frena: deja de tocar cuando la luz se ponga ámbar y nunca toques en rojo. Gana la partida quien gane más rondas.</string>
+    <string name="trc_cpu_tag">(CPU)</string>
+    <string name="trc_variant_sprint">Velocidad</string>
+    <string name="trc_variant_rhythm">Ritmo</string>
+    <string name="trc_variant_brake">Machaca y frena</string>
+    <string name="trc_band_info">Ronda %1$d de %2$d · %3$s</string>
+    <string name="trc_band_tiebreak">Ronda de desempate · %1$s</string>
+    <string name="trc_status_ready">Ronda %1$d de %2$d. ¡Prepárate!</string>
+    <string name="trc_status_go">¡Ya! Toca tu botón.</string>
+    <string name="trc_status_go_rhythm">¡Ya! Toca al compás.</string>
+    <string name="trc_status_go_brake">¡Ya! Toca, y para cuando la luz se ponga ámbar.</string>
+    <string name="trc_status_amber">Luz ámbar: frena.</string>
+    <string name="trc_status_red">Luz roja: ¡manos fuera!</string>
+    <string name="trc_status_green">Luz verde: ¡adelante!</string>
+    <string name="trc_status_round_win">¡%1$s gana la ronda!</string>
+    <string name="trc_status_round_win_you">¡Ganas la ronda!</string>
+    <string name="trc_status_round_draw">Nadie gana esa ronda.</string>
+    <string name="trc_status_match_win">¡%1$s gana la partida!</string>
+    <string name="trc_status_match_win_you">¡Ganas la partida!</string>
+    <string name="trc_status_match_draw">La partida termina en empate.</string>
+    <string name="trc_score">Marcador: %1$s</string>
+    <string name="trc_final_rounds">Rondas: %1$s</string>
+    <string name="trc_go">¡YA!</string>
+    <string name="trc_frozen">Congelado</string>
+    <string name="trc_zone_won">¡Ronda ganada!</string>
+    <string name="trc_light_go">YA</string>
+    <string name="trc_light_slow">FRENA</string>
+    <string name="trc_light_stop">ALTO</string>
+    <string name="trc_judge_perfect">¡Perfecto!</string>
+    <string name="trc_judge_good">Bien</string>
+    <string name="trc_judge_early">Muy pronto</string>
+    <string name="trc_judge_late">Muy tarde</string>
+    <string name="trc_judge_double">Dos en un compás</string>
+    <string name="trc_judge_false_start">¡Muy pronto!</string>
+    <string name="trc_judge_red">¡Luz roja!</string>
+    <string name="trc_why_red">%1$s tocó con luz roja y perdió %2$d toques.</string>
+    <string name="trc_why_false_start">%1$s tocó antes de la salida: el botón se congela un momento.</string>
+    <string name="trc_why_double">%1$s tocó dos veces en un compás y perdió terreno.</string>
+    <string name="trc_why_off_beat">%1$s tocó fuera de compás y perdió terreno.</string>
+    <string name="trc_zone_desc">%1$s, %2$d de %3$d toques. Toca dos veces para tocar.</string>
+    <string name="trc_zone_desc_cpu">%1$s, corredor CPU, %2$d de %3$d toques.</string>
+</resources>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game Hub texts of Reaction Duel and Whack-a-Mole Race (hubKey names) -->
+<resources>
+    <string name="hub_reaction_duel">Reaction Duel</string>
+    <string name="hub_whack_a_mole_race">Whack-a-Mole Race</string>
+    <string name="hub_wait_for_the_signal_then_press_first_jump_the_gu_e2281e">Wait for the signal, then press first. Jump the gun and you are out of the round.</string>
+    <string name="hub_everyone_whacks_the_same_critters_at_once_spare_7b23dc">Everyone whacks the same critters at once. Spare the spiky ones.</string>
+    <string name="hub_everyone_plays_at_once_on_this_screen_each_in_a_6d483f">Everyone plays at once on this screen, each in a zone of their own. Computers fill any empty zone.</string>
+    <string name="hub_race_one_to_three_computers_each_in_a_zone_of_it_dc4bfe">Race one to three computers, each in a zone of its own.</string>
+    <string name="hub_people_who_play_at_the_same_time_each_in_a_zone_23b4f6">People who play at the same time, each in a zone of their own.</string>
+    <string name="hub_duel_type">Duel type</string>
+    <string name="hub_classic_press_when_go_appears_colour_match_press_79e113">Classic: press when GO appears. Colour match: press only on the target shape. Echo: tap the pattern back first.</string>
+    <string name="hub_classic_go_signal">Classic go-signal</string>
+    <string name="hub_wait_then_press_the_moment_go_appears_pressing_e_9131d5">Wait, then press the moment GO appears. Pressing early puts you out of the round.</string>
+    <string name="hub_colour_match">Colour match</string>
+    <string name="hub_shapes_flash_past_press_only_when_the_target_sha_f824f9">Shapes flash past. Press only when the target shape shows: the shape tells it apart, not the colour.</string>
+    <string name="hub_echo">Echo</string>
+    <string name="hub_watch_a_pattern_of_four_shapes_then_be_the_first_fea87d">Watch a pattern of four shapes, then be the first to tap it back without a mistake.</string>
+    <string name="hub_duel_length">Duel length</string>
+    <string name="hub_how_many_rounds_the_duel_is_played_over_the_firs_fb7894">How many rounds the duel is played over. The first to win more than half takes it.</string>
+    <string name="hub_best_of_3">Best of 3</string>
+    <string name="hub_best_of_5">Best of 5</string>
+    <string name="hub_best_of_7">Best of 7</string>
+    <string name="hub_for_players_who_find_quick_presses_hard_longer_w_5849b6">For players who find quick presses hard: longer windows and no penalty for pressing early or wrongly.</string>
+    <string name="hub_one_switch_play">One-switch play</string>
+    <string name="hub_echo_scans_the_four_pads_for_you_and_one_press_p_304704">Echo scans the four pads for you and one press picks the lit one. The other duels already need one button.</string>
+    <string name="hub_turn_zones_to_face_players">Turn zones to face players</string>
+    <string name="hub_each_zone_turns_to_face_the_player_around_the_de_2ab9e0">Each zone turns to face the player around the device. Switch off to keep every zone upright.</string>
+    <string name="hub_round_length">Round length</string>
+    <string name="hub_the_round_ends_when_the_clock_runs_out_the_highe_601016">The round ends when the clock runs out. The highest score wins.</string>
+    <string name="hub_60_seconds">60 seconds</string>
+    <string name="hub_90_seconds">90 seconds</string>
+    <string name="hub_120_seconds">120 seconds</string>
+    <string name="hub_holes_per_zone">Holes per zone</string>
+    <string name="hub_every_zone_gets_the_same_critters_at_the_same_mo_84239c">Every zone gets the same critters at the same moments, so the race is fair.</string>
+    <string name="hub_3_x_3_holes">3 x 3 holes</string>
+    <string name="hub_bigger_holes_easier_to_hit">Bigger holes, easier to hit.</string>
+    <string name="hub_4_x_4_holes">4 x 4 holes</string>
+    <string name="hub_more_critters_at_once_on_a_small_screen_with_thr_1fc9e9">More critters at once. On a small screen with three or four players the grid shrinks so every hole stays big enough to tap.</string>
+    <string name="hub_for_players_who_find_fast_taps_hard_slower_critt_7bd98d">For players who find fast taps hard: slower critters that stay up longer, big 3 x 3 holes, and no penalties.</string>
+    <string name="hub_a_cursor_sweeps_over_your_holes_and_one_press_wh_d3998a">A cursor sweeps over your holes and one press whacks the hole it is on. Critters stay up much longer.</string>
+</resources>

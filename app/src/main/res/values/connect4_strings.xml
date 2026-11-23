@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connect4_help_body">Take turns dropping a disc into one of the %1$d columns. Tap anywhere in a column: the disc falls to the lowest empty slot.\n\nConnect %2$d of your discs in a straight line, across, up and down, or diagonally, to win the board. If all %3$d slots fill up with no line of %2$d, it\'s a tie.\n\nPlay Again keeps the session tally, and the player who moves first alternates each board.</string>
+    <string name="connect4_board_info">%1$d columns by %2$d rows, connect %3$d</string>
+</resources>

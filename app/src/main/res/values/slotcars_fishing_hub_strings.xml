@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Slot Cars and Fishing: hub and tip strings (own file). Coach text is in slotcars_fishing_coach_strings.xml. -->
+    <string name="hub_slot_cars">Slot Cars</string>
+    <string name="hub_hold_to_speed_up_and_brake_before_the_bends">Hold to speed up and brake before the bends.</string>
+    <string name="hub_laps_to_race">Laps to race</string>
+    <string name="hub_how_many_laps_make_the_race">How many laps make the race.</string>
+    <string name="hub_3_laps">3 laps</string>
+    <string name="hub_5_laps">5 laps</string>
+    <string name="hub_10_laps">10 laps</string>
+    <string name="hub_track">Track</string>
+    <string name="hub_three_original_layouts_bends_ahead_are_marked_wi_fb9cda">Three original layouts. Bends ahead are marked with amber signs.</string>
+    <string name="hub_meadow_oval">Meadow Oval</string>
+    <string name="hub_a_friendly_oval_with_one_bend_that_needs_care">A friendly oval with one bend that needs care.</string>
+    <string name="hub_hairpin_hill">Hairpin Hill</string>
+    <string name="hub_long_straights_and_a_tight_hairpin">Long straights and a tight hairpin.</string>
+    <string name="hub_twister">Twister</string>
+    <string name="hub_a_loop_of_s_bends">A loop of S bends.</string>
+    <string name="hub_race_speed">Race speed</string>
+    <string name="hub_for_players_who_can_t_play_in_real_time_slow_mot_9cd5c3">For players who can\'t play in real time: slow motion halves the speed, step by step lets you plan each half second.</string>
+    <string name="hub_real_time">Real time</string>
+    <string name="hub_slow_motion">Slow motion</string>
+    <string name="hub_the_whole_race_runs_at_half_speed">The whole race runs at half speed.</string>
+    <string name="hub_step_by_step">Step by step</string>
+    <string name="hub_turn_based_choose_throttle_or_coast_for_each_hal_7e0fe4">Turn-based: choose throttle or coast for each half second, then press Go.</string>
+    <string name="hub_race_against_computer_drivers">Race against computer drivers.</string>
+    <string name="hub_two_to_four_drivers_share_this_device_one_pad_ea_294699">Two to four drivers share this device, one pad each.</string>
+    <string name="hub_fishing">Fishing</string>
+    <string name="hub_cast_hook_and_reel_in_the_biggest_catch">Cast, hook and reel in the biggest catch.</string>
+    <string name="hub_lake">Lake</string>
+    <string name="hub_where_you_fish_decides_which_fish_are_biting">Where you fish decides which fish are biting.</string>
+    <string name="hub_willow_pond">Willow Pond</string>
+    <string name="hub_shallow_and_friendly_small_and_medium_fish">Shallow and friendly: small and medium fish.</string>
+    <string name="hub_clear_lake">Clear Lake</string>
+    <string name="hub_a_bit_of_everything">A bit of everything.</string>
+    <string name="hub_deep_reservoir">Deep Reservoir</string>
+    <string name="hub_deep_water_with_big_rare_fish">Deep water with big, rare fish.</string>
+    <string name="hub_casts_each">Casts each</string>
+    <string name="hub_how_many_casts_every_angler_gets_the_most_weight_7fc1cf">How many casts every angler gets. The most weight wins.</string>
+    <string name="hub_3_casts">3 casts</string>
+    <string name="hub_5_casts">5 casts</string>
+    <string name="hub_8_casts">8 casts</string>
+    <string name="hub_relaxed_fishing">Relaxed fishing</string>
+    <string name="hub_longer_bite_and_reel_windows_and_gentler_fish_fo_db8c48">Longer bite and reel windows and gentler fish, for players who can\'t react quickly.</string>
+    <string name="hub_solo_fishing">Solo Fishing</string>
+    <string name="hub_fish_on_your_own_and_beat_your_best_haul">Fish on your own and beat your best haul.</string>
+    <string name="hub_a_fishing_contest_against_computer_anglers">A fishing contest against computer anglers.</string>
+    <string name="hub_anglers_take_turns_on_one_device">Anglers take turns on one device.</string>
+    <string name="tip_slot_cars_1">Hold your pad to speed up and let go to brake. Slow down before the amber signs.</string>
+    <string name="tip_slot_cars_2">Too fast in a bend and the car leaves the slot and loses time. Watch the grip bar.</string>
+    <string name="tip_slot_cars_3">Too quick? Turn on Slow motion or Step by step in the setup.</string>
+    <string name="tip_fishing_1">Pick a spot, hold the button and let go to cast. The farther out, the bigger the fish.</string>
+    <string name="tip_fishing_2">Press the button when the bobber plunges, not for small nibbles.</string>
+    <string name="tip_fishing_3">Hold to reel in, let go when the fish pulls, and keep the tension bar in the Good zone.</string>
+</resources>

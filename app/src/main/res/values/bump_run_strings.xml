@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bump and Run (game id bump-run): screen, announcements, coach card, tips and Game Hub texts (hub_* names are hubKey(english text)). -->
+
+    <!-- Screen -->
+    <string name="bump_run_help_title">Bump and Run</string>
+    <string name="bump_run_help_text">Draw a card and move a pawn. Race all your pawns around the loop and up your lane to Home. Land on a rival and you bump it back to its Nest. Swap, Chase and Shield cards change the race. You need the exact number to reach Home.</string>
+    <string name="bump_run_tap_pile">Tap the card pile</string>
+    <string name="bump_run_pile_label">Card pile, %1$d cards left</string>
+    <string name="bump_run_last_card">Last card: %1$s</string>
+    <string name="bump_run_card_label">Card: %1$s. %2$s</string>
+    <string name="bump_run_do_over_button">Do-over</string>
+    <string name="bump_run_do_overs_left">Do-overs left: %1$d</string>
+    <string name="bump_run_pass_button">Pass</string>
+    <string name="bump_run_pick_pawn">Tap one of your pawns.</string>
+    <string name="bump_run_pick_target">Tap the lit square.</string>
+    <string name="bump_run_pick_rival">Tap the rival pawn to trade places with.</string>
+    <string name="bump_run_nest_label">%1$s nest, %2$d pawns</string>
+    <string name="bump_run_home_label">%1$s home, %2$d of %3$d pawns</string>
+    <string name="bump_run_pawn_label">%1$s, pawn %2$d, %3$s</string>
+    <string name="bump_run_state_nest">in the Nest</string>
+    <string name="bump_run_state_loop">on square %1$d</string>
+    <string name="bump_run_state_lane">in the lane, step %1$d of %2$d</string>
+    <string name="bump_run_state_home">Home</string>
+    <string name="bump_run_state_shielded">shielded</string>
+    <string name="bump_run_square_label">Square %1$d</string>
+    <string name="bump_run_square_exit_label">Square %1$d, exit square for %2$s</string>
+    <string name="bump_run_square_pad_label">Square %1$d, spring pad</string>
+    <string name="bump_run_leave_title">Leave this game?</string>
+    <string name="bump_run_leave_body">The game is still going. Leaving now does not count as a win or a loss.</string>
+
+    <!-- Teams -->
+    <string name="bump_run_team_1">Team 1</string>
+    <string name="bump_run_team_2">Team 2</string>
+
+    <!-- Player shapes -->
+    <string name="bump_run_shape_circle">circle</string>
+    <string name="bump_run_shape_square">square</string>
+    <string name="bump_run_shape_triangle">triangle</string>
+    <string name="bump_run_shape_diamond">diamond</string>
+
+    <!-- Card names -->
+    <string name="bump_run_card_hop">Hop %1$d</string>
+    <string name="bump_run_card_swap">Swap Places</string>
+    <string name="bump_run_card_chase">Chase</string>
+    <string name="bump_run_card_free_exit">Free Exit</string>
+    <string name="bump_run_card_again">Again</string>
+    <string name="bump_run_card_shield">Shield</string>
+
+    <!-- Card descriptions -->
+    <string name="bump_run_desc_hop">Move one pawn forward %1$d squares.</string>
+    <string name="bump_run_desc_hop_star">Move one pawn forward %1$d squares, or bring a pawn out of the Nest.</string>
+    <string name="bump_run_desc_swap">Trade places with a rival pawn on the loop.</string>
+    <string name="bump_run_desc_chase">Leap to the next rival ahead and bump it. No rival ahead? Hop 4.</string>
+    <string name="bump_run_desc_free_exit">Bring a pawn out of the Nest. None in the Nest? Hop 3.</string>
+    <string name="bump_run_desc_again">Draw another card and play it too.</string>
+    <string name="bump_run_desc_shield">Shield a pawn on the loop until your next turn. None? Hop 2.</string>
+
+    <!-- Announcements -->
+    <string name="bump_run_ann_start">%1$s goes first. Tap the card pile.</string>
+    <string name="bump_run_ann_start_you">You go first. Tap the card pile.</string>
+    <string name="bump_run_ann_turn">%1$s, draw a card.</string>
+    <string name="bump_run_ann_turn_you">Your turn. Tap the card pile.</string>
+    <string name="bump_run_ann_draw">%1$s drew %2$s.</string>
+    <string name="bump_run_ann_draw_you">You drew %1$s.</string>
+    <string name="bump_run_ann_hop">%1$s moved a pawn %2$d squares.</string>
+    <string name="bump_run_ann_hop_you">You moved a pawn %1$d squares.</string>
+    <string name="bump_run_ann_exit">%1$s brought a pawn out of the Nest.</string>
+    <string name="bump_run_ann_exit_you">You brought a pawn out of the Nest.</string>
+    <string name="bump_run_ann_bump">%1$s bumped a pawn of %2$s back to the Nest!</string>
+    <string name="bump_run_ann_bump_you">You bumped a pawn of %1$s back to the Nest!</string>
+    <string name="bump_run_ann_bumped_you">%1$s bumped your pawn back to the Nest.</string>
+    <string name="bump_run_ann_swap">%1$s swapped places with a pawn of %2$s.</string>
+    <string name="bump_run_ann_swap_you">You swapped places with a pawn of %1$s.</string>
+    <string name="bump_run_ann_shield">%1$s shielded a pawn until the next turn.</string>
+    <string name="bump_run_ann_shield_you">You shielded a pawn until your next turn.</string>
+    <string name="bump_run_ann_pad">A spring pad hops the pawn ahead 3 squares!</string>
+    <string name="bump_run_ann_home">%1$s got a pawn Home: %2$d of %3$d.</string>
+    <string name="bump_run_ann_home_you">You got a pawn Home: %1$d of %2$d.</string>
+    <string name="bump_run_ann_again">%1$s draws again.</string>
+    <string name="bump_run_ann_again_you">Again! Draw another card.</string>
+    <string name="bump_run_ann_no_move">%1$s has no move and passes.</string>
+    <string name="bump_run_ann_no_move_you">You have no move. Your turn passes.</string>
+    <string name="bump_run_ann_do_over">%1$s used a do-over.</string>
+    <string name="bump_run_ann_do_over_you">You used a do-over. Drawing again.</string>
+    <string name="bump_run_ann_reshuffle">The pile is empty. Shuffling the cards.</string>
+    <string name="bump_run_ann_win">%1$s wins!</string>
+    <string name="bump_run_ann_win_you">You win!</string>
+    <string name="bump_run_ann_win_team">%1$s win as a team!</string>
+
+    <!-- Why lines -->
+    <string name="bump_run_why_wait">It is not your turn yet.</string>
+    <string name="bump_run_why_cpu">The computer is taking its turn.</string>
+    <string name="bump_run_why_draw_first">Draw a card first.</string>
+    <string name="bump_run_why_cannot_move">That pawn cannot move with this card.</string>
+    <string name="bump_run_why_exact">You need the exact number to reach Home.</string>
+    <string name="bump_run_why_own">Your own pawn is in the way.</string>
+    <string name="bump_run_why_shield">A shield protects that pawn.</string>
+    <string name="bump_run_why_over">The game is over.</string>
+
+    <!-- Post-game -->
+    <string name="bump_run_result_win">%1$s wins!</string>
+    <string name="bump_run_result_win_you">You win!</string>
+    <string name="bump_run_result_win_team">%1$s win as a team!</string>
+    <string name="bump_run_play_again">Play again</string>
+    <string name="bump_run_back_to_menu">Back to menu</string>
+
+    <!-- Score card -->
+    <string name="bump_run_score_title">Race report</string>
+    <string name="bump_run_score_line">%1$s: %2$d of %3$d pawns Home</string>
+    <string name="bump_run_score_bumps">%1$s: bumped %2$d, got bumped %3$d</string>
+    <string name="bump_run_score_turns">Turns taken: %1$d</string>
+    <string name="bump_run_score_session">Session: %1$s</string>
+
+    <!-- Coach card -->
+    <string name="coach_bump_run_s1">Tap the card pile. Every card tells you how to move.</string>
+    <string name="coach_bump_run_s2">Race your pawns around the loop, then up your lane to Home.</string>
+    <string name="coach_bump_run_s3">Land on a rival pawn and you bump it back to its Nest.</string>
+    <string name="coach_bump_run_s4">Stars on a card bring a pawn out. Swap, Chase and Shield change the race.</string>
+    <string name="coach_bump_run_s5">You need the exact number to reach Home. Every pawn Home wins.</string>
+    <string name="coach_bump_run_fact">Race-and-bump games descend from Pachisi, an ancient Indian game still played today.</string>
+
+    <!-- Tips -->
+    <string name="draft_tip_bump_run_1">Tap the card pile, then tap a pawn to move it.</string>
+    <string name="draft_tip_bump_run_2">Landing on a rival bumps it home. Watch for pawns just behind you!</string>
+    <string name="draft_tip_bump_run_3">A star on a card can bring a pawn out of the Nest.</string>
+
+    <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
+    <string name="hub_bump_and_run">Bump and Run</string>
+    <string name="hub_draw_a_card_race_your_pawns_home_and_bump_your_r_86712b">Draw a card, race your pawns home and bump your rivals back.</string>
+    <string name="hub_race_length">Race length</string>
+    <string name="hub_more_pawns_each_makes_a_longer_race">More pawns each makes a longer race.</string>
+    <string name="hub_quick_race">Quick race</string>
+    <string name="hub_2_pawns_each">2 pawns each.</string>
+    <string name="hub_classic_race">Classic race</string>
+    <string name="hub_3_pawns_each">3 pawns each.</string>
+    <string name="hub_long_race">Long race</string>
+    <string name="hub_4_pawns_each">4 pawns each.</string>
+    <string name="hub_spring_pads">Spring pads</string>
+    <string name="hub_on_landing_on_a_pad_hops_the_pawn_3_squares_ahea_79cf36">On: landing on a pad hops the pawn 3 squares ahead.</string>
+    <string name="hub_skip_obvious_moves">Skip obvious moves</string>
+    <string name="hub_on_when_only_one_move_is_possible_it_is_played_f_292999">On: when only one move is possible, it is played for you.</string>
+    <string name="hub_helper_pack">Helper pack</string>
+    <string name="hub_three_do_overs_and_one_pawn_already_out_of_the_n_dd5f4c">Three do-overs and one pawn already out of the Nest.</string>
+    <string name="hub_no_helper_pack">No helper pack</string>
+    <string name="hub_helper_pack_for_everyone">Helper pack for everyone</string>
+    <string name="hub_helper_pack_player_1">Helper pack: Player 1</string>
+    <string name="hub_helper_pack_player_2">Helper pack: Player 2</string>
+    <string name="hub_helper_pack_player_3">Helper pack: Player 3</string>
+    <string name="hub_helper_pack_player_4">Helper pack: Player 4</string>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Logros en la pantalla de estadísticas -->
+    <string name="achv_section_title">Logros</string>
+    <string name="achv_summary">%1$d de %2$d desbloqueados</string>
+    <string name="achv_locked_label">Bloqueado</string>
+    <string name="achv_unlocked_label">Desbloqueado</string>
+    <string name="achv_progress">%1$d / %2$d</string>
+    <string name="achv_row_description_locked">%1$s. %2$s Bloqueado. Progreso %3$d de %4$d.</string>
+    <string name="achv_row_description_unlocked">%1$s. %2$s Desbloqueado.</string>
+
+    <string name="achv_first_win_title">Primera victoria</string>
+    <string name="achv_first_win_desc">Gana cualquier partida.</string>
+    <string name="achv_wins_10_title">Diez victorias</string>
+    <string name="achv_wins_10_desc">Gana 10 partidas.</string>
+    <string name="achv_wins_100_title">Centenario</string>
+    <string name="achv_wins_100_desc">Gana 100 partidas.</string>
+    <string name="achv_streak_5_title">En racha</string>
+    <string name="achv_streak_5_desc">Gana 5 partidas seguidas.</string>
+    <string name="achv_hard_win_title">Modo difícil</string>
+    <string name="achv_hard_win_desc">Vence a la CPU en dificultad Difícil.</string>
+    <string name="achv_daily_title">Reto diario</string>
+    <string name="achv_daily_desc">Resuelve un puzle diario.</string>
+    <string name="achv_all_families_title">Todoterreno</string>
+    <string name="achv_all_families_desc">Juega a un juego de cada familia: tablero, cartas, palabras y arcade o puzles.</string>
+    <string name="achv_online_win_title">Campeón en línea</string>
+    <string name="achv_online_win_desc">Gana una partida en línea.</string>
+    <string name="achv_days_7_title">Constante</string>
+    <string name="achv_days_7_desc">Juega 7 días seguidos.</string>
+    <string name="achv_games_10_title">Explorador</string>
+    <string name="achv_games_10_desc">Prueba 10 juegos distintos.</string>
+
+    <!-- Rachas -->
+    <string name="streak_title">Rachas</string>
+    <string name="streak_tile_days">Racha de días</string>
+    <string name="streak_tile_wins">Racha de victorias</string>
+    <string name="streak_best">Mejor: %1$d</string>
+    <string name="streak_game_wins">Racha de victorias: %1$d</string>
+    <plurals name="home_streak_chip">
+        <item quantity="one">Racha de %1$d día</item>
+        <item quantity="other">Racha de %1$d días</item>
+    </plurals>
+    <string name="home_streak_chip_at_risk">Racha de %1$d días, juega hoy para mantenerla</string>
+    <string name="home_streak_chip_description">Racha diaria: %1$d. Mejor: %2$d.</string>
+
+    <!-- Inicio: logros recién desbloqueados -->
+    <string name="home_new_unlocked">Recién desbloqueado: %1$s</string>
+    <string name="home_new_unlocked_dismiss">Entendido</string>
+</resources>

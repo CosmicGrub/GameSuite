@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Toy Boxing and Toy Baseball (GameCoach conventions: coach_<id>_s1..sN and _fact). -->
+    <string name="coach_toy_boxing_s1">Two toy boxers, one ring. Win rounds by landing more clean punches than your rival, or knock them down for good.</string>
+    <string name="coach_toy_boxing_s2">Jab is fast and light. Hook is slow and heavy, but a yellow ! warns you it is coming. Hold Block to guard, tap Dodge to slip a hook.</string>
+    <string name="coach_toy_boxing_s3">A jab cancels a punch that is still winding up. A well-timed dodge makes a hook miss and leaves your rival open to a counter.</string>
+    <string name="coach_toy_boxing_s4">Every punch costs stamina. Mash the pads and you will tire out: tired boxers cannot punch and hit softly.</string>
+    <string name="coach_toy_boxing_s5">Knocked down? Tap fast to get up before the count reaches ten. Prefer to take it slowly? Turn on Turn-based assist.</string>
+    <string name="coach_toy_boxing_fact">Boxing\'s ten-count comes from the Queensberry rules of 1867: a boxer who is down must be back on their feet before ten is counted.</string>
+    <string name="coach_toy_baseball_s1">Every pitch is a duel. The pitcher secretly picks a pitch and a spot; the batter secretly picks a swing.</string>
+    <string name="coach_toy_baseball_s2">Pitches differ in speed: fastball, slider, curveball and changeup. The middle 3x3 of the grid is the strike zone.</string>
+    <string name="coach_toy_baseball_s3">As the batter, choose which pitch you are ready for and where to aim. Match both for a hard hit; miss them and you whiff, foul or ground out.</string>
+    <string name="coach_toy_baseball_s4">Four balls are a walk, three strikes are an out, and three outs end the half-inning. The pitch history shows what your rival likes to do.</string>
+    <string name="coach_toy_baseball_s5">Play 3, 5 or 9 innings. The home side wins on the spot if it takes the lead in the last inning.</string>
+    <string name="coach_toy_baseball_fact">A curveball bends because of its spin: the seams make the air push the ball sideways and down.</string>
+</resources>

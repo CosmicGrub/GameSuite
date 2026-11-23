@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.stringResource
+import com.gamesuite.R
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -54,10 +56,13 @@ import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.PlayMode
 import com.gamesuite.games.cards.CardSounds
+import com.gamesuite.games.connectfour.ConnectFourBoardSpec
 import com.gamesuite.games.connectfour.ConnectFourGame
 import com.gamesuite.games.connectfour.ConnectFourState
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.ConnectFourHapticCues
+import com.gamesuite.haptics.HapticRules
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalMusicEnabled
@@ -141,7 +146,6 @@ fun ConnectFourScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
     val playSfx = rememberProceduralSfx()
     val musicEnabled = LocalMusicEnabled.current && CardSounds.soundEnabled
     rememberAmbientMusic(profile = MusicProfiles.CONNECT_FOUR, enabled = musicEnabled)
@@ -154,6 +158,8 @@ fun ConnectFourScreen(
     val sessionWins by game.sessionWins
     val sessionDraws by game.sessionDraws
     val hintColumn by game.hintColumn
+    // Hints search off the main thread; the answer is applied only if the position is unchanged.
+    val hintScope = rememberCoroutineScope()
 
     // JUICE: the shared com.gamesuite.ui.effects.CameraShake/ParticleBurst utilities, reserved for
     // this game's single biggest moment, a genuine human four-in-a-row win. The burst is built
@@ -175,6 +181,9 @@ fun ConnectFourScreen(
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.init(ctx)
         game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex
+        // The Hub's "size" choice (classic when absent). Over the network the engine forces classic;
+        // a resumed game takes the size of its save, overriding this.
+        game.boardSpec = ConnectFourBoardSpec.fromId(sessionManager.launchOptions.extras["size"])
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()
@@ -194,7 +203,9 @@ fun ConnectFourScreen(
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
             val thinkMs = gameSpeed.scale(800L)
             if (thinkMs > 60L) delay(thinkMs)
-            game.playBotTurn()
+            // The search runs off the main thread; its answer is dropped if the position changed
+            // (undo, leave, restart) while it was thinking.
+            game.playBotTurnAsync()
             sounds.playTap()
         }
     }
@@ -258,7 +269,11 @@ fun ConnectFourScreen(
         vsBot -> "Your turn — tap a column"
         else -> "${current.displayName}'s turn — tap a column"
     }
-    val infoLine = if (networked) "Playing against $opponentName · You are $myColourName" else null
+    val infoLine = when {
+        networked -> "Playing against $opponentName · You are $myColourName"
+        s.spec != ConnectFourBoardSpec.CLASSIC -> stringResource(R.string.connect4_board_info, s.cols, s.rows, s.winLength)
+        else -> null
+    }
 
     // Which single cell the latest drop filled, for the fall animation. Derived from the board
     // itself (previous vs current cells) so the engine's state shape stays untouched.
@@ -267,6 +282,32 @@ fun ConnectFourScreen(
         val dropped = newlyFilledIndex(dropTracker.previous, s.cells)
         dropTracker.previous = s.cells
         dropped
+    }
+
+    // HAPTICS: the buzz is synced to the END of the fall animation (same ConnectFourHapticCues.fallMs
+    // the disc tween uses). Derived from the board diff, so a resume, restart or undo stays silent.
+    val sequencer = rememberHapticSequencer()
+    val hapticTracker = remember { ChangeTracker<List<Int?>>() }
+    LaunchedEffect(s.cells) {
+        val previous = hapticTracker.update(s.cells) ?: return@LaunchedEffect
+        val isBot = s.players.map { it.isBot }
+        if (!HapticRules.shouldPlay(sessionManager.arenaActive, isBot)) return@LaunchedEffect
+        val dropIndex = ConnectFourHapticCues.detectDrop(previous, s.cells) ?: return@LaunchedEffect
+        val mover = s.cells[dropIndex] ?: return@LaunchedEffect
+        val seat = if (networked) localIndex else null
+        val end = if (s.boardOver) {
+            HapticRules.outcomeFor(winnerIndex, isBot, seat)
+        } else null
+        val threat = end == null &&
+            ConnectFourHapticCues.createdThreat(previous, s.cells, s.rows, s.cols, s.winLength, mover)
+        sequencer(
+            ConnectFourHapticCues.forDrop(
+                fallMs = ConnectFourHapticCues.fallMs(dropIndex / s.cols, reducedMotion),
+                lighter = HapticRules.isLighterMover(mover, isBot, seat),
+                threat = threat,
+                end = end
+            )
+        )
     }
 
     // One effect per finished board (boardOver flips false -> true once per board; startMatch()/
@@ -279,11 +320,8 @@ fun ConnectFourScreen(
             particleBurst.clear()
             return@LaunchedEffect
         }
-        if (!humanWon) {
-            haptics(HapticSignal.NORMAL_ACTION)
-            return@LaunchedEffect
-        }
-        haptics(HapticSignal.CELEBRATION)
+        // (The board-end vibration is part of the drop gesture below, so it lands with the disc.)
+        if (!humanWon) return@LaunchedEffect
         playSfx(SfxKind.SUCCESS_CHIME)
 
         val winningLine = s.winningLine
@@ -331,11 +369,7 @@ fun ConnectFourScreen(
     // through leaveSession(), which scores the session.
     GameChrome(
         helpTitle = "How to Play Connect Four",
-        helpText = "Take turns dropping a disc into one of the seven columns. Tap anywhere in a " +
-            "column: the disc falls to the lowest empty slot.\n\n" +
-            "Connect four of your discs in a straight line, across, up and down, or diagonally, " +
-            "to win the board. If all 42 slots fill up with no four in a row, it's a tie.\n\n" +
-            "Play Again keeps the session tally, and the player who moves first alternates each board.",
+        helpText = stringResource(R.string.connect4_help_body, s.cols, s.winLength, s.cols * s.rows),
         matchInProgress = !s.boardOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedBoards > 0) game.leaveSession() else game.abortMatch() },
@@ -343,7 +377,7 @@ fun ConnectFourScreen(
         // No Undo or Hint against a human opponent over the network.
         onUndo = if (networked) null else ({ game.undo() }),
         canUndo = game.canUndo,
-        onHint = if (networked) null else ({ game.hint() }),
+        onHint = if (networked) null else ({ hintScope.launch { game.hintAsync() } }),
         buttonFill = palette.background,
         buttonContent = palette.textPrimary,
         leaveTitle = "Leave this board?",
@@ -382,7 +416,7 @@ fun ConnectFourScreen(
                     canUndo = game.canUndo,
                     canHint = isMyTurn && !s.boardOver,
                     onUndo = { game.undo() },
-                    onHint = { game.hint() },
+                    onHint = { hintScope.launch { game.hintAsync() } },
                     palette = palette
                 )
             }
@@ -412,7 +446,6 @@ fun ConnectFourScreen(
                         if (live != null && mayDrop) {
                             game.dropDisc(col)
                             sounds.playTap()
-                            haptics(HapticSignal.NORMAL_ACTION)
                         }
                     },
                     modifier = slotModifier
@@ -902,7 +935,7 @@ private fun DiscSlotView(
                     // 190ms for a one-row drop up to a 350ms cap: an accelerating, gravity-like ease.
                     fall.animateTo(
                         0f,
-                        animationSpec = tween(durationMillis = (140 + 50 * (row + 1)).coerceAtMost(350), easing = FastOutLinearInEasing)
+                        animationSpec = tween(durationMillis = ConnectFourHapticCues.fallMs(row, false).toInt(), easing = FastOutLinearInEasing)
                     )
                 }
             }

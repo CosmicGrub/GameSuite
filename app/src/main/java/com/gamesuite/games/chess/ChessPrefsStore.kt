@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -42,7 +41,7 @@ enum class ChessPieceStyle { CLASSIC, MINIMALIST }
  */
 enum class ChessMotionTier { STANDARD, MAXIMUM }
 
-private val Context.chessPrefsDataStore: DataStore<Preferences> by preferencesDataStore(name = "chess_prefs")
+private val Context.chessPrefsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("chess_prefs")
 
 /** Never read/written directly from a @Composable -- ChessScreen collects both flows as
  *  state and calls the setters from its own toggle controls, exactly like

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dominó: partida en red (Cerca / En línea) y empate en mano bloqueada. -->
+    <string name="dominoes_waiting_host">Esperando al anfitrión…</string>
+    <string name="dominoes_opponent_left">El rival se ha desconectado</string>
+    <string name="dominoes_leave_game">Salir de la partida</string>
+    <string name="dominoes_turn_of">Turno de %1$s</string>
+    <string name="dominoes_your_turn_net">Tu turno: arrastra una ficha a un extremo o toca una para seleccionarla</string>
+    <string name="dominoes_your_turn_open">Tu turno: juega cualquier ficha para empezar</string>
+    <string name="dominoes_blocked_tie">Mano bloqueada con los mismos puntos: nadie anota en esta mano.</string>
+    <string name="dominoes_blocked_lowest">Mano bloqueada: nadie puede mover, así que gana quien tenga menos puntos y anota la diferencia.</string>
+    <string name="dominoes_tile_set_label">Juego de fichas: %1$s</string>
+    <string name="dominoes_set_double_six">Doble seis</string>
+    <string name="dominoes_set_double_nine">Doble nueve</string>
+</resources>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Slot Cars screen strings (own file). -->
+    <string name="sct_help_title">How to Play Slot Cars</string>
+    <string name="sct_help_text">Be first across the line after the chosen number of laps.\n\nYou only control the throttle. Hold your pad to speed up and let go to brake. The skill is braking before a bend: a car that goes too fast in a bend leaves the slot, loses all its speed and lies off the track for a moment before it is put back.\n\nThe amber signs show the bends that need slowing down for. The grip bar above your pad fills as you near the limit; keep it out of the hatched zone in a bend.\n\nEveryone drives at the same time, each with their own pad. Slow motion runs the race at half speed. Step by step turns it turn-based: choose throttle or coast for the next half second, press Go, and the cars run that step. With a screen reader on, each pad is an on/off switch.</string>
+    <string name="sct_car">Car %1$d (%2$s)</string>
+    <string name="sct_chip_desc">%1$s: %2$s, lap %3$d of %4$d.</string>
+    <string name="sct_place_1">1st</string>
+    <string name="sct_place_2">2nd</string>
+    <string name="sct_place_3">3rd</string>
+    <string name="sct_place_4">4th</string>
+    <string name="sct_laps_badge">%1$d laps</string>
+    <string name="sct_slow_badge">Slow motion</string>
+    <string name="sct_step_badge">Step by step</string>
+    <string name="sct_track_meadow">Meadow Oval</string>
+    <string name="sct_track_hill">Hairpin Hill</string>
+    <string name="sct_track_twist">Twister</string>
+    <string name="sct_track_desc">Slot car race on %1$s, %2$d laps.</string>
+    <string name="sct_status_ready">Get ready. The lights count down.</string>
+    <string name="sct_status_go">Go! Hold your pad to speed up and let go before the bends.</string>
+    <string name="sct_step_status">Plan the next half second: choose throttle or coast, then press Go.</string>
+    <string name="sct_opp_left">The other drivers left the race.</string>
+    <string name="sct_ann_lap">%1$s starts lap %2$d of %3$d.</string>
+    <string name="sct_ann_lap_you">You start the next lap.</string>
+    <string name="sct_ann_deslot">%1$s left the slot and is being put back.</string>
+    <string name="sct_ann_deslot_you">You left the slot! You are being put back.</string>
+    <string name="sct_ann_finish">%1$s finished in %2$s place.</string>
+    <string name="sct_ann_finish_you">You finished.</string>
+    <string name="sct_ann_place_you">That is %1$s place.</string>
+    <string name="sct_ann_win">%1$s wins the race!</string>
+    <string name="sct_ann_win_you">You win the race!</string>
+    <string name="sct_hint_brake">Ease off! A bend is coming.</string>
+    <string name="sct_hint_go">Full throttle, the way is clear.</string>
+    <string name="sct_why_left">The other drivers left, so the race cannot go on.</string>
+    <string name="sct_why_over">The race is over.</string>
+    <string name="sct_grip_desc">Grip use %1$d percent. Near 100 and the car leaves the slot.</string>
+    <string name="sct_pad_desc">Throttle pad for %1$s. Hold to accelerate, let go to brake.</string>
+    <string name="sct_pad_toggle_desc">Throttle switch for %1$s. Double tap to turn the throttle on or off.</string>
+    <string name="sct_pad_hold">Hold to drive</string>
+    <string name="sct_pad_hold_on">Driving. Let go to brake.</string>
+    <string name="sct_pad_toggle_on">Throttle ON. Tap to coast.</string>
+    <string name="sct_pad_toggle_off">Throttle OFF. Tap to drive.</string>
+    <string name="sct_throttle_on">Throttle on</string>
+    <string name="sct_throttle_off">Throttle off</string>
+    <string name="sct_step_go">Go</string>
+    <string name="sct_step_waiting">Waiting for the others</string>
+    <string name="sct_over_title">%1$s wins!</string>
+    <string name="sct_over_title_you">You win!</string>
+    <string name="sct_over_best">Best lap: %1$s, %2$s</string>
+    <string name="sct_over_line">%1$s: %2$s, %3$s</string>
+    <string name="sct_over_dnf">did not finish</string>
+    <string name="sct_over_session">Races won: %1$s</string>
+</resources>

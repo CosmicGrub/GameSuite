@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda (coach_chutes_race_s1..s5 y _fact) y consejos (tip_chutes_race_1..3) de Desliza y Sube -->
+    <string name="coach_chutes_race_s1">Por turnos, toca el dado grande. Tu ficha salta por el camino numerado, una casilla por cada punto, y luego le toca al siguiente jugador.</string>
+    <string name="coach_chutes_race_s2">Cuerdas: si caes al pie de una cuerda, subes a una casilla más alta. Busca las lianas trenzadas con una flecha hacia arriba.</string>
+    <string name="coach_chutes_race_s3">Toboganes: si caes en lo alto de un tobogán, bajas deslizándote. Las rampas anchas con rayas tienen una flecha hacia abajo.</string>
+    <string name="coach_chutes_race_s4">Gana la primera ficha que llegue a la casilla 100. Si te pasas del 100, rebotas hacia atrás; con Tirada exacta para terminar activada te quedas quieto hasta sacar el número justo.</string>
+    <string name="coach_chutes_race_s5">Un jugador con tirada extra ve dos botones redondos después de tirar: la marca se queda con la tirada y el dado con una flecha vuelve a tirar, una vez por partida. La CPU puede ocupar los asientos vacíos. Solo en este dispositivo: no hay modo Cercano ni En línea.</string>
+    <string name="coach_chutes_race_fact">Los juegos como este vienen de la antigua India, donde un juego de mesa llamado Moksha Patam usaba escaleras para las buenas acciones y serpientes para las malas.</string>
+</resources>

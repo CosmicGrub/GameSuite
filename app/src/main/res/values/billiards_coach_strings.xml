@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_billiards_s1">Drag on the table to aim. The dotted line shows where the cue ball goes and where the first ball it hits will roll.</string>
+    <string name="coach_billiards_s2">Set the power with the slider and use the spin pad for follow, draw or side english, then press Shoot.</string>
+    <string name="coach_billiards_s3">8-ball: sink all your solids (1 to 7) or stripes (9 to 15), then the 8. 9-ball: always hit the lowest ball first and sink the 9 to win.</string>
+    <string name="coach_billiards_s4">Scratching, hitting the wrong ball first or sending nothing to a cushion is a foul: your opponent gets ball in hand.</string>
+    <string name="coach_billiards_s5">Pocket a ball legally to keep shooting. Tap Hint for a suggested shot.</string>
+    <string name="coach_billiards_fact">Chalk on a cue tip adds friction so the tip does not slip off the ball. Players chalk before almost every shot.</string>
+</resources>

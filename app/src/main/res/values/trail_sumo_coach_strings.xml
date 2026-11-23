@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Light-Trail Duel and Sumo Push (coach_<id>_s1..sN and _fact). -->
+    <string name="coach_light_trail_s1">Everyone rides at once on one screen. You each have your own pads on your own edge, turned to face you. All fingers work together, so every player can steer at the same moment.</string>
+    <string name="coach_light_trail_s2">Each rider leaves a glowing wall. Hit any wall or the edge and you are out. The last rider left wins the round; the first to the target wins the match (best of 3 or 5).</string>
+    <string name="coach_light_trail_s3">Left and Right turn your rider the way it is facing, not the way you are. Watch the glowing head, and trap your rivals by cutting across in front of them.</string>
+    <string name="coach_light_trail_s4">Turn on power-ups for Gap (slip through walls for a few cells) and Boost (a burst of speed). Turn on Relaxed or One button if fast play is hard.</string>
+    <string name="coach_light_trail_s5">This version is for one screen only: computers fill any empty zone. Nearby and Online play are not available yet.</string>
+    <string name="coach_light_trail_fact">Cutting a rival off so they run out of room is the oldest trick in this kind of game: the rider with more open floor almost always survives.</string>
+    <string name="coach_sumo_push_s1">Round toy sumos in a ring. Push the others out; the last sumo inside wins the round. Everyone plays at once on their own side of the screen.</string>
+    <string name="coach_sumo_push_s2">Drag your thumb-stick (or hold the direction pad) to steer. Sumos are heavy and slow to start and stop, so plan your pushes.</string>
+    <string name="coach_sumo_push_s3">Hold Dash to charge and let go to shove: the longer the charge, the harder the hit. A dashing sumo is much heavier, but then it must wait for the cooldown.</string>
+    <string name="coach_sumo_push_s4">The ring starts to shrink after a few seconds, so staying near the middle matters. Turn on power-ups for Heavy and Sprint orbs.</string>
+    <string name="coach_sumo_push_s5">Relaxed slows the sumos and keeps you from stepping off the rope. One button steers for you toward the nearest rival. This version is for one screen only: computers fill empty zones; Nearby and Online play are not available yet.</string>
+    <string name="coach_sumo_push_fact">A sumo ring (dohyo) is 4.55 metres across, and a wrestler loses by stepping out of it or touching the ground with anything but the soles of the feet.</string>
+</resources>

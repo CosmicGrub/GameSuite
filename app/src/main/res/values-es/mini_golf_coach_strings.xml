@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_mini_golf_s1">Arrastra hacia atrás desde la bola como un tirachinas y suelta para golpear. Cuanto más arrastras, más fuerte golpeas.</string>
+    <string name="coach_mini_golf_s2">¿Prefieres botones? Usa Apuntar a la izquierda y a la derecha, el control de fuerza y Golpear.</string>
+    <string name="coach_mini_golf_s3">La arena frena la bola, el agua cuesta un golpe y devuelve la bola, las cintas la empujan y los topes la hacen rebotar.</string>
+    <string name="coach_mini_golf_s4">Jugad por turnos. Gana quien dé menos golpes en todos los hoyos, y un hoyo termina al llegar al límite de golpes.</string>
+    <string name="coach_mini_golf_fact">El minigolf se disparó en Estados Unidos hacia 1930, cuando se abrieron miles de campos, muchos en azoteas y solares vacíos.</string>
+</resources>

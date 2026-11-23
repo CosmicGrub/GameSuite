@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Draw and Guess (hubKey names); texts other games already define are not repeated -->
+    <string name="hub_draw_and_guess">Dibuja y adivina</string>
+    <string name="hub_draw_a_secret_word_pass_the_device_and_guess_no_7c541b">Dibuja una palabra secreta, pasa el dispositivo y adivina. No hace falta saber dibujar.</string>
+    <string name="hub_two_to_eight_people_take_turns_drawing_a_secret_dd5cf1">De dos a ocho personas se turnan para dibujar una palabra secreta mientras las demás adivinan. Pasen el dispositivo por la mesa.</string>
+    <string name="hub_the_drawer_s_team_does_the_guessing_needs_an_eve_495459">El equipo de quien dibuja es quien adivina. Necesita una mesa par de cuatro o más.</string>
+    <string name="hub_rounds_each">Rondas por persona</string>
+    <string name="hub_everyone_draws_once_in_every_round">Cada persona dibuja una vez en cada ronda.</string>
+    <string name="hub_drawing_time">Tiempo para dibujar</string>
+    <string name="hub_how_long_the_drawer_has_the_clock_stops_while_so_88f51a">Cuánto tiempo tiene quien dibuja. El reloj se detiene mientras alguien adivina.</string>
+    <string name="hub_take_your_time_faster_guesses_still_score_a_litt_ad7513">Tómate tu tiempo. Las respuestas más rápidas aún suman un poco más.</string>
+    <string name="hub_how_to_guess">Cómo adivinar</string>
+    <string name="hub_players_guess_by_picking_a_picture_card_or_by_ty_b04cd6">Se adivina eligiendo una tarjeta con imagen o escribiendo la palabra.</string>
+    <string name="hub_pick_a_card">Elegir una tarjeta</string>
+    <string name="hub_six_picture_cards_and_no_typing_best_for_younger_d74228">Seis tarjetas con imagen y sin escribir. Ideal para los más pequeños.</string>
+    <string name="hub_type_the_word">Escribir la palabra</string>
+    <string name="hub_type_your_guess_best_for_readers_and_writers">Escribe tu respuesta. Ideal para quien ya lee y escribe.</string>
+</resources>

@@ -89,7 +89,7 @@ fun legacyLaunchFromKey(key: String, navRoute: String): SavedLaunch? {
  */
 class SavedGameStore(
     private val dir: File,
-    private val epochDay: () -> Long = { LocalDate.now().toEpochDay() },
+    private val epochDay: () -> Long = { DailySeed.todayEpochDay() },
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
     private val maxAgeMillis: Long = DEFAULT_MAX_AGE_MILLIS
 ) {

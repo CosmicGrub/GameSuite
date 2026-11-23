@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Toy Soccer and Toy Tennis (coach_<id>_s1..sN and _fact). -->
+    <string name="coach_toy_soccer_s1">Dos equipos, un balón. Mete el balón en la portería del fondo para marcar. Tu portería es la más cercana a ti.</string>
+    <string name="coach_toy_soccer_s2">Tira hacia atrás de una de tus figuras, como una honda, y suelta. La figura sale hacia donde tiraste, con más fuerza cuanto más largo sea el tirón.</string>
+    <string name="coach_toy_soccer_s3">Golpea el balón con tus figuras. Una figura se puede golpear de nuevo cuando se detiene. Tu portero vuelve solo a la portería.</string>
+    <string name="coach_toy_soccer_s4">Todos juegan a la vez. Gana quien llegue primero al número de goles, o quien tenga más goles al acabar el tiempo. ¿Empate? Muerte súbita.</string>
+    <string name="coach_toy_soccer_s5">¿Prefieres ir con calma? Activa la ayuda por turnos: los equipos se turnan y la mesa se calma entre golpes. La pista te muestra un buen golpe.</string>
+    <string name="coach_toy_soccer_fact">Golpear pequeñas figuras sobre un campo de tela viene del Subbuteo, un juego de mesa que se vendió por primera vez en Inglaterra en 1947.</string>
+    <string name="coach_toy_tennis_s1">Tu jugador corre solo hacia la pelota. Tú eliges el golpe y su momento con un deslizamiento.</string>
+    <string name="coach_toy_tennis_s2">Un aro se cierra sobre el punto donde se golpeará la pelota. Desliza hacia la red justo cuando se cierre: un deslizamiento en el momento justo da un golpe perfecto.</string>
+    <string name="coach_toy_tennis_s3">Desliza a la izquierda o derecha del frente para el ángulo. Cuanto más rápido, más fuerte y profundo el golpe, pero un golpe profundo puede salir fuera.</string>
+    <string name="coach_toy_tennis_s4">Para sacar, la pelota se lanza por ti. Desliza en lo más alto y envíala al cuadro de saque contrario. Dos faltas pierden el punto.</string>
+    <string name="coach_toy_tennis_s5">Se puntúa como en el tenis real (0, 15, 30, 40) o en una carrera a un número de puntos. El tiempo relajado hace que la pelota espere tu golpe.</string>
+    <string name="coach_toy_tennis_fact">Los puntos 15, 30 y 40 vienen de la Francia medieval, y la palabra tenis probablemente viene del francés tenez, que significa tómalo.</string>
+</resources>

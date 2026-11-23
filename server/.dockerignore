@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+*-test.js
+test-lib.js
+gen-seat-ranges.js
+CHANGELOG-wave5.md
+README.md

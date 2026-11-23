@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sumo Push screen texts and first-run tips. -->
+    <string name="sup_help_title">Empuje de sumo</string>
+    <string name="sup_help_text">Cada jugador dirige a un sumo de juguete redondo con la palanca o la cruceta de su zona. Empuja a los demás fuera del anillo: el último sumo que queda dentro gana la ronda. Mantén Embestida para cargar, suelta para empujar y espera a que se recargue. El anillo se encoge a medida que avanza la ronda.</string>
+    <string name="sup_dash">Embestida</string>
+    <string name="sup_dash_ready">Listo</string>
+    <string name="sup_dash_charging">Cargando</string>
+    <string name="sup_dash_wait">Espera</string>
+    <string name="sup_dash_desc">%1$s: botón de embestida. Mantén para cargar, suelta para empujar. %2$s.</string>
+    <string name="sup_stick_desc">%1$s: palanca. Arrastra para dirigir. Un lector de pantalla no puede arrastrar: elige Un botón en los ajustes.</string>
+    <string name="sup_dpad_desc">%1$s: cruceta. Mantén una dirección para dirigir. Un lector de pantalla no puede mantener: elige Un botón en los ajustes.</string>
+    <string name="sup_ring_desc">Anillo con %1$d sumos, %2$d aún dentro.</string>
+    <string name="sup_ring_shrinking">¡El anillo se encoge!</string>
+    <string name="sup_ev_fell">%1$s fue empujado fuera.</string>
+    <string name="sup_ev_fell_you">Te empujan fuera.</string>
+    <string name="sup_ev_pick_heavy">%1$s recogió Pesado.</string>
+    <string name="sup_ev_pick_heavy_you">Recoges Pesado.</string>
+    <string name="sup_ev_pick_sprint">%1$s recogió Velocidad.</string>
+    <string name="sup_ev_pick_sprint_you">Recoges Velocidad.</string>
+    <string name="tip_sumo_push_1">Mantén Embestida para cargar y suelta para empujar. Una embestida cargada pesa mucho, pero luego toca esperar.</string>
+    <string name="tip_sumo_push_2">El anillo se encoge con el tiempo. Quédate cerca del centro y deja que los rivales se empujen entre sí.</string>
+    <string name="tip_sumo_push_3">¿Cuesta dirigir? Activa Relajado o Un botón en los ajustes.</string>
+</resources>

@@ -115,7 +115,7 @@ class OnlineRelayEndToEndTest {
         return null
     }
 
-    private fun newTransport() = OnlineTransport(url).also { transports += it }
+    private fun newTransport() = OnlineTransport(url, OnlineTransport.DIRECT).also { transports += it }
 
     /** An abrupt client-side TCP death (a network blip): the relay sees the socket vanish and holds the seat. */
     private fun dropConnection(t: OnlineTransport) {

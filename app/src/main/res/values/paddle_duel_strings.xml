@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paddle Duel: screen strings (own file). Coach, tips and Hub text are in party_paddle_rps_*_strings.xml. -->
+    <string name="pdl_help_title">How to play Paddle Duel</string>
+    <string name="pdl_help_text">Keep the ball out of your own edge and send it past everyone else.\n\nPut a thumb anywhere on your side of the court and slide: your paddle follows. Every player has their own finger, so everybody can play at the same time. You can also hold the two arrow buttons beside your name, or play with one switch (set in the setup): the paddle follows the ball by itself and the switch changes the angle of your return.\n\nHit the ball with the end of the paddle to send it sideways. A moving paddle puts spin on the ball so it curves. The ball speeds up with every return.\n\nIn a points match, each ball that gets past an opponent scores for you (with two players) or for the last player who touched it. In a lives match, every ball that gets past you costs a life; at zero your edge becomes a wall and the last paddle standing wins.\n\nPower-ups, when switched on: a wide paddle for the player who collected it, a slower ball for everyone, or extra balls. The Relaxed assist makes the ball slower and the paddles wider.\n\nThis game is for people on the same screen. There is no Nearby or Online mode yet.</string>
+    <string name="pdl_goal_points">First to %1$d points</string>
+    <string name="pdl_goal_lives">Last paddle standing: %1$d lives each</string>
+    <string name="pdl_arena_desc">Paddle Duel court. %1$s</string>
+    <string name="pdl_tag_points">%1$s, points: %2$d</string>
+    <string name="pdl_tag_lives">%1$s, lives left: %2$d</string>
+    <string name="pdl_tag_out">%1$s is out of the match</string>
+    <string name="pdl_dir_left">left</string>
+    <string name="pdl_dir_right">right</string>
+    <string name="pdl_dir_up">up</string>
+    <string name="pdl_dir_down">down</string>
+    <string name="pdl_btn_move">%1$s: move the paddle %2$s. Hold to keep moving.</string>
+    <string name="pdl_btn_switch">%1$s: change the return angle. Now: %2$s</string>
+    <string name="pdl_aim_straight">straight</string>
+    <string name="pdl_ann_launch">Ball in play.</string>
+    <string name="pdl_ann_point">Point for %1$s. %2$s</string>
+    <string name="pdl_ann_life">Life lost: %1$s. %2$s</string>
+    <string name="pdl_ann_out">Out: %1$s.</string>
+    <string name="pdl_ann_wide">Wide paddle for %1$s.</string>
+    <string name="pdl_ann_slow">%1$s slows the ball for everyone.</string>
+    <string name="pdl_ann_multi">%1$s adds extra balls.</string>
+    <string name="pdl_ann_stale">Nobody could reach it. Serving again.</string>
+    <string name="pdl_ann_win">Match won by %1$s!</string>
+    <string name="pdl_result_winner">%1$s wins the match!</string>
+    <string name="pdl_result_scores">Final: %1$s</string>
+</resources>

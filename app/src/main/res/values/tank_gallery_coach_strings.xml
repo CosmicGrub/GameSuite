@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tank Battle and Shooting Gallery: coach cards (the GameCoach entries are added by the integrator) -->
+    <string name="coach_tank_battle_s1">Each turn you fire one shell. Set the angle and power with the sliders, or drag back from your tank like a slingshot, then press Fire.</string>
+    <string name="coach_tank_battle_s2">The wind changes every turn. The arrow and number show which way it pushes and how hard. The dotted line previews the first moments of your shot, wind included.</string>
+    <string name="coach_tank_battle_s3">A shell digs a crater and hurts every tank near it, most of all on a direct hit. Craters change the ground: you can bury a tank or leave it exposed.</string>
+    <string name="coach_tank_battle_s4">Big shells dig wide and hit hard; bouncers hop over hills before they explode. Each tank carries only a few, so save them for the right moment.</string>
+    <string name="coach_tank_battle_s5">Tap Hint for a suggested shot, or Undo to take your last shot back. The last tank standing wins.</string>
+    <string name="coach_tank_battle_fact">Artillery duels, where players adjust angle and power to lob shells over hills, date back to mainframe programs of the early 1960s and became a PC classic in the early 1990s.</string>
+    <string name="coach_shooting_gallery_s1">Tap a target to shoot it. Ducks score 10 (25 when small), rings score by zone up to 50, and a gold star scores 50 and refills your magazine.</string>
+    <string name="coach_shooting_gallery_s2">Never shoot the spiky decoy: it costs 30 points and breaks your combo. Look for the cross on it.</string>
+    <string name="coach_shooting_gallery_s3">Your magazine holds six shots and then reloads. Shots fired while it reloads are wasted, so pick your targets. You can also reload early.</string>
+    <string name="coach_shooting_gallery_s4">Hit targets in a row to build a combo up to times four. A miss or a decoy breaks it. Every player gets the same range, so it is all skill.</string>
+    <string name="coach_shooting_gallery_s5">Cannot tap fast? Choose Relaxed pace: slower, larger targets, more time and a quicker reload. A Shoot nearest target button helps too.</string>
+    <string name="coach_shooting_gallery_fact">Shooting galleries were fairground staples by the late 1800s, and the tin ducks gliding along a rail are still the picture most people have of one.</string>
+</resources>

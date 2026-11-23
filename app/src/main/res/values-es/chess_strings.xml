@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ajedrez: tablas automáticas, el reloj de ajedrez y los resultados por tiempo. -->
+    <string name="chess_end_draw_fifty">Tablas por la regla de los cincuenta movimientos</string>
+    <string name="chess_end_draw_insufficient">Tablas: material insuficiente</string>
+    <string name="chess_end_time_up">Se acabó el tiempo</string>
+    <string name="chess_end_win_on_time_you">¡Ganas por tiempo!</string>
+    <string name="chess_end_win_on_time">%1$s gana por tiempo</string>
+    <string name="chess_end_draw_time_insufficient">Tablas: se acabó el tiempo, pero el rival no puede dar jaque mate</string>
+
+    <string name="chess_clock_side_white">Blancas</string>
+    <string name="chess_clock_side_black">Negras</string>
+    <string name="chess_clock_a11y_white">Blancas %1$s</string>
+    <string name="chess_clock_a11y_black">Negras %1$s</string>
+    <string name="chess_clock_running">Reloj en marcha</string>
+    <string name="chess_clock_low_time">Poco tiempo</string>
+    <string name="chess_clock_low_tag">POCO</string>
+</resources>

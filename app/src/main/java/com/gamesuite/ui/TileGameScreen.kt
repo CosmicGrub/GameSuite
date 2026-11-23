@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -87,6 +89,8 @@ import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.floor
@@ -217,12 +221,16 @@ fun TileGameScreen(
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.firstMoverIndex = sessionManager.launchOptions.firstMoverIndex
         game.init(ctx)
-        game.loadDictionary(androidContext)
+        // Parsing the 359k-word list is heavy; keep it off the main thread.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { game.loadDictionary(androidContext) }
         // A finished game stays on screen for its result panel (its button calls onMatchEnded). An
         // abort leaves from the chrome's onAbort below instead, since it has no result to show.
         game.setOnMatchEnd { result -> sessionManager.endActiveGame(result) }
+        val networkedMatch = ctx.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC ||
+            ctx.activeMode == com.gamesuite.core.PlayMode.ONLINE
         game.setOnWordPlayed { result ->
-            if (result.byBot) {
+            // Over the network only the local seat's own plays get the success feedback.
+            if (result.byBot || (networkedMatch && result.playerIndex != ctx.localPlayerIndex)) {
                 // The CPU's word: a quiet tile-landing cue, none of the human's success feedback.
                 currentHaptics(HapticSignal.LIGHT_TICK)
                 playSfx(SfxKind.SOLID_THUNK)
@@ -254,18 +262,66 @@ fun TileGameScreen(
         val s = state ?: return@LaunchedEffect
         if (s.matchOver) return@LaunchedEffect
         if (s.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
+            val request = game.prepareBotTurn() ?: return@LaunchedEffect
+            // The word search is the slow part: run it off the main thread, in step with the think
+            // delay (so the CPU still takes at least that long), then apply it back here only if
+            // the position is unchanged (leaving or restarting meanwhile cancels this effect, and
+            // applyBotMove re-checks anyway).
+            val search = async(Dispatchers.Default) { game.searchBotMove(request) }
             val thinkMs = gameSpeed.scale(900L)
             if (thinkMs > 60L) delay(thinkMs)
-            game.playBotTurn()
+            val move = search.await()
+            game.applyBotMove(request, move)
         }
     }
 
-    val s = state ?: return
+    // Networked (Nearby / Online): two seats, host = 0. The guest renders only the host's redacted
+    // state; its taps become requests (see TileGame). No hand-over cover is ever shown here.
+    val networked = (context ?: lastContext[0])?.let {
+        it.activeMode == com.gamesuite.core.PlayMode.LOCAL_AD_HOC || it.activeMode == com.gamesuite.core.PlayMode.ONLINE
+    } == true
+    val opponentLeft by game.opponentLeft
+    val sessionWins by game.sessionWins
+    val sessionDraws by game.sessionDraws
+    val waitingForHostText = stringResource(R.string.wordtiles_waiting_for_host)
+    val opponentLeftText = stringResource(R.string.wordtiles_opponent_left)
+    val yourTurnText = stringResource(R.string.wordtiles_your_turn)
+    val playAgainText = stringResource(R.string.wordtiles_play_again)
+
+    val s = state ?: run {
+        if (networked) {
+            // Guest before the host's first StateSync. Still wrapped in the chrome so back works.
+            GameChrome(
+                helpTitle = TILE_HELP_TITLE,
+                helpText = TILE_HELP_TEXT,
+                matchInProgress = false,
+                onLeave = { exiting = true; game.abortMatch(); onMatchEnded() },
+                onAbort = { exiting = true; game.abortMatch(); onMatchEnded() },
+                buttonFill = screenBackground,
+                buttonContent = screenInk
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(screenBackground).padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (opponentLeft) opponentLeftText else waitingForHostText,
+                        color = screenInk,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
+            }
+        }
+        return
+    }
 
     // Match-end feedback. Celebration is for a sole HUMAN winner only: a CPU win or a tie gets a
     // plain tick, and an abort (exiting) gets nothing.
     val topPlayers = s.leaders()
-    val humanWon = s.matchOver && topPlayers.size == 1 && !topPlayers.first().isBot
+    val localPlayerId = (context ?: lastContext[0])?.let { it.players.getOrNull(it.localPlayerIndex)?.playerId }
+    val humanWon = s.matchOver && topPlayers.size == 1 && !topPlayers.first().isBot &&
+        (!networked || topPlayers.first().playerId == localPlayerId)
     LaunchedEffect(s.matchOver) {
         if (!s.matchOver || exiting) return@LaunchedEffect
         if (humanWon) {
@@ -284,12 +340,28 @@ fun TileGameScreen(
     // right when the match ended instead of showing a result. It now sits inside the same
     // GameChrome, so system back and the corner menu still work on it.
     if (s.matchOver && !exiting) {
+        // Networked: the finished game stays a SESSION until someone leaves, so leaving reports the
+        // session tally (or, with the other seat gone, aborts and records nothing).
+        val leaveResult: () -> Unit = {
+            if (networked) game.leaveSession()
+            onMatchEnded()
+        }
+        val sessionLine = if (networked) {
+            stringResource(
+                R.string.wordtiles_session_tally,
+                s.players.getOrNull(0)?.displayName ?: "",
+                sessionWins[s.players.getOrNull(0)?.playerId] ?: 0,
+                s.players.getOrNull(1)?.displayName ?: "",
+                sessionWins[s.players.getOrNull(1)?.playerId] ?: 0,
+                sessionDraws
+            )
+        } else null
         GameChrome(
             helpTitle = TILE_HELP_TITLE,
             helpText = TILE_HELP_TEXT,
             matchInProgress = false,
-            onLeave = onMatchEnded,
-            onAbort = onMatchEnded,
+            onLeave = leaveResult,
+            onAbort = leaveResult,
             buttonFill = screenBackground,
             buttonContent = screenInk
         ) {
@@ -298,9 +370,13 @@ fun TileGameScreen(
                 topPlayers = topPlayers,
                 ink = screenInk,
                 background = screenBackground,
-                namedWinner = context?.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY ||
+                namedWinner = networked || context?.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY ||
                     lastContext[0]?.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY,
-                onBackToMenu = onMatchEnded
+                sessionLine = sessionLine,
+                playAgainLabel = if (networked && !opponentLeft) playAgainText else null,
+                onPlayAgain = { game.playAgain() },
+                statusLine = if (networked && opponentLeft) opponentLeftText else null,
+                onBackToMenu = leaveResult
             )
         }
         return
@@ -404,7 +480,7 @@ fun TileGameScreen(
     val isPassPlay = activeContext.activeMode == com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY
     var readySeat by remember { mutableStateOf(-1) }
     val covered = isPassPlay && !s.matchOver && readySeat != s.currentPlayerIndex
-    val isMyTurn = s.currentPlayerIndex == humanIndex && !s.matchOver && !covered
+    val isMyTurn = s.currentPlayerIndex == humanIndex && !s.matchOver && !covered && !(networked && opponentLeft)
     val tileSizePx = with(density) { TILE_RACK_TILE.toPx() }
 
     LaunchedEffect(s.currentPlayerIndex) {
@@ -449,6 +525,8 @@ fun TileGameScreen(
     val vsBot = s.players.any { it.isBot }
     val statusText = when {
         s.matchOver -> "Game over"
+        networked && opponentLeft -> opponentLeftText
+        networked && s.currentPlayerIndex == humanIndex -> if (swapMode) "Pick the tiles to swap" else yourTurnText
         current.isBot -> "${current.displayName} is thinking…"
         swapMode -> "Pick the tiles to swap"
         vsBot -> "Your turn"
@@ -1542,6 +1620,10 @@ private fun TileResultPanel(
     ink: Color,
     background: Color,
     namedWinner: Boolean = false,
+    sessionLine: String? = null,
+    playAgainLabel: String? = null,
+    onPlayAgain: () -> Unit = {},
+    statusLine: String? = null,
     onBackToMenu: () -> Unit
 ) {
     val topIds = topPlayers.map { it.playerId }.toSet()
@@ -1577,7 +1659,28 @@ private fun TileResultPanel(
                 textAlign = TextAlign.Center
             )
         }
+        if (sessionLine != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(sessionLine, color = ink.copy(alpha = 0.8f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        }
+        if (statusLine != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                statusLine,
+                color = ink,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
         Spacer(Modifier.height(16.dp))
+        if (playAgainLabel != null) {
+            Button(
+                onClick = onPlayAgain,
+                modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+            ) { Text(playAgainLabel) }
+            Spacer(Modifier.height(8.dp))
+        }
         // Mouse/trackpad hover cursor (Tab S9 DeX / keyboard-cover use case,
         // docs/DEVICE_SPECIFIC_PLAN.md §4c) -- purely additive, no effect on touch.
         ChangeSetupButton(
@@ -1761,7 +1864,7 @@ private fun releaseProgressVelocity(tracker: VelocityTracker, releasePos: Offset
  */
 private fun humanIndex(s: TileGameState, context: com.gamesuite.core.GameContext): Int =
     when (context.activeMode) {
-        com.gamesuite.core.PlayMode.LOCAL_AD_HOC -> context.localPlayerIndex
+        com.gamesuite.core.PlayMode.LOCAL_AD_HOC, com.gamesuite.core.PlayMode.ONLINE -> context.localPlayerIndex
         com.gamesuite.core.PlayMode.SINGLE_DEVICE_PASS_AND_PLAY -> s.currentPlayerIndex
         else -> s.players.indexOfFirst { !it.isBot }.let { if (it >= 0) it else 0 }
     }

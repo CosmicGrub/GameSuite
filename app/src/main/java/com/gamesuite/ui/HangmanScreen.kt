@@ -159,7 +159,8 @@ fun HangmanScreen(
         val ctx = context ?: return@LaunchedEffect
         game.difficulty = settings.defaultCpuDifficulty
         game.init(ctx)
-        game.loadDictionary(androidContext)
+        // Parsing the 359k-word list is heavy; keep it off the main thread.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { game.loadDictionary(androidContext) }
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
             onMatchEnded()

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Slide and Climb (hubKey names). The shared mode titles, the Ludo blurbs and "Exact roll to finish" already exist elsewhere. -->
+    <string name="hub_slide_and_climb">Slide and Climb</string>
+    <string name="hub_roll_the_dice_and_race_to_square_100">Roll the dice and race to square 100.</string>
+    <string name="hub_on_land_on_100_exactly_off_bounce_back">On: land on 100 exactly. Off: bounce back.</string>
+    <string name="hub_spare_roll">Spare roll</string>
+    <string name="hub_one_extra_roll_to_use_instead_of_a_bad_one">One extra roll to use instead of a bad one.</string>
+    <string name="hub_no_spare_roll">No spare roll</string>
+    <string name="hub_everyone_has_one">Everyone has one</string>
+    <string name="hub_player_1_only">Player 1 only</string>
+    <string name="hub_player_2_only">Player 2 only</string>
+    <string name="hub_player_3_only">Player 3 only</string>
+    <string name="hub_player_4_only">Player 4 only</string>
+</resources>

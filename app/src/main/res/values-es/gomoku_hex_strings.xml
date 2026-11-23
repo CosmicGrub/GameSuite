@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gomoku_help_title">Cómo jugar a Gomoku</string>
+    <string name="gomoku_help_body">Por turnos, coloca una piedra en cualquier punto vacío del tablero. Gana quien primero alinee cinco piedras propias, en horizontal, vertical o diagonal.
+
+%1$s
+
+Si el tablero se llena sin ninguna línea de cinco, es un empate.
+
+¿Sabías que? Gomoku significa \"cinco puntos\" en japonés. Se juega en Asia oriental desde hace siglos.</string>
+    <string name="gomoku_rules_free">Reglas libres: gana cinco o más en línea.</string>
+    <string name="gomoku_rules_exact">Reglas de cinco exactas: una línea de seis o más no cuenta.</string>
+    <string name="gomoku_thinking">El ordenador está pensando…</string>
+    <string name="gomoku_waiting_host">Esperando a que el anfitrión empiece la partida…</string>
+    <string name="gomoku_waiting_help">Esperando a que el anfitrión empiece la partida.</string>
+    <string name="gomoku_your_turn">Tu turno</string>
+    <string name="gomoku_turn_of">Turno de %1$s</string>
+    <string name="gomoku_turn_of_stone">Turno de %1$s (piedras %2$s)</string>
+    <string name="gomoku_waiting_for">Esperando a %1$s</string>
+    <string name="gomoku_vs_line">contra %1$s · juegas con piedras %2$s</string>
+    <string name="gomoku_opp_left">El rival se ha desconectado</string>
+    <string name="gomoku_dark">oscuras</string>
+    <string name="gomoku_light">claras</string>
+    <string name="gomoku_cell_empty">Vacío, fila %1$d, columna %2$d</string>
+    <string name="gomoku_cell_dark">Piedra oscura, fila %1$d, columna %2$d</string>
+    <string name="gomoku_cell_light">Piedra clara, fila %1$d, columna %2$d</string>
+    <string name="gomoku_cell_last">última jugada</string>
+    <string name="gomoku_cell_win">parte de la línea ganadora</string>
+    <string name="gomoku_cell_hint">jugada sugerida</string>
+    <string name="gomoku_cell_selected">seleccionado, toca otra vez para colocar</string>
+    <string name="gomoku_err_occupied">Ese punto ya está ocupado.</string>
+    <string name="gomoku_err_not_turn">Todavía no es tu turno.</string>
+    <string name="gomoku_err_over">La partida ha terminado. Empieza otra para seguir jugando.</string>
+    <string name="gomoku_err_left">Tu rival ha abandonado la partida.</string>
+    <string name="gomoku_ann_move">%1$s colocó una piedra en la fila %2$d, columna %3$d</string>
+    <string name="gomoku_ann_win">%1$s gana con cinco en línea</string>
+    <string name="gomoku_ann_draw">El tablero está lleno. Es un empate.</string>
+    <string name="gomoku_win_title">¡%1$s gana!</string>
+    <string name="gomoku_draw_title">¡Empate!</string>
+    <string name="gomoku_you_won">¡Has ganado!</string>
+    <string name="gomoku_you_lost">Has perdido.</string>
+    <string name="gomoku_a_draw">Empate.</string>
+    <string name="gomoku_session_entry">%1$s: %2$d</string>
+    <string name="gomoku_session">Sesión: %1$s</string>
+    <string name="gomoku_session_draws">Sesión: %1$s · Empates %2$d</string>
+    <string name="gomoku_play_again">Jugar otra vez</string>
+    <string name="gomoku_back_to_menu">Volver al menú</string>
+    <string name="gomoku_undo">Deshacer</string>
+    <string name="gomoku_hint">Pista</string>
+    <string name="gomoku_hint_unavailable">Pista no disponible, %1$s</string>
+    <string name="gomoku_reason_over">la partida ha terminado</string>
+    <string name="gomoku_reason_cpu">el ordenador está jugando</string>
+    <string name="gomoku_place">Colocar piedra</string>
+    <string name="gomoku_leave_title">¿Salir de esta partida?</string>
+    <string name="gomoku_leave_body">La partida sigue en curso. Si sales ahora no contará como victoria ni derrota.</string>
+    <string name="gomoku_leave_body_kept">La partida sigue en curso y no contará, pero las partidas que ya terminaste siguen en tu historial.</string>
+    <string name="gomoku_coach_title">¿Nuevo en Gomoku?</string>
+    <string name="gomoku_coach_body">Toca un punto para seleccionarlo y vuelve a tocarlo (o pulsa Colocar piedra) para jugar. Bloquea los tres y cuatro abiertos de tu rival antes de que lleguen a cinco y crea los tuyos. Gomoku significa \"cinco puntos\" en japonés.</string>
+    <string name="gomoku_coach_dismiss">Entendido</string>
+    <string name="gomoku_board_desc">Tablero de Gomoku de 15 por 15. %1$s</string>
+    <string name="hex_help_title">Cómo jugar a Hex</string>
+    <string name="hex_help_body">Por turnos, coloca una piedra en cualquier hexágono vacío. El rojo une sus dos bordes rojos; el azul, sus dos bordes azules (los bordes de color del tablero). Gana quien primero una sus dos lados con una cadena continua de piedras propias. En Hex nunca hay empates.
+
+%1$s
+
+¿Sabías que? Hex lo inventó en los años 40 el matemático Piet Hein y, por separado, John Nash.</string>
+    <string name="hex_pie_on">La regla del pastel está activa: tras la primera piedra, el segundo jugador puede cambiar y quedarse esa piedra en lugar de mover.</string>
+    <string name="hex_pie_off">La regla del pastel está desactivada.</string>
+    <string name="hex_thinking">El ordenador está pensando…</string>
+    <string name="hex_waiting_host">Esperando a que el anfitrión empiece la partida…</string>
+    <string name="hex_waiting_help">Esperando a que el anfitrión empiece la partida.</string>
+    <string name="hex_your_turn">Tu turno</string>
+    <string name="hex_turn_of">Turno de %1$s (%2$s)</string>
+    <string name="hex_waiting_for">Esperando a %1$s</string>
+    <string name="hex_vs_line">contra %1$s · eres el %2$s</string>
+    <string name="hex_opp_left">El rival se ha desconectado</string>
+    <string name="hex_red">Rojo</string>
+    <string name="hex_blue">Azul</string>
+    <string name="hex_goal_red">une bordes rojos</string>
+    <string name="hex_goal_blue">une bordes azules</string>
+    <string name="hex_side_line">%1$s · %2$s</string>
+    <string name="hex_cell_empty">Vacío, fila %1$d, columna %2$d</string>
+    <string name="hex_cell_red">Piedra roja, fila %1$d, columna %2$d</string>
+    <string name="hex_cell_blue">Piedra azul, fila %1$d, columna %2$d</string>
+    <string name="hex_cell_last">última jugada</string>
+    <string name="hex_cell_win">parte de la cadena ganadora</string>
+    <string name="hex_cell_hint">jugada sugerida</string>
+    <string name="hex_cell_selected">seleccionado, toca otra vez para colocar</string>
+    <string name="hex_err_occupied">Ese hexágono ya está ocupado.</string>
+    <string name="hex_err_not_turn">Todavía no es tu turno.</string>
+    <string name="hex_err_over">La partida ha terminado. Empieza otra para seguir jugando.</string>
+    <string name="hex_err_left">Tu rival ha abandonado la partida.</string>
+    <string name="hex_ann_move">%1$s colocó una piedra en la fila %2$d, columna %3$d</string>
+    <string name="hex_ann_swap">%1$s cambió y se quedó la piedra de apertura</string>
+    <string name="hex_ann_win">%1$s gana al unir sus lados</string>
+    <string name="hex_win_title">¡%1$s gana!</string>
+    <string name="hex_you_won">¡Has ganado!</string>
+    <string name="hex_you_lost">Has perdido.</string>
+    <string name="hex_session_entry">%1$s: %2$d</string>
+    <string name="hex_session">Sesión: %1$s</string>
+    <string name="hex_play_again">Jugar otra vez</string>
+    <string name="hex_back_to_menu">Volver al menú</string>
+    <string name="hex_undo">Deshacer</string>
+    <string name="hex_hint">Pista</string>
+    <string name="hex_hint_unavailable">Pista no disponible, %1$s</string>
+    <string name="hex_reason_over">la partida ha terminado</string>
+    <string name="hex_reason_cpu">el ordenador está jugando</string>
+    <string name="hex_place">Colocar piedra</string>
+    <string name="hex_swap">Cambiar de lado</string>
+    <string name="hex_swap_hint">Regla del pastel: quédate la piedra de apertura en lugar de mover.</string>
+    <string name="hex_leave_title">¿Salir de esta partida?</string>
+    <string name="hex_leave_body">La partida sigue en curso. Si sales ahora no contará como victoria ni derrota.</string>
+    <string name="hex_leave_body_kept">La partida sigue en curso y no contará, pero las partidas que ya terminaste siguen en tu historial.</string>
+    <string name="hex_coach_title">¿Nuevo en Hex?</string>
+    <string name="hex_coach_body">Toca un hexágono para seleccionarlo y vuelve a tocarlo (o pulsa Colocar piedra) para jugar. El rojo une los dos bordes rojos; el azul, los dos bordes azules: cada piedra es un paso para ti y un muro para tu rival. Dos piedras separadas en forma de rombo son difíciles de cortar.</string>
+    <string name="hex_coach_dismiss">Entendido</string>
+    <string name="hex_board_desc">Tablero de Hex de %1$d por %1$d. %2$s</string>
+    <string name="hub_gomoku">Gomoku</string>
+    <string name="hub_line_up_five_stones_before_your_opponent_does">Alinea cinco piedras antes que tu rival.</string>
+    <string name="hub_rules">Reglas</string>
+    <string name="hub_free_style_five_or_more_in_a_row_wins_exactly_fi_d28772">Libre: gana quien alinee cinco o más. Exactamente cinco: una línea de seis o más no cuenta.</string>
+    <string name="hub_free_style">Libre</string>
+    <string name="hub_five_or_more_in_a_row_wins">Gana cinco o más en línea.</string>
+    <string name="hub_exactly_five">Exactamente cinco</string>
+    <string name="hub_six_or_more_in_a_row_does_not_count">Seis o más en línea no cuentan.</string>
+    <string name="hub_hex">Hex</string>
+    <string name="hub_join_your_two_sides_of_the_board_before_your_opp_b28da1">Une tus dos lados del tablero antes que tu rival.</string>
+    <string name="hub_a_bigger_board_means_a_longer_game_eleven_is_the_86ef76">Un tablero más grande significa una partida más larga. Once es el tamaño clásico.</string>
+    <string name="hub_9_x_9">9 x 9</string>
+    <string name="hub_11_x_11">11 x 11</string>
+    <string name="hub_13_x_13">13 x 13</string>
+    <string name="hub_pie_rule">Regla del pastel</string>
+    <string name="hub_after_the_first_stone_the_second_player_may_swap_823070">Tras la primera piedra el segundo jugador puede cambiar de lado, así que una apertura fuerte no es una victoria segura.</string>
+</resources>

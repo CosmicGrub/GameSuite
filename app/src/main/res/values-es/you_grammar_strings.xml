@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Formas en segunda persona, para cuando el nombre del asiento es "Tú". -->
+    <string name="yg_win">¡Ganas!</string>
+    <string name="yg_gomoku_ann_win">Ganas con cinco en línea</string>
+    <string name="yg_hex_ann_win">Ganas al unir tus lados</string>
+    <string name="yg_morris_end_reduced">Te quedaste con solo dos fichas.</string>
+    <string name="yg_cc_ann_skipped">Estás bloqueado y pasas.</string>
+    <string name="yg_ludo_ann_win">¡Llevaste las cuatro fichas a casa y ganas!</string>
+    <string name="yg_shogi_hand_of">Tu mano</string>
+</resources>

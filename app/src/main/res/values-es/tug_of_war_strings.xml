@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tug of War screen strings -->
+    <string name="tow_help_title">Tira y afloja</string>
+    <string name="tow_help_text">Cada uno tiene un botón en su zona. Toca para llevar el marcador hacia tu línea; cada tirón gasta aguante, así que machacar te agota. Mantén el dedo pulsado para descansar y cargar, y suéltalo para un tirón fuerte. Lleva el marcador más allá de tu línea para ganar la ronda y gana la partida con más rondas.</string>
+    <string name="tow_cpu_tag">(CPU)</string>
+    <string name="tow_band_info">Ronda %1$d de %2$d</string>
+    <string name="tow_band_tiebreak">Ronda de desempate</string>
+    <string name="tow_time_left">Quedan %1$d s</string>
+    <string name="tow_status_ready">Ronda %1$d de %2$d. ¡Prepárate!</string>
+    <string name="tow_status_go">¡Tira! Toca, o mantén y suelta para un tirón fuerte.</string>
+    <string name="tow_status_round_win">¡%1$s gana la ronda!</string>
+    <string name="tow_status_round_win_you">¡Ganas la ronda!</string>
+    <string name="tow_status_round_win_team">¡%1$s ganan la ronda!</string>
+    <string name="tow_status_round_draw">Nadie gana esa ronda.</string>
+    <string name="tow_status_match_win">¡%1$s gana la partida!</string>
+    <string name="tow_status_match_win_you">¡Ganas la partida!</string>
+    <string name="tow_status_match_win_team">¡%1$s ganan la partida!</string>
+    <string name="tow_status_match_draw">La partida termina en empate.</string>
+    <string name="tow_score">Rondas ganadas: %1$s</string>
+    <string name="tow_final_rounds">Rondas: %1$s</string>
+    <string name="tow_go">¡TIRA!</string>
+    <string name="tow_heave">¡FUERTE!</string>
+    <string name="tow_resting">Descansando</string>
+    <string name="tow_rest_hint">Cansado: mantén para descansar</string>
+    <string name="tow_tired">Cansado</string>
+    <string name="tow_stamina_pct">%1$d%%</string>
+    <string name="tow_zone_won">¡Ronda ganada!</string>
+    <string name="tow_zone_desc">%1$s, aguante %2$d por ciento. Toca dos veces para tirar.</string>
+    <string name="tow_zone_desc_cpu">%1$s, tirador CPU.</string>
+    <string name="tow_action_heave">Tirón fuerte</string>
+</resources>

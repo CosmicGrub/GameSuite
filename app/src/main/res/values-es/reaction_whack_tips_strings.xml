@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First-run tips (ES) -->
+<resources>
+    <string name="tip_reaction_duel_1">Apoya un dedo junto al botón, pero no pulses hasta la señal. Pulsar antes te deja fuera de la ronda.</string>
+    <string name="tip_reaction_duel_2">En Color y forma solo cuenta la forma objetivo. Fíjate en la forma, nunca solo en el color.</string>
+    <string name="tip_reaction_duel_3">¿Te cuesta? Activa Tranquila en la configuración para tener más tiempo y sin penalizaciones.</string>
+    <string name="tip_whack_a_mole_1">Los erizos de púas restan puntos: toca solo a los bichos de cara redonda. Los dorados valen el triple.</string>
+    <string name="tip_whack_a_mole_2">Golpea seguido sin fallar para crear una racha: con cinco se multiplica por dos, con diez por tres.</string>
+    <string name="tip_whack_a_mole_3">Todas las zonas reciben los mismos bichos a la vez, así que la carrera es justa.</string>
+</resources>

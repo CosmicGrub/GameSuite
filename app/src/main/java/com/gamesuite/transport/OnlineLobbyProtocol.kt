@@ -31,6 +31,106 @@ sealed class OnlineLobbyMessage {
      */
     @Serializable
     data class Rejected(val reason: String) : OnlineLobbyMessage()
+
+    /**
+     * Guest or spectator -> host (addressed), sent once the relay confirms a join (and again after a
+     * reconnect). The relay announces a joining SEAT to the host but never a spectator, and the host
+     * broadcasts [GameStart] only once, from its Start button, so a member who arrives after Start would
+     * wait forever. A host whose game is running answers a Hello (see [OnlineLateJoinResponder]); a host
+     * still in its lobby ignores it, since the Start broadcast is still to come. [spectator] is what the
+     * sender asked the relay for; it only decides between a [GameStart] and a "game already started"
+     * refusal, so claiming it falsely gains nothing (a watcher never receives a hand).
+     */
+    @Serializable
+    data class Hello(val spectator: Boolean = false) : OnlineLobbyMessage()
+
+    /**
+     * Guest -> host (addressed): this guest is ready to start (or no longer). Only believed from a SEATED guest's
+     * relay-stamped id, never from anything inside the payload; the host decides what readiness means (see
+     * [com.gamesuite.core.OnlineHostLobbyState]). A host that predates this simply ignores it.
+     */
+    @Serializable
+    data class Ready(val ready: Boolean) : OnlineLobbyMessage()
+
+    /**
+     * Host -> everyone (broadcast), whenever a seat changes: what the lobby table looks like, so every guest sees the
+     * same seat grid with avatars, computers and ready marks. A guest only believes it from the host
+     * ([isFromHost]) and shows [sanitized] text. Purely informational: it never decides who is seated (the
+     * [GameStart] roster does).
+     */
+    @Serializable
+    data class RosterUpdate(val seats: List<SeatView>) : OnlineLobbyMessage()
+}
+
+/** What a lobby seat holds. */
+@Serializable
+enum class SeatKind { HOST, HUMAN, CPU, EMPTY }
+
+/** One seat of the lobby table as the host reports it in [OnlineLobbyMessage.RosterUpdate]. */
+@Serializable
+data class SeatView(
+    val kind: SeatKind,
+    val playerId: String? = null,
+    val name: String = "",
+    val ready: Boolean = false,
+)
+
+/** [seats] made safe to show: a bounded count, control characters dropped, names capped, ids bounded. */
+fun OnlineLobbyMessage.RosterUpdate.sanitized(): List<SeatView> =
+    seats.take(MAX_LOBBY_SEATS).map {
+        it.copy(
+            playerId = it.playerId?.filterNot { c -> c.isISOControl() }?.take(64),
+            name = it.name.filterNot { c -> c.isISOControl() }.trim().take(40),
+        )
+    }
+
+/** The most seats any lobby table can show (the relay seats 8 per room). */
+const val MAX_LOBBY_SEATS = 16
+
+/** Whether a guest should act on this [OnlineLobbyMessage.RosterUpdate]: only the room's host describes the table. */
+fun OnlineLobbyMessage.RosterUpdate.isFromHost(fromPlayerId: String, hostPlayerId: String?): Boolean =
+    hostPlayerId != null && fromPlayerId == hostPlayerId
+
+/** The raw relay payload of an [OnlineLobbyMessage.Hello]. */
+fun onlineHelloPayload(spectator: Boolean): ByteArray {
+    val hello: OnlineLobbyMessage = OnlineLobbyMessage.Hello(spectator)
+    return LobbyJson.encodeToString(OnlineLobbyMessage.serializer(), hello).toByteArray(Charsets.UTF_8)
+}
+
+/**
+ * Host-side answer to late arrivals, alive for as long as the host's game is. Feed every raw relay
+ * message to [onRawMessage]. A [OnlineLobbyMessage.Hello] from a roster seat (a reconnecting guest that
+ * missed Start) or from a spectator gets the [gameStart] re-sent, addressed to that sender alone; a
+ * Hello from anyone else who wanted a seat gets [LOBBY_STARTED_MESSAGE]. Game traffic and everything
+ * else is ignored, and a single sender is answered a bounded number of times.
+ */
+class OnlineLateJoinResponder(
+    private val gameStart: OnlineLobbyMessage.GameStart,
+    private val sendRaw: (toPlayerId: String, payload: ByteArray) -> Unit,
+) {
+    private val answered = HashMap<String, Int>()
+
+    @Synchronized
+    fun onRawMessage(fromPlayerId: String, payload: ByteArray) {
+        if (payload.size > MAX_HELLO_BYTES) return // game traffic, not a lobby Hello
+        val message = runCatching {
+            LobbyJson.decodeFromString(OnlineLobbyMessage.serializer(), String(payload, Charsets.UTF_8))
+        }.getOrNull()
+        if (message !is OnlineLobbyMessage.Hello) return
+        if (fromPlayerId == gameStart.players.firstOrNull()?.playerId) return // the host never answers itself
+        val count = answered[fromPlayerId] ?: 0
+        if (count >= MAX_ANSWERS_PER_SENDER) return
+        answered[fromPlayerId] = count + 1
+        val seated = gameStart.players.any { it.playerId == fromPlayerId }
+        val reply: OnlineLobbyMessage =
+            if (seated || message.spectator) gameStart else OnlineLobbyMessage.Rejected(LOBBY_STARTED_MESSAGE)
+        sendRaw(fromPlayerId, LobbyJson.encodeToString(OnlineLobbyMessage.serializer(), reply).toByteArray(Charsets.UTF_8))
+    }
+
+    private companion object {
+        const val MAX_HELLO_BYTES = 512
+        const val MAX_ANSWERS_PER_SENDER = 8
+    }
 }
 
 /** Whether a guest should act on this [OnlineLobbyMessage.Rejected]: only the room's host can turn a guest away. */
@@ -45,8 +145,12 @@ class OnlineSeating(val seated: List<OnlinePlayer>, val overflow: List<OnlinePla
  * `limits.maxGuests` guests in join order are seated, anyone beyond that is overflow (sent a
  * [OnlineLobbyMessage.Rejected] and left out of the announced roster).
  */
-fun seatOnlineGuests(connected: List<OnlinePlayer>, limits: LobbySeatLimits): OnlineSeating =
-    OnlineSeating(connected.take(limits.maxGuests), connected.drop(limits.maxGuests))
+fun seatOnlineGuests(connected: List<OnlinePlayer>, limits: LobbySeatLimits): OnlineSeating {
+    // An id in the computer-seat namespace ("cpu-N") is never seated: it would collide with a computer seat's id and
+    // make every guest's roster fail the duplicate-id check. It is turned away like overflow.
+    val (impostors, candidates) = connected.partition { isCpuPlayerId(it.playerId) }
+    return OnlineSeating(candidates.take(limits.maxGuests), candidates.drop(limits.maxGuests) + impostors)
+}
 
 /**
  * Whether a guest should act on this [OnlineLobbyMessage.GameStart]: the relay stamped it as

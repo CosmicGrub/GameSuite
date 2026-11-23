@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Six-Ball Puzzle and Pig coach cards (own file; the GameCoach.entries entries are added by the integrator) -->
+    <string name="coach_six_ball_puzzle_s1">Six coloured balls sit on a wooden tray. Tilt the tray with the four arrow buttons, or swipe the board, and every ball rolls as far as it can.</string>
+    <string name="coach_six_ball_puzzle_s2">A ball stops against a post, the rail or another ball, so you decide where each one ends up by choosing the order of your tilts.</string>
+    <string name="coach_six_ball_puzzle_s3">Every ball has its own slot, marked with the same symbol and colour. Get all six onto their slots to solve the tray.</string>
+    <string name="coach_six_ball_puzzle_s4">Par is the fewest tilts that can possibly solve it. Finish at par for three stars. Undo is unlimited, and Hint shows the next tilt of a shortest way, or warns you about a dead end.</string>
+    <string name="coach_six_ball_puzzle_s5">Race friends on the same tray, in turns on one device or at the same time over Nearby or Online. The fewest tilts wins.</string>
+    <string name="coach_six_ball_puzzle_fact">Tilting puzzles like this one are sliding-block problems, and a computer solves them the way this game does: by searching every position, nearest first.</string>
+    <string name="coach_pig_dice_s1">On your turn roll the die as often as you like. Every roll adds to your pot.</string>
+    <string name="coach_pig_dice_s2">Press Hold to bank the pot into your score and end your turn.</string>
+    <string name="coach_pig_dice_s3">Roll a 1 and you lose the whole pot, and the turn passes. The longer you roll, the more you stand to lose.</string>
+    <string name="coach_pig_dice_s4">The first player to reach the goal wins, and you win the moment your score plus the pot gets there. Hint tells you the best move and your chance of winning.</string>
+    <string name="coach_pig_dice_s5">Try the variants: Big Pig with two dice, Hog with a single roll of as many dice as you choose, and Twenty-One Plus.</string>
+    <string name="coach_pig_dice_fact">Computers have solved Pig: the best play keeps rolling until the pot reaches about 25, and the player who goes first wins about 53 percent of the time.</string>
+</resources>

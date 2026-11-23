@@ -126,6 +126,29 @@ class HubLaunchTest {
     }
 
     @Test
+    fun expertIsNotOfferedBecauseNoEngineHonoursIt() {
+        val labels = (chess.mode("cpu")!!.options.first { it.key == HubKeys.DIFFICULTY } as HubOption.Choice)
+            .choices.map { it.label }
+        assertEquals(listOf("Settings default", "Easy", "Medium", "Hard"), labels)
+    }
+
+    @Test
+    fun everyLevelCarriesNoExpertMarkerAndStaleSavedChoicesAreRepaired() {
+        listOf("EASY" to CpuLevel.EASY, "MEDIUM" to CpuLevel.MEDIUM, "HARD" to CpuLevel.HARD).forEach { (id, level) ->
+            val l = local(chess, "cpu", chess.mode("cpu")!!.defaults().with(HubKeys.DIFFICULTY, id))
+            assertEquals(level, CpuLevel.from(l.options))
+            assertFalse(l.options.extras.containsKey(CpuLevel.EXTRA_KEY))
+        }
+        // The default stays "no override", and a stale saved value is still repaired to it.
+        assertNull(local(chess, "cpu").options.cpuDifficulty)
+        val stale = chess.mode("cpu")!!.resolve(HubChoices(mapOf(HubKeys.DIFFICULTY to "LEGENDARY")))
+        assertEquals(HubKeys.DIFFICULTY_DEFAULT, stale.string(HubKeys.DIFFICULTY, "?"))
+        // A saved Expert choice (from when it was offered) is repaired to the default too.
+        val saved = chess.mode("cpu")!!.resolve(HubChoices(mapOf(HubKeys.DIFFICULTY to "EXPERT")))
+        assertEquals(HubKeys.DIFFICULTY_DEFAULT, saved.string(HubKeys.DIFFICULTY, "?"))
+    }
+
+    @Test
     fun passAndPlayHasTwoNamedHumansAndNoDifficulty() {
         val l = local(chess, "pass", names = listOf("  Ann   Lee ", ""))
         assertEquals(PlayMode.SINGLE_DEVICE_PASS_AND_PLAY, l.mode)
@@ -299,9 +322,9 @@ class GameSpeedTest {
     fun nextCyclesThroughEverySpeedAndWraps() {
         var s = GameSpeed.SLOW
         val seen = mutableListOf(s)
-        repeat(GameSpeed.values().size) { s = s.next(); seen += s }
+        repeat(GameSpeed.selectable.size) { s = s.next(); seen += s }
         assertEquals(GameSpeed.SLOW, seen.last())
-        assertEquals(GameSpeed.values().toSet(), seen.toSet())
+        assertEquals(GameSpeed.selectable.toSet(), seen.toSet())
     }
 
     @Test

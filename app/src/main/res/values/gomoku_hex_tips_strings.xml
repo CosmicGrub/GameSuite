@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tip_gomoku_1">Tap a point to select it, then tap again to place a stone.</string>
+    <string name="tip_gomoku_2">Line up five of your stones in a row, a column or a diagonal to win.</string>
+    <string name="tip_gomoku_3">Block your opponent\'s open threes and fours before they reach five.</string>
+    <string name="tip_hex_1">Red joins its two red edges, Blue joins its two blue edges.</string>
+    <string name="tip_hex_2">Link your two sides with an unbroken chain of stones. There are no draws.</string>
+    <string name="tip_hex_3">With the pie rule on, the second player may swap after the first stone.</string>
+</resources>

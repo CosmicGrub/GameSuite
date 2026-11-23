@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texas Hold'em (play chips only): own file; hub_* entries serve HoldemHubSpecs, tip_* serve GameTips -->
+    <string name="holdem_help_title">How to play Texas Hold\'em</string>
+    <string name="holdem_help_text">Play for chips only: there is no real money. Everyone starts with the same stack, and the last player holding chips wins.\n\nEach hand you get two private cards. Five shared cards come face up on the table: three (the flop), then one (the turn), then one (the river). Make the best five-card hand from your two cards and the five on the table.\n\nBetting happens before the flop and after each new card. Fold to give up the hand, check if nobody has bet, call to match a bet, or bet and raise to put more in. All in means pushing every chip you have. A raise must be at least as big as the last one.\n\nIf you cannot match a bet you can still go all in. Extra chips go into a side pot that only the players who matched it can win. When the betting ends, the best hand wins the pot, and equal hands split it.\n\nThe small and big blinds are forced bets that move around the table with the dealer button. They can rise as the game goes on, so a game always ends.\n\nUse Hint for your odds and a suggestion. Undo takes back your last bet before the next card is dealt (not in online games).</string>
+    <string name="holdem_waiting_host">Waiting for the host…</string>
+    <string name="holdem_host_left">The host left the table.</string>
+    <string name="holdem_leave_title">Leave this table?</string>
+    <string name="holdem_leave_body">The tournament is still going. Leaving now won\'t count as a win or a loss.</string>
+    <string name="holdem_card_cd">%1$s of %2$s</string>
+    <string name="holdem_card_hidden_cd">Face-down card</string>
+    <string name="holdem_hole_cd">Hole cards: %1$s</string>
+    <string name="holdem_board_cd">Board: %1$s</string>
+    <string name="holdem_board_empty_cd">Board: no cards yet</string>
+    <string name="holdem_chips_cd">%1$d chips</string>
+    <string name="holdem_bet_cd">%1$s bet: %2$d chips</string>
+    <string name="holdem_won_cd">Winnings: %1$d chips</string>
+    <string name="holdem_pot_cd">Pot: %1$d chips</string>
+    <string name="holdem_pot">Pot %1$d</string>
+    <string name="holdem_main_pot">Main pot</string>
+    <string name="holdem_side_pot">Side pot</string>
+    <string name="holdem_blinds">Blinds %1$d/%2$d</string>
+    <string name="holdem_blinds_rise">Hands until blinds rise: %1$d</string>
+    <string name="holdem_hand_no">Hand %1$d</string>
+    <string name="holdem_street_flop">Flop.</string>
+    <string name="holdem_street_turn">Turn.</string>
+    <string name="holdem_street_river">River.</string>
+    <string name="holdem_tag_dealer">Dealer</string>
+    <string name="holdem_tag_sb">Small blind</string>
+    <string name="holdem_tag_bb">Big blind</string>
+    <string name="holdem_tag_folded">Folded</string>
+    <string name="holdem_tag_allin">All in</string>
+    <string name="holdem_tag_out">Out of chips</string>
+    <string name="holdem_tag_turn">Turn to act</string>
+    <string name="holdem_tag_you">You</string>
+    <string name="holdem_act_out">Out</string>
+    <string name="holdem_act_fold">Fold</string>
+    <string name="holdem_act_check">Check</string>
+    <string name="holdem_act_call">Call %1$d</string>
+    <string name="holdem_act_bet">Bet %1$d</string>
+    <string name="holdem_act_raise">Raise %1$d</string>
+    <string name="holdem_act_allin">All in</string>
+    <string name="holdem_act_sb">SB</string>
+    <string name="holdem_act_bb">BB</string>
+    <string name="holdem_fold">Fold</string>
+    <string name="holdem_check">Check</string>
+    <string name="holdem_call">Call %1$d</string>
+    <string name="holdem_call_allin">Call %1$d (all in)</string>
+    <string name="holdem_bet">Bet</string>
+    <string name="holdem_raise">Raise</string>
+    <string name="holdem_all_in">All in</string>
+    <string name="holdem_bet_amount">Bet %1$d</string>
+    <string name="holdem_raise_to">Raise to %1$d</string>
+    <string name="holdem_allin_amount">All in: %1$d</string>
+    <string name="holdem_preset_min">Min</string>
+    <string name="holdem_preset_half">½ pot</string>
+    <string name="holdem_preset_pot">Pot</string>
+    <string name="holdem_preset_allin">All in</string>
+    <string name="holdem_preset_cd">%1$s, %2$d chips</string>
+    <string name="holdem_slider_cd">Bet amount</string>
+    <string name="holdem_slider_state">%1$d chips</string>
+    <string name="holdem_minus_cd">Decrease bet</string>
+    <string name="holdem_plus_cd">Increase bet</string>
+    <string name="holdem_deal_next">Deal next hand</string>
+    <string name="holdem_pass_title">Pass the device to %1$s</string>
+    <string name="holdem_pass_body">Make sure nobody else can see the screen, then tap to see your cards.</string>
+    <string name="holdem_pass_show">Show my cards</string>
+    <string name="holdem_ev_fold">%1$s: fold</string>
+    <string name="holdem_ev_check">%1$s: check</string>
+    <string name="holdem_ev_call">%1$s: call %2$d</string>
+    <string name="holdem_ev_bet">%1$s: bet %2$d</string>
+    <string name="holdem_ev_raise">%1$s: raise to %2$d</string>
+    <string name="holdem_ev_allin">%1$s: all in, %2$d</string>
+    <string name="holdem_ev_win_with">%1$s +%2$d with %3$s</string>
+    <string name="holdem_ev_win_plain">%1$s +%2$d</string>
+    <string name="holdem_ev_hand_over">Hand over. %1$s</string>
+    <string name="holdem_ev_uncontested">Everyone else folded. %1$s</string>
+    <string name="holdem_ev_match_over">Tournament over. Winner: %1$s.</string>
+    <string name="holdem_ev_new_hand">Hand %1$d. Blinds %2$d and %3$d. Dealer: %4$s.</string>
+    <string name="holdem_ev_left">Left the table: %1$s. The computer plays this seat.</string>
+    <string name="holdem_ev_returned">Back at the table: %1$s.</string>
+    <string name="holdem_turn_you">Your turn.</string>
+    <string name="holdem_turn_named">Waiting for %1$s.</string>
+    <string name="holdem_thinking">Thinking: %1$s.</string>
+    <string name="holdem_why_turn">It is not your turn.</string>
+    <string name="holdem_why_must_call">You can\'t check: there is a bet to call.</string>
+    <string name="holdem_why_nothing_to_call">There is nothing to call. Check or raise.</string>
+    <string name="holdem_why_min_raise">The raise must be to at least %1$d.</string>
+    <string name="holdem_why_stack">You can\'t bet more than your %1$d chips.</string>
+    <string name="holdem_why_no_reopen">You can\'t raise again: a short all-in did not reopen the betting.</string>
+    <string name="holdem_why_hand_over">The hand is over.</string>
+    <string name="holdem_why_match_over">The tournament is over.</string>
+    <string name="holdem_hint_fold">Hint: fold. Your hand wins about %1$d%% of the time, but calling costs %2$d to win %3$d, so you would need %4$d%%.</string>
+    <string name="holdem_hint_check">Hint: check. Your hand wins about %1$d%% of the time.</string>
+    <string name="holdem_hint_call">Hint: call. Your hand wins about %1$d%% of the time. Calling costs %2$d to win %3$d, and you need only %4$d%%.</string>
+    <string name="holdem_hint_raise">Hint: raise to %2$d. Your hand wins about %1$d%% of the time, a good edge.</string>
+    <string name="holdem_winner_title">Tournament winner: %1$s</string>
+    <string name="holdem_you_won">You won!</string>
+    <string name="holdem_you_lost">Better luck next time.</string>
+    <string name="holdem_final_line">%1$s: %2$d chips</string>
+    <string name="holdem_play_again">Play again</string>
+    <string name="holdem_back_menu">Back to menu</string>
+    <string name="holdem_hand_high">High card, %1$s</string>
+    <string name="holdem_hand_pair">Pair of %1$s</string>
+    <string name="holdem_hand_two_pair">Two pair, %1$s and %2$s</string>
+    <string name="holdem_hand_trips">Three of a kind, %1$s</string>
+    <string name="holdem_hand_straight">Straight, %1$s high</string>
+    <string name="holdem_hand_flush">Flush, %1$s high</string>
+    <string name="holdem_hand_full_house">Full house, %1$s full of %2$s</string>
+    <string name="holdem_hand_quads">Four of a kind, %1$s</string>
+    <string name="holdem_hand_straight_flush">Straight flush, %1$s high</string>
+    <string name="holdem_hand_royal">Royal flush</string>
+    <string name="tip_texas_holdem_1">You get two private cards. Five shared cards come face up; make your best five-card hand.</string>
+    <string name="tip_texas_holdem_2">On your turn: fold, check or call, or raise with the slider and its presets.</string>
+    <string name="tip_texas_holdem_3">Chips are for play only. The last player with chips wins, and the blinds can rise.</string>
+    <string-array name="holdem_rank_names">
+        <item>Two</item>
+        <item>Three</item>
+        <item>Four</item>
+        <item>Five</item>
+        <item>Six</item>
+        <item>Seven</item>
+        <item>Eight</item>
+        <item>Nine</item>
+        <item>Ten</item>
+        <item>Jack</item>
+        <item>Queen</item>
+        <item>King</item>
+        <item>Ace</item>
+    </string-array>
+    <string-array name="holdem_rank_plurals">
+        <item>Twos</item>
+        <item>Threes</item>
+        <item>Fours</item>
+        <item>Fives</item>
+        <item>Sixes</item>
+        <item>Sevens</item>
+        <item>Eights</item>
+        <item>Nines</item>
+        <item>Tens</item>
+        <item>Jacks</item>
+        <item>Queens</item>
+        <item>Kings</item>
+        <item>Aces</item>
+    </string-array>
+    <string-array name="holdem_suit_names">
+        <item>clubs</item>
+        <item>diamonds</item>
+        <item>hearts</item>
+        <item>spades</item>
+    </string-array>
+    <string name="hub_texas_hold_em">Texas Hold\'em</string>
+    <string name="hub_play_for_chips_only_outlast_every_rival_at_the_t_d88acb">Play for chips only. Outlast every rival at the table.</string>
+    <string name="hub_take_on_1_to_5_computer_players">Take on 1 to 5 computer players.</string>
+    <string name="hub_everyone_starts_with_the_same_stack_chips_are_pl_4f900a">Everyone starts with the same stack. Chips are play money only.</string>
+    <string name="hub_2_000_chips">2,000 chips</string>
+    <string name="hub_blinds_rise">Blinds rise</string>
+    <string name="hub_the_forced_bets_grow_so_a_game_always_ends">The forced bets grow so a game always ends.</string>
+    <string name="hub_never">Never</string>
+    <string name="hub_the_blinds_never_change">The blinds never change.</string>
+    <string name="hub_slowly">Slowly</string>
+    <string name="hub_every_12_hands">Every 12 hands.</string>
+    <string name="hub_normally">Normally</string>
+    <string name="hub_every_8_hands">Every 8 hands.</string>
+    <string name="hub_quickly">Quickly</string>
+    <string name="hub_every_4_hands">Every 4 hands.</string>
+    <string name="hub_computer_style">Computer style</string>
+    <string name="hub_how_the_computer_players_lean">How the computer players lean.</string>
+    <string name="hub_balanced">Balanced</string>
+    <string name="hub_plays_a_sound_even_game">Plays a sound, even game.</string>
+    <string name="hub_tight">Tight</string>
+    <string name="hub_plays_few_hands_and_bets_the_strong_ones">Plays few hands and bets the strong ones.</string>
+    <string name="hub_loose">Loose</string>
+    <string name="hub_plays_many_hands_and_bluffs_more">Plays many hands and bluffs more.</string>
+    <string name="hub_mixed">Mixed</string>
+    <string name="hub_each_computer_plays_differently">Each computer plays differently.</string>
+</resources>

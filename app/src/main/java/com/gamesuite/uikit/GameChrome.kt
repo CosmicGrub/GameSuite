@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,7 +36,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gamesuite.R
 
 /**
  * What [GameChrome] needs from the shell to park a game for later, without the uikit knowing
@@ -98,8 +102,8 @@ fun GameChrome(
     modifier: Modifier = Modifier,
     buttonFill: Color = MaterialTheme.colorScheme.background,
     buttonContent: Color = MaterialTheme.colorScheme.onBackground,
-    leaveTitle: String = "Leave this game?",
-    leaveBody: String = "This game is still in progress. Leaving now won't count it as a win or a loss.",
+    leaveTitle: String = stringResource(R.string.gc_leave_title),
+    leaveBody: String = stringResource(R.string.gc_leave_body),
     /**
      * False when [onAbort] will record the session through `leaveSession()` (earlier finished
      * boards exist): that ends the session, which discards its save, so the dialog must not
@@ -109,16 +113,29 @@ fun GameChrome(
     onUndo: (() -> Unit)? = null,
     canUndo: Boolean = true,
     onHint: (() -> Unit)? = null,
+    /**
+     * The screen's own pause for state the game module cannot see (a local paused flag). Optional:
+     * while ANY overlay is open (menu, help, leave dialog, or one reported through
+     * [OverlayPauseEffect]) the chrome pauses the active game module through
+     * [LocalOverlayPauseHost] and calls this too; both resume when the last overlay closes.
+     */
+    overlayPause: OverlayPauseHook? = null,
     extraItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {},
     content: @Composable BoxScope.() -> Unit
 ) {
     val progressSaver = LocalProgressSaver.current
+    val menuDesc = stringResource(R.string.gc_game_menu)
+    val menuOpenLabel = stringResource(R.string.gc_open_game_menu)
     var showMenu by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     // A double-tap on "Leave" (or back while the abort is still propagating) must not end the
     // match twice -- the second endMatch would fire the game's onMatchEnd/navigation again.
     var leaving by remember { mutableStateOf(false) }
+    val overlayPauseController = rememberOverlayPauseController(overlayPause)
+    OverlayPauseEffect0(overlayPauseController, "chrome-menu", showMenu)
+    OverlayPauseEffect0(overlayPauseController, "chrome-leave", showLeaveConfirm)
+    OverlayPauseEffect0(overlayPauseController, "chrome-help", showHelp)
 
     fun requestLeave() {
         if (leaving) return
@@ -127,7 +144,12 @@ fun GameChrome(
     BackHandler(onBack = ::requestLeave)
 
     Box(modifier = modifier.fillMaxSize()) {
-        content()
+        CompositionLocalProvider(LocalOverlayPause provides overlayPauseController) { content() }
+
+        // Networked matches only (a no-op for everything else): a reconnecting banner, and a clean "Host left" /
+        // "Connection lost" end through the game's own abort, so no game needs code for it. Nothing is saved: a
+        // match whose room is gone cannot be resumed.
+        SessionHealthOverlay(onEnded = { if (!leaving) { leaving = true; overlayPauseController.abandon(); onAbort() } })
 
         Box(
             modifier = Modifier
@@ -140,8 +162,8 @@ fun GameChrome(
                     .clip(CircleShape)
                     .background(buttonFill)
                     .border(1.dp, buttonContent.copy(alpha = 0.35f), CircleShape)
-                    .semantics { contentDescription = "Game menu" }
-                    .clickable(onClickLabel = "Open game menu", role = Role.Button) { showMenu = true },
+                    .semantics { contentDescription = menuDesc }
+                    .clickable(onClickLabel = menuOpenLabel, role = Role.Button) { showMenu = true },
                 contentAlignment = Alignment.Center
             ) {
                 // The glyph is decoration; without this a screen reader reads "vertical ellipsis".
@@ -153,19 +175,19 @@ fun GameChrome(
                 )
             }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                DropdownMenuItem(text = { Text("How to Play") }, onClick = { showMenu = false; showHelp = true })
+                DropdownMenuItem(text = { Text(stringResource(R.string.gc_how_to_play)) }, onClick = { showMenu = false; showHelp = true })
                 if (onUndo != null) {
                     DropdownMenuItem(
-                        text = { Text("Undo") },
+                        text = { Text(stringResource(R.string.gc_undo)) },
                         enabled = canUndo,
                         onClick = { showMenu = false; onUndo() }
                     )
                 }
                 if (onHint != null) {
-                    DropdownMenuItem(text = { Text("Hint") }, onClick = { showMenu = false; onHint() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.gc_hint)) }, onClick = { showMenu = false; onHint() })
                 }
                 extraItems { showMenu = false }
-                DropdownMenuItem(text = { Text("Back to Menu") }, onClick = { showMenu = false; requestLeave() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.gc_back_to_menu)) }, onClick = { showMenu = false; requestLeave() })
             }
         }
     }
@@ -178,7 +200,7 @@ fun GameChrome(
             text = {
                 Text(
                     if (savesProgress) {
-                        "$leaveBody\n\nYour progress is saved: pick this game from the menu to resume it."
+                        "$leaveBody\n\n" + stringResource(R.string.gc_progress_saved)
                     } else {
                         leaveBody
                     }
@@ -192,11 +214,12 @@ fun GameChrome(
                         // Save BEFORE aborting: abortMatch() ends the match, after which the
                         // engine has nothing left to snapshot.
                         if (savesProgress) progressSaver?.save?.invoke()
+                        overlayPauseController.abandon() // the match is ending: do not wake its timers
                         onAbort()
                     }
-                }) { Text("Leave") }
+                }) { Text(stringResource(R.string.gc_leave)) }
             },
-            dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text("Keep Playing") } }
+            dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text(stringResource(R.string.gc_keep_playing)) } }
         )
     }
 
@@ -206,7 +229,16 @@ fun GameChrome(
             title = { Text(helpTitle) },
             // Scrolls so a long rules text never clips on a short or narrow window (Fold cover, landscape).
             text = { Text(helpText, modifier = Modifier.verticalScroll(rememberScrollState())) },
-            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Got it") } }
+            confirmButton = { TextButton(onClick = { showHelp = false }) { Text(stringResource(R.string.gc_got_it)) } }
         )
+    }
+}
+
+/** Same as [OverlayPauseEffect] but bound to an explicit controller (the chrome owns it, so the local is not set yet). */
+@Composable
+private fun OverlayPauseEffect0(controller: OverlayPauseController, key: String, open: Boolean) {
+    DisposableEffect(controller, key, open) {
+        if (open) controller.setOpen(key, true)
+        onDispose { if (open) controller.setOpen(key, false) }
     }
 }

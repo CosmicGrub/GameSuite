@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sendero Dulce (id del juego sweet-trail): misma lista de claves que values/sweet_trail_strings.xml. TODO native review: Spanish written by the author, not yet read by a native speaker. -->
+
+    <!-- Screen -->
+    <string name="sweet_trail_help_title">Sendero Dulce</string>
+    <string name="sweet_trail_help_text">Toca el montón de cartas para sacar una carta. Tu ficha salta a la siguiente casilla del color de la carta. Una carta doble salta a la segunda casilla de ese color. Una carta de lugar te lleva hasta ese sitio. ¡Llega primero a la Mesa de la Fiesta para ganar!</string>
+    <string name="sweet_trail_tap_pile">Toca el montón de cartas</string>
+    <string name="sweet_trail_pile_label">Montón de cartas, quedan %1$d</string>
+    <string name="sweet_trail_last_card">Última carta: %1$s</string>
+    <string name="sweet_trail_keep">Quedarme con la carta</string>
+    <string name="sweet_trail_wish_button">Usar deseo</string>
+    <string name="sweet_trail_wish_left">A %1$s le queda un deseo.</string>
+    <string name="sweet_trail_wish_none">No queda ningún deseo.</string>
+    <string name="sweet_trail_square_label">Casilla %1$d, %2$s</string>
+    <string name="sweet_trail_card_label">Carta: %1$s</string>
+    <string name="sweet_trail_pawn_label">%1$s, ficha %2$s, en la casilla %3$d</string>
+    <string name="sweet_trail_pawn_label_start">%1$s, ficha %2$s, en la salida</string>
+    <string name="sweet_trail_leave_title">¿Salir de este juego?</string>
+    <string name="sweet_trail_leave_body">La partida sigue en marcha. Si sales ahora, no cuenta como victoria ni derrota.</string>
+
+    <!-- Colour names -->
+    <string name="sweet_trail_colour_cherry">Rojo cereza</string>
+    <string name="sweet_trail_colour_tangerine">Naranja mandarina</string>
+    <string name="sweet_trail_colour_lemon">Amarillo limón</string>
+    <string name="sweet_trail_colour_lime">Verde lima</string>
+    <string name="sweet_trail_colour_blueberry">Azul arándano</string>
+    <string name="sweet_trail_colour_grape">Morado uva</string>
+
+    <!-- Colour patterns (every colour also has a pattern, so colour is never the only cue) -->
+    <string name="sweet_trail_pattern_cherry">puntos</string>
+    <string name="sweet_trail_pattern_tangerine">rayas</string>
+    <string name="sweet_trail_pattern_lemon">aros</string>
+    <string name="sweet_trail_pattern_lime">ondas</string>
+    <string name="sweet_trail_pattern_blueberry">cuadros</string>
+    <string name="sweet_trail_pattern_grape">rombos</string>
+
+    <!-- Player shapes -->
+    <string name="sweet_trail_shape_circle">círculo</string>
+    <string name="sweet_trail_shape_square">cuadrado</string>
+    <string name="sweet_trail_shape_triangle">triángulo</string>
+    <string name="sweet_trail_shape_diamond">rombo</string>
+
+    <!-- Card names -->
+    <string name="sweet_trail_card_double">Doble %1$s</string>
+
+    <!-- Landmark names (also the landmark card names) -->
+    <string name="sweet_trail_landmark_cookie_hill">Colina de Galleta</string>
+    <string name="sweet_trail_landmark_lemonade_lake">Lago de Limonada</string>
+    <string name="sweet_trail_landmark_cupcake_tower">Torre de Magdalena</string>
+    <string name="sweet_trail_landmark_honeycomb_cave">Cueva de Panal</string>
+    <string name="sweet_trail_landmark_marshmallow_meadow">Prado de Malvavisco</string>
+    <string name="sweet_trail_landmark_cake_gate">Puerta de Tarta</string>
+
+    <!-- Place names -->
+    <string name="sweet_trail_jelly_bridge">Puente de Gelatina</string>
+    <string name="sweet_trail_pretzel_ladder">Escalera de Pretzel</string>
+    <string name="sweet_trail_cloud_zipline">Tirolina de Nubes</string>
+    <string name="sweet_trail_puddle">Charco Pegajoso</string>
+    <string name="sweet_trail_place_start">Salida</string>
+    <string name="sweet_trail_place_finish">Mesa de la Fiesta</string>
+
+    <!-- Announcements -->
+    <string name="sweet_trail_ann_start">Empieza %1$s. Toca el montón de cartas.</string>
+    <string name="sweet_trail_ann_start_you">Empiezas tú. Toca el montón de cartas.</string>
+    <string name="sweet_trail_ann_move">%1$s sacó %2$s y saltó a la casilla %3$d.</string>
+    <string name="sweet_trail_ann_move_you">Sacaste %1$s y saltaste a la casilla %2$d.</string>
+    <string name="sweet_trail_ann_shortcut">%1$s sacó %2$s, encontró el atajo %3$s y voló a la casilla %4$d.</string>
+    <string name="sweet_trail_ann_shortcut_you">Sacaste %1$s, encontraste el atajo %2$s y volaste a la casilla %3$d.</string>
+    <string name="sweet_trail_ann_puddle">%1$s sacó %2$s y cayó en el Charco Pegajoso. Espera un turno.</string>
+    <string name="sweet_trail_ann_puddle_you">Sacaste %1$s y caíste en el Charco Pegajoso. Esperas un turno.</string>
+    <string name="sweet_trail_ann_stuck">%1$s se libera del Charco Pegajoso. ¡Siguiente jugador!</string>
+    <string name="sweet_trail_ann_stuck_you">Te liberas del Charco Pegajoso. ¡Siguiente jugador!</string>
+    <string name="sweet_trail_ann_passed">%1$s sacó %2$s pero ya pasó por ahí. ¡Baile feliz!</string>
+    <string name="sweet_trail_ann_passed_you">Sacaste %1$s pero ya pasaste por ahí. ¡Baile feliz!</string>
+    <string name="sweet_trail_ann_pending">%1$s sacó %2$s. Quédate con la carta o usa el deseo.</string>
+    <string name="sweet_trail_ann_pending_you">Sacaste %1$s. Quédate con la carta o usa tu deseo.</string>
+    <string name="sweet_trail_ann_wish_used">Deseo usado. Sacando otra carta.</string>
+    <string name="sweet_trail_ann_reshuffle">El montón está vacío. Barajando las cartas.</string>
+    <string name="sweet_trail_ann_win">¡%1$s llega a la Mesa de la Fiesta y gana!</string>
+    <string name="sweet_trail_ann_win_you">¡Llegas a la Mesa de la Fiesta y ganas!</string>
+
+    <!-- Why lines -->
+    <string name="sweet_trail_why_wait">Todavía no es tu turno.</string>
+    <string name="sweet_trail_why_cpu">El ordenador está jugando su turno.</string>
+    <string name="sweet_trail_why_decide">Primero quédate con la carta o usa tu deseo.</string>
+    <string name="sweet_trail_why_over">La partida ha terminado.</string>
+
+    <!-- Post-game -->
+    <string name="sweet_trail_result_win">¡Gana %1$s!</string>
+    <string name="sweet_trail_result_win_you">¡Has ganado!</string>
+    <string name="sweet_trail_play_again">Jugar otra vez</string>
+    <string name="sweet_trail_back_to_menu">Volver al menú</string>
+
+    <!-- Score card -->
+    <string name="sweet_trail_score_title">Informe del sendero</string>
+    <string name="sweet_trail_score_line">%1$s: casilla %2$d de %3$d</string>
+    <string name="sweet_trail_score_turns">Turnos jugados: %1$d</string>
+    <string name="sweet_trail_score_shortcuts">Atajos encontrados: %1$d</string>
+    <string name="sweet_trail_score_puddles">Paradas en el charco: %1$d</string>
+    <string name="sweet_trail_score_session">Sesión: %1$s</string>
+
+    <!-- Coach card -->
+    <string name="coach_sweet_trail_s1">Toca el montón de cartas. La carta de arriba muestra un color.</string>
+    <string name="coach_sweet_trail_s2">Tu ficha salta a la siguiente casilla de ese color.</string>
+    <string name="coach_sweet_trail_s3">Una carta doble salta a la segunda casilla de ese color.</string>
+    <string name="coach_sweet_trail_s4">Puentes, escaleras y tirolinas son atajos. El Charco Pegajoso te hace esperar un turno.</string>
+    <string name="coach_sweet_trail_s5">Gana quien llegue primero a la Mesa de la Fiesta. Los ordenadores pueden ocupar sitios vacíos.</string>
+    <string name="coach_sweet_trail_fact">Los juegos de sendero con cartas de color no necesitan leer ni contar, así que hasta un niño de tres años puede jugar.</string>
+
+    <!-- Tips -->
+    <string name="draft_tip_sweet_trail_1">Toca el montón para sacar una carta. Tu ficha se mueve sola.</string>
+    <string name="draft_tip_sweet_trail_2">¡Busca atajos: puentes, escaleras y tirolinas!</string>
+    <string name="draft_tip_sweet_trail_3">Charco Pegajoso: espera un turno. Un deseo te deja cambiar una carta.</string>
+
+    <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
+    <string name="hub_sweet_trail">Sendero Dulce</string>
+    <string name="hub_draw_a_colour_card_and_race_along_the_trail">Saca una carta de color y corre por el sendero.</string>
+    <string name="hub_trail_length">Longitud del sendero</string>
+    <string name="hub_a_shorter_or_longer_race">Una carrera más corta o más larga.</string>
+    <string name="hub_short_trail">Sendero corto</string>
+    <string name="hub_start_part_way_along">Empieza a mitad de camino.</string>
+    <string name="hub_full_trail">Sendero completo</string>
+    <string name="hub_the_whole_trail">Todo el sendero.</string>
+    <string name="hub_long_trail">Sendero largo</string>
+    <string name="hub_no_shortcuts_and_one_extra_puddle">Sin atajos y con un charco más.</string>
+    <string name="hub_gooey_puddle">Charco Pegajoso</string>
+    <string name="hub_on_landing_in_it_means_waiting_one_turn_off_it_i_71053c">Activado: caer en él significa esperar un turno. Desactivado: es una casilla normal.</string>
+    <string name="hub_wish_card">Carta de deseo</string>
+    <string name="hub_one_wish_per_game_lets_a_player_swap_a_card_they_95093e">Un deseo por partida permite cambiar una carta que ya sacaste.</string>
+    <string name="hub_no_wish">Sin deseo</string>
+    <string name="hub_wish_for_everyone">Deseo para todos</string>
+    <string name="hub_wish_player_1">Deseo: Jugador 1</string>
+    <string name="hub_wish_player_2">Deseo: Jugador 2</string>
+    <string name="hub_wish_player_3">Deseo: Jugador 3</string>
+    <string name="hub_wish_player_4">Deseo: Jugador 4</string>
+</resources>

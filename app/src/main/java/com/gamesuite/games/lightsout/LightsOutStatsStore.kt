@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.gamesuite.settings.CpuDifficulty
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -14,7 +13,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.lightsOutStatsDataStore: DataStore<Preferences> by preferencesDataStore(name = "lights_out_stats")
+private val Context.lightsOutStatsDataStore: DataStore<Preferences> by com.gamesuite.core.gameDataStore("lights_out_stats")
 
 /**
  * One difficulty tier's all-time best. Either half can be set independently of the

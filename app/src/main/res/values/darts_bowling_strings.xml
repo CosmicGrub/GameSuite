@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hub texts (hub_<slug> names, see hubKey) and first-run tips of Darts and Bowling -->
+    <string name="hub_darts">Darts</string>
+    <string name="hub_flick_darts_at_the_board_count_down_from_501_or_dd2b10">Flick darts at the board: count down from 501 or play Cricket.</string>
+    <string name="hub_practice">Practice</string>
+    <string name="hub_throw_on_your_own_and_beat_your_best_average">Throw on your own and beat your best average.</string>
+    <string name="hub_throw_against_1_to_3_computer_players">Throw against 1 to 3 computer players.</string>
+    <string name="hub_your_hand">Your hand</string>
+    <string name="hub_how_steady_you_throw_a_steadier_hand_means_less_730ae0">How steady you throw. A steadier hand means less wobble.</string>
+    <string name="hub_rock_steady">Rock steady</string>
+    <string name="hub_very_little_wobble">Very little wobble.</string>
+    <string name="hub_pub_regular">Pub regular</string>
+    <string name="hub_a_little_wobble_like_a_keen_amateur">A little wobble, like a keen amateur.</string>
+    <string name="hub_nervous">Nervous</string>
+    <string name="hub_a_lot_of_wobble_a_real_challenge">A lot of wobble: a real challenge.</string>
+    <string name="hub_darts_game">Darts game</string>
+    <string name="hub_count_down_to_zero_or_close_the_cricket_numbers">Count down to zero, or close the Cricket numbers.</string>
+    <string name="hub_501">501</string>
+    <string name="hub_count_down_to_exactly_zero_the_classic_match">Count down to exactly zero. The classic match.</string>
+    <string name="hub_301">301</string>
+    <string name="hub_a_shorter_count_down_to_zero">A shorter count down to zero.</string>
+    <string name="hub_cricket">Cricket</string>
+    <string name="hub_close_20_to_15_and_the_bull_then_out_score_your_cf9d98">Close 20 to 15 and the bull, then out-score your rivals.</string>
+    <string name="hub_double_out">Double out</string>
+    <string name="hub_on_finish_on_a_double_or_the_bull_off_any_dart_c_35f0f9">On: finish on a double or the bull. Off: any dart can finish.</string>
+    <string name="hub_double_in">Double in</string>
+    <string name="hub_on_your_score_only_starts_once_you_hit_a_double">On: your score only starts once you hit a double.</string>
+    <string name="hub_bowling">Bowling</string>
+    <string name="hub_aim_swipe_and_curve_the_ball_into_the_pocket_for_fb40d2">Aim, swipe and curve the ball into the pocket for a strike.</string>
+    <string name="hub_bowl_on_your_own_and_chase_a_perfect_300">Bowl on your own and chase a perfect 300.</string>
+    <string name="hub_bowl_against_1_to_3_computer_players">Bowl against 1 to 3 computer players.</string>
+    <string name="hub_bumpers">Bumpers</string>
+    <string name="hub_rails_along_the_lane_keep_the_ball_out_of_the_gu_f11c42">Rails along the lane keep the ball out of the gutters.</string>
+    <string name="hub_aim_guide">Aim guide</string>
+    <string name="hub_shows_the_path_your_ball_will_take_down_the_lane">Shows the path your ball will take down the lane.</string>
+    <string name="tip_darts_1">Drag on the board to move the reticle, then flick up to throw. Soft flicks sag low.</string>
+    <string name="tip_darts_2">In 501 you must finish exactly on zero with a double. Go too far and the visit is a bust.</string>
+    <string name="tip_darts_3">In Cricket, close 20 to 15 and the bull with three marks, then score on numbers rivals leave open.</string>
+    <string name="tip_bowling_1">Slide the ball to set where it starts, then swipe up. Curve your swipe to hook the ball.</string>
+    <string name="tip_bowling_2">Aim for the pocket beside the head pin for the best chance of a strike.</string>
+    <string name="tip_bowling_3">A spare scores the next ball as a bonus, a strike the next two. The tenth frame can give a third ball.</string>
+</resources>

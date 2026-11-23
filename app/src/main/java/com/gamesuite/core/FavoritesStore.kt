@@ -7,7 +7,10 @@ import android.content.Context
  * Unknown ids (a game removed in a later version) are harmless: the UI only shows ids it has a spec for.
  */
 class FavoritesStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("favorites", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+
+    /** Resolved on every access so the file follows the active profile (ProfileScope). */
+    private val prefs get() = appContext.getSharedPreferences(ProfileScope.prefsName("favorites"), Context.MODE_PRIVATE)
 
     fun all(): Set<String> = prefs.getStringSet(KEY, emptySet())?.toSet() ?: emptySet()
 

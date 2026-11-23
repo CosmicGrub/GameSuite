@@ -59,7 +59,11 @@ import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
 import com.gamesuite.audio.rememberProceduralSfx
+import androidx.compose.ui.res.stringResource
+import com.gamesuite.R
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.core.PlayMode
+import com.gamesuite.games.dominoes.DominoSet
 import com.gamesuite.foldable.AdaptiveTwoPane
 import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.cards.CardSounds
@@ -207,14 +211,21 @@ fun DominoesScreen(
             sessionManager.endActiveGame(result)
             onMatchEnded()
         }
-        if (sessionManager.tryResume(game)) {
+        val net = ctx.activeMode == PlayMode.LOCAL_AD_HOC || ctx.activeMode == PlayMode.ONLINE
+        // Hub "tile set" (double-six by default). A resumed game takes its saved set instead, and a
+        // networked guest the host's, so this only matters for a fresh local deal.
+        if (!net || ctx.localPlayerIndex == 0) {
+            game.tileSet = DominoSet.fromKey(sessionManager.launchOptions.extras["set"])
+        }
+        if (!net && sessionManager.tryResume(game)) {
             // A resumed hand shows as it was: no deal-in reveal, no toppling replay, no sounds.
             animGuard.skip = true
         } else {
             // Hub "first mover": seat 0 keeps the standard opener rule (highest double); another
-            // seat is forced to open the first hand. A resumed game never reaches here.
-            game.firstOpenerIndex = sessionManager.launchOptions.firstMoverIndex.takeIf { it > 0 }
-            game.startMatch()
+            // seat is forced to open the first hand. A resumed game never reaches here. A network
+            // table always uses the standard rule.
+            game.firstOpenerIndex = if (net) null else sessionManager.launchOptions.firstMoverIndex.takeIf { it > 0 }
+            game.startMatch() // a networked guest's startMatch waits for the host's state
         }
     }
 
@@ -227,13 +238,46 @@ fun DominoesScreen(
         }
     }
 
-    val s = state ?: return
+    // Networked (Nearby / Online): two seats, host = 0, guest = 1. The guest renders only the host's
+    // synced state (its own hand + counts); its taps become requests (see DominoGame.playDomino).
+    val networked = context?.let { it.activeMode == PlayMode.LOCAL_AD_HOC || it.activeMode == PlayMode.ONLINE } == true
+    val localIndex = context?.localPlayerIndex ?: 0
+    val opponentLeft by game.opponentLeft
+
+    val s = state ?: run {
+        if (networked) {
+            // Guest before the host's first StateSync. Still wrapped in the chrome so back works.
+            GameChrome(
+                helpTitle = "How to Play Dominoes",
+                helpText = "Match the ends of the chain and go out first.",
+                matchInProgress = false,
+                onLeave = { game.abortMatch() },
+                onAbort = { game.abortMatch() },
+                buttonFill = MaterialTheme.colorScheme.background,
+                buttonContent = MaterialTheme.colorScheme.onBackground
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (opponentLeft) stringResource(R.string.dominoes_opponent_left) else stringResource(R.string.dominoes_waiting_host),
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
+            }
+        }
+        return
+    }
     val sessionScores by game.sessionScores
 
     val winnerPlayer = s.players.firstOrNull { it.playerId == s.winnerPlayerId }
     // Celebration (haptic, chime, toppling chain) is for a HUMAN winning the hand only: a CPU win
-    // or a tie gets a plain acknowledgement. In pass-and-play either human winning counts.
-    val humanWon = s.handOver && winnerPlayer != null && !winnerPlayer.isBot
+    // or a tie gets a plain acknowledgement. In pass-and-play either human winning counts; over the
+    // network only the local player's own win celebrates.
+    val humanWon = s.handOver && winnerPlayer != null && !winnerPlayer.isBot &&
+        (!networked || s.players.indexOf(winnerPlayer) == localIndex)
     // Hands this session that reached their own end, owned by the engine so it survives a resume
     // and an undo. Decides whether leaving mid-hand aborts or scores the session.
     val finishedHands by game.handsFinished
@@ -287,9 +331,15 @@ fun DominoesScreen(
     // SINGLE_DEVICE_PASS_AND_PLAY instead of only ever seeing disabled buttons.
     val activePlayerIndex = s.currentPlayerIndex
     val activePlayer = s.players.getOrNull(activePlayerIndex)
-    val isMyTurn = activePlayer?.isBot == false
+    // Over the network "my turn" means the LOCAL seat's turn (the other seat is a human too, but on
+    // another device); there is no CPU and never a hand-off curtain.
+    val isMyTurn = if (networked) {
+        activePlayerIndex == localIndex && !opponentLeft
+    } else {
+        activePlayer?.isBot == false
+    }
     val vsBot = s.players.any { it.isBot }
-    val isHotseat = s.players.count { !it.isBot } > 1
+    val isHotseat = !networked && s.players.count { !it.isBot } > 1
     // Hotseat hand-off: the next human's hand stays behind a curtain until they tap it. Keyed on
     // s.handOver so every new hand starts with the curtain up again.
     var revealedSeat by remember(s.handOver) { mutableStateOf<Int?>(null) }
@@ -304,9 +354,15 @@ fun DominoesScreen(
     // there is no "pass the device" moment for a CPU turn, so it was showing the CPU's hand
     // face-up, labeled "Your hand". Fall back to the local viewer's own hand whenever the active
     // seat isn't human.
-    val shownHand: List<Domino> = activePlayer?.takeIf { !it.isBot }?.hand
-        ?: context?.let { ctx -> s.players.getOrNull(ctx.localPlayerIndex)?.hand }
-        ?: emptyList()
+    // Over the network the shown hand is ALWAYS the local seat's own (the other seat's tiles are
+    // not even known on this device).
+    val shownHand: List<Domino> = if (networked) {
+        s.players.getOrNull(localIndex)?.hand ?: emptyList()
+    } else {
+        activePlayer?.takeIf { !it.isBot }?.hand
+            ?: context?.let { ctx -> s.players.getOrNull(ctx.localPlayerIndex)?.hand }
+            ?: emptyList()
+    }
 
     // A selection never follows the device to the next player (it would show their opponent's pick).
     LaunchedEffect(activePlayerIndex) { selectedDomino = null }
@@ -491,7 +547,8 @@ fun DominoesScreen(
                     val oldHand = prev.players.getOrNull(playerIdx)?.hand ?: emptyList()
                     val newHand = s.players.getOrNull(playerIdx)?.hand ?: emptyList()
                     val drawn = newHand.firstOrNull { nt -> oldHand.none { it.instanceId == nt.instanceId } }
-                    if (drawn != null) {
+                    // A hidden (networked opponent) tile is a placeholder with no pips: nothing to fly.
+                    if (drawn != null && drawn.a >= 0) {
                         // Reuses the exact same flight machinery a placed tile already used
                         // (see FlyingDomino/FlyingDominoOverlay below) -- the currently-instant
                         // drawFromBoneyard() now gets a real short flight instead.
@@ -544,9 +601,19 @@ fun DominoesScreen(
     // reply and what to do next without being asked.
     val activeName = activePlayer?.displayName ?: "Player"
     val yourTurnLabel = if (vsBot) "Your turn" else "$activeName's turn"
+    val netOpponentLeftText = stringResource(R.string.dominoes_opponent_left)
+    val netYourTurnText = stringResource(R.string.dominoes_your_turn_net)
+    val netOpenText = stringResource(R.string.dominoes_your_turn_open)
+    val netTheirTurnText = stringResource(R.string.dominoes_turn_of, activeName)
     val promptText = when {
         s.handOver -> dominoHandResultTitle(s)
         activePlayer == null -> ""
+        networked && opponentLeft -> netOpponentLeftText
+        networked && !isMyTurn -> netTheirTurnText
+        networked && !canPlayNow && s.boneyardSize > 0 -> "Nothing to play — draw a tile"
+        networked && !canPlayNow -> "Nothing to play — pass"
+        networked && s.chain.isEmpty() -> netOpenText
+        networked -> netYourTurnText
         activePlayer.isBot -> "${activePlayer.displayName} is thinking…"
         handHidden -> "Pass the device to ${activePlayer.displayName}"
         !canPlayNow && s.boneyardSize > 0 -> "Nothing to play — draw a tile"
@@ -566,13 +633,14 @@ fun DominoesScreen(
             "and choose Play on Left or Play on Right. If nothing fits, draw from the boneyard one " +
             "tile at a time until something does; once the boneyard is empty you pass.\n\n" +
             "A hand ends when someone plays their last tile, or when everyone passes in a row. " +
-            "Then the lowest pip total wins, and level totals go to the first seat at the table. " +
-            "The winner scores every pip left in the other hands, and Play Again keeps the " +
-            "running score.",
+            "Then the lowest pip total wins and scores the difference between the hands (a hand " +
+            "won by playing out scores every pip left in the others). If the lowest totals are " +
+            "level, nobody scores. Play Again keeps the running score. The double-nine set has " +
+            "55 tiles and deals 10 each to two players.",
         matchInProgress = !s.handOver,
         onUndo = { undoNow() },
         canUndo = game.canUndo,
-        onLeave = game::leaveSession,
+        onLeave = game::leaveSession, // aborts (records nothing) when the network opponent already left
         // Leaving mid-hand discards ONLY the unfinished hand: if earlier hands in this session
         // already finished, leaving goes through leaveSession() (the same call the result
         // panel's "Back to Menu" makes) so their points still count; with nothing finished it is
@@ -594,7 +662,8 @@ fun DominoesScreen(
                 sessionScores = sessionScores,
                 reducedMotion = reducedMotion,
                 onPlayAgain = game::playAgain,
-                onBackToMenu = game::leaveSession
+                onBackToMenu = game::leaveSession,
+                canPlayAgain = !(networked && opponentLeft)
             )
         } else {
             AdaptiveTwoPane(
@@ -664,6 +733,12 @@ fun DominoesScreen(
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.onGloballyPositioned { boneyardAnchorPos = it.tileCenter() }
                         )
+                        if (game.tileSet == DominoSet.DOUBLE_NINE) {
+                            Text(
+                                stringResource(R.string.dominoes_tile_set_label, stringResource(R.string.dominoes_set_double_nine)),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                         if (vsBot) {
                             Text(
                                 "CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}",
@@ -821,7 +896,15 @@ fun DominoesScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        DominoesUndoRow(canUndo = game.canUndo, onUndo = { undoNow() })
+                        if (!networked) {
+                            DominoesUndoRow(canUndo = game.canUndo, onUndo = { undoNow() })
+                        } else if (opponentLeft) {
+                            // No Undo over the network; once the opponent has left there is only a way out.
+                            OutlinedButton(
+                                onClick = { game.leaveSession() },
+                                modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                            ) { Text(stringResource(R.string.dominoes_leave_game)) }
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                 },
@@ -1221,6 +1304,10 @@ internal fun dominoPause(speed: GameSpeed, ms: Long): Long = if (ms <= 60L) ms e
 
 private fun dominoPipTotal(hand: List<Domino>): Int = hand.sumOf { it.a + it.b }
 
+/** A seat's pips left: the host's authoritative total when this device only knows a count (networked guest), else the hand's own. */
+private fun dominoSeatPips(s: DominoState, player: DominoPlayerState): Int =
+    s.knownPips[player.playerId] ?: dominoPipTotal(player.hand)
+
 private fun dominoPipsText(pips: Int): String = if (pips == 1) "1 pip" else "$pips pips"
 
 private fun dominoPointsText(points: Int): String = if (points == 1) "1 point" else "$points points"
@@ -1282,7 +1369,8 @@ private fun DominoHandResultPanel(
     reducedMotion: Boolean,
     onPlayAgain: () -> Unit,
     onBackToMenu: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    canPlayAgain: Boolean = true
 ) {
     // A short fade-in so the panel does not snap in over the table; none under reduced motion.
     val appear = remember { Animatable(if (reducedMotion) 1f else 0f) }
@@ -1292,16 +1380,19 @@ private fun DominoHandResultPanel(
     val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId }
     // The engine's own blocked condition: everyone passed in a row.
     val blocked = s.consecutivePasses >= s.players.size
-    val handPoints = if (winner == null) 0 else s.players.filter { it.playerId != winner.playerId }.sumOf { dominoPipTotal(it.hand) }
-    // The engine gives a blocked hand with level lowest totals to the first seat (see
-    // DominoGame.finishBlocked), so say that instead of claiming the lowest total won outright.
-    val levelTotals = winner != null && s.players.any {
-        it.playerId != winner.playerId && dominoPipTotal(it.hand) == dominoPipTotal(winner.hand)
+    // The winner scores, for each other seat, that seat's pips minus the winner's own (a winner who
+    // went out holds 0, so that is just the pips left; a blocked hand scores the difference). The
+    // seat totals come from [dominoSeatPips]: a networked guest only knows the other seat's total.
+    val winnerPips = if (winner == null) 0 else dominoSeatPips(s, winner)
+    val handPoints = if (winner == null) 0 else {
+        s.players.filter { it.playerId != winner.playerId }.sumOf { (dominoSeatPips(s, it) - winnerPips).coerceAtLeast(0) }
     }
+    // A blocked hand whose lowest total is shared is a tie with no winner (see DominoGame.finishBlocked).
+    val blockedTieText = stringResource(R.string.dominoes_blocked_tie)
+    val blockedLowestText = stringResource(R.string.dominoes_blocked_lowest)
     val reason = when {
-        winner == null -> "Nobody could move and the pip totals are level."
-        blocked && levelTotals -> "Blocked with level pip totals, so the first seat takes the hand."
-        blocked -> "Blocked: nobody can move, so the lowest pip total wins."
+        winner == null -> blockedTieText
+        blocked -> blockedLowestText
         dominoIsYou(s, winner.displayName) -> "You played your last tile."
         else -> "${winner.displayName} played the last tile."
     }
@@ -1332,7 +1423,7 @@ private fun DominoHandResultPanel(
         Text(scoredText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            s.players.joinToString(" · ") { "${it.displayName}: ${dominoPipsText(dominoPipTotal(it.hand))} left" },
+            s.players.joinToString(" · ") { "${it.displayName}: ${dominoPipsText(dominoSeatPips(s, it))} left" },
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.Center
         )
@@ -1344,6 +1435,7 @@ private fun DominoHandResultPanel(
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = onPlayAgain,
+            enabled = canPlayAgain,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
         ) { Text("Play Again") }
         Spacer(Modifier.height(8.dp))
@@ -1459,9 +1551,25 @@ private fun PipFace(value: Int, dotColor: Color, modifier: Modifier = Modifier) 
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val dotRadius = minOf(w, h) * 0.13f
+        // Double-nine faces (7, 8, 9) pack a 3x3 grid, so their dots are a little smaller.
+        val dotRadius = minOf(w, h) * (if (value > 6) 0.1f else 0.13f)
         fun pt(fx: Float, fy: Float) = Offset(w * fx, h * fy)
-        val positions = when (value.coerceIn(0, 6)) {
+        val positions = when (value.coerceIn(0, 9)) {
+            7 -> listOf(
+                pt(0.24f, 0.2f), pt(0.24f, 0.5f), pt(0.24f, 0.8f),
+                pt(0.5f, 0.5f),
+                pt(0.76f, 0.2f), pt(0.76f, 0.5f), pt(0.76f, 0.8f)
+            )
+            8 -> listOf(
+                pt(0.24f, 0.2f), pt(0.24f, 0.5f), pt(0.24f, 0.8f),
+                pt(0.5f, 0.2f), pt(0.5f, 0.8f),
+                pt(0.76f, 0.2f), pt(0.76f, 0.5f), pt(0.76f, 0.8f)
+            )
+            9 -> listOf(
+                pt(0.24f, 0.2f), pt(0.24f, 0.5f), pt(0.24f, 0.8f),
+                pt(0.5f, 0.2f), pt(0.5f, 0.5f), pt(0.5f, 0.8f),
+                pt(0.76f, 0.2f), pt(0.76f, 0.5f), pt(0.76f, 0.8f)
+            )
             0 -> emptyList()
             1 -> listOf(pt(0.5f, 0.5f))
             2 -> listOf(pt(0.28f, 0.28f), pt(0.72f, 0.72f))

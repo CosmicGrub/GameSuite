@@ -45,7 +45,14 @@ data class MancalaNetState(
     val lastCapture: MancalaNetCapture? = null,
     val scoreP1: Int = 0,
     val scoreP2: Int = 0,
-    val draws: Int = 0
+    val draws: Int = 0,
+    /**
+     * Variant settings the board was played under (standard game when absent, so an older host's
+     * messages still decode). A receiver only adopts a board whose settings equal its own.
+     */
+    val pitsPerSide: Int = 6,
+    val stonesPerPit: Int = 4,
+    val captureRule: String = "opposite"
 )
 
 /** Encodes/decodes [MancalaNetMessage] exactly as [MancalaGame] does on the wire (JSON, UTF-8). */

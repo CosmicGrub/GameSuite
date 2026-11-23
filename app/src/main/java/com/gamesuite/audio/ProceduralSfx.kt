@@ -7,7 +7,6 @@ import android.media.AudioTrack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.gamesuite.games.cards.CardSounds
-import kotlin.concurrent.thread
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.floor
@@ -73,7 +72,9 @@ enum class SfxKind {
  */
 fun playProceduralSfx(context: Context, kind: SfxKind, pan: Float = 0f) {
     if (!CardSounds.soundEnabled) return
-    playPcmOneShot(renderPcm(kind), pan)
+    // Never block the caller: synthesis (first use only), panning, AudioTrack construction and
+    // release all happen on the single background SFX executor.
+    SfxPlayer.submit(kind, pan)
 }
 
 /**
@@ -136,46 +137,107 @@ internal fun panToStereo(monoPcm: ShortArray, pan: Float): ShortArray {
     return stereo
 }
 
-/** Builds and fires a one-shot `MODE_STATIC` [AudioTrack] for an already-
- *  rendered MONO buffer, panning it across a stereo output via [panToStereo]
- *  and releasing the track on a short-lived daemon thread once playback has
- *  had time to finish — avoids leaking an `AudioTrack` (or a Handler/Looper
- *  callback) per play, which matters since these fire on nearly every move
- *  in normal play. */
-private fun playPcmOneShot(monoPcm: ShortArray, pan: Float = 0f) {
-    if (monoPcm.isEmpty()) return
-    val stereo = panToStereo(monoPcm, pan)
-    val track = AudioTrack.Builder()
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-        )
-        .setAudioFormat(
-            AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setSampleRate(SFX_SAMPLE_RATE)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                .build()
-        )
-        .setBufferSizeInBytes(stereo.size * 2)
-        .setTransferMode(AudioTrack.MODE_STATIC)
-        .build()
-    track.write(stereo, 0, stereo.size)
-    track.play()
+/**
+ * Caches the rendered mono PCM per [SfxKind] so each effect is synthesised at most once per
+ * process instead of on every play. [render] is injectable so the caching contract is unit-testable.
+ */
+internal class SfxPcmCache(private val render: (SfxKind) -> ShortArray) {
+    private val cache = java.util.concurrent.ConcurrentHashMap<SfxKind, ShortArray>()
 
-    // Duration is driven by the mono frame count, not the doubled stereo
-    // array size — each mono sample became one L+R frame pair, not two
-    // sequential frames, so playback time is unchanged by panning.
-    val durationMillis = (monoPcm.size * 1000L) / SFX_SAMPLE_RATE
-    thread(name = "ProceduralSfx", isDaemon = true) {
+    fun get(kind: SfxKind): ShortArray = cache.getOrPut(kind) { render(kind) }
+
+    fun size(): Int = cache.size
+}
+
+/** A tiny non-blocking counting limiter: [tryAcquire] fails (instead of waiting) once [max] slots are taken. */
+internal class SfxSlotLimiter(private val max: Int) {
+    private val inFlight = java.util.concurrent.atomic.AtomicInteger(0)
+
+    fun tryAcquire(): Boolean {
+        while (true) {
+            val cur = inFlight.get()
+            if (cur >= max) return false
+            if (inFlight.compareAndSet(cur, cur + 1)) return true
+        }
+    }
+
+    fun release() {
+        inFlight.updateAndGet { if (it > 0) it - 1 else 0 }
+    }
+
+    fun active(): Int = inFlight.get()
+}
+
+/** Playback duration of a mono buffer in milliseconds (panning does not change it). */
+internal fun sfxDurationMillis(monoFrames: Int): Long = (monoFrames * 1000L) / SFX_SAMPLE_RATE
+
+/**
+ * One daemon scheduler thread owns all SFX work: cache fill, stereo panning, [AudioTrack] build/play,
+ * and the delayed release. At most [MAX_CONCURRENT] tracks are alive at once; extra requests (a
+ * burst of rapid taps) are dropped rather than queued, so the pool is bounded and nothing blocks.
+ * Every AudioTrack failure is swallowed: a missing sound must never crash or stall a game.
+ */
+private object SfxPlayer {
+    private const val MAX_CONCURRENT = 8
+    private const val MAX_QUEUED = 16
+
+    private val cache = SfxPcmCache(::renderPcm)
+    private val limiter = SfxSlotLimiter(MAX_CONCURRENT)
+    private val queued = java.util.concurrent.atomic.AtomicInteger(0)
+    private val executor = java.util.concurrent.ScheduledThreadPoolExecutor(1) { r ->
+        Thread(r, "ProceduralSfx").apply { isDaemon = true }
+    }.apply { removeOnCancelPolicy = true }
+
+    fun submit(kind: SfxKind, pan: Float) {
+        if (queued.incrementAndGet() > MAX_QUEUED) {
+            queued.decrementAndGet()
+            return
+        }
         try {
-            Thread.sleep(durationMillis + 150L)
-        } catch (_: InterruptedException) {
-        } finally {
-            try { track.stop() } catch (_: Exception) {}
-            try { track.release() } catch (_: Exception) {}
+            executor.execute {
+                queued.decrementAndGet()
+                try { play(kind, pan) } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {
+            queued.decrementAndGet()
+        }
+    }
+
+    private fun play(kind: SfxKind, pan: Float) {
+        val mono = cache.get(kind)
+        if (mono.isEmpty()) return
+        if (!limiter.tryAcquire()) return
+        var track: AudioTrack? = null
+        try {
+            val stereo = panToStereo(mono, pan)
+            track = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(SFX_SAMPLE_RATE)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                        .build()
+                )
+                .setBufferSizeInBytes(stereo.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            track.write(stereo, 0, stereo.size)
+            track.play()
+            val toRelease = track
+            executor.schedule({
+                try { toRelease.stop() } catch (_: Throwable) {}
+                try { toRelease.release() } catch (_: Throwable) {}
+                limiter.release()
+            }, sfxDurationMillis(mono.size) + 150L, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (_: Throwable) {
+            try { track?.release() } catch (_: Throwable) {}
+            limiter.release()
         }
     }
 }

@@ -72,7 +72,16 @@ class UnoGame : GameModule, ResumableGame {
     private val isNetworked: Boolean
         get() = context.activeMode == PlayMode.LOCAL_AD_HOC || context.activeMode == PlayMode.ONLINE
     private val isHost: Boolean get() = context.localPlayerIndex == 0
-    private var stateVersion = 0
+
+    /** True on a device that WATCHES a networked game without a seat (localPlayerIndex == -1, absent from
+     *  [GameContext.players]): it renders the host's spectator-redacted state and can never act. */
+    val isSpectator: Boolean get() = isNetworked && context.localPlayerIndex < 0
+
+    /** Host only: ids of non-seated room members (spectators) that asked for state and now receive every
+     *  commit, redacted by [unoRedactForSpectator]. The relay does not tell a host about spectators, so a
+     *  spectator announces itself by sending [UnoNetMessage.RequestState]. */
+    private val spectatorIds = LinkedHashSet<String>()
+    private var stateVersion = com.gamesuite.core.SyncEpoch.base()
     private var lastAppliedRemoteVersion = 0
 
     override fun init(context: GameContext) {
@@ -108,6 +117,8 @@ class UnoGame : GameModule, ResumableGame {
             // StateSync anyway, since commitState() is what actually re-broadcasts to everyone.
             if (isHost) {
                 context.transport.onPlayerLeft { playerId ->
+                    // A watcher leaving is not a player leaving: the match is unaffected.
+                    if (spectatorIds.remove(playerId)) return@onPlayerLeft
                     val s = state.value ?: return@onPlayerLeft
                     val name = s.players.firstOrNull { it.playerId == playerId }?.displayName ?: playerId
                     commitState(s.copy(lastAction = "$name disconnected"), awaitingDrawDecision = s.awaitingDrawDecision)
@@ -688,9 +699,10 @@ class UnoGame : GameModule, ResumableGame {
 
     // ---- Bot driver ----
 
-    /** Call from the UI (e.g. a LaunchedEffect) when the current player is a bot. Never
-     *  fires in networked play — LOCAL_AD_HOC games are human-only (no shared "who runs
-     *  the bot" authority), enforced by the lobby never offering bot seats there.
+    /** Call from the UI (e.g. a LaunchedEffect) when the current player is a bot. In networked
+     *  play only the HOST's UI drives bot seats (the host is the single authority for "who runs
+     *  the bot"; the lobby's computer fill adds them), and a guest never calls this. See
+     *  docs/roadmap/WAVE-5-MULTIPLAYER-DESIGN.md section 11.
      *
      *  [chainDrawnPlay]: when the bot's draw turns up a playable card the turn stays with it (see below).
      *  True (the default) plays that card in the same call, so headless callers get a whole turn from one
@@ -698,6 +710,7 @@ class UnoGame : GameModule, ResumableGame {
      *  play are two separate states the table can animate -- rendered from one call, a bot's
      *  draw-then-play showed as a card popping onto the pile from a seat whose count never changed. */
     fun playBotTurn(chainDrawnPlay: Boolean = true) {
+        if (isNetworked && !isHost) return // only the host drives computer seats
         val s = state.value ?: return
         if (s.matchOver) return
 
@@ -803,7 +816,9 @@ class UnoGame : GameModule, ResumableGame {
 
     private fun broadcastState(s: UnoState, toPlayerId: String?) {
         if (toPlayerId != null) {
-            sendStateTo(toPlayerId, s)
+            // Not in the roster = a watcher: it gets the public view only, never a seat's hand.
+            if (context.players.any { it.playerId == toPlayerId }) sendStateTo(toPlayerId, s)
+            else sendSpectatorState(toPlayerId, s)
             return
         }
         // Broadcast to everyone except the host itself — the host's own `state.value` was
@@ -817,6 +832,14 @@ class UnoGame : GameModule, ResumableGame {
         context.players.forEach { recipient ->
             if (recipient.playerId != hostId) sendStateTo(recipient.playerId, s)
         }
+        spectatorIds.toList().forEach { sendSpectatorState(it, s) }
+    }
+
+    /** The same authoritative StateSync stream the seats get, but built from [unoRedactForSpectator]. */
+    private fun sendSpectatorState(spectatorId: String, s: UnoState) {
+        val message: UnoNetMessage = UnoNetMessage.StateSync(stateVersion, unoRedactForSpectator(s))
+        val payload = Json.encodeToString(message).toByteArray(Charsets.UTF_8)
+        context.transport.send(fromPlayerId = context.players[0].playerId, toPlayerId = spectatorId, payload = payload)
     }
 
     private fun sendStateTo(recipientPlayerId: String, s: UnoState) {
@@ -833,24 +856,19 @@ class UnoGame : GameModule, ResumableGame {
      *  opponent's hand, e.g. OpponentHandFan, already only reads the count) are visible. The
      *  placeholder's own color/rank are never displayed for a redacted seat, so their exact
      *  values don't matter beyond being a valid, clearly-sentinel UnoCard (instanceId -1). */
-    private fun redactHandsExcept(s: UnoState, keepPlayerId: String): UnoState {
-        val placeholder = UnoCard(UnoColor.WILD, UnoRank.WILD, instanceId = -1)
-        return s.copy(
-            players = s.players.map { p ->
-                if (p.playerId == keepPlayerId) p
-                else p.copy(hand = List(p.hand.size) { placeholder })
-            }
-        )
-    }
+    private fun redactHandsExcept(s: UnoState, keepPlayerId: String): UnoState = unoRedactHandsExcept(s, keepPlayerId)
 
     private fun sendIntent(intent: UnoIntentPayload) {
+        if (isSpectator) return // a watcher has no seat to act for: every action entry point ends here and does nothing
         sendToHost(UnoNetMessage.Intent(intent))
     }
 
     private fun sendToHost(message: UnoNetMessage) {
         val payload = Json.encodeToString(message).toByteArray(Charsets.UTF_8)
         val hostId = context.players[0].playerId
-        val localId = context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
+        // A spectator has no roster entry; the transport stamps its real id on delivery regardless.
+        val localId = if (isSpectator) UNO_SPECTATOR_SENDER
+        else context.players.getOrNull(context.localPlayerIndex)?.playerId ?: return
         context.transport.send(fromPlayerId = localId, toPlayerId = hostId, payload = payload)
     }
 
@@ -864,7 +882,7 @@ class UnoGame : GameModule, ResumableGame {
 
     private fun handleNetworkMessage(fromPlayerId: String, payload: ByteArray) {
         val message = try {
-            Json.decodeFromString<UnoNetMessage>(String(payload, Charsets.UTF_8))
+            com.gamesuite.core.NetJson.decodeFromString<UnoNetMessage>(String(payload, Charsets.UTF_8))
         } catch (e: Exception) {
             return // malformed or foreign payload — ignore rather than crash the match
         }
@@ -872,7 +890,13 @@ class UnoGame : GameModule, ResumableGame {
             // Only the host is authoritative: a StateSync from any other seat is a forgery (or version-pinning freeze).
             is UnoNetMessage.StateSync -> if (fromPlayerId == context.players[0].playerId) applyRemoteState(message.version, message.state)
             is UnoNetMessage.RequestState -> {
-                if (isHost) state.value?.let { broadcastState(it, toPlayerId = fromPlayerId) }
+                if (isHost) {
+                    // Anyone not seated is a watcher: remember it so every later commit reaches it too.
+                    if (context.players.none { it.playerId == fromPlayerId } &&
+                        (fromPlayerId in spectatorIds || spectatorIds.size < UNO_MAX_SPECTATORS)
+                    ) spectatorIds.add(fromPlayerId)
+                    state.value?.let { broadcastState(it, toPlayerId = fromPlayerId) }
+                }
             }
             is UnoNetMessage.Intent -> {
                 if (isHost) applyIntent(fromPlayerId, message.intent)
@@ -882,6 +906,8 @@ class UnoGame : GameModule, ResumableGame {
 
     private fun applyIntent(fromPlayerId: String, intent: UnoIntentPayload) {
         val s = state.value ?: return
+        // A watcher (or any id outside the roster) can never move, whatever seat the intent names.
+        if (context.players.none { it.playerId == fromPlayerId }) return
         // Which seat this intent claims to act for. ChooseColor/ResolveChallenge carry no
         // client-declared index at all — both always act on whichever seat the host's own
         // state says is currently awaiting that exact input, so there's nothing for a sender

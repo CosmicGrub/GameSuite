@@ -81,6 +81,9 @@ private fun networkedSpecForRoute(gameRoute: String): GameHubSpec? =
         spec.modes.any { (it.kind == HubModeKind.NEARBY || it.kind == HubModeKind.ONLINE) && it.route == gameRoute }
     }
 
+/** The id of the game whose Nearby/Online lobby plays [gameRoute] (what a lobby screen is handed), or null if none does. */
+fun networkedGameIdForRoute(gameRoute: String): String? = networkedSpecForRoute(gameRoute)?.gameId
+
 /** The NavHost route of [gameId]'s lobby mode (what a host announces as `gameRoute`), or [gameId] itself. */
 fun lobbyRouteFor(gameId: String): String =
     GameHubSpecs.byId(gameId)?.modes?.firstOrNull { it.kind == HubModeKind.NEARBY || it.kind == HubModeKind.ONLINE }?.route

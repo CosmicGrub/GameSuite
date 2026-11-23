@@ -16,7 +16,9 @@ sealed class CheckersNetMessage {
 
     /**
      * The host's authoritative position. [snapshot] is the engine's own resume snapshot (board,
-     * turn, forced continuation, game-over flag + winner, session score, opening seat), so the
+     * turn, forced continuation, game-over flag + winner, session score, opening seat, and the draw
+     * state: 40-ply counter, repetition keys, draw reason, mandatory-capture rule -- every one an
+     * optional field with a default, so an older peer's snapshot still decodes), so the
      * guest needs nothing else; [lastMove]/[hops] are the animation detail a snapshot leaves out.
      * [version] increases by one on every host commit; a receiver applies a version only if it is
      * newer than the last one it applied.

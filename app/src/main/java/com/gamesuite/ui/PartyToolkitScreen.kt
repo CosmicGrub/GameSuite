@@ -47,6 +47,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.gamesuite.R
+import com.gamesuite.core.PartyRosterLogic
+import com.gamesuite.core.PartyRosterStore
+import com.gamesuite.ui.party.PartyCardDealerTool
+import com.gamesuite.ui.party.PartyFirstPlayerTool
+import com.gamesuite.ui.party.PartyGameClockTool
+import com.gamesuite.ui.party.PartyPickerTool
+import com.gamesuite.ui.party.PartyRosterEditor
+import com.gamesuite.ui.party.PartyRoundTrackerTool
+import com.gamesuite.ui.party.PartyScoreKeeperStore
+import com.gamesuite.ui.party.PartyScoreKeeperTool
+import com.gamesuite.ui.party.PartyTeamSplitterTool
+import com.gamesuite.ui.party.PartyTurnOrderTool
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -117,6 +131,15 @@ fun PartyToolkitScreen(
     val musicEnabled = LocalMusicEnabled.current
     rememberAmbientMusic(profile = MusicProfiles.PUZZLE_FOCUS, enabled = musicEnabled)
     val store = remember { PartyToolkitStore(androidContext) }
+    // Shared roster and the Score Keeper game: hoisted here so they survive tab switches, and
+    // written through to SharedPreferences so they survive rotation and relaunches.
+    val rosterStore = remember { PartyRosterStore(androidContext) }
+    var roster by remember { mutableStateOf(rosterStore.load()) }
+    val toolRoster = remember(roster) {
+        if (PartyRosterLogic.isActive(roster)) PartyRosterLogic.displayNames(roster) else emptyList()
+    }
+    val scoreStore = remember { PartyScoreKeeperStore(androidContext) }
+    var scoreState by remember { mutableStateOf(scoreStore.load(4)) }
     val palette = partyToolkitPalette(isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f)
 
     LaunchedEffect(context) {
@@ -175,7 +198,7 @@ fun PartyToolkitScreen(
             "Hourglass: choose a preset or a custom number of minutes, then Start. It keeps running if you " +
             "switch tabs (a timer chip shows on the other tabs), keeps the screen on, and buzzes and chimes at zero.\n\n" +
             "First Player and Teams: add names, then tap the button to pick one name or split everyone " +
-            "into 2 to 4 even teams.",
+            "into 2 to 4 even teams.\n\n" + stringResource(R.string.party1_help_new_tools),
         matchInProgress = timer.running,
         onLeave = { game.leaveToolkit() },
         onAbort = { game.abortMatch() },
@@ -218,18 +241,19 @@ fun PartyToolkitScreen(
                 ) {
                     for (tool in PartyTool.entries) {
                         val selected = tool == selectedTool
+                        val toolTitle = tool.displayTitle()
                         Box(
                             modifier = Modifier
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(if (selected) palette.accent else palette.chipBackground)
-                                .semantics { contentDescription = tool.title }
+                                .semantics { contentDescription = toolTitle }
                                 .selectable(selected = selected, role = Role.Tab, onClick = { selectedToolIndex = tool.ordinal })
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                tool.label,
+                                "${tool.emoji} $toolTitle",
                                 color = if (selected) palette.textOnAccent else palette.textPrimary,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 modifier = Modifier.clearAndSetSemantics {}
@@ -247,6 +271,10 @@ fun PartyToolkitScreen(
                 Spacer(Modifier.height(12.dp))
 
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    PartyRosterEditor(roster = roster, onRosterChange = {
+                        roster = it
+                        rosterStore.save(it)
+                    })
                     when (selectedTool) {
                         PartyTool.DICE -> DiceTool(palette, haptics, reducedMotion)
                         PartyTool.COIN_TOSS -> CoinTossTool(palette, haptics, reducedMotion)
@@ -256,6 +284,17 @@ fun PartyToolkitScreen(
                         PartyTool.HOURGLASS -> HourglassTool(timer, { timer = it }, palette, haptics, reducedMotion)
                         PartyTool.FIRST_PLAYER -> FirstPlayerTool(palette, haptics, reducedMotion)
                         PartyTool.TEAMS -> TeamsTool(palette, haptics, reducedMotion)
+                        PartyTool.SCORE_KEEPER -> PartyScoreKeeperTool(toolRoster, scoreState) {
+                            scoreState = it
+                            scoreStore.save(it)
+                        }
+                        PartyTool.TEAM_SPLITTER -> PartyTeamSplitterTool(toolRoster)
+                        PartyTool.PICKER -> PartyPickerTool(toolRoster)
+                        PartyTool.TURN_ORDER -> PartyTurnOrderTool(toolRoster)
+                        PartyTool.WHO_STARTS -> PartyFirstPlayerTool(toolRoster)
+                        PartyTool.GAME_CLOCK -> PartyGameClockTool(toolRoster)
+                        PartyTool.ROUNDS -> PartyRoundTrackerTool(toolRoster)
+                        PartyTool.CARD_DEALER -> PartyCardDealerTool(toolRoster)
                     }
                 }
             }
@@ -279,7 +318,12 @@ private val PARTY_TOOLKIT_TIMER_SAVER = listSaver<PartyToolkitTimerState, Any>(
     }
 )
 
-private enum class PartyTool(val emoji: String, val title: String) {
+/**
+ * The tabs. New entries are only ever appended, because the selected tab is saved by ordinal.
+ * The original eight carry a plain English [title]; the later ones carry a string resource
+ * ([titleRes] != 0) and show the localized text.
+ */
+private enum class PartyTool(val emoji: String, val title: String, val titleRes: Int = 0) {
     DICE("🎲", "Dice"),
     COIN_TOSS("🪙", "Coin Toss"),
     RANDOM_LETTER("🔤", "Letter"),
@@ -287,9 +331,19 @@ private enum class PartyTool(val emoji: String, val title: String) {
     LIFE_POINTS("❤️", "Life Points"),
     HOURGLASS("⏳", "Hourglass"),
     FIRST_PLAYER("🎯", "First Player"),
-    TEAMS("👥", "Teams");
+    TEAMS("👥", "Teams"),
+    SCORE_KEEPER("📝", "Score Keeper", R.string.party1_tab_score),
+    TEAM_SPLITTER("🧩", "Team Splitter", R.string.party1_tab_teams),
+    PICKER("💸", "Who Pays", R.string.party1_tab_picker),
+    TURN_ORDER("🔁", "Turn Order", R.string.party1_tab_turn_order),
+    WHO_STARTS("🥇", "Who Starts", R.string.party1_tab_first_player),
+    GAME_CLOCK("⏱️", "Game Clock", R.string.party1_tab_clock),
+    ROUNDS("🔢", "Rounds", R.string.party1_tab_rounds),
+    CARD_DEALER("🃏", "Card Dealer", R.string.party1_tab_dealer);
 
-    val label: String get() = "$emoji $title"
+    /** The tab's display name, localized when it has a string resource. */
+    @Composable
+    fun displayTitle(): String = if (titleRes != 0) stringResource(titleRes) else title
 }
 
 /** Mini timer shown on every tab but the Hourglass while the countdown is running, paused part-way, or finished. */

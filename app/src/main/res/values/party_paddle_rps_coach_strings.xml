@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- How-to-play coach cards of Paddle Duel and Rock-Paper-Showdown. Ids with dashes use underscores in the names. -->
+    <string name="coach_paddle_duel_s1">Paddle Duel is Pong for two to four people on one screen. Keep the ball out of your own edge and send it past everyone else.</string>
+    <string name="coach_paddle_duel_s2">Put a thumb anywhere on your side and slide: your paddle follows. Every player has their own finger, so everybody plays at once.</string>
+    <string name="coach_paddle_duel_s3">Hit the ball with the end of the paddle to send it sideways. A moving paddle adds spin, and the ball speeds up with every return.</string>
+    <string name="coach_paddle_duel_s4">Win by points, or by lives: when yours run out your edge turns into a wall and the last paddle standing wins. Power-ups are optional.</string>
+    <string name="coach_paddle_duel_s5">Prefer not to drag? Hold the arrow buttons beside your name, or choose One switch in the setup. The Relaxed assist slows everything down. This game is same screen only for now: no Nearby or Online.</string>
+    <string name="coach_paddle_duel_fact">Pong, released by Atari in 1972, began as a warm-up exercise for a new engineer, Allan Alcorn. It helped launch the video game industry.</string>
+    <string name="coach_rps_showdown_s1">Everybody picks a move in secret, at the same time, on their own side of the screen. Two to four people can play.</string>
+    <string name="coach_rps_showdown_s2">Tap a move to lock it in. Your side then shows only a lock, so nobody can peek at your pick. Tap Undo to change your mind while the others are still choosing.</string>
+    <string name="coach_rps_showdown_s3">When everyone is locked in, a countdown runs and all moves are revealed together. If one move beats all the others, its players win the round. Anything else is a tie and replays.</string>
+    <string name="coach_rps_showdown_s4">Play best of 3, 5 or 7, or Elimination, where losers drop out and the last player standing wins. Lizard-Spock adds two more moves.</string>
+    <string name="coach_rps_showdown_s5">Computer players choose before they see anything of yours. On Hard, the computer learns your habits from past rounds, so mix it up. Same screen only for now: no Nearby or Online.</string>
+    <string name="coach_rps_showdown_fact">Versions of rock-paper-scissors have been played in East Asia for centuries, and the game even has national and world championships.</string>
+</resources>

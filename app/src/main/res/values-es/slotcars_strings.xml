@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cadenas de pantalla de Coches de ranura (archivo propio). -->
+    <string name="sct_help_title">Cómo jugar a Coches de ranura</string>
+    <string name="sct_help_text">Sé el primero en cruzar la meta tras el número de vueltas elegido.\n\nSolo controlas el acelerador. Mantén pulsado tu mando para acelerar y suéltalo para frenar. La clave es frenar antes de una curva: un coche que entra demasiado rápido en una curva se sale de la ranura, pierde toda su velocidad y queda fuera de la pista un momento antes de que lo vuelvan a colocar.\n\nLas señales ámbar marcan las curvas en las que hay que reducir. La barra de agarre sobre tu mando se llena al acercarte al límite; en una curva, mantenla fuera de la zona rayada.\n\nTodos conducen a la vez, cada uno con su mando. Cámara lenta corre la carrera a media velocidad. Paso a paso la convierte en un juego por turnos: elige acelerar o dejar rodar durante el próximo medio segundo, pulsa Ir y los coches avanzan ese paso. Con un lector de pantalla, cada mando es un interruptor.</string>
+    <string name="sct_car">Coche %1$d (%2$s)</string>
+    <string name="sct_chip_desc">%1$s: %2$s, vuelta %3$d de %4$d.</string>
+    <string name="sct_place_1">1.º</string>
+    <string name="sct_place_2">2.º</string>
+    <string name="sct_place_3">3.º</string>
+    <string name="sct_place_4">4.º</string>
+    <string name="sct_laps_badge">%1$d vueltas</string>
+    <string name="sct_slow_badge">Cámara lenta</string>
+    <string name="sct_step_badge">Paso a paso</string>
+    <string name="sct_track_meadow">Óvalo del Prado</string>
+    <string name="sct_track_hill">Colina Horquilla</string>
+    <string name="sct_track_twist">El Retorcido</string>
+    <string name="sct_track_desc">Carrera de coches de ranura en %1$s, %2$d vueltas.</string>
+    <string name="sct_status_ready">Prepárate. Las luces cuentan atrás.</string>
+    <string name="sct_status_go">¡Ya! Mantén tu mando para acelerar y suéltalo antes de las curvas.</string>
+    <string name="sct_step_status">Planea el próximo medio segundo: elige acelerar o dejar rodar y pulsa Ir.</string>
+    <string name="sct_opp_left">Los demás pilotos abandonaron la carrera.</string>
+    <string name="sct_ann_lap">%1$s empieza la vuelta %2$d de %3$d.</string>
+    <string name="sct_ann_lap_you">Empiezas la siguiente vuelta.</string>
+    <string name="sct_ann_deslot">%1$s se salió de la ranura y lo están recolocando.</string>
+    <string name="sct_ann_deslot_you">¡Te saliste de la ranura! Te están recolocando.</string>
+    <string name="sct_ann_finish">%1$s terminó en %2$s lugar.</string>
+    <string name="sct_ann_finish_you">Has terminado.</string>
+    <string name="sct_ann_place_you">Es el %1$s lugar.</string>
+    <string name="sct_ann_win">¡%1$s gana la carrera!</string>
+    <string name="sct_ann_win_you">¡Ganas la carrera!</string>
+    <string name="sct_hint_brake">¡Suelta! Viene una curva.</string>
+    <string name="sct_hint_go">A fondo, el camino está libre.</string>
+    <string name="sct_why_left">Los demás se fueron, así que la carrera no puede continuar.</string>
+    <string name="sct_why_over">La carrera ha terminado.</string>
+    <string name="sct_grip_desc">Uso de agarre: %1$d por ciento. Cerca de 100, el coche se sale de la ranura.</string>
+    <string name="sct_pad_desc">Mando del acelerador de %1$s. Mantén pulsado para acelerar, suelta para frenar.</string>
+    <string name="sct_pad_toggle_desc">Interruptor del acelerador de %1$s. Toca dos veces para activarlo o desactivarlo.</string>
+    <string name="sct_pad_hold">Mantén para conducir</string>
+    <string name="sct_pad_hold_on">Conduciendo. Suelta para frenar.</string>
+    <string name="sct_pad_toggle_on">Acelerador ACTIVADO. Toca para soltar.</string>
+    <string name="sct_pad_toggle_off">Acelerador DESACTIVADO. Toca para conducir.</string>
+    <string name="sct_throttle_on">Acelerador activado</string>
+    <string name="sct_throttle_off">Acelerador desactivado</string>
+    <string name="sct_step_go">Ir</string>
+    <string name="sct_step_waiting">Esperando a los demás</string>
+    <string name="sct_over_title">¡%1$s gana!</string>
+    <string name="sct_over_title_you">¡Ganas!</string>
+    <string name="sct_over_best">Mejor vuelta: %1$s, %2$s</string>
+    <string name="sct_over_line">%1$s: %2$s, %3$s</string>
+    <string name="sct_over_dnf">no terminó</string>
+    <string name="sct_over_session">Carreras ganadas: %1$s</string>
+</resources>

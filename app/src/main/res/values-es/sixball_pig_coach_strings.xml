@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Six-Ball Puzzle and Pig coach cards (own file; the GameCoach.entries entries are added by the integrator) -->
+    <string name="coach_six_ball_puzzle_s1">Seis bolas de colores descansan en una bandeja de madera. Inclina la bandeja con los cuatro botones de flecha, o desliza el tablero, y cada bola rueda hasta donde puede.</string>
+    <string name="coach_six_ball_puzzle_s2">Una bola se detiene contra un poste, el borde u otra bola, así que decides dónde acaba cada una eligiendo el orden de tus inclinaciones.</string>
+    <string name="coach_six_ball_puzzle_s3">Cada bola tiene su propio hueco, marcado con el mismo símbolo y color. Pon las seis en su hueco para resolver la bandeja.</string>
+    <string name="coach_six_ball_puzzle_s4">El par es el menor número de inclinaciones con el que se puede resolver. Termina en el par para conseguir tres estrellas. Deshacer es ilimitado y la pista muestra la siguiente inclinación de un camino más corto, o te avisa de un callejón sin salida.</string>
+    <string name="coach_six_ball_puzzle_s5">Compite con amigos en la misma bandeja, por turnos en un dispositivo o a la vez por Cercanos o En línea. Gana quien use menos inclinaciones.</string>
+    <string name="coach_six_ball_puzzle_fact">Los rompecabezas de inclinar como este son problemas de bloques deslizantes, y un ordenador los resuelve como lo hace este juego: buscando todas las posiciones, de la más cercana a la más lejana.</string>
+    <string name="coach_pig_dice_s1">En tu turno tira el dado tantas veces como quieras. Cada tirada suma al bote.</string>
+    <string name="coach_pig_dice_s2">Pulsa Plantar para guardar el bote en tu puntuación y terminar tu turno.</string>
+    <string name="coach_pig_dice_s3">Si sacas un 1 pierdes todo el bote y el turno pasa. Cuanto más tiras, más puedes perder.</string>
+    <string name="coach_pig_dice_s4">Gana el primero en llegar a la meta, y ganas en cuanto tu puntuación más el bote la alcanza. La pista te dice la mejor jugada y tu probabilidad de ganar.</string>
+    <string name="coach_pig_dice_s5">Prueba las variantes: Big Pig con dos dados, Hog con una sola tirada de los dados que elijas y Veintiuno Plus.</string>
+    <string name="coach_pig_dice_fact">Los ordenadores han resuelto el Pig: la mejor jugada sigue tirando hasta que el bote llega a unos 25, y el jugador que empieza gana alrededor del 53 por ciento de las veces.</string>
+</resources>

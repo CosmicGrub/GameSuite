@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared roster -->
+    <string name="party1_roster_title">Players</string>
+    <string name="party1_roster_summary_empty">None saved</string>
+    <string name="party1_roster_edit">Edit</string>
+    <string name="party1_roster_done">Done</string>
+    <string name="party1_roster_hint">Saved on this device. The tools below use this list. With fewer than 2 names they use Player 1, Player 2 and so on.</string>
+    <string name="party1_roster_count">%1$d of %2$d players</string>
+    <string name="party1_roster_add_label">New player name</string>
+    <string name="party1_roster_add">Add</string>
+    <string name="party1_roster_full">The roster is full.</string>
+    <string name="party1_roster_name_label">Player %1$d</string>
+    <string name="party1_roster_move_up">Move %1$s up</string>
+    <string name="party1_roster_move_down">Move %1$s down</string>
+    <string name="party1_roster_remove">Remove %1$s</string>
+
+    <!-- Common -->
+    <string name="party1_player_prefix">Player</string>
+    <string name="party1_fallback_hint">No roster saved, so this tool uses Player 1, Player 2 and so on. Add at least 2 names above to use them instead.</string>
+    <string name="party1_players_label">Players</string>
+    <string name="party1_players_count_cd">%1$d players</string>
+    <string name="party1_players_fewer">Fewer players</string>
+    <string name="party1_players_more">More players</string>
+    <string name="party1_cancel">Cancel</string>
+
+    <!-- Tabs -->
+    <string name="party1_tab_score">Score Keeper</string>
+    <string name="party1_tab_teams">Team Splitter</string>
+    <string name="party1_tab_picker">Who Pays</string>
+    <string name="party1_tab_turn_order">Turn Order</string>
+    <string name="party1_tab_first_player">Who Starts</string>
+    <string name="party1_tab_clock">Game Clock</string>
+    <string name="party1_tab_rounds">Rounds</string>
+    <string name="party1_tab_dealer">Card Dealer</string>
+    <string name="party1_help_new_tools">Players: the list at the top is shared. Edit it once and Score Keeper, Team Splitter, Who Pays, Turn Order, Who Starts, Game Clock, Rounds and Card Dealer all use it.\n\nScore Keeper: tap +1, +5, +10 or -1 for a player, or Other for any amount. Next round starts a new row in the history, Undo removes the last entry, and Reset asks first. It is saved on this device.\n\nTeam Splitter: pick 2 to 4 teams and tap Split. Re-roll shuffles again, Copy puts the teams on the clipboard.\n\nWho Pays: tap Pick to choose one name at random.</string>
+
+    <!-- Score Keeper -->
+    <string name="party1_score_title">Score Keeper</string>
+    <string name="party1_score_round">Round %1$d</string>
+    <string name="party1_score_target_label">Target score (optional)</string>
+    <string name="party1_score_leading">★ Leading</string>
+    <string name="party1_score_target_reached">🏁 Target reached</string>
+    <string name="party1_score_add_cd">Add %1$d to %2$s</string>
+    <string name="party1_score_subtract_cd">Subtract %1$d from %2$s</string>
+    <string name="party1_score_custom">Other…</string>
+    <string name="party1_score_custom_cd">Custom amount for %1$s</string>
+    <string name="party1_score_custom_title">Custom amount for %1$s</string>
+    <string name="party1_score_custom_field">Points</string>
+    <string name="party1_score_custom_add">Add</string>
+    <string name="party1_score_custom_subtract">Subtract</string>
+    <string name="party1_score_next_round">Next round</string>
+    <string name="party1_score_undo">Undo</string>
+    <string name="party1_score_undo_last">Undo: %1$s %2$s</string>
+    <string name="party1_score_reset">Reset</string>
+    <string name="party1_score_reset_title">Reset scores?</string>
+    <string name="party1_score_reset_body">This clears every score and round. Your players and target score stay.</string>
+    <string name="party1_score_history">Round history</string>
+    <string name="party1_score_history_empty">No points yet. Tap a score button to start.</string>
+    <string name="party1_score_history_round">Round</string>
+    <string name="party1_score_total">Total</string>
+    <string name="party1_score_round_cd">Round %1$d: %2$s</string>
+    <string name="party1_score_no_entry">no change</string>
+
+    <!-- Team Splitter -->
+    <string name="party1_teams_title">Team Splitter</string>
+    <string name="party1_teams_hint">Teams are as even as possible: sizes differ by at most one.</string>
+    <string name="party1_teams_count_label">Teams</string>
+    <string name="party1_teams_count_cd">%1$d teams</string>
+    <string name="party1_teams_fewer">Fewer teams</string>
+    <string name="party1_teams_more">More teams</string>
+    <string name="party1_teams_split">Split into teams</string>
+    <string name="party1_teams_reroll">Re-roll</string>
+    <string name="party1_teams_copy">Copy as text</string>
+    <string name="party1_teams_copied">Copied to the clipboard.</string>
+    <string name="party1_team_word">Team</string>
+    <plurals name="party1_team_size">
+        <item quantity="one">%d player</item>
+        <item quantity="other">%d players</item>
+    </plurals>
+
+    <!-- Who Pays / Picker -->
+    <string name="party1_picker_title">Who Pays?</string>
+    <string name="party1_picker_hint">Tap Pick and one name is chosen fairly at random.</string>
+    <string name="party1_picker_ready">Ready</string>
+    <string name="party1_picker_pick">Pick</string>
+    <string name="party1_picker_again">Pick again</string>
+    <string name="party1_picker_picking">Picking…</string>
+    <string name="party1_picker_history">Recent picks</string>
+    <string name="party1_picker_result_cd">Picked: %1$s</string>
+</resources>

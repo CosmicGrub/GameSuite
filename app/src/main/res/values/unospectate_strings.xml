@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="uno_spectate_banner">Watching</string>
+    <string name="uno_spectate_hint">You\'re watching this game. Cards stay face down.</string>
+    <string name="uno_spectate_leave">Leave</string>
+    <string name="uno_spectate_round_over">Waiting for the host to deal the next round…</string>
+</resources>

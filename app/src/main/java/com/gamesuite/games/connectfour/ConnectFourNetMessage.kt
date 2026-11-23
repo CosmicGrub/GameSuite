@@ -40,5 +40,12 @@ data class ConnectFourNetState(
     val winnerPlayerId: String?,
     val winningLine: List<Int>?,
     val sessionWins: Map<String, Int>,
-    val sessionDraws: Int
+    val sessionDraws: Int,
+    /**
+     * Board shape. Optional so an older peer, which sends none, is read as the classic 7 x 6
+     * connect-4 board (default values are not encoded, so a classic board adds nothing to the wire).
+     */
+    val columns: Int = 7,
+    val rows: Int = 6,
+    val winLength: Int = 4
 )

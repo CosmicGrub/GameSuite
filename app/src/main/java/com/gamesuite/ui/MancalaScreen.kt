@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamesuite.R
 import com.gamesuite.audio.MusicProfiles
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberAmbientMusic
@@ -60,6 +62,8 @@ import com.gamesuite.games.cards.CardSounds
 import com.gamesuite.games.mancala.MancalaGame
 import com.gamesuite.games.mancala.MancalaMotionPrefs
 import com.gamesuite.games.mancala.MancalaMotionTier
+import com.gamesuite.games.mancala.MancalaCaptureRule
+import com.gamesuite.games.mancala.MancalaRules
 import com.gamesuite.games.mancala.MancalaState
 import com.gamesuite.haptics.HapticSignal
 import com.gamesuite.haptics.rememberHaptics
@@ -79,9 +83,11 @@ import com.gamesuite.ui.effects.specularSweep
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Renders MancalaGame's state: a 2x6 pit board with a store at each end (standard Kalah rules,
@@ -170,6 +176,8 @@ fun MancalaScreen(
         // overrides both): the CPU level and which roster seat sows first on the first board.
         game.difficulty = sessionManager.cpuDifficultyFor(settings.defaultCpuDifficulty)
         game.openingSeatIndex = sessionManager.launchOptions.firstMoverIndex.coerceIn(0, 1)
+        // Board variant from the Hub (stones / pits / capture); a resumed save brings its own.
+        game.rules = MancalaRules.fromExtras(sessionManager.launchOptions.extras)
         game.init(ctx)
         game.setOnMatchEnd { result ->
             sessionManager.endActiveGame(result)
@@ -191,7 +199,11 @@ fun MancalaScreen(
         if (ctx.players.getOrNull(s.currentPlayerIndex)?.isBot == true) {
             val thinkMs = gameSpeed.scale(BOT_THINK_MS)
             if (thinkMs > 60L) delay(thinkMs)
-            game.playBotTurn()
+            // The search runs off the main thread; the move is applied only if the position is
+            // still the one it was computed for (undo, a new board or leaving may have intervened).
+            val plan = game.planBotTurn() ?: return@LaunchedEffect
+            val move = withContext(Dispatchers.Default) { plan.chooseMove() }
+            game.applyBotMove(plan, move)
         }
     }
 
@@ -216,6 +228,27 @@ fun MancalaScreen(
         // A guest has no board until the host's first StateSync arrives.
         if (networked) MancalaWaitingForHost(onLeave = game::leaveSession)
         return
+    }
+    // The board shape for this session (a restored save sets it before the first state appears).
+    val rules = game.rules
+    val boardSize = rules.boardSize
+    val store0 = rules.store0
+    val store1 = rules.store1
+    val isStandardBoard = rules == MancalaRules()
+    val noCapture = rules.capture == MancalaCaptureRule.NONE
+    val variantBoardText = stringResource(R.string.mancala_variant_board, rules.pitsPerSide, rules.stonesPerPit)
+    val variantNoCaptureText = stringResource(R.string.mancala_variant_no_capture)
+    val helpVariantText = stringResource(R.string.mancala_help_variant, rules.pitsPerSide, rules.stonesPerPit)
+    val helpNoCaptureText = stringResource(R.string.mancala_help_no_capture)
+    val variantLine: String? = when {
+        isStandardBoard -> null
+        noCapture -> "$variantBoardText · $variantNoCaptureText"
+        else -> variantBoardText
+    }
+    val helpVariantNote: String = when {
+        isStandardBoard -> ""
+        noCapture -> "\n\n$helpVariantText $helpNoCaptureText"
+        else -> "\n\n$helpVariantText"
     }
     // Deliberately NOT `context ?: return`: setOnMatchEnd (above) calls endActiveGame, which nulls
     // activeContext the same beat the session ends, and nothing below may be skipped (or its
@@ -268,12 +301,12 @@ fun MancalaScreen(
     // A sow whose last stone lands in the mover's own store keeps currentPlayerIndex on the
     // mover; the engine never records that as a flag, but the sow path always ends in that
     // store exactly then (a sow never ends in the opponent's store, which it skips).
-    val extraTurnOwed = !s.roundOver && s.lastSowPath.lastOrNull() == storeIndexOf(s.currentPlayerIndex)
+    val extraTurnOwed = !s.roundOver && s.lastSowPath.lastOrNull() == rules.storeOf(s.currentPlayerIndex)
 
     // Real per-seed physics jostle (see MancalaSeedPhysics below) is Maximum-tier-only AND
     // still yields to Settings -> Display "Enhanced move animations" / Reduced Motion.
     val jostleActive = enhanced && motionTier == MancalaMotionTier.MAXIMUM
-    val seedPhysics = remember { MancalaSeedPhysics() }
+    val seedPhysics = remember(boardSize) { MancalaSeedPhysics(boardSize, store0, store1) }
     // Read only inside draw lambdas (SeedPhysicsOverlay), so a tick redraws the seeds without
     // recomposing the board.
     val physicsFrame = remember { mutableStateOf(0L) }
@@ -283,7 +316,7 @@ fun MancalaScreen(
     // Cancelled automatically the instant `jostleActive` goes false.
     LaunchedEffect(jostleActive) {
         if (!jostleActive) return@LaunchedEffect
-        seedPhysics.syncAll(game.state.value?.pits ?: List(14) { 0 })
+        seedPhysics.syncAll(game.state.value?.pits ?: List(boardSize) { 0 })
         var lastFrameNanos = 0L
         while (true) {
             withFrameNanos { nanos ->
@@ -361,7 +394,7 @@ fun MancalaScreen(
                 // reappear, freshly landed, in the mover's store once the sweep arrives.
                 seedPhysics.clear(capture.landingPit)
                 seedPhysics.clear(capture.oppositePit)
-                val store = if (capture.landingPit <= 5) 6 else 13
+                val store = if (capture.landingPit < store0) store0 else store1
                 repeat(capture.totalSwept) { seedPhysics.spawn(store) }
             }
         }
@@ -441,9 +474,10 @@ fun MancalaScreen(
     } else {
         turnPrompt(mover = mover, hasBot = hasBot, extraTurn = extraTurnOwed, roundOver = s.roundOver)
     }
-    val summary = moveSummary(s, players)
+    val summary = moveSummary(s, players, store0)
     val detailLines = buildList<String> {
         if (networked) add("Playing against $opponentName")
+        if (variantLine != null) add(variantLine)
         if (hasBot) {
             add("CPU difficulty: ${game.difficulty.name.lowercase().replaceFirstChar { it.uppercase() }}")
         }
@@ -456,8 +490,19 @@ fun MancalaScreen(
     }
     // Play Again needs the other player to still be there.
     val canPlayAgain = !(networked && opponentGone)
-    val stonesLine = "Final stones: $p0Name ${s.pits[6]} · $p1Name ${s.pits[13]}"
+    val stonesLine = "Final stones: $p0Name ${s.pits[store0]} · $p1Name ${s.pits[store1]}"
     val resultSessionLine = sessionLine(p0Name, p1Name, scoreP1, scoreP2, draws)
+
+    // Hint: the search runs off the main thread and only rings a pit if the position is unchanged.
+    val requestHint: () -> Unit = {
+        val plan = game.planHint()
+        if (plan != null) {
+            scope.launch {
+                val pit = withContext(Dispatchers.Default) { plan.chooseMove() }
+                game.applyHint(plan, pit)
+            }
+        }
+    }
 
     // Back / abort-confirm / How to Play live in the shared GameChrome. Leaving mid-game discards
     // ONLY the unfinished game: if earlier games this session were already won or drawn, leaving
@@ -472,7 +517,8 @@ fun MancalaScreen(
             "empty pit on your side and the pit opposite has stones, you capture both piles " +
             "into your store; pits that would capture are ringed in gold.\n\n" +
             "The game ends when one side has no stones left. The other side's remaining stones go " +
-            "to its owner's store, and whoever has more stones in their store wins (equal is a tie).",
+            "to its owner's store, and whoever has more stones in their store wins (equal is a tie)." +
+            helpVariantNote,
         matchInProgress = !s.roundOver,
         onLeave = game::leaveSession,
         onAbort = { if (finishedRounds > 0) game.leaveSession() else game.abortMatch() },
@@ -480,7 +526,7 @@ fun MancalaScreen(
         // Networked play has no takebacks or hints (the opponent is a person).
         onUndo = if (networked) null else ({ game.undo() }),
         canUndo = !networked && game.canUndo,
-        onHint = if (networked) null else ({ game.hint() }),
+        onHint = if (networked) null else requestHint,
         buttonFill = MaterialTheme.colorScheme.background,
         buttonContent = MaterialTheme.colorScheme.onBackground,
         leaveTitle = "Leave this game?",
@@ -509,11 +555,11 @@ fun MancalaScreen(
         val boardBlock: @Composable (Modifier) -> Unit = { boardModifier ->
             BoxWithConstraints(modifier = boardModifier, contentAlignment = Alignment.Center) {
                 val dpPx = LocalDensity.current.density
-                val fit = remember(maxWidth, maxHeight, dpPx) {
+                val fit = remember(maxWidth, maxHeight, dpPx, rules.pitsPerSide) {
                     fitBoard(
                         availableWidthPx = maxWidth.value * dpPx,
                         availableHeightPx = maxHeight.value * dpPx,
-                        columns = BOARD_COLUMNS,
+                        columns = rules.pitsPerSide * 4 + 6,
                         rows = BOARD_ROWS,
                         framePx = (SLAB_PADDING.value * dpPx).roundToInt().toFloat(),
                         minCellPx = MIN_UNIT_DP * dpPx,
@@ -548,12 +594,14 @@ fun MancalaScreen(
                         // each player's own pits are on the near row and their store on the right
                         // (near row 7..12, far row 5 downTo 0, stores 6 | 13). Pit numbers always count
                         // from the pit farthest from the owner's store, so they do not change.
-                        val leftStore = if (viewSeat == 0) 13 else 6
-                        val rightStore = if (viewSeat == 0) 6 else 13
-                        val farRow: IntProgression = if (viewSeat == 0) (12 downTo 7) else (5 downTo 0)
-                        val nearRow: IntProgression = if (viewSeat == 0) (0..5) else (7..12)
+                        val leftStore = if (viewSeat == 0) store1 else store0
+                        val rightStore = if (viewSeat == 0) store0 else store1
+                        val seat0Pits = rules.pitsOf(0)
+                        val seat1Pits = rules.pitsOf(1)
+                        val farRow: IntProgression = if (viewSeat == 0) seat1Pits.reversed() else seat0Pits.reversed()
+                        val nearRow: IntProgression = if (viewSeat == 0) seat0Pits else seat1Pits
                         val pitCell: @Composable (Int) -> Unit = { pit ->
-                            val seat = if (pit <= 5) 0 else 1
+                            val seat = if (pit < store0) 0 else 1
                             Box(modifier = Modifier.onGloballyPositioned { pitPositions[pit] = it.pitCenter() }) {
                                 PitView(
                                     count = s.pits[pit],
@@ -562,7 +610,7 @@ fun MancalaScreen(
                                     highlightCapture = pit in captureCandidates,
                                     hinted = pit == hintPit,
                                     ownerLabel = if (seat == 0) ownerLabel0 else ownerLabel1,
-                                    pitNumber = if (seat == 0) pit + 1 else pit - 6,
+                                    pitNumber = if (seat == 0) pit + 1 else pit - store0,
                                     unit = u,
                                     card3D = card3D,
                                     jostleActive = jostleActive,
@@ -577,7 +625,7 @@ fun MancalaScreen(
                             Box(modifier = Modifier.onGloballyPositioned { pitPositions[store] = it.pitCenter() }) {
                                 StoreView(
                                     count = s.pits[store],
-                                    ownerLabel = if (store == 6) ownerLabel0 else ownerLabel1,
+                                    ownerLabel = if (store == store0) ownerLabel0 else ownerLabel1,
                                     unit = u,
                                     card3D = card3D, jostleActive = jostleActive, physics = seedPhysics,
                                     slotIndex = store, physicsFrame = physicsFrame
@@ -647,7 +695,7 @@ fun MancalaScreen(
                                             canUndo = game.canUndo,
                                             canHint = humanCanMove,
                                             onUndo = { game.undo() },
-                                            onHint = { game.hint() }
+                                            onHint = requestHint
                                         )
                                     }
                                 }
@@ -679,7 +727,7 @@ fun MancalaScreen(
                                         canUndo = game.canUndo,
                                         canHint = humanCanMove,
                                         onUndo = { game.undo() },
-                                        onHint = { game.hint() }
+                                        onHint = requestHint
                                     )
                                 }
                                 Spacer(Modifier.height(8.dp))
@@ -724,7 +772,7 @@ fun MancalaScreen(
                     // into the mover's store (pit <= 5 is player 0's side -> store 6, see
                     // MancalaGame's board-layout KDoc).
                     captureForAnim?.let { capture ->
-                        val store = if (capture.landingPit <= 5) 6 else 13
+                        val store = if (capture.landingPit < store0) store0 else store1
                         SeedHop(
                             progress = { captureLandingAnim.value },
                             from = { pitPositions[capture.landingPit] ?: Offset.Zero },
@@ -751,9 +799,6 @@ private fun androidx.compose.ui.layout.LayoutCoordinates.pitCenter(): Offset =
     positionInRoot() + Offset(size.width / 2f, size.height / 2f)
 
 // ---- Pure text helpers (no Compose) -------------------------------------------------------
-
-/** Board index of [playerIndex]'s store (see MancalaGame's board-layout KDoc). */
-private fun storeIndexOf(playerIndex: Int): Int = if (playerIndex == 0) 6 else 13
 
 private fun possessive(name: String): String = if (name.equals("You", ignoreCase = true)) "Your" else "$name's"
 
@@ -832,11 +877,11 @@ private fun MancalaWaitingForHost(onLeave: () -> Unit) {
  * this rebuilds the sentence from the sow path and capture instead. Falls back to the engine's
  * text for the initial deal.
  */
-private fun moveSummary(s: MancalaState, players: List<PlayerInfo>): String {
+private fun moveSummary(s: MancalaState, players: List<PlayerInfo>, store0: Int): String {
     val firstPit = s.lastSowPath.firstOrNull() ?: return s.lastAction
-    val moverIndex = if (firstPit <= 5) 0 else 1
+    val moverIndex = if (firstPit < store0) 0 else 1
     val name = players.getOrNull(moverIndex)?.displayName ?: "Player ${moverIndex + 1}"
-    val pitNumber = if (moverIndex == 0) firstPit + 1 else firstPit - 6
+    val pitNumber = if (moverIndex == 0) firstPit + 1 else firstPit - store0
     val captured = s.lastCapture?.let { " and captured ${it.totalSwept}" } ?: ""
     return "$name sowed from pit $pitNumber$captured"
 }
@@ -998,9 +1043,9 @@ private fun MancalaResultPanel(
 
 /**
  * fitBoard grid, in units `u` (a quarter of a pit's pitch): pit slot 4u x 5u, store 3u x 10u, so
- * the playing area is 6 pits + 2 stores = 30u wide and two pit rows = 10u tall.
+ * the playing area is n pits + 2 stores = 4n + 6 units wide (30u for the standard 6 pits, 26u for
+ * 5) and two pit rows = 10u tall.
  */
-private const val BOARD_COLUMNS = 30
 private const val BOARD_ROWS = 10
 
 /** Wooden slab padding around the playing area; also fitBoard's frame. */
@@ -1090,13 +1135,14 @@ private fun SeedHop(
  * (see SeedPhysicsOverlay) maps this normalized space onto that slot's own actual pixel size,
  * so the same simulation works for both the round pits and the tall, narrow stores.
  */
-private class MancalaSeedPhysics {
+private class MancalaSeedPhysics(boardSize: Int = 14, storeA: Int = 6, storeB: Int = 13) {
     class Seed(var x: Float, var y: Float, var vx: Float, var vy: Float)
 
-    // Slot 6 and 13 are the two stores (see MancalaGame's board-layout KDoc) -- taller/
-    // narrower than a pit since they can hold far more seeds by the end of a round.
-    private val halfExtents: List<Pair<Float, Float>> = List(14) { i -> if (i == 6 || i == 13) 1f to 2.4f else 1f to 1f }
-    private val slots: Array<MutableList<Seed>> = Array(14) { mutableListOf() }
+    // The two store slots (6 and 13 on the standard board, see MancalaGame's board-layout KDoc) are
+    // taller/narrower than a pit since they can hold far more seeds by the end of a round.
+    private val halfExtents: List<Pair<Float, Float>> =
+        List(boardSize) { i -> if (i == storeA || i == storeB) 1f to 2.4f else 1f to 1f }
+    private val slots: Array<MutableList<Seed>> = Array(boardSize) { mutableListOf() }
 
     fun seedsFor(slot: Int): List<Seed> = slots.getOrElse(slot) { emptyList() }
 

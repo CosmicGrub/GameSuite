@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Speed and Matching (GameCoach conventions: coach_<id>_s1..sN and _fact). -->
+    <string name="coach_speed_s1">Both players play at the same time. Each centre pile shows a card.</string>
+    <string name="coach_speed_s2">Play a card from your hand onto a centre pile if it is exactly one rank higher or lower. Aces sit between kings and twos.</string>
+    <string name="coach_speed_s3">Your hand refills from your draw pile. Play every card of your hand and draw pile to win.</string>
+    <string name="coach_speed_s4">Nobody can play? Tap Flip and new cards turn up in the centre. Prefer to take turns? Turn on Turn-based assist.</string>
+    <string name="coach_speed_fact">Speed is also called Spit or Slam, and most versions use a single 52-card deck.</string>
+    <string name="coach_matching_s1">The cards lie face down. On your turn, tap two cards to turn them over.</string>
+    <string name="coach_matching_s2">Same picture? You keep the pair and go again. Different? They turn back and the turn passes.</string>
+    <string name="coach_matching_s3">Remember where each picture is. Hint shows a pair you have already seen.</string>
+    <string name="coach_matching_s4">The board ends when every pair is found. With friends the most pairs wins; alone, aim for fewer moves and a faster time.</string>
+    <string name="coach_matching_fact">This game is also called Concentration, Memory, Pairs or Pelmanism, after a British memory-training system.</string>
+</resources>

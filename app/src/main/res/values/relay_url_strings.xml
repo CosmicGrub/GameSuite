@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="relay_url_error_scheme">The address must start with wss:// (or ws:// for a device on your own network).</string>
+    <string name="relay_url_error_host_missing">Enter a valid server host name, for example wss://relay.example.com.</string>
+    <string name="relay_url_error_whitespace">The address cannot contain spaces.</string>
+    <string name="relay_url_error_credentials">Do not put a user name or password in the address.</string>
+    <string name="relay_url_error_port">The port must be a number from 1 to 65535.</string>
+    <string name="relay_url_error_insecure_host">Plain ws:// is only allowed for localhost or a private network address. Use wss:// for other servers.</string>
+</resources>

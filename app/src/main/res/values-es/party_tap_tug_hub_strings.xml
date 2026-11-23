@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Tap Race and Tug of War (hubKey names). hub_same_screen is shared by every party-pack game: keep ONE definition. -->
+    <string name="hub_tap_race">Carrera de toques</string>
+    <string name="hub_everyone_taps_at_once_on_one_screen_first_to_the_a31363">Todos tocan a la vez en una sola pantalla. El primero en llegar a la meta gana la ronda.</string>
+    <string name="hub_race_the_computer">Carrera contra la CPU</string>
+    <string name="hub_race_1_to_3_computer_racers_each_one_gets_a_lane_dee853">Compite contra de 1 a 3 corredores CPU. Cada uno tiene su propio carril.</string>
+    <string name="hub_same_screen">Misma pantalla</string>
+    <string name="hub_two_to_four_people_race_at_the_same_time_each_in_92935f">De dos a cuatro personas compiten a la vez, cada una en su carril. La CPU puede ocupar los carriles vacíos.</string>
+    <string name="hub_race_type">Tipo de carrera</string>
+    <string name="hub_three_ways_to_race_on_the_same_screen">Tres formas de competir en la misma pantalla.</string>
+    <string name="hub_sprint">Velocidad</string>
+    <string name="hub_tap_as_fast_as_you_can_first_to_fill_the_track_w_3b21a5">Toca lo más rápido que puedas. Gana quien llene primero la pista.</string>
+    <string name="hub_rhythm">Ritmo</string>
+    <string name="hub_tap_only_on_the_beat_early_late_and_extra_taps_s_78e2b5">Toca solo al compás. Los toques adelantados, tardíos o de más te hacen retroceder.</string>
+    <string name="hub_mash_and_brake">Machaca y frena</string>
+    <string name="hub_tap_fast_but_never_while_the_light_is_red">Toca rápido, pero nunca con la luz roja.</string>
+    <string name="hub_the_first_to_win_more_than_half_of_the_rounds_ta_ae29fe">Gana la partida quien gane más de la mitad de las rondas.</string>
+    <string name="hub_relaxed_tapping">Toques relajados</string>
+    <string name="hub_fewer_taps_to_win_wider_beat_windows_and_longer_863078">Menos toques para ganar, márgenes de compás más amplios y avisos de luz roja más largos, para quien no puede tocar rápido.</string>
+    <string name="hub_hold_to_tap">Mantener para tocar</string>
+    <string name="hub_hold_your_pad_and_it_taps_for_you_at_a_steady_pa_d2dac3">Mantén pulsado tu botón y toca por ti a ritmo constante: una forma de jugar con un solo botón. No se usa en Ritmo.</string>
+    <string name="hub_turn_the_far_lanes_around">Girar los carriles lejanos</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_6d83fc">Quienes se sientan enfrente leen su carril del derecho. Desactívalo si una sola persona sostiene el dispositivo.</string>
+    <string name="hub_tug_of_war">Tira y afloja</string>
+    <string name="hub_pull_the_marker_over_your_line_mashing_wears_you_1b8607">Lleva el marcador más allá de tu línea. Machacar te agota, así que tira con cabeza.</string>
+    <string name="hub_pull_against_the_computer">Tira contra la CPU</string>
+    <string name="hub_pull_against_1_to_3_computer_players_alone_or_wi_c5f1f7">Tira contra de 1 a 3 jugadores CPU, solo o con compañeros CPU.</string>
+    <string name="hub_two_to_four_people_pull_at_the_same_time_each_on_e4eae7">De dos a cuatro personas tiran a la vez, cada una en su botón. La CPU puede ocupar los botones vacíos.</string>
+    <string name="hub_team_layout">Formación de equipos</string>
+    <string name="hub_how_the_players_pull_together_with_two_players_i_f0fa2f">Cómo se agrupan los jugadores. Con dos jugadores siempre es uno contra uno.</string>
+    <string name="hub_even_teams">Equipos parejos</string>
+    <string name="hub_two_even_teams_2_against_2_with_four_players_1_a_8f23cd">Dos equipos parejos: 2 contra 2 con cuatro jugadores, 1 contra 2 con tres.</string>
+    <string name="hub_one_against_the_rest">Uno contra todos</string>
+    <string name="hub_one_player_pulls_against_everyone_else_up_to_1_a_919115">Un jugador tira contra todos los demás, hasta 1 contra 3.</string>
+    <string name="hub_free_for_all">Todos contra todos</string>
+    <string name="hub_everybody_pulls_for_themselves_toward_their_own_e2097e">Cada uno tira por su cuenta hacia su propia esquina.</string>
+    <string name="hub_relaxed_pulling">Tirones relajados</string>
+    <string name="hub_mashing_tires_you_less_heaves_charge_faster_and_c661d7">Machacar cansa menos, los tirones fuertes se cargan antes y las rondas duran más, para quien no puede tirar rápido.</string>
+    <string name="hub_hold_to_pull">Mantener para tirar</string>
+    <string name="hub_hold_your_pad_and_it_pulls_for_you_at_a_steady_p_ab0f36">Mantén pulsado tu botón y tira por ti a ritmo constante: una forma de jugar con un solo botón.</string>
+    <string name="hub_turn_the_far_side_around">Girar el lado lejano</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_65a3ff">Quienes se sientan enfrente leen su botón del derecho. Desactívalo si una sola persona sostiene el dispositivo.</string>
+</resources>

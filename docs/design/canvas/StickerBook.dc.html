@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sticker book</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFF4DC}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:linear-gradient(180deg,#E6D8FF 0%,#FFF4DC 40%);color:#2B1B4A;font:500 16px/1.3 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 18px}
+.b{font-family:'Baloo 2',sans-serif}
+.pg{background:#fff;border-radius:28px;padding:16px;box-shadow:0 6px 0 rgba(43,27,74,.14)}
+.sl{aspect-ratio:1/1;border-radius:20px;background:#F3ECFF;border:3px dashed #CDB8F5;display:flex;align-items:center;justify-content:center}
+.st{aspect-ratio:1/1;border-radius:20px;display:flex;align-items:center;justify-content:center;transform:rotate(var(--r,0deg));background:#FFF7E6;box-shadow:0 4px 0 rgba(43,27,74,.15)}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:56px;display:flex;align-items:center;justify-content:space-between">
+<a href="KidsHome.dc.html" aria-label="Back" style="width:56px;height:56px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 rgba(43,27,74,.18);color:#2B1B4A"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+<div class="b" style="font-size:30px;font-weight:700">My stickers</div>
+<div style="width:56px;height:56px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;font:700 20px 'Baloo 2';box-shadow:0 5px 0 rgba(43,27,74,.18)">24</div>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:18px"><span style="height:48px;padding:0 22px;border-radius:24px;background:#2B1B4A;color:#fff;display:flex;align-items:center;font:700 16px 'Baloo 2'">Animals</span><span style="height:48px;padding:0 22px;border-radius:24px;background:#fff;color:#5B4B7C;display:flex;align-items:center;font:700 16px 'Baloo 2'">Space</span><span style="height:48px;padding:0 22px;border-radius:24px;background:#fff;color:#5B4B7C;display:flex;align-items:center;font:700 16px 'Baloo 2'">Food</span></div>
+
+<div class="pg" style="margin-top:18px">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+<div class="st" style="--r:-4deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Fox sticker"><path d="M8 40V12l12 10h16l12-10v28L28 52z" fill="#FF9A3C"/><path d="M20 38h16l-8 10z" fill="#fff"/><circle cx="21" cy="30" r="3" fill="#2B1B4A"/><circle cx="35" cy="30" r="3" fill="#2B1B4A"/></svg></div>
+<div class="st" style="--r:3deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Owl sticker"><ellipse cx="28" cy="32" rx="18" ry="20" fill="#8B6A4E"/><circle cx="21" cy="28" r="7" fill="#fff"/><circle cx="35" cy="28" r="7" fill="#fff"/><circle cx="21" cy="28" r="3" fill="#2B1B4A"/><circle cx="35" cy="28" r="3" fill="#2B1B4A"/><path d="M25 36l3 5 3-5z" fill="#FFB547"/></svg></div>
+<div class="st" style="--r:-2deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Whale sticker"><path d="M6 32c0-12 10-18 22-18s22 8 22 20H6z" fill="#4AA8E8"/><path d="M46 30l8-8v14z" fill="#4AA8E8"/><circle cx="18" cy="28" r="2.5" fill="#2B1B4A"/></svg></div>
+<div class="st" style="--r:5deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Frog sticker"><ellipse cx="28" cy="34" rx="20" ry="14" fill="#6CD38B"/><circle cx="18" cy="20" r="8" fill="#6CD38B"/><circle cx="38" cy="20" r="8" fill="#6CD38B"/><circle cx="18" cy="20" r="3.4" fill="#2B1B4A"/><circle cx="38" cy="20" r="3.4" fill="#2B1B4A"/></svg></div>
+<div class="st" style="--r:-5deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Bee sticker"><ellipse cx="28" cy="32" rx="16" ry="12" fill="#FFD23C"/><path d="M22 21v22M30 20v24" stroke="#2B1B4A" stroke-width="4"/><ellipse cx="22" cy="18" rx="8" ry="5" fill="#CFEFFF"/><ellipse cx="34" cy="18" rx="8" ry="5" fill="#CFEFFF"/></svg></div>
+<div class="st" style="--r:2deg"><svg width="56" height="56" viewBox="0 0 56 56" aria-label="Penguin sticker"><ellipse cx="28" cy="32" rx="16" ry="20" fill="#2B1B4A"/><ellipse cx="28" cy="36" rx="9" ry="13" fill="#fff"/><path d="M24 26h8l-4 5z" fill="#FFB547"/></svg></div>
+<div class="sl"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CDB8F5" stroke-width="2.4" aria-label="Locked sticker"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+<div class="sl"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CDB8F5" stroke-width="2.4" aria-label="Locked sticker"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+<div class="sl"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CDB8F5" stroke-width="2.4" aria-label="Locked sticker"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+</div>
+</div>
+
+<div style="margin-top:16px;background:#fff;border-radius:28px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 0 rgba(43,27,74,.14)">
+<div style="width:64px;height:64px;border-radius:20px;background:#FFE08A;display:flex;align-items:center;justify-content:center"><svg width="36" height="36" viewBox="0 0 24 24" fill="#E8841A" aria-hidden="true"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg></div>
+<div style="flex:1"><div class="b" style="font-size:20px;font-weight:700;line-height:1.1">One more game!</div><div style="font-size:14px;color:#5B4B7C">Win a round to get a new sticker.</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

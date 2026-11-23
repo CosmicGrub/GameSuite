@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_carrom_s1">Desliza el lanzador por tu línea de base con el control Posición, o arrástralo. Luego tira hacia atrás desde el lanzador como una honda y suelta para dispararlo. Cuanto más largo el tirón, más fuerte el disparo.</string>
+    <string name="coach_carrom_s2">Usa el lanzador para meter fichas en las troneras de las esquinas. Juegas con un color (blanco o negro); la reina roja es la que más vale. La línea de puntos muestra dónde tocará algo el lanzador por primera vez.</string>
+    <string name="coach_carrom_s3">Si metes una de tus fichas, vuelves a tirar. Si no metes nada, o solo una ficha rival, pasa el turno. Una ficha rival que entra cuenta para su dueño.</string>
+    <string name="coach_carrom_s4">Mete la reina y cúbrela metiendo una de tus fichas en el mismo disparo o en el siguiente. Si fallas, la reina vuelve al centro. No puedes meter tu última ficha antes de ganar la reina.</string>
+    <string name="coach_carrom_s5">Si el lanzador cae en una tronera es falta: tus fichas de ese disparo vuelven al tablero y una más como penalización. Despeja tu color para ganar la partida; sumas un punto por cada ficha que le quede al rival, y tres más con la reina.</string>
+    <string name="coach_carrom_fact">Se cree que el carrom nació en la India, donde los marajás lo jugaban en tableros magníficos, y aún se juega en casas y clubes desde Sri Lanka hasta los Países Bajos.</string>
+    <string name="coach_curling_s1">En cada vuelta, los dos equipos deslizan piedras por el hielo hacia los anillos, llamados la casa. Toca el hielo donde quieres que se detenga tu piedra; el juego calcula la línea y la fuerza. Puedes ajustar ambas con los controles.</string>
+    <string name="coach_curling_s2">Gira el mango para que la piedra curve a la izquierda o a la derecha. Una piedra se desvía más cuanto más despacio va, así que la línea tenue muestra por dónde irá de verdad.</string>
+    <string name="coach_curling_s3">Pulsa Lanzar y luego Barrer mientras la piedra se desliza. Barrer la lleva más lejos y más recta. Si barres demasiado, pasa de largo la casa, así que vigílala.</string>
+    <string name="coach_curling_s4">Una piedra debe detenerse más allá de la línea hog lejana para seguir en juego, y la que toque las bandas o pase la línea de fondo sale. Saca de la casa una piedra rival para ocupar su lugar.</string>
+    <string name="coach_curling_s5">Cuando se han lanzado todas las piedras, el equipo con la piedra más cercana al centro suma un punto por cada una de sus piedras más cerca que la mejor rival. El equipo que no puntuó lanza al final en la siguiente vuelta.</string>
+    <string name="coach_curling_fact">El curling nació en Escocia en el siglo XVI, y las piedras aún se tallan con un granito poco común de una pequeña isla escocesa, Ailsa Craig.</string>
+</resources>

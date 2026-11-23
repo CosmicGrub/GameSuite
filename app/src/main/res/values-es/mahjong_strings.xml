@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mahjong Solitario: textos del catalogo del Hub. -->
+    <string name="hub_mahjong_solitaire">Mahjong Solitario</string>
+    <string name="hub_match_free_pairs_of_tiles_to_clear_the_board">Empareja fichas libres para despejar el tablero.</string>
+    <string name="hub_tile_layout">Diseño de fichas</string>
+    <string name="hub_turtle_144_tiles_pyramid_92_cross_60">Tortuga: 144 fichas. Pirámide: 92. Cruz: 60.</string>
+    <string name="hub_turtle">Tortuga</string>
+    <string name="hub_the_classic_144_tile_layout">El diseño clásico de 144 fichas.</string>
+    <string name="hub_pyramid">Pirámide</string>
+    <string name="hub_a_stepped_pyramid_of_92_tiles">Una pirámide escalonada de 92 fichas.</string>
+    <string name="hub_cross">Cruz</string>
+    <string name="hub_a_plus_shaped_layout_of_60_tiles">Un diseño en forma de cruz de 60 fichas.</string>
+
+    <!-- Mahjong Solitario: textos de la pantalla. -->
+    <string name="mj_help_title">Cómo jugar al Mahjong Solitario</string>
+    <string name="mj_help_body">Despeja el tablero quitando parejas de fichas iguales. Una ficha solo se puede quitar si está libre: no tiene nada encima y su lado izquierdo o derecho está abierto. Toca una ficha libre y luego otra ficha libre que sea igual.\n\nLas fichas coinciden si muestran el mismo palo y número, el mismo viento o el mismo dragón. Cualquier flor coincide con otra flor, y cualquier estación con otra estación.\n\nLas fichas bloqueadas se ven atenuadas y tachadas con líneas. Si no queda ninguna pareja, pulsa Barajar para repartir de nuevo las fichas restantes. Deshacer es ilimitado. Pista muestra una pareja libre con un contorno discontinuo.\n\nTu mejor tiempo se guarda para cada diseño, pero solo si terminas el tablero sin pistas ni barajar. Toda mano se puede despejar, aunque una pareja equivocada puede dejarte sin movimientos.</string>
+    <string name="mj_leave_title">¿Salir de esta partida?</string>
+    <string name="mj_leave_body">Este tablero está sin terminar. Si sales ahora, no cuenta como victoria ni como derrota.</string>
+    <string name="mj_leave_body_scored">Este tablero está sin terminar y no contará, pero los tableros que ya despejaste se mantienen en tu historial.</string>
+    <string name="mj_new_title">¿Repartir una partida nueva?</string>
+    <string name="mj_new_body">Se descartan el tablero actual y tu progreso.</string>
+    <string name="mj_keep_playing">Seguir jugando</string>
+
+    <string name="mj_btn_undo">Deshacer</string>
+    <string name="mj_btn_hint">Pista</string>
+    <string name="mj_btn_shuffle">Barajar</string>
+    <string name="mj_btn_zoom">Zoom %1$s</string>
+    <string name="mj_btn_new_game">Partida nueva</string>
+    <string name="mj_btn_back_to_menu">Volver al menú</string>
+
+    <string name="mj_tiles_left">Fichas restantes: %1$d</string>
+    <string name="mj_assisted">Con ayuda</string>
+    <string name="mj_layout_turtle">Tortuga</string>
+    <string name="mj_layout_pyramid">Pirámide</string>
+    <string name="mj_layout_cross">Cruz</string>
+
+    <string name="mj_status_idle">Toca una ficha libre y luego su pareja.</string>
+    <string name="mj_status_hint">Pista: empareja las dos fichas con contorno.</string>
+    <string name="mj_status_blocked">Esa ficha está bloqueada.</string>
+    <string name="mj_status_mismatch">Esas fichas no coinciden.</string>
+    <string name="mj_status_no_hint">No hay pistas disponibles.</string>
+    <string name="mj_status_stuck">No queda ninguna pareja libre.</string>
+
+    <string name="mj_stuck_title">Sin más movimientos</string>
+    <string name="mj_stuck_body">No queda ninguna pareja libre. Baraja las fichas restantes, deshaz un movimiento o empieza una partida nueva.</string>
+    <string name="mj_stuck_dead_end">Barajar no ayuda en este tablero. Deshaz un movimiento o empieza una partida nueva.</string>
+
+    <string name="mj_solved_title">¡Tablero despejado!</string>
+    <string name="mj_solved_time">Tiempo: %1$s</string>
+    <string name="mj_solved_hints">Pistas usadas: %1$d</string>
+    <string name="mj_solved_shuffles">Veces que barajaste: %1$d</string>
+    <string name="mj_solved_assisted">Los tableros con ayuda no marcan un mejor tiempo.</string>
+    <string name="mj_solved_new_best">¡Nuevo mejor tiempo!</string>
+    <string name="mj_solved_best">Mejor tiempo: %1$s</string>
+
+    <!-- Descripciones habladas de cada ficha: "Bambú 3, libre". -->
+    <string name="mj_tile_free">%1$s, libre</string>
+    <string name="mj_tile_blocked">%1$s, bloqueada</string>
+    <string name="mj_tile_selected">%1$s, libre, seleccionada</string>
+    <string name="mj_tile_hinted">%1$s, libre, con pista</string>
+    <string name="mj_tile_numbered">%1$s %2$d</string>
+
+    <string name="mj_suit_dots">Puntos</string>
+    <string name="mj_suit_bamboo">Bambú</string>
+    <string name="mj_suit_characters">Caracteres</string>
+    <string name="mj_wind_east">Viento del Este</string>
+    <string name="mj_wind_south">Viento del Sur</string>
+    <string name="mj_wind_west">Viento del Oeste</string>
+    <string name="mj_wind_north">Viento del Norte</string>
+    <string name="mj_dragon_red">Dragón rojo</string>
+    <string name="mj_dragon_green">Dragón verde</string>
+    <string name="mj_dragon_white">Dragón blanco</string>
+    <string name="mj_flower_plum">Flor de ciruelo</string>
+    <string name="mj_flower_orchid">Orquídea</string>
+    <string name="mj_flower_chrysanthemum">Crisantemo</string>
+    <string name="mj_flower_bamboo">Flor de bambú</string>
+    <string name="mj_season_spring">Estación: primavera</string>
+    <string name="mj_season_summer">Estación: verano</string>
+    <string name="mj_season_autumn">Estación: otoño</string>
+    <string name="mj_season_winter">Estación: invierno</string>
+
+    <!-- Etiquetas cortas de esquina en cada ficha, junto al glifo (un número y la letra del palo). -->
+    <string name="mj_short_dots">P</string>
+    <string name="mj_short_bamboo">B</string>
+    <string name="mj_short_characters">C</string>
+    <string name="mj_short_east">E</string>
+    <string name="mj_short_south">S</string>
+    <string name="mj_short_west">O</string>
+    <string name="mj_short_north">N</string>
+    <string name="mj_short_red">R</string>
+    <string name="mj_short_green">V</string>
+    <string name="mj_short_white">Bl</string>
+    <string name="mj_short_flower">Fl</string>
+    <string name="mj_short_season">Es</string>
+</resources>

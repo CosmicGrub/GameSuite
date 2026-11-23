@@ -48,7 +48,7 @@ class OnlineTransportIdentityTest {
     }
 
     private fun newTransport(): OnlineTransport =
-        OnlineTransport("ws://${server.hostName}:${server.port}/").also { transports += it }
+        OnlineTransport("ws://${server.hostName}:${server.port}/", OnlineTransport.DIRECT).also { transports += it }
 
     /** One scripted relay connection: records every client frame and lets the test answer / drop. */
     private inner class Conn(val index: Int, private val script: (Conn, JsonObject) -> Unit) : WebSocketListener() {

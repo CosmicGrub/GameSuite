@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach cards for President and Sevens (own file; move into coach_strings.xml when integrating, GameCoachTest reads only that one) -->
+    <string name="coach_president_s1">Se reparte toda la baraja. Tu objetivo es ser el primero en quedarte sin cartas.</string>
+    <string name="coach_president_s2">Abre con cualquier grupo de cartas del mismo valor. Los demás deben superarlo con el mismo número de cartas de un valor más alto, o pasar.</string>
+    <string name="coach_president_s3">El 3 es el más bajo y el 2 el más alto. Un 2 gana la baza al instante, y un póker provoca una revolución que invierte el orden.</string>
+    <string name="coach_president_s4">El primero en quedarse sin cartas es el Presidente y el último la Escoria. En la ronda siguiente la Escoria entrega sus mejores cartas.</string>
+    <string name="coach_president_s5">Terminar antes da más puntos. Quien tenga más puntos tras la última ronda gana la partida.</string>
+    <string name="coach_president_fact">La regla de la revolución procede de la versión japonesa de este juego, el Daifugō, cuyo nombre significa «Gran Millonario».</string>
+    <string name="coach_sevens_s1">Se reparte toda la baraja. Tu objetivo es ser el primero en jugar todas tus cartas.</string>
+    <string name="coach_sevens_s2">Quien tenga el 7 de diamantes abre con él. Después, cualquier otro 7 puede abrir una fila nueva de su palo.</string>
+    <string name="coach_sevens_s3">Construye cada fila desde su 7: juega la carta un valor más alto o más bajo, desde el As hasta el Rey.</string>
+    <string name="coach_sevens_s4">Si puedes jugar, debes hacerlo. Si no encaja ninguna, pasas. Con la penalización activada, cada paso suma 5 puntos.</string>
+    <string name="coach_sevens_s5">Gana la primera mano que se vacía. Los demás suman los puntos que les quedan, de 1 por el As a 13 por el Rey.</string>
+    <string name="coach_sevens_fact">Los Sietes también se conocen como Fan Tan, Parlamento o Dominó, porque sus filas de cartas que crecen desde el centro recuerdan a una partida de dominó.</string>
+</resources>

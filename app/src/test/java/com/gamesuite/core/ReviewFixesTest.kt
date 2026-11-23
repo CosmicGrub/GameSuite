@@ -191,7 +191,7 @@ class ReviewFixesTest {
 
     @Test
     fun onlyUnoCanBeWatchedAndOnlineTablesNeverExceedTheRelayLimit() {
-        assertTrue("no engine delivers state to spectators yet, so Watch stays hidden", GameHubSpecs.spectatorGames.isEmpty())
+        assertEquals("only UNO delivers (redacted) state to spectators, so Watch shows for it alone", setOf("uno"), GameHubSpecs.spectatorGames)
         val net = GameHubSpecs.buildAll(GameHubSpecs.networkedGames)
         val uno = net.first { it.gameId == "uno" }
         assertEquals(10, uno.mode("nearby")!!.maxSeats)

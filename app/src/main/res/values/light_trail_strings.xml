@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light-Trail Duel screen texts and first-run tips. -->
+    <string name="ltd_help_title">Light-Trail Duel</string>
+    <string name="ltd_help_text">Every rider leaves a glowing wall. Touch any wall, or the edge of the arena, and you are out; the last rider left wins the round. Your Left and Right pads turn your rider the way the rider is facing, not the way you are. Everybody plays at the same time on their own side of the screen.</string>
+    <string name="ltd_pad_left">Left</string>
+    <string name="ltd_pad_right">Right</string>
+    <string name="ltd_pad_one">Turn</string>
+    <string name="ltd_pad_desc_left">%1$s: turn left</string>
+    <string name="ltd_pad_desc_right">%1$s: turn right</string>
+    <string name="ltd_pad_desc_one_left">%1$s: turn button. The next turn is left.</string>
+    <string name="ltd_pad_desc_one_right">%1$s: turn button. The next turn is right.</string>
+    <string name="ltd_arena_desc">Arena with %1$d riders, %2$d still racing.</string>
+    <string name="ltd_ev_wall">%1$s hit a wall.</string>
+    <string name="ltd_ev_wall_you">You hit a wall.</string>
+    <string name="ltd_ev_edge">%1$s hit the edge.</string>
+    <string name="ltd_ev_edge_you">You hit the edge.</string>
+    <string name="ltd_ev_self">%1$s hit their own wall.</string>
+    <string name="ltd_ev_self_you">You hit your own wall.</string>
+    <string name="ltd_ev_head_on">%1$s crashed head-on.</string>
+    <string name="ltd_ev_head_on_you">You crashed head-on.</string>
+    <string name="ltd_ev_gap_end">%1$s ended a gap inside a wall.</string>
+    <string name="ltd_ev_gap_end_you">Your gap ended inside a wall.</string>
+    <string name="ltd_ev_timeout">Time is up: nobody wins this round.</string>
+    <string name="ltd_ev_pick_gap">%1$s picked up Gap.</string>
+    <string name="ltd_ev_pick_gap_you">You picked up Gap.</string>
+    <string name="ltd_ev_pick_boost">%1$s picked up Boost.</string>
+    <string name="ltd_ev_pick_boost_you">You picked up Boost.</string>
+    <string name="ltd_ev_saved">%1$s was steered away from a wall.</string>
+    <string name="ltd_ev_saved_you">You were steered away from a wall.</string>
+    <string name="tip_light_trail_1">Your Left and Right pads turn the way the rider is facing, not the way you are. Watch the glowing head.</string>
+    <string name="tip_light_trail_2">Leave yourself room: a wall you can see is a wall you can turn away from. Trap rivals by cutting across in front of them.</string>
+    <string name="tip_light_trail_3">Hard to play fast? Turn on Relaxed or One button in the setup.</string>
+</resources>

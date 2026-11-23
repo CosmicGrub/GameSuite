@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Tap Race and Tug of War (hubKey names). hub_same_screen is shared by every party-pack game: keep ONE definition. -->
+    <string name="hub_tap_race">Tap Race</string>
+    <string name="hub_everyone_taps_at_once_on_one_screen_first_to_the_a31363">Everyone taps at once on one screen. First to the finish wins the round.</string>
+    <string name="hub_race_the_computer">Race the computer</string>
+    <string name="hub_race_1_to_3_computer_racers_each_one_gets_a_lane_dee853">Race 1 to 3 computer racers. Each one gets a lane of its own.</string>
+    <string name="hub_same_screen">Same screen</string>
+    <string name="hub_two_to_four_people_race_at_the_same_time_each_in_92935f">Two to four people race at the same time, each in their own lane. Computers can fill empty lanes.</string>
+    <string name="hub_race_type">Race type</string>
+    <string name="hub_three_ways_to_race_on_the_same_screen">Three ways to race on the same screen.</string>
+    <string name="hub_sprint">Sprint</string>
+    <string name="hub_tap_as_fast_as_you_can_first_to_fill_the_track_w_3b21a5">Tap as fast as you can. First to fill the track wins.</string>
+    <string name="hub_rhythm">Rhythm</string>
+    <string name="hub_tap_only_on_the_beat_early_late_and_extra_taps_s_78e2b5">Tap only on the beat. Early, late and extra taps set you back.</string>
+    <string name="hub_mash_and_brake">Mash and Brake</string>
+    <string name="hub_tap_fast_but_never_while_the_light_is_red">Tap fast, but never while the light is red.</string>
+    <string name="hub_the_first_to_win_more_than_half_of_the_rounds_ta_ae29fe">The first to win more than half of the rounds takes the match.</string>
+    <string name="hub_relaxed_tapping">Relaxed tapping</string>
+    <string name="hub_fewer_taps_to_win_wider_beat_windows_and_longer_863078">Fewer taps to win, wider beat windows and longer red-light warnings, for players who cannot tap fast.</string>
+    <string name="hub_hold_to_tap">Hold to tap</string>
+    <string name="hub_hold_your_pad_and_it_taps_for_you_at_a_steady_pa_d2dac3">Hold your pad and it taps for you at a steady pace: a one-button way to play. Not used by Rhythm.</string>
+    <string name="hub_turn_the_far_lanes_around">Turn the far lanes around</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_6d83fc">Players sitting opposite each other read their own lane the right way up. Switch off for one person holding the device.</string>
+    <string name="hub_tug_of_war">Tug of War</string>
+    <string name="hub_pull_the_marker_over_your_line_mashing_wears_you_1b8607">Pull the marker over your line. Mashing wears you out, so pull smart.</string>
+    <string name="hub_pull_against_the_computer">Pull against the computer</string>
+    <string name="hub_pull_against_1_to_3_computer_players_alone_or_wi_c5f1f7">Pull against 1 to 3 computer players, alone or with computer team-mates.</string>
+    <string name="hub_two_to_four_people_pull_at_the_same_time_each_on_e4eae7">Two to four people pull at the same time, each on their own pad. Computers can fill empty pads.</string>
+    <string name="hub_team_layout">Team layout</string>
+    <string name="hub_how_the_players_pull_together_with_two_players_i_f0fa2f">How the players pull together. With two players it is always one against one.</string>
+    <string name="hub_even_teams">Even teams</string>
+    <string name="hub_two_even_teams_2_against_2_with_four_players_1_a_8f23cd">Two even teams: 2 against 2 with four players, 1 against 2 with three.</string>
+    <string name="hub_one_against_the_rest">One against the rest</string>
+    <string name="hub_one_player_pulls_against_everyone_else_up_to_1_a_919115">One player pulls against everyone else, up to 1 against 3.</string>
+    <string name="hub_free_for_all">Free for all</string>
+    <string name="hub_everybody_pulls_for_themselves_toward_their_own_e2097e">Everybody pulls for themselves toward their own corner.</string>
+    <string name="hub_relaxed_pulling">Relaxed pulling</string>
+    <string name="hub_mashing_tires_you_less_heaves_charge_faster_and_c661d7">Mashing tires you less, heaves charge faster and rounds last longer, for players who cannot pull fast.</string>
+    <string name="hub_hold_to_pull">Hold to pull</string>
+    <string name="hub_hold_your_pad_and_it_pulls_for_you_at_a_steady_p_ab0f36">Hold your pad and it pulls for you at a steady pace: a one-button way to play.</string>
+    <string name="hub_turn_the_far_side_around">Turn the far side around</string>
+    <string name="hub_players_sitting_opposite_each_other_read_their_o_65a3ff">Players sitting opposite each other read their own pad the right way up. Switch off for one person holding the device.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Draw and Guess coach card and tips -->
+    <string name="coach_draw_guess_s1">Take turns drawing a secret word. The drawer taps their name, picks one of three pictures, then presses and holds to see the word. Everyone else looks away.</string>
+    <string name="coach_draw_guess_s2">Draw with your finger. Pick from six colours and three brushes, and use Undo, Clear or the Eraser. No drawing skills needed: stick figures are fine.</string>
+    <string name="coach_draw_guess_s3">Think you know it? Tap your name to buzz in. The clock stops, and you get one go: tap the matching picture card, or type the word in the older-player mode.</string>
+    <string name="coach_draw_guess_s4">A right guess scores for the guesser and the drawer, more the faster it comes and the trickier the word. A wrong guess sits you out for the turn.</string>
+    <string name="coach_draw_guess_s5">Everyone draws once per round. With four, six or eight players you can play two teams: only the drawer\'s team guesses. Same screen only: there is no Nearby or Online mode.</string>
+    <string name="coach_draw_guess_fact">Pictionary-style games work because a rough picture only needs to be good enough to remind someone of a word, which is why quick sketches often beat careful ones.</string>
+</resources>

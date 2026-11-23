@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Speed and Matching: screen, hub and tip strings (own file). Coach text is in speed_matching_coach_strings.xml. -->
+    <string name="hub_speed">Speed</string>
+    <string name="hub_play_cards_onto_the_centre_piles_one_rank_up_or_64bffd">Juega cartas en los montones del centro, una más alta o más baja, antes que tu rival.</string>
+    <string name="hub_race_the_computer_to_empty_your_cards">Compite contra la computadora para quedarte sin cartas.</string>
+    <string name="hub_two_players_race_on_one_device_one_on_each_side">Dos jugadores compiten en un dispositivo, cada uno de un lado.</string>
+    <string name="hub_turn_based_assist">Ayuda por turnos</string>
+    <string name="hub_take_turns_instead_of_racing_with_no_countdown_f_51cba6">Juega por turnos en lugar de competir, sin cuenta atrás. Para quien no puede jugar a gran velocidad.</string>
+    <string name="hub_matching">Parejas</string>
+    <string name="hub_flip_two_cards_to_find_pairs_remember_where_ever_6aa05e">Voltea dos cartas para encontrar parejas. Recuerda dónde está cada una.</string>
+    <string name="hub_find_every_pair_in_as_few_moves_as_you_can">Encuentra todas las parejas con el menor número de movimientos.</string>
+    <string name="hub_find_more_pairs_than_1_to_3_computer_players">Encuentra más parejas que 1 a 3 jugadores de la computadora.</string>
+    <string name="hub_cards">Cartas</string>
+    <string name="hub_more_cards_make_a_longer_harder_board">Más cartas hacen un tablero más largo y difícil.</string>
+    <string name="hub_12_cards">12 cartas</string>
+    <string name="hub_20_cards">20 cartas</string>
+    <string name="hub_30_cards">30 cartas</string>
+    <string name="hub_40_cards">40 cartas</string>
+    <string name="hub_picture_set">Estilo de imágenes</string>
+    <string name="hub_what_is_drawn_on_the_cards">Lo que se dibuja en las cartas.</string>
+    <string name="hub_critters">Animalitos</string>
+    <string name="hub_friendly_animal_faces">Caras de animales simpáticos.</string>
+    <string name="hub_bold_shapes_that_never_rely_on_colour_alone">Formas marcadas que nunca dependen solo del color.</string>
+    <string name="hub_playing_cards">Naipes</string>
+    <string name="hub_pairs_of_the_same_rank_and_colour">Parejas del mismo valor y color.</string>
+    <string name="tip_speed_1">No hay turnos: juega cualquier carta una más alta o más baja que una del centro, lo más rápido que puedas.</string>
+    <string name="tip_speed_2">Los ases unen reyes y doses. Si ambos estáis atascados, toca Voltear para descubrir cartas nuevas.</string>
+    <string name="tip_speed_3">¿Muy rápido? Activa la ayuda por turnos en la configuración para jugar por turnos sin reloj.</string>
+    <string name="tip_matching_1">Toca dos cartas para encontrar una pareja. La pareja se queda boca arriba y sigues jugando.</string>
+    <string name="tip_matching_2">Fíjate en cada carta que voltean los demás: gana la mejor memoria.</string>
+    <string name="tip_matching_3">¿Atascado? La pista señala una pareja que ya viste, o una carta que aún no has visto.</string>
+    <string name="speed_help_title">Cómo jugar a Speed</string>
+    <string name="speed_help_text">Gana quien juegue antes todas sus cartas.
+
+No hay turnos. Pon una carta de tu mano en cualquiera de los montones del centro cuando sea exactamente una más alta o más baja (el as está junto al rey y junto al dos). Tu mano se rellena con tu mazo.
+
+Si ninguno de los dos puede jugar, pulsa Voltear: aparecen cartas nuevas en el centro. Gana quien primero juegue todas las cartas de su mano y de su mazo.
+
+La ayuda por turnos, en la configuración de la partida, quita el reloj: jugáis por turnos y puedes pasar si estás atascado. Es también la mejor forma de jugar con un lector de pantalla.</string>
+    <string name="speed_status_countdown">Prepárate…</string>
+    <string name="speed_go">¡Ya!</string>
+    <string name="speed_race">Juega lo más rápido que puedas.</string>
+    <string name="speed_ann_start">Tablero nuevo. Juega una carta una más alta o más baja que una del centro.</string>
+    <string name="speed_ann_play">%1$s jugó %2$s en la pila %3$s.</string>
+    <string name="speed_ann_play_you">Jugaste %1$s en la pila %2$s.</string>
+    <string name="speed_ann_flip">Ambos atascados. Cartas nuevas en el centro.</string>
+    <string name="speed_ann_reshuffle">Se acabaron las reservas. El centro se barajó y se repartió de nuevo.</string>
+    <string name="speed_ann_pass">%1$s está atascado.</string>
+    <string name="speed_ann_pass_you">Estás atascado.</string>
+    <string name="speed_ann_win">¡%1$s gana el tablero!</string>
+    <string name="speed_ann_win_you">¡Ganas el tablero!</string>
+    <string name="speed_ann_draw">Nadie pudo jugar. Es un empate.</string>
+    <string name="speed_assist_turn_you">Tu turno: juega una carta o pasa.</string>
+    <string name="speed_assist_turn_named">Turno de %1$s: juega una carta o pasa.</string>
+    <string name="speed_assist_wait">Esperando a %1$s.</string>
+    <string name="speed_assist_badge">Ayuda por turnos</string>
+    <string name="speed_pile_left">izquierda</string>
+    <string name="speed_pile_right">derecha</string>
+    <string name="speed_btn_flip">Atascado: voltear</string>
+    <string name="speed_btn_pass">Pasar</string>
+    <string name="speed_btn_waiting">Esperando al otro jugador…</string>
+    <string name="speed_chip">%1$s · quedan %2$d</string>
+    <string name="speed_chip_desc">%1$s, cartas restantes: %2$d</string>
+    <string name="speed_draw_desc">%1$s, mazo de robo: %2$d</string>
+    <string name="speed_spare_desc">%1$s, mazo de reserva: %2$d</string>
+    <string name="speed_pile_desc">La pila %1$s: carta superior %2$s, tamaño %3$d.</string>
+    <string name="speed_empty_slot">Hueco vacío.</string>
+    <string name="speed_opp_card">Carta del rival, boca abajo.</string>
+    <string name="speed_opp_left">Tu rival ha salido de la partida.</string>
+    <string name="speed_card_name">%1$s de %2$s</string>
+    <string name="speed_card_desc_both">%1$s. Puede ir en cualquier pila.</string>
+    <string name="speed_card_desc_pile">%1$s. Puede ir en la pila %2$s.</string>
+    <string name="speed_card_desc_none">%1$s. No se puede jugar ahora.</string>
+    <string name="speed_selected">Seleccionada.</string>
+    <string name="speed_suggested">Sugerida.</string>
+    <string name="speed_why_not_started">¡Espera a la señal!</string>
+    <string name="speed_why_illegal">Una carta debe ser exactamente una más alta o más baja que una del centro.</string>
+    <string name="speed_why_lost_race">¡Foto finish! El otro jugador fue primero. Tu carta se queda en tu mano.</string>
+    <string name="speed_why_not_turn">Espera a tu turno.</string>
+    <string name="speed_why_still_play">Todavía tienes una jugada.</string>
+    <string name="speed_why_pick">Elige primero una carta.</string>
+    <string name="speed_why_over">Este tablero ha terminado.</string>
+    <string name="match_help_title">Cómo jugar a Parejas</string>
+    <string name="match_help_text">Encuentra todas las parejas.
+
+Las cartas están boca abajo. En tu turno, voltea dos cartas. Si las imágenes son iguales, te quedas la pareja y sigues. Si no, se vuelven a tapar y juega el siguiente.
+
+El tablero termina cuando se encuentran todas las parejas. Con varios jugadores gana quien tenga más parejas. Si juegas solo, intenta terminar con pocos movimientos y poco tiempo: la pista y deshacer te ayudan, pero una partida que los use no se guarda como récord personal.
+
+En el menú puedes cambiar las imágenes: animalitos, símbolos marcados o naipes.</string>
+    <string name="match_ann_start">Tablero nuevo. Voltea dos cartas para buscar una pareja.</string>
+    <string name="match_ann_flip">%1$s volteó la carta %2$d: %3$s.</string>
+    <string name="match_ann_flip_you">Volteaste la carta %1$d: %2$s.</string>
+    <string name="match_ann_match">¡%1$s encontró una pareja: %2$s!</string>
+    <string name="match_ann_match_you">¡Encontraste una pareja: %1$s!</string>
+    <string name="match_ann_miss">%1$s no encontró una pareja.</string>
+    <string name="match_ann_miss_you">Esta vez no hay pareja.</string>
+    <string name="match_ann_win">¡%1$s gana! Parejas: %2$d.</string>
+    <string name="match_ann_win_you">¡Ganas! Parejas: %1$d.</string>
+    <string name="match_ann_tie">¡Es un empate!</string>
+    <string name="match_ann_solo_done">¡Tablero completado! Movimientos: %1$d.</string>
+    <string name="match_turn_you">Tu turno: voltea una carta.</string>
+    <string name="match_turn_named">Turno de %1$s.</string>
+    <string name="match_thinking">%1$s está pensando…</string>
+    <string name="match_opp_left">Un jugador ha salido de la partida.</string>
+    <string name="match_why_cpu">Está jugando la computadora.</string>
+    <string name="match_why_wait">Espera a tu turno.</string>
+    <string name="match_why_taken">Esa pareja ya está encontrada.</string>
+    <string name="match_hint_known">Prueba estas dos cartas: son pareja.</string>
+    <string name="match_hint_explore">Aún no conoces ninguna pareja. Prueba esta carta.</string>
+    <string name="match_hint_none">No hay pista disponible ahora.</string>
+    <string name="match_chip">%1$s: %2$d</string>
+    <string name="match_chip_desc">%1$s, parejas: %2$d</string>
+    <string name="match_pairs_found">Parejas: %1$d de %2$d</string>
+    <string name="match_moves">Movimientos: %1$d</string>
+    <string name="match_time">Tiempo: %1$s</string>
+    <string name="match_card_down">Carta %1$d de %2$d, boca abajo.</string>
+    <string name="match_card_up">Carta %1$d, boca arriba: %2$s.</string>
+    <string name="match_card_matched">Carta %1$d: %2$s, emparejada por %3$s.</string>
+    <string name="match_face_critter">%2$s %1$s</string>
+    <string name="match_face_solid">%1$s, relleno</string>
+    <string name="match_face_outline">%1$s, solo contorno</string>
+    <string name="match_face_rank">%1$s, %2$s</string>
+    <string name="match_red">rojo</string>
+    <string name="match_black">negro</string>
+    <string name="match_theme_critters">Animalitos</string>
+    <string name="match_theme_symbols">Símbolos</string>
+    <string name="match_theme_cards">Naipes</string>
+    <string name="match_menu_theme">Imágenes: %1$s</string>
+    <string name="match_done_title">¡Tablero completado!</string>
+    <string name="match_done_stats">Movimientos: %1$d. Tiempo: %2$s.</string>
+    <string name="match_new_best">¡Nuevo récord personal!</string>
+    <string name="match_record">Mejores movimientos: %1$d. Mejor tiempo: %2$s.</string>
+    <string name="match_unclean">Se usaron pistas o deshacer, así que esta partida no se guarda como récord.</string>
+    <string-array name="speed_rank_names">
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+        <item>As</item>
+    </string-array>
+    <string-array name="speed_suit_names">
+        <item>tréboles</item>
+        <item>diamantes</item>
+        <item>corazones</item>
+        <item>picas</item>
+    </string-array>
+    <string-array name="match_species_names">
+        <item>gato</item>
+        <item>conejo</item>
+        <item>oso</item>
+        <item>ratón</item>
+        <item>búho</item>
+    </string-array>
+    <string-array name="match_coat_names">
+        <item>liso</item>
+        <item>rayado</item>
+        <item>manchado</item>
+        <item>de hocico claro</item>
+    </string-array>
+    <string-array name="match_shape_names">
+        <item>círculo</item>
+        <item>cuadrado</item>
+        <item>triángulo</item>
+        <item>rombo</item>
+        <item>estrella</item>
+        <item>cruz</item>
+        <item>corazón</item>
+        <item>hexágono</item>
+        <item>luna creciente</item>
+        <item>flecha</item>
+    </string-array>
+    <string-array name="match_rank_names">
+        <item>As</item>
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+    </string-array>
+</resources>

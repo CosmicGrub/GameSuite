@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips of Tap Race and Tug of War; move into polish_strings.xml when GameTips is updated (GameTipsTest reads only that file) -->
+    <string name="tip_tap_race_1">Pon un dedo de cada mano en el botón de tu carril y toca lo más rápido que puedas cuando acabe la cuenta atrás.</string>
+    <string name="tip_tap_race_2">En Ritmo, toca solo al compás: los toques adelantados, tardíos o de más te hacen perder terreno.</string>
+    <string name="tip_tap_race_3">En Machaca y frena, deja de tocar en cuanto la luz se ponga ámbar. Un toque en rojo te hace retroceder.</string>
+    <string name="tip_tug_of_war_1">Toca tu botón para llevar el marcador hacia tu línea. Cada tirón gasta aguante y machacar te deja sin fuerzas.</string>
+    <string name="tip_tug_of_war_2">Mantén el dedo pulsado para descansar y cargar, y suéltalo para un tirón hasta cuatro veces más fuerte.</string>
+    <string name="tip_tug_of_war_3">¿No puedes mantener o tocar rápido? Activa Tirones relajados o Mantener para tirar en la configuración.</string>
+</resources>

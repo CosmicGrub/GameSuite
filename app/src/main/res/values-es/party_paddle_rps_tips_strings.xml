@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Consejos de primera partida de Paddle Duel y Piedra, Papel o Tijera: el duelo. -->
+    <string name="tip_paddle_duel_1">Desliza un pulgar por tu borde y la pala te sigue. Golpea la bola con el extremo de la pala para mandarla de lado.</string>
+    <string name="tip_paddle_duel_2">Una pala en movimiento da efecto a la bola, y la bola acelera en cada intercambio. Vuelve hacia el centro entre devoluciones.</string>
+    <string name="tip_paddle_duel_3">¿Quieres un juego más tranquilo? Activa la ayuda Relajada, o usa los botones de flecha o un solo botón.</string>
+    <string name="tip_rps_showdown_1">Toca un movimiento para fijarlo. Quien está a tu lado solo ve un candado, nunca tu elección. Toca Deshacer para cambiar de idea.</string>
+    <string name="tip_rps_showdown_2">Cuando todos han fijado su movimiento, empieza una cuenta atrás y todos se dan la vuelta a la vez. Los empates se repiten.</string>
+    <string name="tip_rps_showdown_3">Contra la CPU, Difícil aprende tus costumbres. Varía tus movimientos y no repitas lo que acaba de ganar.</string>
+</resources>

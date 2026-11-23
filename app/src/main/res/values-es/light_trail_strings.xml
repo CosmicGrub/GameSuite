@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light-Trail Duel screen texts and first-run tips. -->
+    <string name="ltd_help_title">Duelo de estelas de luz</string>
+    <string name="ltd_help_text">Cada piloto deja un muro brillante. Toca cualquier muro, o el borde de la arena, y quedas fuera; el último piloto que queda gana la ronda. Tus botones Izquierda y Derecha giran al piloto según hacia dónde mira él, no tú. Todos juegan a la vez, cada uno en su lado de la pantalla.</string>
+    <string name="ltd_pad_left">Izquierda</string>
+    <string name="ltd_pad_right">Derecha</string>
+    <string name="ltd_pad_one">Girar</string>
+    <string name="ltd_pad_desc_left">%1$s: girar a la izquierda</string>
+    <string name="ltd_pad_desc_right">%1$s: girar a la derecha</string>
+    <string name="ltd_pad_desc_one_left">%1$s: botón de giro. El próximo giro es a la izquierda.</string>
+    <string name="ltd_pad_desc_one_right">%1$s: botón de giro. El próximo giro es a la derecha.</string>
+    <string name="ltd_arena_desc">Arena con %1$d pilotos, %2$d aún en carrera.</string>
+    <string name="ltd_ev_wall">%1$s chocó con un muro.</string>
+    <string name="ltd_ev_wall_you">Chocas con un muro.</string>
+    <string name="ltd_ev_edge">%1$s chocó con el borde.</string>
+    <string name="ltd_ev_edge_you">Chocas con el borde.</string>
+    <string name="ltd_ev_self">%1$s chocó con su propio muro.</string>
+    <string name="ltd_ev_self_you">Chocas con tu propio muro.</string>
+    <string name="ltd_ev_head_on">%1$s chocó de frente.</string>
+    <string name="ltd_ev_head_on_you">Chocas de frente.</string>
+    <string name="ltd_ev_gap_end">%1$s terminó el hueco dentro de un muro.</string>
+    <string name="ltd_ev_gap_end_you">Tu hueco terminó dentro de un muro.</string>
+    <string name="ltd_ev_timeout">Se acabó el tiempo: nadie gana esta ronda.</string>
+    <string name="ltd_ev_pick_gap">%1$s recogió Hueco.</string>
+    <string name="ltd_ev_pick_gap_you">Recoges Hueco.</string>
+    <string name="ltd_ev_pick_boost">%1$s recogió Impulso.</string>
+    <string name="ltd_ev_pick_boost_you">Recoges Impulso.</string>
+    <string name="ltd_ev_saved">%1$s fue desviado de un muro.</string>
+    <string name="ltd_ev_saved_you">Te desvían de un muro.</string>
+    <string name="tip_light_trail_1">Tus botones Izquierda y Derecha giran según hacia dónde mira el piloto, no tú. Fíjate en la cabeza brillante.</string>
+    <string name="tip_light_trail_2">Déjate espacio: un muro que ves es un muro del que puedes alejarte. Atrapa a tus rivales cruzándote delante de ellos.</string>
+    <string name="tip_light_trail_3">¿Cuesta jugar rápido? Activa Relajado o Un botón en los ajustes.</string>
+</resources>

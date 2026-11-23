@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Snake: textos de la pantalla -->
+    <string name="snake_help_title">Cómo jugar a Snake</string>
+    <string name="snake_help_text">Desliza el dedo por el tablero, pulsa la cruceta o usa las flechas del teclado o WASD para dirigir la serpiente. Nunca deja de moverse.\n\nCome la comida (el rombo) para crecer y sumar puntos. Cada pieza vale tu nivel actual en puntos, y cada 5 piezas subes de nivel y la serpiente va un poco más rápido.\n\nLa partida termina si chocas con tu propio cuerpo, o con una pared cuando las paredes son sólidas. Con el modo envolvente, la serpiente sale por el lado opuesto.\n\nAl abrir el menú de la esquina el juego se pausa; toca el tablero para continuar.</string>
+    <string name="snake_leave_title">¿Salir de esta partida?</string>
+    <string name="snake_leave_body">Esta partida sigue en curso. Salir ahora no cuenta como victoria ni como derrota.</string>
+    <string name="snake_leave_body_finished">Esta partida sigue en curso y no contará, pero las que ya terminaste se quedan en tu historial.</string>
+    <string name="snake_score">Puntos: %1$d</string>
+    <string name="snake_best">Récord: %1$d</string>
+    <string name="snake_level">Nivel %1$d</string>
+    <string name="snake_length">Longitud %1$d</string>
+    <string name="snake_setup_line">%1$dx%1$d · %2$s · %3$s</string>
+    <string name="snake_walls_solid">Paredes sólidas</string>
+    <string name="snake_walls_wrap">Envolvente</string>
+    <string name="snake_speed_relaxed">Tranquila</string>
+    <string name="snake_speed_steady">Constante</string>
+    <string name="snake_speed_quick">Rápida</string>
+    <string name="snake_paused">En pausa</string>
+    <string name="snake_tap_to_resume">Toca para continuar</string>
+    <string name="snake_resume_action">Continuar la partida</string>
+    <string name="snake_steer_hint">Desliza o usa la cruceta para dirigir</string>
+    <string name="snake_game_over">Fin de la partida</string>
+    <string name="snake_board_cleared">¡Tablero completo!</string>
+    <string name="snake_new_best">¡Nuevo récord!</string>
+    <string name="snake_play_again">Jugar otra vez</string>
+    <string name="snake_back_to_menu">Volver al menú</string>
+    <string name="snake_death_wall">Chocaste con la pared.</string>
+    <string name="snake_death_self">Te mordiste la cola.</string>
+    <string name="snake_board_desc">Tablero de Snake</string>
+    <string name="snake_state_desc">Puntos %1$d, nivel %2$d, longitud %3$d</string>
+    <string name="snake_state_countdown">, empieza en %1$d</string>
+    <string name="snake_state_paused">, en pausa</string>
+    <string name="snake_state_over">, fin de la partida</string>
+    <string name="snake_dpad_desc">Cruceta de dirección</string>
+    <string name="snake_steer_up">Girar arriba</string>
+    <string name="snake_steer_down">Girar abajo</string>
+    <string name="snake_steer_left">Girar a la izquierda</string>
+    <string name="snake_steer_right">Girar a la derecha</string>
+
+    <!-- Snake: textos del catálogo del Hub -->
+    <string name="hub_snake">Snake</string>
+    <string name="hub_eat_grow_and_never_bite_your_own_tail">Come, crece y nunca te muerdas la cola.</string>
+    <string name="hub_swipe_or_use_the_pad_to_steer">Desliza o usa la cruceta para dirigir.</string>
+    <string name="hub_snake_speed">Velocidad de la serpiente</string>
+    <string name="hub_it_also_speeds_up_as_you_eat">También se acelera a medida que comes.</string>
+    <string name="hub_relaxed">Tranquila</string>
+    <string name="hub_steady">Constante</string>
+    <string name="hub_quick">Rápida</string>
+    <string name="hub_board_edges">Bordes del tablero</string>
+    <string name="hub_wrap_lets_you_cross_to_the_far_side">El modo envolvente te deja cruzar al lado opuesto.</string>
+    <string name="hub_solid_walls">Paredes sólidas</string>
+    <string name="hub_wrap_around">Envolvente</string>
+    <string name="hub_play_field">Campo de juego</string>
+    <string name="hub_a_bigger_field_leaves_more_room_to_grow">Un campo más grande deja más espacio para crecer.</string>
+    <string name="hub_small_12x12">Pequeño 12x12</string>
+    <string name="hub_classic_16x16">Clásico 16x16</string>
+    <string name="hub_big_20x20">Grande 20x20</string>
+</resources>

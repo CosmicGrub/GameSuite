@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coach card of Echo Pads (ES) -->
+<resources>
+    <string name="coach_echo_pads_s1">Cuatro pads se encienden uno tras otro, cada uno con su propia forma, color y nota. Primero mira y escucha todo el patrón.</string>
+    <string name="coach_echo_pads_s2">Cuando los pads se detienen, copia el patrón: toca los mismos pads en el mismo orden. No puedes tocar mientras el patrón suena.</string>
+    <string name="coach_echo_pads_s3">Si lo copias bien, el patrón crece en uno. En Solo, mira hasta dónde llegas. En Pasar y jugar, quien se equivoca queda fuera y gana el último que quede.</string>
+    <string name="coach_echo_pads_s4">Cara a cara da a cada uno de dos jugadores una mitad de la pantalla para copiar el mismo patrón. El Modo fácil da un intento gratis en cada turno, y el Sonido se puede desactivar para jugar con luces y formas.</string>
+    <string name="coach_echo_pads_fact">El juego de memoria con cuatro luces de colores apareció por primera vez en 1978, y la longitud del patrón es una prueba clásica de memoria a corto plazo: la mayoría de las personas retiene unos siete elementos a la vez.</string>
+</resources>

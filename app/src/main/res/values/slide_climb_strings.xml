@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Slide and Climb (game id chutes-race): screen, announcements and accessibility text -->
+    <string name="slide_climb_help_title">Slide and Climb</string>
+    <string name="slide_climb_help_text">Tap the big die to roll. Your piece hops that many squares along the numbered track. Land at the foot of a rope to climb up; land at the top of a slide and down you go. The first piece to reach square 100 wins.</string>
+
+    <string name="slide_climb_shape_circle">circle</string>
+    <string name="slide_climb_shape_square">square</string>
+    <string name="slide_climb_shape_triangle">triangle</string>
+    <string name="slide_climb_shape_diamond">diamond</string>
+    <string name="slide_climb_shape_star">star</string>
+    <string name="slide_climb_shape_plus">plus</string>
+
+    <string name="slide_climb_ann_start">%1$s goes first. Tap the dice.</string>
+    <string name="slide_climb_ann_start_you">You go first. Tap the dice.</string>
+    <string name="slide_climb_ann_pending">%1$s rolled %2$d. Keep it or use the spare roll.</string>
+    <string name="slide_climb_ann_pending_you">You rolled %1$d. Keep it or use your spare roll.</string>
+    <string name="slide_climb_ann_move">%1$s rolled %2$d and hopped to square %3$d.</string>
+    <string name="slide_climb_ann_move_you">You rolled %1$d and hopped to square %2$d.</string>
+    <string name="slide_climb_ann_climb">%1$s rolled %2$d, found a rope and climbed to square %3$d!</string>
+    <string name="slide_climb_ann_climb_you">You rolled %1$d, found a rope and climbed to square %2$d!</string>
+    <string name="slide_climb_ann_slide">%1$s rolled %2$d and slid down to square %3$d.</string>
+    <string name="slide_climb_ann_slide_you">You rolled %1$d and slid down to square %2$d.</string>
+    <string name="slide_climb_ann_bounce">%1$s rolled %2$d, went past the end and bounced back to square %3$d.</string>
+    <string name="slide_climb_ann_bounce_you">You rolled %1$d, went past the end and bounced back to square %2$d.</string>
+    <string name="slide_climb_ann_stuck">%1$s rolled %2$d but needs the exact number to finish, so stays on square %3$d.</string>
+    <string name="slide_climb_ann_stuck_you">You rolled %1$d but need the exact number to finish, so you stay on square %2$d.</string>
+    <string name="slide_climb_ann_win">%1$s reached square 100 and wins!</string>
+    <string name="slide_climb_ann_win_you">You reached square 100 and win!</string>
+    <string name="slide_climb_spare_used">Spare roll used.</string>
+
+    <string name="slide_climb_turn_you">Your turn. Tap the dice.</string>
+    <string name="slide_climb_turn_named">%1$s, tap the dice.</string>
+    <string name="slide_climb_thinking">%1$s is rolling…</string>
+    <string name="slide_climb_deciding">%1$s is deciding…</string>
+    <string name="slide_climb_why_decide">Choose first: keep the roll or use the spare roll.</string>
+
+    <string name="slide_climb_dice_tap">Roll the dice</string>
+    <string name="slide_climb_dice_value">The dice shows %1$d</string>
+    <string name="slide_climb_dice_none">The dice has not been rolled yet</string>
+    <string name="slide_climb_keep">Keep the roll</string>
+    <string name="slide_climb_spare">Use the spare roll and roll again</string>
+
+    <string name="slide_climb_chip_desc">%1$s, %2$s piece, on square %3$d</string>
+    <string name="slide_climb_chip_spare">Has a spare roll.</string>
+
+    <string name="slide_climb_board_desc">Snaking track of 100 squares. Pieces: %1$s. Ropes that climb: %2$s. Slides that go down: %3$s.</string>
+    <string name="slide_climb_board_piece">%1$s (%2$s piece) on square %3$d</string>
+    <string name="slide_climb_board_at_start">%1$s (%2$s piece) at the start</string>
+    <string name="slide_climb_jump_rope">rope from %1$d up to %2$d</string>
+    <string name="slide_climb_jump_slide">slide from %1$d down to %2$d</string>
+
+    <string name="slide_climb_wins">%1$s wins!</string>
+    <string name="slide_climb_final_line">%1$s: square %2$d</string>
+</resources>

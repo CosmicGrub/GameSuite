@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
@@ -37,9 +38,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -108,7 +111,7 @@ fun GamesScreen(
     sessionManager: GameSessionManager,
     onNavigate: (route: String) -> Unit
 ) {
-    val specs = GameHubSpecs.all
+    val specs = com.gamesuite.ui.profiles.LocalVisibleSpecs.current
     val favorites = rememberFavorites()
     val saves = rememberSavedGames(sessionManager)
     val savedGameIds = remember(saves) { saves.mapNotNull { gameIdForRoute(specs, it.navRoute) }.toSet() }
@@ -148,6 +151,9 @@ fun GamesScreen(
                     modifier = Modifier.semantics { heading() }
                 )
             }
+            item(key = "arena") {
+                com.gamesuite.arena.ArenaEntryCard(onClick = { onNavigate("arena") })
+            }
             item(key = "search") {
                 val clearLabel = stringResource(R.string.games_search_clear)
                 OutlinedTextField(
@@ -170,7 +176,11 @@ fun GamesScreen(
             }
             item(key = "chips") {
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).focusGroup(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .selectableGroup()
+                        .focusGroup(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FilterChip(
@@ -190,12 +200,27 @@ fun GamesScreen(
                 }
             }
 
+            // The result count is a polite live region, so a screen reader hears "3 games" as the
+            // player types in the search box or switches the filter.
+            item(key = "count") {
+                Text(
+                    context.resources.getQuantityString(R.plurals.polish_result_count, visible.size, visible.size),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { liveRegion = LiveRegionMode.Polite }
+                )
+            }
+
             if (grouped.isEmpty()) {
                 item(key = "empty") {
                     Text(
                         stringResource(R.string.games_no_results),
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 }
             }

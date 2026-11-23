@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tower Defence follow-ups: Roman Frontier and Cherry Ridge skins, modes, snap, keyboard, layouts. New file. -->
+    <string name="td_theme_roman">Roman Frontier</string>
+    <string name="td_theme_roman_blurb">Hold the frontier fort against hill clans and a war elephant.</string>
+    <string name="td_tower_roman_bolt">Ballista Tower</string>
+    <string name="td_tower_roman_blast">Onager</string>
+    <string name="td_tower_roman_control">Oil Cauldron</string>
+    <string name="td_tower_roman_support">Legion Standard</string>
+    <string name="td_enemy_roman_runner">Clan Scout</string>
+    <string name="td_enemy_roman_brute">Chieftain Guard</string>
+    <string name="td_enemy_roman_flyer">War Hawk</string>
+    <string name="td_enemy_roman_boss">War Elephant</string>
+    <string name="td_base_roman">Legion Fort</string>
+    <string name="td_theme_cherry">Cherry Ridge</string>
+    <string name="td_theme_cherry_blurb">Defend Cherry Keep at dusk from mist scouts, iron oni and the great tengu.</string>
+    <string name="td_tower_cherry_bolt">Kasumi Bow</string>
+    <string name="td_tower_cherry_blast">Taiko Thunder</string>
+    <string name="td_tower_cherry_control">Sakura Shrine</string>
+    <string name="td_tower_cherry_support">Crane Banner</string>
+    <string name="td_enemy_cherry_runner">Mist Scout</string>
+    <string name="td_enemy_cherry_brute">Iron Oni</string>
+    <string name="td_enemy_cherry_flyer">Paper Kite Spirit</string>
+    <string name="td_enemy_cherry_boss">Great Tengu</string>
+    <string name="td_base_cherry">Cherry Keep</string>
+    <string name="td_wave_endless">Wave %1$d</string>
+    <string name="td_wave_spoken_endless">Wave %1$d, endless mode</string>
+    <string name="td_endless_over">Endless run over</string>
+    <string name="td_endless_reached">Endless: you reached wave %1$d</string>
+    <string name="td_daily_title">Daily siege</string>
+    <string name="td_daily_info">Daily: %1$s. Twist: %2$s</string>
+    <string name="td_daily_score">Daily score: %1$d</string>
+    <string name="td_best_score">Best score: %1$d</string>
+    <string name="td_mod_swarm">more enemies</string>
+    <string name="td_mod_tough">tougher enemies</string>
+    <string name="td_mod_swift">faster enemies</string>
+    <string name="td_mod_lean">less starting gold</string>
+    <string name="td_mode_locked_note">Map and difficulty are set by the mode.</string>
+    <string name="td_snap_off">Free placement</string>
+    <string name="td_snap_off_help">Place towers between tiles instead of snapping to the grid.</string>
+    <string name="td_key_help">Keyboard or D-pad: arrows move the cursor, Enter builds or selects, 1 to 4 pick a tower, U upgrade, S sell, M move, T targeting, P pause, N start wave, Esc cancel.</string>
+    <string name="td_cursor_desc">Cursor at row %1$d, column %2$s</string>
+    <string name="td_hint_drag">Drag a card onto the field to place it.</string>
+    <string name="td_minimap">Map overview</string>
+    <string name="td_minimap_desc">Map overview. Tap or drag to move the view.</string>
+    <string name="td_castle_pinned">Castle %1$d of %2$d</string>
+    <string name="td_castle_pinned_desc">Castle health %1$d of %2$d. Tap to show the castle.</string>
+    <string name="td_board_state_endless">Wave %1$d, endless mode, castle %2$d of %3$d, %4$d gold</string>
+</resources>

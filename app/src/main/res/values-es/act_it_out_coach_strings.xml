@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Act It Out: coach card and first-run tips -->
+<resources>
+    <string name="coach_act_it_out_s1">Elige dos equipos o cada uno por su cuenta, cuánto dura cada turno y cuántas rondas se juegan.</string>
+    <string name="coach_act_it_out_s2">Elige un nivel de cartas para cada equipo: los pequeños tienen cartas fáciles con dibujo y los mayores, otras más difíciles.</string>
+    <string name="coach_act_it_out_s3">Pasa el dispositivo al actor. Mantiene pulsado el botón para empezar y ve la carta mientras los demás miran hacia otro lado.</string>
+    <string name="coach_act_it_out_s4">Representa la carta sin hablar. Toca Acertada cuando el equipo la adivine, o Pasar para otra carta (tres pases por turno).</string>
+    <string name="coach_act_it_out_s5">Las cartas acertadas dan puntos al equipo del actor. Gana el equipo con más puntos tras la última ronda.</string>
+    <string name="coach_act_it_out_fact">La mímica nació como juego de salón en la Francia del siglo XVIII, donde se representaba una sílaba cada vez.</string>
+</resources>

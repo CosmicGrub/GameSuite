@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub catalog (hub_<slug> of the English text in GameHubSpecs). -->
+    <string name="hub_yahtzee">Yahtzee</string>
+    <string name="hub_roll_five_dice_fill_thirteen_boxes">Roll five dice, fill thirteen boxes.</string>
+    <string name="hub_beat_your_best">Beat your best</string>
+    <string name="hub_play_against_1_to_3_computers">Play against 1 to 3 computers.</string>
+    <string name="hub_2_to_4_people_one_device">2 to 4 people, one device.</string>
+
+    <!-- Chrome -->
+    <string name="yahtzee_help_title">How to Play Yahtzee</string>
+    <string name="yahtzee_help_body">Each turn you roll five dice up to three times. After a roll, tap the dice you want to keep; the others are rerolled. Then fill one scoring box with the dice you end up with.\n\nUpper section: Aces to Sixes score the total of that number. Reach 63 or more in the upper section for a 35 point bonus.\n\nLower section: Three of a kind and Four of a kind score the total of all five dice. Full house is 25, Small straight (four in a row) 30, Large straight (five in a row) 40, Yahtzee (five alike) 50, and Chance is the total of all dice.\n\nEvery box is used once, so sometimes you have to take a zero. A second Yahtzee after you scored 50 earns a 100 point bonus and must go in the matching upper box, or in any lower box if that one is taken (the Joker rule).\n\nA game lasts 13 rounds. Undo takes back a hold or a box choice until the next roll.</string>
+    <string name="yahtzee_leave_title">Leave this game?</string>
+    <string name="yahtzee_leave_body">This game is still in progress. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="yahtzee_leave_body_session">This game is still in progress and won\'t count, but the games you\'ve already finished stay on your record.</string>
+    <string name="yahtzee_loading">Getting the dice ready…</string>
+
+    <!-- Status -->
+    <string name="yahtzee_round_of">Round %1$d of %2$d</string>
+    <string name="yahtzee_your_turn">Your turn</string>
+    <string name="yahtzee_turn_of">%1$s\'s turn</string>
+    <string name="yahtzee_cpu_playing">%1$s is playing…</string>
+    <string name="yahtzee_tap_to_hold">Tap a die to hold it, then roll again.</string>
+    <string name="yahtzee_choose_box">Tap a box on the scorecard to score it.</string>
+    <string name="yahtzee_last_scored">%1$s scored %2$d in %3$s.</string>
+    <string name="yahtzee_last_scored_bonus">%1$s scored %2$d in %3$s, plus a %4$d point Yahtzee bonus!</string>
+    <string name="yahtzee_game_over">Game over</string>
+
+    <!-- Dice and roll button -->
+    <string name="yahtzee_roll_first">Roll the dice</string>
+    <string name="yahtzee_roll_again">Roll again (%1$d left)</string>
+    <string name="yahtzee_roll_done">Choose a box below</string>
+    <string name="yahtzee_roll_all_held">Release a die to roll again</string>
+    <string name="yahtzee_die_held">HELD</string>
+    <string name="yahtzee_die_keep">KEEP</string>
+    <string name="yahtzee_cd_die">Die %1$d, shows %2$d</string>
+    <string name="yahtzee_cd_die_blank">Die %1$d, not rolled yet</string>
+    <string name="yahtzee_cd_die_suggested">, suggested to keep</string>
+    <string name="yahtzee_state_held">Held</string>
+    <string name="yahtzee_state_free">Not held</string>
+    <string name="yahtzee_undo">Undo</string>
+    <string name="yahtzee_hint">Hint</string>
+    <string name="yahtzee_hint_holds">Hint: keep the dice marked KEEP and roll the rest.</string>
+    <string name="yahtzee_hint_category">Hint: score %1$s (marked with a star).</string>
+
+    <!-- Scorecard -->
+    <string name="yahtzee_cat_aces">Aces</string>
+    <string name="yahtzee_cat_twos">Twos</string>
+    <string name="yahtzee_cat_threes">Threes</string>
+    <string name="yahtzee_cat_fours">Fours</string>
+    <string name="yahtzee_cat_fives">Fives</string>
+    <string name="yahtzee_cat_sixes">Sixes</string>
+    <string name="yahtzee_cat_three_kind">Three of a kind</string>
+    <string name="yahtzee_cat_four_kind">Four of a kind</string>
+    <string name="yahtzee_cat_full_house">Full house</string>
+    <string name="yahtzee_cat_small_straight">Small straight</string>
+    <string name="yahtzee_cat_large_straight">Large straight</string>
+    <string name="yahtzee_cat_yahtzee">Yahtzee</string>
+    <string name="yahtzee_cat_chance">Chance</string>
+    <string name="yahtzee_section_upper">Upper section</string>
+    <string name="yahtzee_section_lower">Lower section</string>
+    <string name="yahtzee_row_upper_bonus">Upper bonus (63+ gives 35)</string>
+    <string name="yahtzee_row_yahtzee_bonus">Yahtzee bonus (100 each)</string>
+    <string name="yahtzee_row_total">Total</string>
+    <string name="yahtzee_progress">%1$d/%2$d</string>
+    <string name="yahtzee_cd_row_choose">%1$s, score %2$d points</string>
+    <string name="yahtzee_cd_row_choose_best">%1$s, score %2$d points, suggested choice</string>
+    <string name="yahtzee_cd_row_blocked">%1$s, not allowed with these dice</string>
+    <string name="yahtzee_click_label">Score %1$s</string>
+    <string name="yahtzee_cd_cell_scored">%1$s %2$d</string>
+    <string name="yahtzee_cd_cell_open">%1$s open</string>
+    <string name="yahtzee_cd_row">%1$s: %2$s</string>
+    <string name="yahtzee_cd_header_turn">%1$s, %2$d points, current turn</string>
+    <string name="yahtzee_cd_header">%1$s, %2$d points</string>
+    <string name="yahtzee_cd_total_row">%1$s: %2$s</string>
+
+    <!-- Result -->
+    <string name="yahtzee_result_solo">Final score: %1$d</string>
+    <string name="yahtzee_result_winner">%1$s wins with %2$d!</string>
+    <string name="yahtzee_result_tie">It\'s a tie at %1$d!</string>
+    <string name="yahtzee_result_rank">%1$d. %2$s: %3$d</string>
+    <string name="yahtzee_result_best_session">Best this session: %1$d</string>
+    <string name="yahtzee_result_best_ever">Personal best: %1$d</string>
+    <string name="yahtzee_result_new_record">New personal best!</string>
+    <string name="yahtzee_result_session_wins">Games won: %1$s</string>
+    <string name="yahtzee_play_again">Play Again</string>
+    <string name="yahtzee_back_to_menu">Back to Menu</string>
+</resources>

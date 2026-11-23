@@ -20,10 +20,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.R
+import com.gamesuite.core.ClubViewModel
+import com.gamesuite.core.PlayerNameStore
+import com.gamesuite.ui.club.AvatarPicker
+import com.gamesuite.ui.club.ClubHomeCard
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.gamesuite.core.GameHubSpec
 import com.gamesuite.core.GameHubSpecs
+import com.gamesuite.core.Achievements
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.HubLaunch
+import com.gamesuite.core.SystemDayClock
+import com.gamesuite.stats.StreakSummary
+import com.gamesuite.stats.streakSummary
+import androidx.compose.ui.semantics.contentDescription
 import com.gamesuite.core.dailyModeOf
 import com.gamesuite.core.gameGlyph
 import com.gamesuite.core.gameIdForRoute
@@ -47,11 +57,13 @@ fun MainMenuScreen(
     sessionManager: GameSessionManager,
     settingsViewModel: SettingsViewModel,
     statsViewModel: StatsViewModel,
+    clubViewModel: ClubViewModel,
     onNavigate: (route: String) -> Unit
 ) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val stats by statsViewModel.allStats.collectAsStateWithLifecycle()
-    val specs = GameHubSpecs.all
+    val progress by statsViewModel.progress.collectAsStateWithLifecycle()
+    val specs = com.gamesuite.ui.profiles.LocalVisibleSpecs.current
     val favorites = rememberFavorites()
     val saves = rememberSavedGames(sessionManager)
     val reducedMotion = LocalReducedMotion.current
@@ -61,7 +73,7 @@ fun MainMenuScreen(
     val localize: (String) -> String = remember(context, configuration) { { text -> HubText.resolve(context, text) } }
 
     // Saved games that belong to a Hub game, newest first (a save from a retired route has no Hub and is skipped).
-    val continueItems = remember(saves) {
+    val continueItems = remember(saves, specs) {
         saves.mapNotNull { saved ->
             val gameId = gameIdForRoute(specs, saved.navRoute) ?: return@mapNotNull null
             val spec = specs.firstOrNull { it.gameId == gameId } ?: return@mapNotNull null
@@ -70,11 +82,21 @@ fun MainMenuScreen(
     }
     val favoriteSpecs = specs.filter { it.gameId in favorites.ids }
     val recentStats = stats.values
-        .filter { GameHubSpecs.byId(it.gameId) != null && !it.dismissedFromContinue }
+        // Only games this profile may see (age band, hidden, blocked, Online stripped): `specs` is the visible list.
+        .filter { s -> specs.any { it.gameId == s.gameId } && !s.dismissedFromContinue }
         .sortedByDescending { it.lastPlayedEpochMillis }
         .take(4)
     val dailySpecs = specs.filter { it.hasDaily }
     var recentMenuFor by remember { mutableStateOf<String?>(null) }
+
+    // The Club card waits for the profile to load (null) so a default avatar never flashes first.
+    val club by clubViewModel.profile.collectAsStateWithLifecycle()
+    var editingClub by rememberSaveable { mutableStateOf(false) }
+    val clubDefaultName = stringResource(R.string.club_home_default_name)
+    val lobbyName = remember(context, club) { PlayerNameStore(context).lobbyName(clubDefaultName) }
+    val clubGames = remember(specs, localize) {
+        specs.map { it.gameId to localize(it.title) }.sortedBy { it.second.lowercase() }
+    }
 
     // Soft drifting gradient from the theme's own container colours; off under Reduced Motion.
     val colorScheme = MaterialTheme.colorScheme
@@ -104,8 +126,26 @@ fun MainMenuScreen(
             )
             Spacer(Modifier.height(16.dp))
 
+            HomeProgressNotes(
+                streaks = streakSummary(progress, SystemDayClock.today()),
+                pending = progress.pendingAnnounce,
+                onDismissPending = { statsViewModel.clearPendingAnnouncements() }
+            )
+
             if (!settings.hasSeenOnboarding) {
                 OnboardingBanner(onDismiss = { settingsViewModel.setHasSeenOnboarding(true) })
+                Spacer(Modifier.height(20.dp))
+            }
+
+            club?.let { profile ->
+                val favoriteSpec = profile.favoriteGameId?.let { id -> specs.firstOrNull { it.gameId == id } }
+                ClubHomeCard(
+                    profile = profile,
+                    defaultName = lobbyName,
+                    favoriteTitle = favoriteSpec?.let { localize(it.title) },
+                    onEditProfile = { editingClub = true },
+                    onPlayFavorite = favoriteSpec?.let { spec -> { openGameFromCard(spec, sessionManager, onNavigate) } }
+                )
                 Spacer(Modifier.height(20.dp))
             }
 
@@ -117,7 +157,7 @@ fun MainMenuScreen(
                             glyph = gameGlyph(spec.gameId),
                             title = "${localize(spec.title)} · ${localize(mode.title)}",
                             subtitle = "",
-                            accent = familyAccent(spec.family),
+                            accent = gameAccent(spec.gameId, spec.family),
                             onClick = {
                                 if (saves.any { it.navRoute == mode.route }) {
                                     // A daily already in progress: the Hub offers Resume instead of replacing it.
@@ -139,7 +179,7 @@ fun MainMenuScreen(
                             glyph = gameGlyph(spec.gameId),
                             title = localize(spec.title),
                             subtitle = saved.summary.ifBlank { HubText.savedAgo(context, saved.savedAtMillis, System.currentTimeMillis()) },
-                            accent = familyAccent(spec.family),
+                            accent = gameAccent(spec.gameId, spec.family),
                             onClick = { onNavigate("hub/${spec.gameId}") }
                         )
                     }
@@ -153,7 +193,7 @@ fun MainMenuScreen(
                             glyph = gameGlyph(spec.gameId),
                             title = localize(spec.title),
                             subtitle = localize(spec.tagline),
-                            accent = familyAccent(spec.family),
+                            accent = gameAccent(spec.gameId, spec.family),
                             onClick = { openGameFromCard(spec, sessionManager, onNavigate) }
                         )
                     }
@@ -163,13 +203,13 @@ fun MainMenuScreen(
             if (recentStats.isNotEmpty()) {
                 HomeRow(title = stringResource(R.string.home_recent)) {
                     recentStats.forEach { s ->
-                        val spec = GameHubSpecs.byId(s.gameId) ?: return@forEach
+                        val spec = specs.firstOrNull { it.gameId == s.gameId } ?: return@forEach
                         Box {
                             GameTile(
                                 glyph = gameGlyph(spec.gameId),
                                 title = localize(spec.title),
                                 subtitle = stringResource(R.string.home_record, s.wins, s.losses),
-                                accent = familyAccent(spec.family),
+                                accent = gameAccent(spec.gameId, spec.family),
                                 onClick = { openGameFromCard(spec, sessionManager, onNavigate) },
                                 // Long-press: hide this tile from the row (the win/loss record is untouched).
                                 onLongClick = { recentMenuFor = s.gameId }
@@ -208,6 +248,87 @@ fun MainMenuScreen(
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    val editing = club
+    if (editingClub && editing != null) {
+        AvatarPicker(
+            initial = editing,
+            games = clubGames,
+            defaultName = lobbyName,
+            onSave = { edited ->
+                clubViewModel.save(edited)
+                editingClub = false
+            },
+            onDismiss = { editingClub = false }
+        )
+    }
+}
+
+/**
+ * The small progress notes at the top of Home: a streak chip (daily play streak, with a nudge when
+ * it is about to lapse) and a one-time "Newly unlocked" card. The card is captured into local state
+ * and the persisted pending list is cleared straight away, so it shows once and never again.
+ */
+@Composable
+private fun HomeProgressNotes(
+    streaks: StreakSummary,
+    pending: List<String>,
+    onDismissPending: () -> Unit
+) {
+    var announced by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(pending) {
+        if (pending.isNotEmpty()) {
+            announced = (announced + pending).distinct()
+            onDismissPending()
+        }
+    }
+
+    if (streaks.dayStreak > 0) {
+        val label = if (streaks.dayStreakAtRisk) {
+            stringResource(R.string.home_streak_chip_at_risk, streaks.dayStreak)
+        } else {
+            LocalContext.current.resources.getQuantityString(
+                R.plurals.home_streak_chip, streaks.dayStreak, streaks.dayStreak
+            )
+        }
+        val spoken = stringResource(R.string.home_streak_chip_description, streaks.dayStreak, streaks.bestDayStreak) +
+            " " + label
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = spoken }
+        ) {
+            // The flame glyph is decoration; the number and the word carry the meaning.
+            Text(
+                "🔥 $label",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+
+    if (announced.isNotEmpty()) {
+        val names = announced.filter { it in Achievements.byId }.map { achievementTitle(it) }.joinToString(", ")
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.home_new_unlocked, names),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f).semantics { heading() }
+                )
+                TextButton(
+                    onClick = { announced = emptyList() },
+                    modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
+                ) { Text(stringResource(R.string.home_new_unlocked_dismiss)) }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 

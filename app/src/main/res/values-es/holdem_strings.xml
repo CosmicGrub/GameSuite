@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texas Hold'em (play chips only): own file; hub_* entries serve HoldemHubSpecs, tip_* serve GameTips -->
+    <string name="holdem_help_title">Cómo jugar al Texas Hold\'em</string>
+    <string name="holdem_help_text">Se juega solo con fichas: no hay dinero real. Todos empiezan con las mismas fichas y gana el último jugador que conserve fichas.\n\nEn cada mano recibes dos cartas privadas. Cinco cartas comunes se descubren en la mesa: tres (el flop), luego una (el turn) y luego otra (el river). Forma la mejor mano de cinco cartas con tus dos cartas y las cinco de la mesa.\n\nSe apuesta antes del flop y después de cada carta nueva. Retírate para dejar la mano, pasa si nadie ha apostado, iguala para cubrir una apuesta, o apuesta y sube para poner más. Todo en juego es apostar todas tus fichas. Una subida debe ser al menos tan grande como la anterior.\n\nSi no puedes igualar una apuesta, aún puedes ir con todo. Las fichas sobrantes forman un bote lateral que solo pueden ganar los jugadores que lo igualaron. Al terminar las apuestas, la mejor mano gana el bote y las manos iguales lo reparten.\n\nLas ciegas pequeña y grande son apuestas obligatorias que rotan por la mesa con el botón del repartidor. Pueden subir con el tiempo, así que la partida siempre termina.\n\nUsa Pista para ver tus probabilidades y una sugerencia. Deshacer anula tu última apuesta antes de repartir la siguiente carta (no en partidas en línea).</string>
+    <string name="holdem_waiting_host">Esperando al anfitrión…</string>
+    <string name="holdem_host_left">El anfitrión dejó la mesa.</string>
+    <string name="holdem_leave_title">¿Dejar esta mesa?</string>
+    <string name="holdem_leave_body">El torneo sigue en marcha. Si te vas ahora, no cuenta como victoria ni como derrota.</string>
+    <string name="holdem_card_cd">%1$s de %2$s</string>
+    <string name="holdem_card_hidden_cd">Carta boca abajo</string>
+    <string name="holdem_hole_cd">Cartas privadas: %1$s</string>
+    <string name="holdem_board_cd">Mesa: %1$s</string>
+    <string name="holdem_board_empty_cd">Mesa: todavía sin cartas</string>
+    <string name="holdem_chips_cd">%1$d fichas</string>
+    <string name="holdem_bet_cd">Apuesta de %1$s: %2$d fichas</string>
+    <string name="holdem_won_cd">Ganancia: %1$d fichas</string>
+    <string name="holdem_pot_cd">Bote: %1$d fichas</string>
+    <string name="holdem_pot">Bote %1$d</string>
+    <string name="holdem_main_pot">Bote principal</string>
+    <string name="holdem_side_pot">Bote lateral</string>
+    <string name="holdem_blinds">Ciegas %1$d/%2$d</string>
+    <string name="holdem_blinds_rise">Manos hasta que suban las ciegas: %1$d</string>
+    <string name="holdem_hand_no">Mano %1$d</string>
+    <string name="holdem_street_flop">Flop.</string>
+    <string name="holdem_street_turn">Turn.</string>
+    <string name="holdem_street_river">River.</string>
+    <string name="holdem_tag_dealer">Repartidor</string>
+    <string name="holdem_tag_sb">Ciega pequeña</string>
+    <string name="holdem_tag_bb">Ciega grande</string>
+    <string name="holdem_tag_folded">Retirado</string>
+    <string name="holdem_tag_allin">Todo en juego</string>
+    <string name="holdem_tag_out">Sin fichas</string>
+    <string name="holdem_tag_turn">Turno de jugar</string>
+    <string name="holdem_tag_you">Tú</string>
+    <string name="holdem_act_out">Fuera</string>
+    <string name="holdem_act_fold">Retirado</string>
+    <string name="holdem_act_check">Paso</string>
+    <string name="holdem_act_call">Igualar %1$d</string>
+    <string name="holdem_act_bet">Apuesta %1$d</string>
+    <string name="holdem_act_raise">Subir %1$d</string>
+    <string name="holdem_act_allin">Todo en juego</string>
+    <string name="holdem_act_sb">CP</string>
+    <string name="holdem_act_bb">CG</string>
+    <string name="holdem_fold">Retirarse</string>
+    <string name="holdem_check">Pasar</string>
+    <string name="holdem_call">Igualar %1$d</string>
+    <string name="holdem_call_allin">Igualar %1$d (todo en juego)</string>
+    <string name="holdem_bet">Apostar</string>
+    <string name="holdem_raise">Subir</string>
+    <string name="holdem_all_in">Todo en juego</string>
+    <string name="holdem_bet_amount">Apostar %1$d</string>
+    <string name="holdem_raise_to">Subir a %1$d</string>
+    <string name="holdem_allin_amount">Todo en juego: %1$d</string>
+    <string name="holdem_preset_min">Mín.</string>
+    <string name="holdem_preset_half">½ bote</string>
+    <string name="holdem_preset_pot">Bote</string>
+    <string name="holdem_preset_allin">Todo</string>
+    <string name="holdem_preset_cd">%1$s, %2$d fichas</string>
+    <string name="holdem_slider_cd">Cantidad de la apuesta</string>
+    <string name="holdem_slider_state">%1$d fichas</string>
+    <string name="holdem_minus_cd">Reducir la apuesta</string>
+    <string name="holdem_plus_cd">Aumentar la apuesta</string>
+    <string name="holdem_deal_next">Repartir la siguiente mano</string>
+    <string name="holdem_pass_title">Pasa el dispositivo a %1$s</string>
+    <string name="holdem_pass_body">Asegúrate de que nadie más vea la pantalla y toca para ver tus cartas.</string>
+    <string name="holdem_pass_show">Mostrar mis cartas</string>
+    <string name="holdem_ev_fold">%1$s: retirarse</string>
+    <string name="holdem_ev_check">%1$s: pasar</string>
+    <string name="holdem_ev_call">%1$s: igualar %2$d</string>
+    <string name="holdem_ev_bet">%1$s: apostar %2$d</string>
+    <string name="holdem_ev_raise">%1$s: subir a %2$d</string>
+    <string name="holdem_ev_allin">%1$s: todo en juego, %2$d</string>
+    <string name="holdem_ev_win_with">%1$s +%2$d con %3$s</string>
+    <string name="holdem_ev_win_plain">%1$s +%2$d</string>
+    <string name="holdem_ev_hand_over">Mano terminada. %1$s</string>
+    <string name="holdem_ev_uncontested">Los demás se retiraron. %1$s</string>
+    <string name="holdem_ev_match_over">Torneo terminado. Ganador: %1$s.</string>
+    <string name="holdem_ev_new_hand">Mano %1$d. Ciegas %2$d y %3$d. Repartidor: %4$s.</string>
+    <string name="holdem_ev_left">Dejó la mesa: %1$s. La CPU juega este asiento.</string>
+    <string name="holdem_ev_returned">De vuelta en la mesa: %1$s.</string>
+    <string name="holdem_turn_you">Tu turno.</string>
+    <string name="holdem_turn_named">Esperando a %1$s.</string>
+    <string name="holdem_thinking">Pensando: %1$s.</string>
+    <string name="holdem_why_turn">No es tu turno.</string>
+    <string name="holdem_why_must_call">No puedes pasar: hay una apuesta que igualar.</string>
+    <string name="holdem_why_nothing_to_call">No hay nada que igualar. Pasa o sube.</string>
+    <string name="holdem_why_min_raise">La subida debe ser de al menos %1$d.</string>
+    <string name="holdem_why_stack">No puedes apostar más de tus %1$d fichas.</string>
+    <string name="holdem_why_no_reopen">No puedes volver a subir: un todo en juego corto no reabrió las apuestas.</string>
+    <string name="holdem_why_hand_over">La mano ha terminado.</string>
+    <string name="holdem_why_match_over">El torneo ha terminado.</string>
+    <string name="holdem_hint_fold">Pista: retirarse. Tu mano gana cerca del %1$d%% de las veces, pero igualar cuesta %2$d para ganar %3$d, así que necesitarías el %4$d%%.</string>
+    <string name="holdem_hint_check">Pista: pasar. Tu mano gana cerca del %1$d%% de las veces.</string>
+    <string name="holdem_hint_call">Pista: igualar. Tu mano gana cerca del %1$d%% de las veces. Igualar cuesta %2$d para ganar %3$d, y solo necesitas el %4$d%%.</string>
+    <string name="holdem_hint_raise">Pista: subir a %2$d. Tu mano gana cerca del %1$d%% de las veces, una buena ventaja.</string>
+    <string name="holdem_winner_title">Ganador del torneo: %1$s</string>
+    <string name="holdem_you_won">¡Ganaste!</string>
+    <string name="holdem_you_lost">Más suerte la próxima vez.</string>
+    <string name="holdem_final_line">%1$s: %2$d fichas</string>
+    <string name="holdem_play_again">Jugar otra vez</string>
+    <string name="holdem_back_menu">Volver al menú</string>
+    <string name="holdem_hand_high">Carta alta, %1$s</string>
+    <string name="holdem_hand_pair">Pareja de %1$s</string>
+    <string name="holdem_hand_two_pair">Doble pareja, %1$s y %2$s</string>
+    <string name="holdem_hand_trips">Trío de %1$s</string>
+    <string name="holdem_hand_straight">Escalera, %1$s alta</string>
+    <string name="holdem_hand_flush">Color, %1$s alta</string>
+    <string name="holdem_hand_full_house">Full, %1$s y %2$s</string>
+    <string name="holdem_hand_quads">Póker de %1$s</string>
+    <string name="holdem_hand_straight_flush">Escalera de color, %1$s alta</string>
+    <string name="holdem_hand_royal">Escalera real</string>
+    <string name="tip_texas_holdem_1">Recibes dos cartas privadas. Cinco cartas comunes se descubren; forma tu mejor mano de cinco cartas.</string>
+    <string name="tip_texas_holdem_2">En tu turno: retírate, pasa o iguala, o sube con el control deslizante y sus ajustes rápidos.</string>
+    <string name="tip_texas_holdem_3">Las fichas son solo de juego. Gana el último jugador con fichas, y las ciegas pueden subir.</string>
+    <string-array name="holdem_rank_names">
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+        <item>As</item>
+    </string-array>
+    <string-array name="holdem_rank_plurals">
+        <item>Doses</item>
+        <item>Treses</item>
+        <item>Cuatros</item>
+        <item>Cincos</item>
+        <item>Seises</item>
+        <item>Sietes</item>
+        <item>Ochos</item>
+        <item>Nueves</item>
+        <item>Dieces</item>
+        <item>Jotas</item>
+        <item>Reinas</item>
+        <item>Reyes</item>
+        <item>Ases</item>
+    </string-array>
+    <string-array name="holdem_suit_names">
+        <item>tréboles</item>
+        <item>diamantes</item>
+        <item>corazones</item>
+        <item>picas</item>
+    </string-array>
+    <string name="hub_texas_hold_em">Texas Hold\'em</string>
+    <string name="hub_play_for_chips_only_outlast_every_rival_at_the_t_d88acb">Juega solo con fichas. Aguanta más que todos los rivales de la mesa.</string>
+    <string name="hub_take_on_1_to_5_computer_players">Enfréntate a de 1 a 5 jugadores CPU.</string>
+    <string name="hub_everyone_starts_with_the_same_stack_chips_are_pl_4f900a">Todos empiezan con las mismas fichas. Son solo de juego, sin dinero real.</string>
+    <string name="hub_2_000_chips">2.000 fichas</string>
+    <string name="hub_blinds_rise">Las ciegas suben</string>
+    <string name="hub_the_forced_bets_grow_so_a_game_always_ends">Las apuestas obligatorias crecen para que la partida siempre termine.</string>
+    <string name="hub_never">Nunca</string>
+    <string name="hub_the_blinds_never_change">Las ciegas no cambian.</string>
+    <string name="hub_slowly">Despacio</string>
+    <string name="hub_every_12_hands">Cada 12 manos.</string>
+    <string name="hub_normally">Normal</string>
+    <string name="hub_every_8_hands">Cada 8 manos.</string>
+    <string name="hub_quickly">Rápido</string>
+    <string name="hub_every_4_hands">Cada 4 manos.</string>
+    <string name="hub_computer_style">Estilo de la CPU</string>
+    <string name="hub_how_the_computer_players_lean">Cómo juegan los jugadores CPU.</string>
+    <string name="hub_balanced">Equilibrado</string>
+    <string name="hub_plays_a_sound_even_game">Juega de forma sólida y pareja.</string>
+    <string name="hub_tight">Conservador</string>
+    <string name="hub_plays_few_hands_and_bets_the_strong_ones">Juega pocas manos y apuesta las fuertes.</string>
+    <string name="hub_loose">Arriesgado</string>
+    <string name="hub_plays_many_hands_and_bluffs_more">Juega muchas manos y hace más faroles.</string>
+    <string name="hub_mixed">Variado</string>
+    <string name="hub_each_computer_plays_differently">Cada CPU juega distinto.</string>
+</resources>

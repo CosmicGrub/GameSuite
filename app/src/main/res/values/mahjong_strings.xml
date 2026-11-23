@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mahjong Solitaire: Game Hub catalog texts (hub_<slug> of the English text). -->
+    <string name="hub_mahjong_solitaire">Mahjong Solitaire</string>
+    <string name="hub_match_free_pairs_of_tiles_to_clear_the_board">Match free pairs of tiles to clear the board.</string>
+    <string name="hub_tile_layout">Tile layout</string>
+    <string name="hub_turtle_144_tiles_pyramid_92_cross_60">Turtle: 144 tiles. Pyramid: 92. Cross: 60.</string>
+    <string name="hub_turtle">Turtle</string>
+    <string name="hub_the_classic_144_tile_layout">The classic 144-tile layout.</string>
+    <string name="hub_pyramid">Pyramid</string>
+    <string name="hub_a_stepped_pyramid_of_92_tiles">A stepped pyramid of 92 tiles.</string>
+    <string name="hub_cross">Cross</string>
+    <string name="hub_a_plus_shaped_layout_of_60_tiles">A plus-shaped layout of 60 tiles.</string>
+
+    <!-- Mahjong Solitaire: screen texts. -->
+    <string name="mj_help_title">How to Play Mahjong Solitaire</string>
+    <string name="mj_help_body">Clear the board by removing pairs of matching tiles. A tile can be removed only when it is free: nothing lies on top of it and its left or right side is open. Tap a free tile, then tap a second free tile that matches it.\n\nTiles match when they show the same suit and number, the same wind or the same dragon. Any flower matches any other flower, and any season matches any other season.\n\nBlocked tiles are dimmed and crossed with lines. If no pair is left, press Shuffle to re-deal the remaining tiles. Undo is unlimited. Hint shows a free pair with a dashed outline.\n\nYour best time is saved for each layout, but only for boards you finish without a hint or a shuffle. Every deal can be cleared, though a wrong pairing can leave you stuck.</string>
+    <string name="mj_leave_title">Leave this game?</string>
+    <string name="mj_leave_body">This board is unfinished. Leaving now won\'t count it as a win or a loss.</string>
+    <string name="mj_leave_body_scored">This board is unfinished and won\'t count, but the boards you have already cleared stay on your record.</string>
+    <string name="mj_new_title">Deal a new game?</string>
+    <string name="mj_new_body">Your current board and progress are discarded.</string>
+    <string name="mj_keep_playing">Keep playing</string>
+
+    <string name="mj_btn_undo">Undo</string>
+    <string name="mj_btn_hint">Hint</string>
+    <string name="mj_btn_shuffle">Shuffle</string>
+    <string name="mj_btn_zoom">Zoom %1$s</string>
+    <string name="mj_btn_new_game">New game</string>
+    <string name="mj_btn_back_to_menu">Back to Menu</string>
+
+    <string name="mj_tiles_left">Tiles left: %1$d</string>
+    <string name="mj_assisted">Assisted</string>
+    <string name="mj_layout_turtle">Turtle</string>
+    <string name="mj_layout_pyramid">Pyramid</string>
+    <string name="mj_layout_cross">Cross</string>
+
+    <string name="mj_status_idle">Tap a free tile, then its match.</string>
+    <string name="mj_status_hint">Hint: match the two outlined tiles.</string>
+    <string name="mj_status_blocked">That tile is blocked.</string>
+    <string name="mj_status_mismatch">Those tiles do not match.</string>
+    <string name="mj_status_no_hint">No hint available.</string>
+    <string name="mj_status_stuck">No free pair is left.</string>
+
+    <string name="mj_stuck_title">No more moves</string>
+    <string name="mj_stuck_body">No free pair is left. Shuffle the remaining tiles, undo a move or start a new game.</string>
+    <string name="mj_stuck_dead_end">Shuffling cannot help this board. Undo a move or start a new game.</string>
+
+    <string name="mj_solved_title">Board cleared!</string>
+    <string name="mj_solved_time">Time: %1$s</string>
+    <string name="mj_solved_hints">Hints used: %1$d</string>
+    <string name="mj_solved_shuffles">Shuffles used: %1$d</string>
+    <string name="mj_solved_assisted">Assisted boards don\'t set a best time.</string>
+    <string name="mj_solved_new_best">New best time!</string>
+    <string name="mj_solved_best">Best time: %1$s</string>
+
+    <!-- Spoken tile descriptions: "Bamboo 3, free". -->
+    <string name="mj_tile_free">%1$s, free</string>
+    <string name="mj_tile_blocked">%1$s, blocked</string>
+    <string name="mj_tile_selected">%1$s, free, selected</string>
+    <string name="mj_tile_hinted">%1$s, free, hinted</string>
+    <string name="mj_tile_numbered">%1$s %2$d</string>
+
+    <string name="mj_suit_dots">Dots</string>
+    <string name="mj_suit_bamboo">Bamboo</string>
+    <string name="mj_suit_characters">Characters</string>
+    <string name="mj_wind_east">East Wind</string>
+    <string name="mj_wind_south">South Wind</string>
+    <string name="mj_wind_west">West Wind</string>
+    <string name="mj_wind_north">North Wind</string>
+    <string name="mj_dragon_red">Red Dragon</string>
+    <string name="mj_dragon_green">Green Dragon</string>
+    <string name="mj_dragon_white">White Dragon</string>
+    <string name="mj_flower_plum">Plum Flower</string>
+    <string name="mj_flower_orchid">Orchid Flower</string>
+    <string name="mj_flower_chrysanthemum">Chrysanthemum Flower</string>
+    <string name="mj_flower_bamboo">Bamboo Flower</string>
+    <string name="mj_season_spring">Spring Season</string>
+    <string name="mj_season_summer">Summer Season</string>
+    <string name="mj_season_autumn">Autumn Season</string>
+    <string name="mj_season_winter">Winter Season</string>
+
+    <!-- Short corner labels printed on every tile next to the glyph (a rank, then a suit letter). -->
+    <string name="mj_short_dots">D</string>
+    <string name="mj_short_bamboo">B</string>
+    <string name="mj_short_characters">C</string>
+    <string name="mj_short_east">E</string>
+    <string name="mj_short_south">S</string>
+    <string name="mj_short_west">W</string>
+    <string name="mj_short_north">N</string>
+    <string name="mj_short_red">R</string>
+    <string name="mj_short_green">G</string>
+    <string name="mj_short_white">Wh</string>
+    <string name="mj_short_flower">Fl</string>
+    <string name="mj_short_season">Se</string>
+</resources>

@@ -263,6 +263,8 @@ fun runChessBotMatch(
             ChessResult.BLACK_WINS -> "Black (seat 1) wins by checkmate"
             ChessResult.DRAW_STALEMATE -> "draw by stalemate"
             ChessResult.DRAW_REPETITION -> "draw by repetition"
+            ChessResult.DRAW_FIFTY_MOVE -> "draw by the fifty-move rule"
+            ChessResult.DRAW_INSUFFICIENT_MATERIAL -> "draw by insufficient material"
             else -> "incomplete"
         },
         scoreP1 = game.scoreP1.value,

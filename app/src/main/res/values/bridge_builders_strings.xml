@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bridge Builders screen strings -->
+    <string name="bridge_builders_help_title">Bridge Builders</string>
+    <string name="bridge_builders_help_text">Everybody builds one bridge together. Each of you has a lane and a cart that slides back and forth. Tap your lane when the cart is inside the green spot to place a plank: the nearer the middle, the sturdier the plank. A miss only makes your cart rest a moment. Nobody can build more than two planks ahead of the slowest lane, so wait for your friends. Finish every lane before the water covers the bridge, then everybody crosses together. Once the last plank is in, the water waits while everybody crosses.</string>
+    <string name="bridge_builders_robot_tag">(Robot)</string>
+    <string name="bridge_builders_status_ready">Get ready to build!</string>
+    <string name="bridge_builders_status_go">Build! Tap when your cart is in the green spot.</string>
+    <string name="bridge_builders_status_row">Every lane has at least %1$d of %2$d planks.</string>
+    <string name="bridge_builders_status_water_half">The water is halfway up. Keep building!</string>
+    <string name="bridge_builders_status_water_high">The water is getting high. Nearly there!</string>
+    <string name="bridge_builders_status_cross">The bridge is finished! Everybody crosses.</string>
+    <string name="bridge_builders_status_win">We did it!</string>
+    <string name="bridge_builders_status_lose">Try again together</string>
+    <string name="bridge_builders_info_strength">Strength %1$d%%</string>
+    <string name="bridge_builders_info_water">Water: %1$d s</string>
+    <string name="bridge_builders_planks">%1$d of %2$d</string>
+    <string name="bridge_builders_go">BUILD!</string>
+    <string name="bridge_builders_tier_perfect">Perfect!</string>
+    <string name="bridge_builders_tier_good">Good!</string>
+    <string name="bridge_builders_tier_wobbly">Wobbly</string>
+    <string name="bridge_builders_tier_miss">Oops!</string>
+    <string name="bridge_builders_waiting">Waiting for friends</string>
+    <string name="bridge_builders_zone_done">All planks in!</string>
+    <string name="bridge_builders_zone_across">Across!</string>
+    <string name="bridge_builders_state_in_green">Cart in the green</string>
+    <string name="bridge_builders_state_outside">Cart outside the green</string>
+    <string name="bridge_builders_zone_desc">%1$s, lane %2$d: %3$d of %4$d planks. Double-tap to place a plank when the cart is in the green spot.</string>
+    <string name="bridge_builders_zone_desc_waiting">%1$s, lane %2$d: %3$d of %4$d planks. Waiting for friends.</string>
+    <string name="bridge_builders_zone_desc_done">%1$s, lane %2$d: all %3$d planks are in.</string>
+    <string name="bridge_builders_zone_desc_robot">%1$s, helper robot, lane %2$d: %3$d of %4$d planks.</string>
+    <string name="bridge_builders_final_strength">Bridge strength: %1$d%%</string>
+    <string name="bridge_builders_final_planks">Planks in place: %1$d of %2$d</string>
+    <string name="bridge_builders_final_bridges">Bridges built together: %1$d</string>
+    <string name="bridge_builders_build_again">Build again</string>
+</resources>

@@ -1,0 +1,82 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort,group
+airhockey,2,3,1,0,1,7,"Shared lifecycle-gated frame clock plus State read only in draw; stop per-frame whole-screen recomposition and list allocation (AirHockeyScreen.kt:128,216,285)",M,GameChrome overlay hook so help/leave dialogs freeze the puck (AirHockeyScreen.kt:373-377 resumes on menu close),S,G2
+crossword,1,2,2,2,1,8,Fix canPlace to reject adjacent or collinear placements and add a run validator plus property tests,M,Type letters directly into the grid with auto-advance and hardware keys,M,G4a
+hangman,1,2,2,2,1,8,Add shared profanity/slur blocklist and filter wordPoolFor (cunt and faggot are in the asset),S,Replace raw dictionary sampling with bundled tiered frequency-ranked word lists plus categories,M,G4a
+paddleduel,1,2,1,2,2,8,Retune Easy bot (speed/think/lapse/ball cap) and test it against a slow-human model (PaddleDuelEngine.kt:119),S,Fix blank first frame (PaddleDuelScreen.kt:174),S,G6
+partytoolkit,2,1,2,1,2,8,Move the eight legacy tools' English text to strings and add ES (PartyToolkitScreen.kt:326-343 and tool bodies),M,Delete the duplicate legacy Scoreboard/Teams/First Player tools,S,G6
+solitaire,2,2,2,1,1,8,Localise screen and engine messages; replace lastAction string parsing for haptics with event enum,M,Seeded/daily/winnable deal using a solver (Spider dealer as template),M,G3
+minesweeper,2,2,2,1,2,9,"Make the Daily mine layout independent of the first click (generate from seed, relocate mines from the first-click safe zone)",M,"Extract all strings to resources plus ES (0 stringResource, ~40 literals)",L,G4b
+reactionduel,2,2,1,2,2,9,Build engine in remember so frame 1 shows the zones (ReactionDuelScreen.kt:164-201),S,Implement pause()/resume() by shifting engine time (ReactionDuelGame.kt:122),M,G6
+towerdefence,2,2,2,1,2,9,"Localise TowerDefenceScreen (0 R.string; help, onClickLabel, zone text)",M,Read state only inside Canvas draw plus derivedStateOf HUD to stop per-frame whole-screen recomposition (TowerDefenceScreen.kt:156),M,G2
+whackamole,2,2,1,2,2,9,Implement pause()/resume() by shifting playStartAt and the act index (WhackAMoleGame.kt:114),M,Palm rejection in RwTouchSurface using ContactSizes (ReactionWhackStage.kt:50-82),M,G6
+color-flood,1,3,3,1,2,10,Add a move budget (par plus slack) and a lose state with retry,M,Extract strings to resources plus ES (0 stringResource),L,G4b
+connectfour,2,2,3,1,2,10,"Snapshot consistency: gravity, disc counts vs turn, winning line (ConnectFourGame.kt:280-297)",S,"ES extraction of 15 literals and help text (ConnectFourScreen.kt:223,236,263,347,752)",M,G1
+dominoes,2,3,2,1,2,10,Smarter CPU: track pips/passes/ends; MEDIUM currently first legal play (DominoGame.kt:699-706),M,"Add Hint (engine knows legal plays) and drop English lastAction logic coupling (DominoesScreen.kt:493,1187)",S,G1
+dotsandboxes,2,2,3,1,2,10,Real HARD: long-chain/loop counting and double-dealing (DotsAndBoxesGame.kt:807-822),M,"ES extraction of 19 literals (DotsAndBoxesScreen.kt:283,293,323,400,456)",M,G1
+kenken,2,2,1,2,3,10,Generate off main thread and catch the error() path with a bundled fallback puzzle,M,Procedural cage topologies instead of 3 hand templates per tier,M,G4a
+lighttrail,2,2,2,2,2,10,Palm rejection in TsPointerRouter,M,Coach card must pause the round (LightTrailScreen.kt:242),S,G6
+nonogram,2,2,1,2,3,10,Generate off main thread with deadline and fallback (15x15 up to 500 attempts x 200k steps),M,Generate from a pixel-art bank so completion reveals a real picture,L,G4a
+reversi,3,1,2,1,3,10,Flip animation plus LocalReducedMotion read (only a 350ms colour tween today; ReversiScreen.kt:585-594),M,Sound for bot move/flip/pass/game over (only human tap plays; ReversiScreen.kt:346),S,G1
+rpsshowdown,2,2,2,2,2,10,Fix blank first frame (RpsShowdownScreen.kt:225),S,Cap HARD CPU memory for kid profiles (RpsCpu.kt:85-101),S,G6
+sliding-puzzle,2,2,3,1,2,10,Multi-tile slide when the tapped tile shares the blank's row or column,M,"Feedback (buzz, wiggle, status text) on illegal non-adjacent taps",S,G4b
+speed,3,2,1,2,2,10,Implement real pause (empty pause()/resume(); tick loop runs during dialogs and in background); shift timers by paused time,M,Live-region announcements for opponent plays and flips,S,G3
+sudoku,2,2,1,2,3,10,Generate off main thread via shared rememberAsyncPuzzle with deadline and fallback puzzle,M,Make daily puzzle independent of player default difficulty,S,G4a
+sumopush,2,2,2,2,2,10,Palm rejection in TsPointerRouter,M,Coach card must pause the round (SumoPushScreen.kt:252),S,G6
+taprace,2,2,2,2,2,10,Init game before first composition so no blank first frame (TapRaceScreen.kt:138),S,Pause on help/leave/coach via a GameChrome overlay hook and a real pause() (TapRaceGame.kt:217),M,G6
+tugofwar,2,2,2,2,2,10,Init game before first composition so no blank first frame (TugOfWarScreen.kt:137),S,Pause on help/leave/coach via a GameChrome overlay hook and a real pause() (TugOfWarGame.kt:235),M,G6
+uno,2,3,2,1,2,10,Localise all UnoScreen/UnoHouseRules strings and engine lastAction to EN+ES with parity test,M,Seeded UnoBot plus self-play fuzz test with card conservation,S,G3
+wordguess,2,2,2,2,2,10,Fix 9 unwinnable answers (detox geeky inbox latte penne pesto ramen rehab wimpy) and add answers-subset-of-dictionary test,S,Add Spanish answer list and dictionary with locale selection,M,G4a
+wordsearch,1,2,3,2,2,10,Use a safe common-word list instead of raw wordsOfLength (profanity and obscure words today),S,Reject substring/reverse/duplicate-occurrence placements and verify each word appears once,S,G4a
+breakout,2,2,3,2,2,11,Localise BreakoutScreen (0 R.string; Score/Level/Tap to resume),M,"Add multi-hit bricks and power-ups (wide paddle, multi-ball, slow) with injectable Random (BreakoutGame.kt:313)",M,G2
+chess,2,3,2,2,2,11,"Underpromotion picker plus net message; engine is auto-queen only (ChessGame.kt:45,372,1924)",M,Kiwipete/pos3-5 perft and snapshot legality checks (ChessGameTest.kt:93; ChessGame.kt:1144),S,G1
+drawguess,3,1,2,2,3,11,Add win/lose animation and chime honouring Reduced Motion (DrawGuessScreen.kt:639),S,Score card that saves the drawing as a sticker,M,G6
+kakuro,2,2,2,2,3,11,Add ensureActive and wall-clock deadline to generation and catch failure with fallback puzzle,S,Add more templates or procedural layout and per-tier daily,M,G4a
+lights-out,3,2,3,1,2,11,Extract strings to resources plus ES (0 stringResource) and add stateDescription on cells,L,Enforce a minimum solution length per tier after scramble (3x3 can be a 1-2 press board),S,G4b
+mahjongsolitaire,3,1,2,2,3,11,Real tile art (dots/bamboo/characters/winds/dragons/flowers) cached in drawWithCache,M,Pair-match and select animation plus sound/haptic gated by reducedMotion and game speed,S,G3
+mancala,3,2,3,1,2,11,"ES extraction of help text and labels (MancalaScreen.kt:513,849,869,1005,1467)",M,Pitch-ramped sow sound plus capture and extra-turn cues (MancalaScreen.kt:372),S,G1
+toybaseball,2,2,3,2,2,11,Add ToyBaseballGameTest covering hint resume and hot-seat hand-over,M,Add a field view with animated ball flight and runner moves,M,G5
+actitout,3,2,2,2,3,12,Hide card from Recents and add FLAG_SECURE while PLAYING,S,Winners card with awards and share,M,G6
+backgammon,3,2,3,2,2,12,Add dice-roll SFX and win/lose chime in BackgammonScreen.kt:150-164 (only playTap exists),S,Dice tumble animation reusing Yahtzee die flip; Reduced Motion gated,M,G2
+edgematch,3,2,2,2,3,12,Localise EdgeMatchScreen (0 R.string; ~33 literals),M,"Generate puzzle off main thread (EdgeMatchScreen.kt:219,290) with a building state",S,G2
+gomoku,2,3,2,2,3,12,"Discard unfinished search depth instead of static eval mid-tree (GomokuEngine.kt:161-164,185-215)",S,Add swap/Swap2 opening option and honour fitBoard instead of maxOf floor (GomokuScreen.kt:271),M,G1
+matching,3,2,3,2,2,12,Live-region announcements for flip/match/mismatch/turn plus per-cell state descriptions,S,Bot-vs-bot self-play fuzz at all levels,S,G3
+sevens,3,2,3,2,2,12,Seeded multi-seat self-play fuzz test (penalty on/off) with 52-card conservation,S,scaledSp() in PsCardUi and per-card TalkBack names for board suit rows,S,G3
+shootinggallery,3,3,2,2,2,12,Pause the screen-local range clock on menu and dialogs (ShootingGalleryScreen.kt:312 339),S,Offer shoot-nearest as a setting not only for touch exploration or relaxed mode (ShootingGalleryScreen.kt:404),S,G5
+snake,3,2,2,2,3,12,Fixed-timestep loop with absolute deadlines plus render interpolation between cells,M,Turn-based step mode for TalkBack/switch users and live-region announcements,M,G4b
+tictactoe,3,2,3,1,3,12,"ES extraction incl. helpTitleFor/helpTextFor/possessive (TicTacToeScreen.kt:436,795,833-900,1088-1138)",M,Win-line draw animation plus ParticleBurst and material look,S,G1
+toyboxing,3,3,1,2,3,12,Implement pause and resume (empty at ToyBoxingGame.kt:294) and hook GameChrome so the CPU stops punching during dialogs and backgrounding,S,Auto-enable turn-based assist when touch exploration is on (ToyBoxingScreen.kt:163),S,G5
+bowling,3,3,2,2,3,13,Read LocalColorblindMode in BowlingScreen (never read today) for pin and ball cues,S,Replace literal 13/14/36sp with typography (BowlingScreen.kt:501 683 687),S,G5
+bridgebuilders,3,2,3,2,3,13,Explain the water rising on a lost try and drowning during CROSS,S,Audible green-spot cue for TalkBack,M,G6
+checkers,3,3,3,1,3,13,"ES extraction of 34 literals and 4-key strings (CheckersScreen.kt:604,1016,1156,1235,1728)",M,Replace fixed 9.sp at CheckersScreen.kt:1185 with typography,S,G1
+chinesecheckers,2,3,3,2,3,13,2-ply CPU with blocking evaluator (ChineseCheckersRules.kt:262-277),M,Replace while(flight!=null) delay(40) busy-poll with awaited signal (ChineseCheckersScreen.kt:240),S,G1
+chutesrace,3,2,3,2,3,13,Shared party score card replacing ClFinishedPanel,M,Re-verify dice and round-button semantics (audit F5-F8),S,G6
+curling,3,3,2,3,2,13,Read pulse in draw and stop liveTick forcing per-frame recomposition of the controls (CurlingScreen.kt:642 and 519),S,Add CurlingNetworkedTest and CurlingBotTest,M,G5
+echopads,3,2,2,3,3,13,Side-by-side duel layout in landscape (ReactionWhackZones.kt:52-60),S,Score card with longest-pattern sticker,M,G6
+game-2048,3,3,2,3,2,13,Move slide/pop animation reads from composition to graphicsLayer/offset lambdas,S,"Property test: random move sequences on each size (conservation, game over iff no legal move, snapshot round trip)",S,G4b
+hanafuda,3,2,3,2,3,13,Read LocalColorblindMode and add month/ribbon markers on card faces,S,Expose yaku progress with TalkBack summary and capture announcements,S,G3
+ludo,3,3,2,2,3,13,Pass pulse as State<Float> into draw lambdas; it recomposes the board every frame (LudoScreen.kt:605-608),S,Replace while(flight!=null||rolling) delay(40) busy-poll (LudoScreen.kt:283),S,G1
+mastermind,3,2,3,2,3,13,"Extract ~36 hard-coded English strings and semantics to values/ and values-es/ (MastermindScreen.kt:335,911-949)",M,Raise PEG_MIN_DP from 28 or add 48dp hit slop for code slots,S,G2
+minishogi,3,3,2,2,3,13,Colour-blind shape markers (shared ShogiBoardView with shogi),S,Hoist flight and legal.filter out of composition (shared ShogiScreen),S,G2
+president,3,2,3,2,3,13,scaledSp() for PsCardUi fixed sp 11-15 literals,S,Semantics test that every hand card has a spoken name via PsLabels,S,G3
+shogi,3,3,2,2,3,13,Read LocalColorblindMode in ShogiBoardView and add shape markers for select/legal/hint,S,"Hoist flight Animatable into Canvas draw and remember legal target sets (ShogiScreen.kt:514,302)",S,G2
+six-ball-puzzle,3,3,2,2,3,13,Move the infinite pulse read into the Canvas draw lambda (idle recomposition at 60fps),S,Rethrow CancellationException and write progress outside the cancellable effect,S,G4b
+toytennis,3,2,2,3,3,13,Make GameChrome pause real-time games while help or leave dialogs are open,S,Give figures and rackets real art instead of the shared disc (ToySoccerTennisArt.kt:34),M,G5
+wordtiles,2,3,3,2,3,13,Replace dwyl validator with a real Scrabble-style word list and add challenge option,M,Enforce standard swap rule (bag >= 7) and localise engine error strings,S,G4a
+yahtzee,3,2,2,3,3,13,Add SFX for roll/hold/score/Yahtzee via rememberProceduralSfx (screen has none),S,Run botPlan on Dispatchers.Default instead of main thread (YahtzeeGame.kt:401-434),S,G2
+billiards,3,3,2,3,3,14,Pre-build 16 ball brushes and clips with remember instead of per-frame in drawPoolBall (BilliardsScreen.kt:805),S,Cache the table layer with drawWithCache,M,G5
+carrom,3,3,2,3,3,14,Read pulse inside the draw lambda instead of composition (CarromScreen.kt:602),S,Cache board and frame gradients with drawWithCache,M,G5
+darts,3,3,2,3,3,14,Gate the sway infinite transition on canAim so bot turns and idle stop redrawing the board at 60 Hz (DartsScreen.kt:193),S,Cache the static board rings and numbers with drawWithCache,M,G5
+fishing,3,3,2,3,3,14,Make GameChrome pause the contest while help or leave dialogs are open (FishingScreen.kt:319),S,Cache the lake backdrop and read drift only in draw (FishingScreen.kt:380),M,G5
+flow-lines,3,2,3,3,3,14,Add a connect chime and path-fill animation (Reduced Motion aware),S,Strip the whole puzzle from per-stroke history snapshots,S,G4b
+hareandhounds,3,3,3,3,2,14,HARD-beats-EASY strength test both roles,S,Snapshot tamper tests for validPosition mirroring MorrisGameTest,S,G1
+hex,3,3,3,2,3,14,Discard unfinished search depth on deadline (HexEngine.kt:162-163),S,Add fitHexBoard to shared BoardFit and TalkBack row grouping with collectionInfo (HexScreen.kt:276-283),M,G1
+minigolf,3,3,2,3,3,14,Stop the unconditional timeSec frame loop unless the hole has animated hazards (MiniGolfScreen.kt:274),S,Cache the static hole layer,M,G5
+pigdice,3,2,3,3,3,14,Give the dice a moulded material look (PigDiceArt.kt has no gradients),M,Add a PigScreen UI test (only PigDieGeometryTest exists),S,G5
+slotcars,3,3,2,3,3,14,Make GameChrome pause the race while help or leave dialogs are open (SlotCarsScreen.kt:280),S,Split HUD state from per-frame draw state (SlotCarsGame.kt:384),M,G5
+tankbattle,3,3,3,2,3,14,Add polite/assertive live region announcing each shot result and win (0 liveRegion today),S,"Replace fixed sp (TankBattleScreen.kt:553,563,617,715,725) with typography styles so Text size applies",S,G2
+texasholdem,3,3,3,2,3,14,Confirm HoldemEquity Monte-Carlo runs on Dispatchers.Default with a time budget,S,scaledSp() on HoldemScreen fixed sp literals (802/858/1276),S,G3
+toysoccer,3,3,2,3,3,14,Make GameChrome pause real-time games while help or leave dialogs are open (GameChrome.kt:164 212),S,Split HUD state from per-frame draw state to stop whole-screen recomposition (ToySoccerGame.kt:555),M,G5
+war,3,2,3,3,3,14,Device-verify reveal animation timing at 0.5x/2x game speed,S,Announce each war round and pot size via live region,S,G3
+blackjack,3,3,3,3,3,15,Surface resplit/DAS rule options and confirm visible basic-strategy hint button,S,Adopt shared StandardCardFace for consistent deck look,M,G3
+ninemensmorris,3,3,3,3,3,15,Add threefold-repetition draw beside quiet-plies limit (MorrisEngine.kt:135),S,Read ThinkingLine alpha in graphicsLayer not composition (NineMensMorrisScreen.kt:133-134),S,G1
+spidersolitaire,3,3,3,3,3,15,Live TalkBack pass on device for custom move actions,S,Check jank of 104 animateOffsetAsState cards with gfxinfo,S,G3

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text for Toy Boxing and Toy Baseball (GameCoach conventions: coach_<id>_s1..sN and _fact). -->
+    <string name="coach_toy_boxing_s1">Dos boxeadores de juguete, un ring. Gana asaltos conectando más golpes limpios que tu rival, o tumbándolo para siempre.</string>
+    <string name="coach_toy_boxing_s2">El jab es rápido y ligero. El gancho es lento y pesado, pero una ! amarilla avisa de que viene. Mantén Bloquear para cubrirte y toca Esquivar para evitar un gancho.</string>
+    <string name="coach_toy_boxing_s3">Un jab cancela un golpe que aún se está preparando. Una esquiva a tiempo hace fallar el gancho y deja a tu rival expuesto a un contraataque.</string>
+    <string name="coach_toy_boxing_s4">Cada golpe gasta energía. Si machacas los botones te cansarás: un boxeador cansado no puede golpear y pega suave.</string>
+    <string name="coach_toy_boxing_s5">¿Derribado? Toca rápido para levantarte antes de que la cuenta llegue a diez. ¿Prefieres ir con calma? Activa la ayuda por turnos.</string>
+    <string name="coach_toy_boxing_fact">La cuenta de diez del boxeo viene de las reglas de Queensberry de 1867: un boxeador caído debe estar en pie antes de que se cuente diez.</string>
+    <string name="coach_toy_baseball_s1">Cada lanzamiento es un duelo. El lanzador elige en secreto un lanzamiento y un punto; el bateador elige en secreto un swing.</string>
+    <string name="coach_toy_baseball_s2">Los lanzamientos difieren en velocidad: recta, slider, curva y cambio de velocidad. El 3x3 central de la cuadrícula es la zona de strike.</string>
+    <string name="coach_toy_baseball_s3">Como bateador, elige para qué lanzamiento estás listo y adónde apuntar. Acierta en ambos para un batazo fuerte; si fallas, abanicas, bateas foul o das un rodado.</string>
+    <string name="coach_toy_baseball_s4">Cuatro bolas son una base por bolas, tres strikes son un out y tres outs terminan la media entrada. El historial muestra lo que le gusta hacer a tu rival.</string>
+    <string name="coach_toy_baseball_s5">Juega 3, 5 o 9 entradas. El equipo local gana al instante si toma la delantera en la última entrada.</string>
+    <string name="coach_toy_baseball_fact">Una curva se dobla por su giro: las costuras hacen que el aire empuje la pelota hacia un lado y hacia abajo.</string>
+</resources>

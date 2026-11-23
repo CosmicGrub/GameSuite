@@ -655,6 +655,7 @@ class SolitaireGame : GameModule, ResumableGame, UndoableGame {
 
     /** Called from the solved panel's "New Game" button — keeps the running tally, deals fresh. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

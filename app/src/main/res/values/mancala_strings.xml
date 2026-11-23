@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mancala board variants chosen in the Game Hub. -->
+    <!-- Status line under the prompt. %1$d = pits per side, %2$d = stones per pit. -->
+    <string name="mancala_variant_board">%1$d pits per side, %2$d stones per pit</string>
+    <string name="mancala_variant_no_capture">No captures</string>
+    <!-- Appended to How to Play. -->
+    <string name="mancala_help_variant">This game uses %1$d pits per side and %2$d stones in every pit to start.</string>
+    <string name="mancala_help_no_capture">Captures are switched off: landing in an empty pit on your side does nothing special. Only the extra turn for ending in your own store applies.</string>
+</resources>

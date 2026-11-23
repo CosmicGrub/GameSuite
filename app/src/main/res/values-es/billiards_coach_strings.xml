@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_billiards_s1">Arrastra sobre la mesa para apuntar. La línea de puntos muestra adónde va la blanca y hacia dónde rodará la primera bola que toque.</string>
+    <string name="coach_billiards_s2">Ajusta la fuerza con el control deslizante y usa el panel de efecto para seguir, retroceder o dar efecto lateral. Luego pulsa Tirar.</string>
+    <string name="coach_billiards_s3">8 bolas: mete todas tus lisas (1 a 7) o rayadas (9 a 15) y luego la 8. 9 bolas: golpea siempre primero la bola más baja y mete la 9 para ganar.</string>
+    <string name="coach_billiards_s4">Meter la blanca, tocar antes la bola equivocada o no llevar nada a una banda es falta: tu rival tiene bola en mano.</string>
+    <string name="coach_billiards_s5">Mete una bola de forma legal para seguir tirando. Pulsa Pista para ver un tiro sugerido.</string>
+    <string name="coach_billiards_fact">La tiza en la suela del taco aumenta el rozamiento para que no resbale sobre la bola. Los jugadores la usan antes de casi cada tiro.</string>
+</resources>

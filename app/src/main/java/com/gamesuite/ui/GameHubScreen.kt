@@ -1,7 +1,25 @@
 package com.gamesuite.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.traversalIndex
+import com.gamesuite.core.gameGlyph
+import com.gamesuite.settings.LocalReducedMotion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +85,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gamesuite.R
+import com.gamesuite.core.ClubViewModel
+import com.gamesuite.core.GameCoach
+import com.gamesuite.ui.club.CoachCard
+import com.gamesuite.ui.club.CoachHelpButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.core.GameHubSpec
 import com.gamesuite.core.GameSessionManager
 import com.gamesuite.core.HubChoices
@@ -96,6 +120,7 @@ private val HubMinTouch = 48.dp
 fun GameHubScreen(
     spec: GameHubSpec,
     sessionManager: GameSessionManager,
+    clubViewModel: ClubViewModel,
     onStartLocal: (route: String) -> Unit,
     onOpenLobby: (kind: HubModeKind, gameId: String, route: String) -> Unit,
     onBack: () -> Unit
@@ -130,7 +155,32 @@ fun GameHubScreen(
     }
     val now = remember(saveTick, resumeTick) { System.currentTimeMillis() }
     var message by remember { mutableStateOf<String?>(null) }
+    // A failure shows in the error colours; a plain confirmation ("tips hidden") does not.
+    var messageIsError by remember { mutableStateOf(true) }
     var confirmDiscard by remember { mutableStateOf<SavedGame?>(null) }
+
+    val reducedMotion = LocalReducedMotion.current
+    val tipsStore = remember(context) { GameTipsStore(context) }
+    val tipLines = remember(spec.gameId, configuration) {
+        GameTips.tipsFor(spec.gameId).indices.map { GameTips.localized(context, spec.gameId, it) }
+    }
+    var tipsDismissed by remember(spec.gameId) { mutableStateOf(tipsStore.isDismissed(spec.gameId)) }
+    val scrollState = rememberScrollState()
+    var scrollToTopTick by remember { mutableStateOf(0) }
+    LaunchedEffect(scrollToTopTick) {
+        if (scrollToTopTick > 0) {
+            if (reducedMotion) scrollState.scrollTo(0) else scrollState.animateScrollTo(0)
+        }
+    }
+    // A plain confirmation is announced once (live region) and then clears itself; an error stays.
+    LaunchedEffect(message, messageIsError) {
+        if (message != null && !messageIsError) {
+            kotlinx.coroutines.delay(8000L)
+            message = null
+        }
+    }
+    val accent = gameAccent(spec.gameId, spec.family)
+    val onAccent = onGameAccent(accent)
 
     val panelRequester = remember { BringIntoViewRequester() }
     var scrollToPanelTick by remember { mutableStateOf(0) }
@@ -139,6 +189,22 @@ fun GameHubScreen(
     }
 
     BackHandler(onBack = onBack)
+
+    // Club coach ("How to play"): opened by the (?) button, and once by itself on a first visit.
+    // It waits for the profile to load (null) so a game already seen never flashes the card, and
+    // the check runs once per visit (rememberSaveable survives rotation). Games whose own screen has
+    // a first-run card of its own are skipped (GameCoach.ownCoachInGame), so there is never a second card.
+    val hasCoach = remember(spec.gameId) { GameCoach.forGame(spec.gameId) != null }
+    val club by clubViewModel.profile.collectAsStateWithLifecycle()
+    var coachOpen by rememberSaveable(spec.gameId) { mutableStateOf(false) }
+    var coachAutoChecked by rememberSaveable(spec.gameId) { mutableStateOf(false) }
+    LaunchedEffect(club, spec.gameId) {
+        val profile = club ?: return@LaunchedEffect
+        if (!coachAutoChecked) {
+            coachAutoChecked = true
+            if (GameCoach.autoOpensInHub(spec.gameId) && profile.shouldAutoCoach(spec.gameId)) coachOpen = true
+        }
+    }
 
     val mode: HubMode = spec.mode(selectedId) ?: spec.modes.first()
     val playMode: HubMode = spec.mode(playModeId) ?: spec.modes.first()
@@ -178,11 +244,14 @@ fun GameHubScreen(
         } else {
             sessionManager.savedGames?.delete(saved.route)
             saveTick += 1
+            messageIsError = true
             message = context.getString(R.string.hub_ui_resume_failed)
         }
     }
 
-    val header: @Composable () -> Unit = { HubHeader(spec, onBack) }
+    val header: @Composable () -> Unit = {
+        HubHeader(spec, accent, onBack, onCoach = if (hasCoach) ({ coachOpen = true }) else null)
+    }
 
     val messageBlock: @Composable () -> Unit = {
         val text = message
@@ -192,8 +261,8 @@ fun GameHubScreen(
                     .fillMaxWidth()
                     .semantics { liveRegion = LiveRegionMode.Polite },
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                color = if (messageIsError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = if (messageIsError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
             ) {
                 Text(text, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
             }
@@ -222,6 +291,8 @@ fun GameHubScreen(
         HubPlayButton(
             title = localize(playMode.title),
             summary = summarizeHubChoices(playMode, choicesOf(playMode), localize),
+            accent = accent,
+            onAccent = onAccent,
             onClick = ::onPlay
         )
         Spacer(Modifier.height(20.dp))
@@ -256,38 +327,105 @@ fun GameHubScreen(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        val wide = maxWidth >= 720.dp
-        Column(
-            modifier = Modifier
-                .widthIn(max = 840.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
-            header()
-            Spacer(Modifier.height(16.dp))
-            messageBlock()
-            if (wide) {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        resumeBlock()
-                        playBlock()
-                        tilesBlock()
-                    }
-                    Column(modifier = Modifier.weight(1.2f)) {
-                        panelBlock()
-                    }
+    val tipsBlock: @Composable () -> Unit = {
+        if (tipLines.isNotEmpty() && !tipsDismissed) {
+            HubTipCard(
+                gameTitle = localize(spec.title),
+                lines = tipLines,
+                onDismiss = {
+                    tipsStore.setDismissed(spec.gameId, true)
+                    tipsDismissed = true
+                    messageIsError = false
+                    message = context.getString(R.string.tip_dismissed_notice)
                 }
-            } else {
-                resumeBlock()
-                playBlock()
-                tilesBlock()
-                Spacer(Modifier.height(16.dp))
-                panelBlock()
-            }
-            Spacer(Modifier.height(24.dp))
+            )
+            Spacer(Modifier.height(16.dp))
         }
+    }
+
+    val showTipsBlock: @Composable () -> Unit = {
+        if (tipLines.isNotEmpty() && tipsDismissed) {
+            val gameTitle = localize(spec.title)
+            val showAgainDescription = stringResource(R.string.tip_show_again_desc, gameTitle)
+            Spacer(Modifier.height(16.dp))
+            TextButton(
+                onClick = {
+                    tipsStore.setDismissed(spec.gameId, false)
+                    tipsDismissed = false
+                    messageIsError = false
+                    message = context.getString(R.string.tip_shown_notice)
+                    scrollToTopTick += 1
+                },
+                modifier = Modifier
+                    .heightIn(min = HubMinTouch)
+                    .semantics { contentDescription = showAgainDescription }
+                    .pointerHoverIcon(PointerIcon.Hand)
+            ) {
+                Text(stringResource(R.string.tip_show_again), modifier = Modifier.clearAndSetSemantics { })
+            }
+        }
+    }
+
+    HubEnterEffect(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            val wide = maxWidth >= 720.dp
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 840.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+            ) {
+                header()
+                Spacer(Modifier.height(16.dp))
+                messageBlock()
+                tipsBlock()
+                if (wide) {
+                    // Each column is a traversal group so a screen reader finishes the left column
+                    // (saves, Play, modes) before the options panel, the order sighted users read in.
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics {
+                                    isTraversalGroup = true
+                                    traversalIndex = 0f
+                                }
+                        ) {
+                            resumeBlock()
+                            playBlock()
+                            tilesBlock()
+                        }
+                        Column(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .semantics {
+                                    isTraversalGroup = true
+                                    traversalIndex = 1f
+                                }
+                        ) {
+                            panelBlock()
+                        }
+                    }
+                } else {
+                    resumeBlock()
+                    playBlock()
+                    tilesBlock()
+                    Spacer(Modifier.height(16.dp))
+                    panelBlock()
+                }
+                showTipsBlock()
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    if (coachOpen && hasCoach) {
+        // Any dismissal counts as seen, so it opens by itself only the first time.
+        CoachCard(gameId = spec.gameId, onDismiss = {
+            coachOpen = false
+            clubViewModel.markCoachSeen(spec.gameId)
+        })
     }
 
     val pending = confirmDiscard
@@ -303,6 +441,8 @@ fun GameHubScreen(
                         sessionManager.savedGames?.delete(pending.route)
                         confirmDiscard = null
                         saveTick += 1
+                        messageIsError = false
+                        message = context.getString(R.string.polish_discarded_notice)
                     }
                 ) { Text(stringResource(R.string.hub_ui_discard)) }
             },
@@ -317,28 +457,133 @@ fun GameHubScreen(
 }
 
 @Composable
-private fun HubHeader(spec: GameHubSpec, onBack: () -> Unit) {
+private fun HubHeader(spec: GameHubSpec, accent: Color, onBack: () -> Unit, onCoach: (() -> Unit)? = null) {
     val backDescription = stringResource(R.string.hub_ui_back_desc)
-    Column(modifier = Modifier.fillMaxWidth()) {
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier
-                .heightIn(min = HubMinTouch)
-                .semantics { contentDescription = backDescription }
-                .pointerHoverIcon(PointerIcon.Hand)
-        ) {
-            Text(stringResource(R.string.hub_ui_back), modifier = Modifier.clearAndSetSemantics { })
+    val scheme = MaterialTheme.colorScheme
+    // The band is the game's accent at 14% over the page surface: text on it keeps the theme's own
+    // (very high) onSurface contrast, and the solid left edge carries the identity.
+    val band = accent.copy(alpha = 0.14f).compositeOver(scheme.surface)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = band,
+        contentColor = scheme.onSurface
+    ) {
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(accent))
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = onBack,
+                        colors = ButtonDefaults.textButtonColors(contentColor = scheme.onSurface),
+                        modifier = Modifier
+                            .heightIn(min = HubMinTouch)
+                            .semantics { contentDescription = backDescription }
+                            .pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(stringResource(R.string.hub_ui_back), modifier = Modifier.clearAndSetSemantics { })
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (onCoach != null) {
+                        CoachHelpButton(
+                            gameId = spec.gameId, onClick = onCoach,
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Decorative: the title next to it names the game.
+                    Text(
+                        gameGlyph(spec.gameId),
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.padding(end = 12.dp).clearAndSetSemantics { }
+                    )
+                    Text(
+                        hubText(spec.title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.weight(1f).semantics { heading() }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(hubText(spec.tagline), style = MaterialTheme.typography.bodyMedium)
+            }
         }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            hubText(spec.title),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.semantics { heading() }
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(hubText(spec.tagline), style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+/** The dismissible "How it works" card at the top of a Hub (see [GameTips]). */
+@Composable
+private fun HubTipCard(gameTitle: String, lines: List<String>, onDismiss: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val dismissDescription = stringResource(R.string.tip_dismiss_desc, gameTitle)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { isTraversalGroup = true },
+        shape = RoundedCornerShape(16.dp),
+        color = scheme.secondaryContainer,
+        contentColor = scheme.onSecondaryContainer
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                stringResource(R.string.tip_card_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() }
+            )
+            Spacer(Modifier.height(8.dp))
+            lines.forEach { line ->
+                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                    // The bullet is decoration; each line reads as a sentence.
+                    Text("•", modifier = Modifier.padding(end = 8.dp).clearAndSetSemantics { })
+                    Text(line, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = scheme.onSecondaryContainer),
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .heightIn(min = HubMinTouch)
+                    .semantics { contentDescription = dismissDescription }
+                    .pointerHoverIcon(PointerIcon.Hand)
+            ) {
+                Text(stringResource(R.string.tip_dismiss), modifier = Modifier.clearAndSetSemantics { })
+            }
+        }
+    }
+}
+
+/**
+ * Fades the Hub in and slides it up a little (200 ms) when it first appears, as the shared
+ * transition between the Games list and a Hub. The NavHost lives in MainActivity, so the Hub plays
+ * the entrance itself. Nothing animates when [LocalReducedMotion] is on, nor when the Hub is
+ * recomposed after a rotation or process restore (the "played" flag is saved).
+ */
+@Composable
+fun HubEnterEffect(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val reducedMotion = LocalReducedMotion.current
+    var played by rememberSaveable { mutableStateOf(false) }
+    val animate = remember { !reducedMotion && !played }
+    val slidePx = with(LocalDensity.current) { 16.dp.roundToPx() }
+    LaunchedEffect(Unit) { played = true }
+    if (!animate) {
+        Box(modifier = modifier) { content() }
+    } else {
+        val visibleState = remember { MutableTransitionState(false).apply { targetState = true } }
+        AnimatedVisibility(
+            visibleState = visibleState,
+            modifier = modifier,
+            enter = fadeIn(animationSpec = tween(durationMillis = HUB_ENTER_MS)) +
+                slideInVertically(animationSpec = tween(durationMillis = HUB_ENTER_MS)) { slidePx }
+        ) {
+            content()
+        }
+    }
+}
+
+private const val HUB_ENTER_MS = 200
 
 @Composable
 private fun HubSectionTitle(text: String) {
@@ -391,13 +636,14 @@ private fun HubResumeCard(saved: SavedGame, now: Long, onResume: () -> Unit, onD
 }
 
 @Composable
-private fun HubPlayButton(title: String, summary: String, onClick: () -> Unit) {
+private fun HubPlayButton(title: String, summary: String, accent: Color, onAccent: Color, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
             .pointerHoverIcon(PointerIcon.Hand),
+        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = onAccent),
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
@@ -655,6 +901,8 @@ private fun HubStepperRow(option: HubOption.Stepper, choices: HubChoices, onChan
                     .semantics {
                         contentDescription = label
                         stateDescription = rangeDescription
+                        // The new value is spoken after each tap on the minus / plus button.
+                        liveRegion = LiveRegionMode.Polite
                     }
             )
             OutlinedButton(

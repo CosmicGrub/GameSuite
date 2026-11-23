@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tap Race screen strings -->
+    <string name="trc_help_title">Tap Race</string>
+    <string name="trc_help_text">Everyone has a lane and a big pad in their own zone. Tap your pad as fast as you can once the countdown ends. Sprint: first to fill the track wins. Rhythm: tap only on the beat. Mash and Brake: stop tapping when the light turns amber, and never tap on red. Win most rounds to win the match.</string>
+    <string name="trc_cpu_tag">(CPU)</string>
+    <string name="trc_variant_sprint">Sprint</string>
+    <string name="trc_variant_rhythm">Rhythm</string>
+    <string name="trc_variant_brake">Mash and Brake</string>
+    <string name="trc_band_info">Round %1$d of %2$d · %3$s</string>
+    <string name="trc_band_tiebreak">Tiebreak round · %1$s</string>
+    <string name="trc_status_ready">Round %1$d of %2$d. Get ready!</string>
+    <string name="trc_status_go">Go! Tap your pad.</string>
+    <string name="trc_status_go_rhythm">Go! Tap on the beat.</string>
+    <string name="trc_status_go_brake">Go! Tap, and stop when the light turns amber.</string>
+    <string name="trc_status_amber">Amber light: slow down.</string>
+    <string name="trc_status_red">Red light: hands off!</string>
+    <string name="trc_status_green">Green light: go!</string>
+    <string name="trc_status_round_win">%1$s wins the round!</string>
+    <string name="trc_status_round_win_you">You win the round!</string>
+    <string name="trc_status_round_draw">Nobody wins that round.</string>
+    <string name="trc_status_match_win">%1$s wins the match!</string>
+    <string name="trc_status_match_win_you">You win the match!</string>
+    <string name="trc_status_match_draw">The match is a draw.</string>
+    <string name="trc_score">Score: %1$s</string>
+    <string name="trc_final_rounds">Rounds: %1$s</string>
+    <string name="trc_go">GO!</string>
+    <string name="trc_frozen">Frozen</string>
+    <string name="trc_zone_won">Round won!</string>
+    <string name="trc_light_go">GO</string>
+    <string name="trc_light_slow">SLOW</string>
+    <string name="trc_light_stop">STOP</string>
+    <string name="trc_judge_perfect">Perfect!</string>
+    <string name="trc_judge_good">Good</string>
+    <string name="trc_judge_early">Too early</string>
+    <string name="trc_judge_late">Too late</string>
+    <string name="trc_judge_double">Twice on one beat</string>
+    <string name="trc_judge_false_start">Too soon!</string>
+    <string name="trc_judge_red">Red light!</string>
+    <string name="trc_why_red">%1$s tapped on a red light and lost %2$d taps.</string>
+    <string name="trc_why_false_start">%1$s tapped before the start: the pad is frozen for a moment.</string>
+    <string name="trc_why_double">%1$s tapped twice on one beat and lost ground.</string>
+    <string name="trc_why_off_beat">%1$s tapped off the beat and lost ground.</string>
+    <string name="trc_zone_desc">%1$s, %2$d of %3$d taps. Double-tap to tap.</string>
+    <string name="trc_zone_desc_cpu">%1$s, computer racer, %2$d of %3$d taps.</string>
+</resources>

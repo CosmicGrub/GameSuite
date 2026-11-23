@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Achievements section on the Stats screen -->
+    <string name="achv_section_title">Achievements</string>
+    <string name="achv_summary">%1$d of %2$d unlocked</string>
+    <string name="achv_locked_label">Locked</string>
+    <string name="achv_unlocked_label">Unlocked</string>
+    <string name="achv_progress">%1$d / %2$d</string>
+    <string name="achv_row_description_locked">%1$s. %2$s Locked. Progress %3$d of %4$d.</string>
+    <string name="achv_row_description_unlocked">%1$s. %2$s Unlocked.</string>
+
+    <string name="achv_first_win_title">First win</string>
+    <string name="achv_first_win_desc">Win any match.</string>
+    <string name="achv_wins_10_title">Ten wins</string>
+    <string name="achv_wins_10_desc">Win 10 matches.</string>
+    <string name="achv_wins_100_title">Century</string>
+    <string name="achv_wins_100_desc">Win 100 matches.</string>
+    <string name="achv_streak_5_title">On a roll</string>
+    <string name="achv_streak_5_desc">Win 5 matches in a row.</string>
+    <string name="achv_hard_win_title">Hard mode</string>
+    <string name="achv_hard_win_desc">Beat the CPU on Hard.</string>
+    <string name="achv_daily_title">Daily solver</string>
+    <string name="achv_daily_desc">Solve a daily puzzle.</string>
+    <string name="achv_all_families_title">Well rounded</string>
+    <string name="achv_all_families_desc">Play a game from every family: board, card, word and arcade or puzzle.</string>
+    <string name="achv_online_win_title">Online victor</string>
+    <string name="achv_online_win_desc">Win an online match.</string>
+    <string name="achv_days_7_title">Regular</string>
+    <string name="achv_days_7_desc">Play 7 days in a row.</string>
+    <string name="achv_games_10_title">Explorer</string>
+    <string name="achv_games_10_desc">Try 10 different games.</string>
+
+    <!-- Streaks -->
+    <string name="streak_title">Streaks</string>
+    <string name="streak_tile_days">Day streak</string>
+    <string name="streak_tile_wins">Win streak</string>
+    <string name="streak_best">Best %1$d</string>
+    <string name="streak_game_wins">Win streak %1$d</string>
+    <plurals name="home_streak_chip">
+        <item quantity="one">%1$d day streak</item>
+        <item quantity="other">%1$d day streak</item>
+    </plurals>
+    <string name="home_streak_chip_at_risk">%1$d day streak, play today to keep it</string>
+    <string name="home_streak_chip_description">Daily play streak: %1$d. Best %2$d.</string>
+
+    <!-- Home: newly unlocked note -->
+    <string name="home_new_unlocked">Newly unlocked: %1$s</string>
+    <string name="home_new_unlocked_dismiss">Got it</string>
+</resources>

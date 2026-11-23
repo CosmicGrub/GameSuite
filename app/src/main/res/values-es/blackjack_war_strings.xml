@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub catalog texts (name = hubKey(English text)); texts that already exist elsewhere are not repeated -->
+    <string name="hub_blackjack">Blackjack</string>
+    <string name="hub_beat_the_dealer_to_21_with_play_chips_no_real_mo_8cfb1c">Gana a la banca llegando a 21 con fichas de juego. Nunca hay dinero real.</string>
+    <string name="hub_solo">Solo</string>
+    <string name="hub_you_against_the_dealer_one_round_at_a_time">Tú contra la banca, una ronda cada vez.</string>
+    <string name="hub_share_the_table_with_1_to_3_computer_players">Comparte la mesa con 1 a 3 jugadores de la computadora.</string>
+    <string name="hub_friends_share_this_device_and_each_play_against_68cf55">Los amigos comparten este dispositivo y cada uno juega contra la banca. La computadora puede ocupar los asientos vacíos.</string>
+    <string name="hub_decks_in_the_shoe">Barajas en el zapato</string>
+    <string name="hub_more_decks_make_the_shoe_harder_to_count_one_dec_76e4d0">Más barajas dificultan contar cartas. Con una sola baraja el juego es más favorable.</string>
+    <string name="hub_6_decks">6 barajas</string>
+    <string name="hub_4_decks">4 barajas</string>
+    <string name="hub_2_decks">2 barajas</string>
+    <string name="hub_1_deck">1 baraja</string>
+    <string name="hub_starting_chips">Fichas iniciales</string>
+    <string name="hub_play_chips_only_there_is_no_real_money_in_this_g_142b1b">Solo fichas de juego. En este juego no hay dinero real.</string>
+    <string name="hub_500_chips">500 fichas</string>
+    <string name="hub_1_000_chips">1,000 fichas</string>
+    <string name="hub_2_500_chips">2,500 fichas</string>
+    <string name="hub_5_000_chips">5,000 fichas</string>
+    <string name="hub_blackjack_pays">El blackjack paga</string>
+    <string name="hub_what_a_natural_21_wins_3_to_2_is_the_fair_classi_789f4f">Lo que gana un 21 natural. 3 a 2 es el clásico justo; 6 a 5 favorece a la banca.</string>
+    <string name="hub_3_to_2">3 a 2</string>
+    <string name="hub_6_to_5">6 a 5</string>
+    <string name="hub_dealer_hits_soft_17">La banca pide con 17 blando</string>
+    <string name="hub_on_the_dealer_draws_on_a_17_that_counts_an_ace_a_57cd11">Sí: la banca pide carta con un 17 que cuenta un As como 11. No: la banca se planta en todos los 17.</string>
+    <string name="hub_offer_insurance">Ofrecer seguro</string>
+    <string name="hub_when_the_dealer_shows_an_ace_you_may_bet_half_yo_450d7a">Cuando la banca muestra un As puedes apostar la mitad de tu apuesta a que tiene blackjack.</string>
+    <string name="hub_allow_late_surrender">Permitir rendición tardía</string>
+    <string name="hub_give_up_your_first_two_cards_after_the_dealer_ch_c8b0e3">Abandona tus dos primeras cartas después de que la banca revise si tiene blackjack y recupera la mitad de tu apuesta.</string>
+    <string name="hub_war">Guerra</string>
+    <string name="hub_flip_compare_and_win_the_whole_pile_a_tie_sends_ea6301">Voltea, compara y gana todo el montón. Un empate te lleva a la guerra.</string>
+    <string name="hub_play_1_to_3_computer_players">Juega contra 1 a 3 jugadores de la computadora.</string>
+    <string name="hub_game_style">Estilo de juego</string>
+    <string name="hub_classic_is_pure_luck_choose_3_adds_a_decision_ev_41710f">El clásico es pura suerte. Elige 3 añade una decisión en cada ronda.</string>
+    <string name="hub_everyone_flips_the_top_card_highest_wins_the_pil_a4430b">Todos voltean la carta de arriba. La más alta gana el montón.</string>
+    <string name="hub_choose_3">Elige 3</string>
+    <string name="hub_secretly_pick_one_of_your_top_three_cards_each_r_adb63b">Elige en secreto una de tus tres cartas de arriba en cada ronda.</string>
+    <string name="hub_cards_put_down_in_a_war">Cartas boca abajo en una guerra</string>
+    <string name="hub_when_top_cards_tie_each_tied_player_puts_these_c_1fd660">Cuando las cartas de arriba empatan, cada jugador empatado pone estas cartas boca abajo y luego voltea una carta decisiva.</string>
+    <string name="hub_3_face_down">3 boca abajo</string>
+    <string name="hub_1_face_down">1 boca abajo</string>
+    <string name="hub_round_limit">Límite de rondas</string>
+    <string name="hub_after_this_many_rounds_the_game_is_called_and_th_d8eb89">Tras este número de rondas se da por terminado el juego y gana el montón más grande.</string>
+    <string name="hub_150_rounds">150 rondas</string>
+    <string name="hub_300_rounds">300 rondas</string>
+    <string name="hub_600_rounds">600 rondas</string>
+    <string name="hub_how_well_the_computer_picks_its_card_in_choose_3">Qué tan bien elige su carta la computadora en Elige 3.</string>
+    <!-- Blackjack and War screens -->
+    <string name="bjw_card_desc">%1$s de %2$s</string>
+    <string name="bjw_card_back_desc">Carta boca abajo</string>
+    <string name="bjw_cpu_tag">PC</string>
+    <string name="bjw_you_suffix">(tú)</string>
+    <string name="bjw_host_left">El anfitrión se fue. Esperando a que vuelva.</string>
+    <string name="bjw_leave_title">¿Salir de esta mesa?</string>
+    <string name="bjw_leave_body_net">Al salir dejas la mesa. Los demás siguen jugando.</string>
+    <string name="bjw_unavailable">No disponible ahora</string>
+    <string name="bjw_waiting_host">Esperando al anfitrión...</string>
+    <string name="bj_help_title">Cómo jugar al Blackjack</string>
+    <string name="bj_help_text">Acércate a 21 más que la banca sin pasarte. Las cartas numéricas valen su número, las figuras valen 10 y el As vale 1 u 11.\n\nHaz una apuesta con las fichas y juega cada mano: Pedir toma una carta, Plantarse se detiene, Doblar duplica tu apuesta por exactamente una carta más, Dividir convierte una pareja en dos manos y Rendirse abandona la mano a cambio de la mitad de tu apuesta.\n\nUn blackjack (un As y una carta de valor diez) paga 3 a 2, o 6 a 5 en algunas mesas. Si la banca muestra un As puedes comprar seguro. Toca Pista para ver la jugada de estrategia básica.\n\nSon solo fichas de juego. No hay dinero real. Si te quedas sin fichas puedes recomprar.</string>
+    <string name="bj_leave_body">Al salir se guarda esta sesión para que puedas reanudarla después. Tus fichas se quedan como están.</string>
+    <string name="bj_end_session">Terminar sesión</string>
+    <string name="bj_round_line">Ronda %1$d</string>
+    <string name="bj_session_line">Sesión: %1$s fichas</string>
+    <string name="bj_shoe_desc">Zapato, quedan %1$d cartas</string>
+    <string name="bj_dealer">Banca</string>
+    <string name="bj_dealer_empty">Banca. Aún sin cartas.</string>
+    <string name="bj_dealer_desc">Banca. Cartas: %1$s. Total %2$d.</string>
+    <string name="bj_dealer_desc_hidden">Banca. Muestra %1$s. La segunda carta está boca abajo.</string>
+    <string name="bj_total">%1$d</string>
+    <string name="bj_total_soft">Blando %1$d</string>
+    <string name="bj_hand_desc">Mano %1$d, apuesta %2$d fichas. Cartas: %3$s. Total %4$s.</string>
+    <string name="bj_seat_desc">%1$s, %2$d fichas.</string>
+    <string name="bj_seat_turn">En turno.</string>
+    <string name="bj_seat_bet">Apuesta %1$d fichas.</string>
+    <string name="bj_chips_line">%1$d fichas</string>
+    <string name="bj_bet_line">Apuesta: %1$d</string>
+    <string name="bj_bet_small">Apuesta %1$d</string>
+    <string name="bj_insured">Asegurado: %1$d</string>
+    <string name="bj_sitting_out">Sin jugar</string>
+    <string name="bj_round_net">%1$s fichas</string>
+    <string name="bj_chip_desc">Añade una ficha de %1$d a tu apuesta</string>
+    <string name="bj_clear_bet">Borrar</string>
+    <string name="bj_all_in">Todo</string>
+    <string name="bj_rebet">Repetir %1$d</string>
+    <string name="bj_place_bet">Apostar</string>
+    <string name="bj_broke">A %1$s no le quedan fichas. Recompra para seguir jugando o sáltate esta ronda.</string>
+    <string name="bj_rebuy">Recomprar %1$d fichas</string>
+    <string name="bj_sit_out">Saltar ronda</string>
+    <string name="bj_insure">Asegurar %1$d</string>
+    <string name="bj_no_insurance">Sin seguro</string>
+    <string name="bj_hit">Pedir</string>
+    <string name="bj_stand">Plantarse</string>
+    <string name="bj_double">Doblar</string>
+    <string name="bj_split">Dividir</string>
+    <string name="bj_surrender">Rendirse</string>
+    <string name="bj_hint">Pista</string>
+    <string name="bj_hint_suggest">La estrategia básica sugiere: %1$s</string>
+    <string name="bj_hint_take_insurance">Tomar seguro</string>
+    <string name="bj_next_round">Siguiente ronda</string>
+    <string name="bj_out_blackjack">Blackjack</string>
+    <string name="bj_out_win">Gana</string>
+    <string name="bj_out_push">Empate</string>
+    <string name="bj_out_lose">Pierde</string>
+    <string name="bj_out_bust">Se pasa</string>
+    <string name="bj_out_surrender">Se rinde</string>
+    <string name="bj_banner_blackjack">¡Blackjack! %1$s fichas</string>
+    <string name="bj_banner_win">Ronda ganada: %1$s fichas</string>
+    <string name="bj_banner_lose">Ronda perdida: %1$s fichas</string>
+    <string name="bj_banner_push">Empate. Se te devuelve la apuesta.</string>
+    <string name="bj_ann_start">Hagan sus apuestas.</string>
+    <string name="bj_ann_no_bets">Nadie apostó.</string>
+    <string name="bj_ann_reshuffled">Se barajó el zapato de nuevo.</string>
+    <string name="bj_ann_bet">%1$s apuesta %2$d fichas.</string>
+    <string name="bj_ann_bet_you">Apuestas %1$d fichas.</string>
+    <string name="bj_ann_rebuy">%1$s recompra %2$d fichas.</string>
+    <string name="bj_ann_rebuy_you">Recompras %1$d fichas.</string>
+    <string name="bj_ann_sit_out">%1$s se salta esta ronda.</string>
+    <string name="bj_ann_sit_out_you">Te saltas esta ronda.</string>
+    <string name="bj_ann_deal">Cartas repartidas. La banca muestra %1$s.</string>
+    <string name="bj_ann_peek_clear">La banca revisa: no hay blackjack.</string>
+    <string name="bj_ann_ins_yes">%1$s toma seguro por %2$d fichas.</string>
+    <string name="bj_ann_ins_yes_you">Tomas seguro por %1$d fichas.</string>
+    <string name="bj_ann_ins_no">%1$s rechaza el seguro.</string>
+    <string name="bj_ann_ins_no_you">Rechazas el seguro.</string>
+    <string name="bj_ann_dealer_bj">La banca tiene blackjack.</string>
+    <string name="bj_ann_hit">%1$s pide carta y tiene %2$d.</string>
+    <string name="bj_ann_hit_you">Pides carta y tienes %1$d.</string>
+    <string name="bj_ann_stand">%1$s se planta con %2$d.</string>
+    <string name="bj_ann_stand_you">Te plantas con %1$d.</string>
+    <string name="bj_ann_double">%1$s dobla y tiene %2$d.</string>
+    <string name="bj_ann_double_you">Doblas y tienes %1$d.</string>
+    <string name="bj_ann_split">%1$s divide una pareja.</string>
+    <string name="bj_ann_split_you">Divides tu pareja.</string>
+    <string name="bj_ann_surrender">%1$s se rinde.</string>
+    <string name="bj_ann_surrender_you">Te rindes.</string>
+    <string name="bj_ann_bust">%1$s se pasa con %2$d.</string>
+    <string name="bj_ann_bust_you">Te pasas con %1$d.</string>
+    <string name="bj_ann_reveal">La banca voltea su carta oculta: %1$d.</string>
+    <string name="bj_ann_dealer_hit">La banca pide carta y tiene %1$d.</string>
+    <string name="bj_ann_dealer_bust">La banca se pasa con %1$d.</string>
+    <string name="bj_ann_round_over">Fin de la ronda.</string>
+    <string name="bj_turn_bet_you">Haz tu apuesta.</string>
+    <string name="bj_turn_bet_named">%1$s, haz tu apuesta.</string>
+    <string name="bj_turn_bet_other">%1$s está apostando.</string>
+    <string name="bj_turn_ins_you">¿Seguro? La banca muestra un As.</string>
+    <string name="bj_turn_ins_other">%1$s decide sobre el seguro.</string>
+    <string name="bj_turn_play_you">Tu jugada.</string>
+    <string name="bj_turn_play_named">%1$s, es tu jugada.</string>
+    <string name="bj_turn_play_other">%1$s está jugando.</string>
+    <string name="bj_turn_dealer">Juega la banca.</string>
+    <string name="bj_turn_next">Empieza la siguiente ronda cuando quieras.</string>
+    <string name="bj_why_wait">Espera tu turno.</string>
+    <string name="bj_why_cpu">Es el turno de un jugador de la computadora.</string>
+    <string name="bj_why_phase">No puedes hacer eso ahora.</string>
+    <string name="bj_why_over">Esta sesión terminó.</string>
+    <string name="bj_why_bad_bet">Las apuestas son múltiplos exactos de %1$d fichas.</string>
+    <string name="bj_why_afford">No tienes fichas suficientes para eso.</string>
+    <string name="bj_why_not_broke">Solo puedes recomprar cuando te quedas sin fichas.</string>
+    <string name="bj_why_first_two">Solo puedes hacer eso con tus dos primeras cartas.</string>
+    <string name="bj_why_not_pair">Solo puedes dividir dos cartas del mismo valor.</string>
+    <string name="bj_why_max_hands">No puedes dividir en más de %1$d manos.</string>
+    <string name="bj_why_split_aces">Los ases divididos reciben una sola carta cada uno.</string>
+    <string name="bj_why_surrender_off">La rendición está desactivada en esta mesa.</string>
+    <string name="bj_why_insurance_off">El seguro está desactivado en esta mesa.</string>
+    <string name="wr_help_title">Cómo jugar a la Guerra</string>
+    <string name="wr_help_text">Se reparte toda la baraja. En cada ronda cada jugador voltea su carta de arriba y la carta más alta (el As es alto) gana ambas cartas.\n\nSi las cartas de arriba empatan, es la guerra: cada jugador empatado pone cartas boca abajo y luego voltea una más, y la carta más alta se lleva todo el montón. Si a un jugador se le acaban las cartas durante una guerra, la pierde.\n\nEn Elige 3 ves tus tres cartas de arriba y eliges una en secreto para jugar. Pasa el dispositivo cuando se te pida para que nadie vea tus cartas.\n\nGanas al tener todas las cartas. Al llegar al límite de rondas gana el montón más grande.</string>
+    <string name="wr_leave_body">Al salir se guarda esta partida para que puedas reanudarla después.</string>
+    <string name="wr_round_line">Ronda %1$d de %2$d</string>
+    <string name="wr_session">Partidas ganadas: %1$s</string>
+    <string name="wr_pile_desc">%1$s: %2$d cartas en el montón.</string>
+    <string name="wr_count">%1$d cartas</string>
+    <string name="wr_chosen">Elegida</string>
+    <string name="wr_flip">Voltear</string>
+    <string name="wr_auto">Voltear solo</string>
+    <string name="wr_auto_on">Activado</string>
+    <string name="wr_auto_off">Desactivado</string>
+    <string name="wr_war">¡Guerra!</string>
+    <string name="wr_empty_flip">Toca Voltear para dar la vuelta a las cartas de arriba.</string>
+    <string name="wr_empty_pick">Elige una de tus tres cartas para empezar.</string>
+    <string name="wr_pick_title">Elige una carta para jugar</string>
+    <string name="wr_play_card">Jugar esta carta</string>
+    <string name="wr_choice_desc">Carta %1$d: %2$s</string>
+    <string name="wr_suggested">(sugerida)</string>
+    <string name="wr_hint_line">Sugerencia: la carta %1$d tiene la mejor ganancia esperada.</string>
+    <string name="wr_pass_to">Pasa el dispositivo a %1$s. Mantén tus cartas ocultas.</string>
+    <string name="wr_pass_ready">%1$s está listo</string>
+    <string name="wr_waiting_picks">Esperando a: %1$s</string>
+    <string name="wr_play_desc">%1$s, carta jugada: %2$s.</string>
+    <string name="wr_play_down">%1$d boca abajo</string>
+    <string name="wr_ann_start">Cartas repartidas. Voltea para empezar.</string>
+    <string name="wr_ann_start_pick">Cartas repartidas.</string>
+    <string name="wr_ann_war_prefix">¡Empate! %1$d jugadores van a la guerra.</string>
+    <string name="wr_ann_round_win">%1$s gana la ronda con %2$s y se lleva %3$d cartas.</string>
+    <string name="wr_ann_round_win_you">Ganas la ronda con %1$s y te llevas %2$d cartas.</string>
+    <string name="wr_ann_split">A todos los jugadores de la guerra se les acabaron las cartas, así que se reparte el montón.</string>
+    <string name="wr_over_win">¡%1$s gana la partida!</string>
+    <string name="wr_over_win_you">¡Ganas la partida!</string>
+    <string name="wr_over_draw">Se llegó al límite de rondas con montones iguales: empate.</string>
+    <string name="wr_over_draw_title">Empate</string>
+    <string name="wr_over_limit">Se llegó al límite de rondas, así que gana el montón más grande.</string>
+    <string name="wr_final_line">%1$s: %2$d cartas</string>
+    <string name="wr_turn_flip">Toca Voltear.</string>
+    <string name="wr_turn_pick_you">Elige una carta para jugar.</string>
+    <string name="wr_turn_pick_named">%1$s, elige una carta para jugar.</string>
+    <string name="wr_turn_waiting">Esperando a los demás.</string>
+    <string name="wr_why_choice">Primero selecciona una de tus tres cartas.</string>
+    <string name="wr_why_over">La partida terminó.</string>
+    <string name="wr_why_phase">No puedes hacer eso ahora.</string>
+    <string name="wr_why_wait">Espera a los demás jugadores.</string>
+    <!-- First-run tips (GameTips.kt carries the English lines) -->
+    <string name="tip_blackjack_1">Toca fichas para armar la apuesta y pulsa Apostar. Solo fichas de juego; sin dinero real.</string>
+    <string name="tip_blackjack_2">Pedir toma carta, Plantarse se detiene, Doblar duplica la apuesta por una carta, Dividir separa una pareja.</string>
+    <string name="tip_blackjack_3">Si pasas de 21 pierdes. Toca Pista cuando quieras para ver la jugada de estrategia básica.</string>
+    <string name="tip_war_1">Toca Voltear. La carta más alta se lleva ambas. El As es alto.</string>
+    <string name="tip_war_2">Un empate es una guerra: cada jugador empatado pone cartas boca abajo y voltea una carta decisiva.</string>
+    <string name="tip_war_3">En Elige 3, escoge en secreto una de tus tres cartas de arriba. Gasta tus ases con cuidado.</string>
+    <string-array name="bjw_rank_names">
+        <item>Dos</item>
+        <item>Tres</item>
+        <item>Cuatro</item>
+        <item>Cinco</item>
+        <item>Seis</item>
+        <item>Siete</item>
+        <item>Ocho</item>
+        <item>Nueve</item>
+        <item>Diez</item>
+        <item>Jota</item>
+        <item>Reina</item>
+        <item>Rey</item>
+        <item>As</item>
+    </string-array>
+    <string-array name="bjw_suit_names">
+        <item>tréboles</item>
+        <item>diamantes</item>
+        <item>corazones</item>
+        <item>picas</item>
+    </string-array>
+</resources>

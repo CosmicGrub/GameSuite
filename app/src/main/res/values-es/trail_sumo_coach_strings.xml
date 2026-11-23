@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text of Light-Trail Duel and Sumo Push (coach_<id>_s1..sN and _fact). -->
+    <string name="coach_light_trail_s1">Todos corren a la vez en una sola pantalla. Cada uno tiene sus botones en su borde, girados hacia ti. Todos los dedos funcionan a la vez, así que cualquiera puede girar en el mismo momento.</string>
+    <string name="coach_light_trail_s2">Cada piloto deja un muro brillante. Choca con cualquier muro o con el borde y quedas fuera. El último que queda gana la ronda; el primero en llegar al objetivo gana la partida (al mejor de 3 o 5).</string>
+    <string name="coach_light_trail_s3">Izquierda y Derecha giran a tu piloto según hacia dónde mira, no tú. Fíjate en la cabeza brillante y atrapa a tus rivales cruzándote delante de ellos.</string>
+    <string name="coach_light_trail_s4">Activa los potenciadores: Hueco (atraviesa muros unas casillas) e Impulso (un chorro de velocidad). Activa Relajado o Un botón si jugar rápido te cuesta.</string>
+    <string name="coach_light_trail_s5">Esta versión es solo para una pantalla: los ordenadores ocupan cualquier zona vacía. El juego cercano y en línea aún no está disponible.</string>
+    <string name="coach_light_trail_fact">Cerrarle el paso a un rival hasta que se quede sin espacio es el truco más viejo de este tipo de juego: el piloto con más suelo libre casi siempre sobrevive.</string>
+    <string name="coach_sumo_push_s1">Sumos de juguete redondos en un anillo. Empuja a los demás fuera; el último sumo que queda dentro gana la ronda. Todos juegan a la vez, cada uno en su lado de la pantalla.</string>
+    <string name="coach_sumo_push_s2">Arrastra tu palanca (o mantén la cruceta) para dirigir. Los sumos pesan y tardan en arrancar y frenar, así que planea tus empujones.</string>
+    <string name="coach_sumo_push_s3">Mantén Embestida para cargar y suelta para empujar: cuanto más cargas, más fuerte el golpe. Un sumo en embestida pesa mucho más, pero luego debe esperar a recargarse.</string>
+    <string name="coach_sumo_push_s4">El anillo empieza a encogerse tras unos segundos, así que conviene quedarse cerca del centro. Activa los potenciadores para orbes de Pesado y Velocidad.</string>
+    <string name="coach_sumo_push_s5">Relajado ralentiza a los sumos y evita que pises fuera de la cuerda. Un botón dirige por ti hacia el rival más cercano. Esta versión es solo para una pantalla: los ordenadores ocupan las zonas vacías; el juego cercano y en línea aún no está disponible.</string>
+    <string name="coach_sumo_push_fact">Un anillo de sumo (dohyo) mide 4,55 metros de diámetro, y un luchador pierde si sale de él o toca el suelo con algo que no sean las plantas de los pies.</string>
+</resources>

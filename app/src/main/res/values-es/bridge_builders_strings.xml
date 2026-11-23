@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Textos de pantalla de Constructores de puentes -->
+    <string name="bridge_builders_help_title">Constructores de puentes</string>
+    <string name="bridge_builders_help_text">Todos construyen un puente juntos. Cada uno tiene un carril y un carrito que se desliza de un lado a otro. Toca tu carril cuando el carrito esté dentro de la zona verde para colocar una tabla: cuanto más cerca del centro, más firme la tabla. Si fallas, tu carrito solo descansa un momento. Nadie puede construir más de dos tablas por delante del carril más lento, así que espera a tus amigos. Terminen todos los carriles antes de que el agua cubra el puente y crucen juntos. Cuando se coloca la última tabla, el agua espera mientras todos cruzan.</string>
+    <string name="bridge_builders_robot_tag">(Robot)</string>
+    <string name="bridge_builders_status_ready">¡Prepárense para construir!</string>
+    <string name="bridge_builders_status_go">¡A construir! Toca cuando tu carrito esté en la zona verde.</string>
+    <string name="bridge_builders_status_row">Todos los carriles tienen al menos %1$d de %2$d tablas.</string>
+    <string name="bridge_builders_status_water_half">El agua está a la mitad. ¡Sigan construyendo!</string>
+    <string name="bridge_builders_status_water_high">El agua está subiendo mucho. ¡Ya casi!</string>
+    <string name="bridge_builders_status_cross">¡El puente está terminado! Todos cruzan.</string>
+    <string name="bridge_builders_status_win">¡Lo logramos!</string>
+    <string name="bridge_builders_status_lose">Intentémoslo otra vez juntos</string>
+    <string name="bridge_builders_info_strength">Firmeza %1$d%%</string>
+    <string name="bridge_builders_info_water">Agua: %1$d s</string>
+    <string name="bridge_builders_planks">%1$d de %2$d</string>
+    <string name="bridge_builders_go">¡CONSTRUYE!</string>
+    <string name="bridge_builders_tier_perfect">¡Perfecto!</string>
+    <string name="bridge_builders_tier_good">¡Bien!</string>
+    <string name="bridge_builders_tier_wobbly">Tambaleante</string>
+    <string name="bridge_builders_tier_miss">¡Ups!</string>
+    <string name="bridge_builders_waiting">Esperando a los amigos</string>
+    <string name="bridge_builders_zone_done">¡Todas las tablas puestas!</string>
+    <string name="bridge_builders_zone_across">¡Al otro lado!</string>
+    <string name="bridge_builders_state_in_green">Carrito en la zona verde</string>
+    <string name="bridge_builders_state_outside">Carrito fuera de la zona verde</string>
+    <string name="bridge_builders_zone_desc">%1$s, carril %2$d: %3$d de %4$d tablas. Toca dos veces para colocar una tabla cuando el carrito esté en la zona verde.</string>
+    <string name="bridge_builders_zone_desc_waiting">%1$s, carril %2$d: %3$d de %4$d tablas. Esperando a los amigos.</string>
+    <string name="bridge_builders_zone_desc_done">%1$s, carril %2$d: las %3$d tablas están puestas.</string>
+    <string name="bridge_builders_zone_desc_robot">%1$s, robot ayudante, carril %2$d: %3$d de %4$d tablas.</string>
+    <string name="bridge_builders_final_strength">Firmeza del puente: %1$d%%</string>
+    <string name="bridge_builders_final_planks">Tablas colocadas: %1$d de %2$d</string>
+    <string name="bridge_builders_final_bridges">Puentes construidos juntos: %1$d</string>
+    <string name="bridge_builders_build_again">Construir otra vez</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coach card of Echo Pads -->
+<resources>
+    <string name="coach_echo_pads_s1">Four pads light up one after another, each with its own shape, colour and note. Watch and listen to the whole pattern first.</string>
+    <string name="coach_echo_pads_s2">When the pads stop, copy the pattern: tap the same pads in the same order. You cannot tap while the pattern is playing.</string>
+    <string name="coach_echo_pads_s3">Copy it right and the pattern grows by one. In Solo, see how long you can go. In Pass and play, anyone who slips up is out and the last one in wins.</string>
+    <string name="coach_echo_pads_s4">Head to head gives each of two players a half of the screen to copy the same pattern. Easy mode gives every turn one free try, and Sound can be switched off to play by lights and shapes.</string>
+    <string name="coach_echo_pads_fact">The memory game with four coloured lights first appeared in 1978, and its pattern length is a classic test of short-term memory: most people hold around seven items at once.</string>
+</resources>

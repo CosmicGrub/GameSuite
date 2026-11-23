@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First-run tips of Reaction Duel and Whack-a-Mole Race -->
+<resources>
+    <string name="tip_reaction_duel_1">Rest a finger by your button, but do not press until the signal. An early press puts you out of the round.</string>
+    <string name="tip_reaction_duel_2">In Colour match only the target shape counts. Check the shape, never just the colour.</string>
+    <string name="tip_reaction_duel_3">Finding it hard? Turn on Relaxed in the setup for longer windows and no penalties.</string>
+    <string name="tip_whack_a_mole_1">Spiky urchins cost points, so tap only the round-faced critters. Golden ones are worth triple.</string>
+    <string name="tip_whack_a_mole_2">Whack in a row without missing to build a streak: five makes it times two, ten times three.</string>
+    <string name="tip_whack_a_mole_3">Every zone gets the same critters at the same moments, so it is a fair race.</string>
+</resources>

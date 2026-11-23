@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tank Battle and Shooting Gallery: coach cards (the GameCoach entries are added by the integrator) -->
+    <string name="coach_tank_battle_s1">En cada turno disparas un proyectil. Fija el ángulo y la potencia con los deslizadores o arrastra hacia atrás desde tu tanque como una honda, y pulsa Disparar.</string>
+    <string name="coach_tank_battle_s2">El viento cambia cada turno. La flecha y el número indican hacia dónde empuja y con cuánta fuerza. La línea de puntos muestra los primeros instantes de tu disparo, con el viento incluido.</string>
+    <string name="coach_tank_battle_s3">Un proyectil cava un cráter y daña a todos los tanques cercanos, sobre todo si impacta de lleno. Los cráteres cambian el terreno: puedes enterrar un tanque o dejarlo al descubierto.</string>
+    <string name="coach_tank_battle_s4">Los proyectiles grandes cavan mucho y golpean fuerte; los rebotadores saltan sobre las colinas antes de explotar. Cada tanque lleva pocos, así que guárdalos para el momento justo.</string>
+    <string name="coach_tank_battle_s5">Pulsa Pista para ver un disparo sugerido o Deshacer para retirar tu último disparo. Gana el último tanque en pie.</string>
+    <string name="coach_tank_battle_fact">Los duelos de artillería, en los que se ajusta el ángulo y la potencia para lanzar proyectiles sobre colinas, se remontan a programas de ordenadores centrales de principios de los años sesenta y fueron un clásico del PC a principios de los noventa.</string>
+    <string name="coach_shooting_gallery_s1">Toca un blanco para dispararle. Los patos valen 10 (25 si son pequeños), los anillos puntúan por zona hasta 50 y una estrella dorada vale 50 y rellena el cargador.</string>
+    <string name="coach_shooting_gallery_s2">Nunca dispares al señuelo con pinchos: resta 30 puntos y rompe tu combo. Reconócelo por la cruz.</string>
+    <string name="coach_shooting_gallery_s3">El cargador tiene seis disparos y luego se recarga. Los disparos durante la recarga se pierden, así que elige bien. También puedes recargar antes.</string>
+    <string name="coach_shooting_gallery_s4">Acierta blancos seguidos para formar un combo de hasta por cuatro. Un fallo o un señuelo lo rompe. Todos tienen la misma galería, así que todo es habilidad.</string>
+    <string name="coach_shooting_gallery_s5">¿No puedes tocar deprisa? Elige el ritmo relajado: blancos más lentos y grandes, más tiempo y recarga más rápida. El botón Disparar al blanco más cercano también ayuda.</string>
+    <string name="coach_shooting_gallery_fact">Las galerías de tiro eran habituales en las ferias a finales del siglo XIX, y los patos de hojalata que se deslizan por un raíl siguen siendo la imagen que la mayoría tiene de ellas.</string>
+</resources>

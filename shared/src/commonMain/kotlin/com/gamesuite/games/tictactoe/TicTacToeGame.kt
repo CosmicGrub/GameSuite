@@ -30,6 +30,8 @@ private data class TicTacToeSnapshot(
     val difficulty: String,
     val misere: Boolean,
     val wild: Boolean,
+    /** Board edge length (3, 4 or 5). Absent in saves from before board sizes existed, which were all 3x3. */
+    val size: Int = 3,
     val players: List<TicTacToeSnapshotPlayer>
 )
 
@@ -91,8 +93,21 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         PlayMode.ONLINE
     )
 
-    // 0 = empty, 1 = P1, 2 = P2 — Compose state so UI recomposes on change.
+    // 0 = empty, 1 = P1, 2 = P2 — Compose state so UI recomposes on change. Row-major, boardDim x boardDim.
     val board = mutableStateOf(IntArray(9))
+
+    /**
+     * Board edge length in cells: 3 (three in a row), 4 (four in a row) or 5 (four in a row). Set by
+     * [init] from [boardSize]; a restored save may change it (see [restore]). Misere, Wild and every
+     * networked game are always 3.
+     */
+    val boardDim = mutableStateOf(3)
+
+    /**
+     * Pre-set by the UI from the Hub's `board` choice before [init] (which reads it): 3, 4 or 5.
+     * Ignored (treated as 3) under [misere], under [wild] and in networked play, and for any other value.
+     */
+    var boardSize: Int = 3
     val currentPlayer = mutableStateOf(1)
 
     /** True once the current board has a winner or is full — distinct from [matchOver] below. */
@@ -183,7 +198,8 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         started = false
         history.clear()
         hintMove.value = null
-        board.value = IntArray(9)
+        boardDim.value = resolveBoardDim()
+        board.value = IntArray(boardDim.value * boardDim.value)
         currentPlayer.value = 1
         selectedSymbol.value = 1
         startingPlayer = 1
@@ -237,6 +253,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             difficulty = difficulty.name,
             misere = misere,
             wild = wild,
+            size = boardDim.value,
             players = context.players.map { TicTacToeSnapshotPlayer(it.playerId, it.isBot) }
         )
     )
@@ -250,17 +267,24 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         }
         val roster = context.players
         val line = snap.winningLine
-        val valid = snap.misere == misere && snap.wild == wild &&
-            snap.board.size == 9 && snap.board.all { it in 0..2 } &&
+        // A save may carry a different board size than this engine was started with (the Hub
+        // choice is remembered separately from the save): that is fine for classic rules, where
+        // the save's own size wins; Misere and Wild saves are always 3x3.
+        val dim = snap.size
+        val cellCount = dim * dim
+        val sizeOk = dim in 3..5 && (dim == 3 || (!misere && !wild))
+        val valid = sizeOk && snap.misere == misere && snap.wild == wild &&
+            snap.board.size == cellCount && snap.board.all { it in 0..2 } &&
             snap.currentPlayer in 1..2 && snap.selectedSymbol in 1..2 && snap.startingPlayer in 1..2 &&
             snap.scoreP1 >= 0 && snap.scoreP2 >= 0 && snap.draws >= 0 && snap.roundNumber >= 1 &&
             snap.players.size == roster.size &&
             snap.players.indices.all { snap.players[it].playerId == roster[it].playerId && snap.players[it].isBot == roster[it].isBot } &&
-            (line == null || (snap.roundOver && line.size == 3 && line.all { it in 0..8 && snap.board[it] != 0 }))
+            (line == null || (snap.roundOver && line.size == winLength(dim) && line.all { it in 0 until cellCount && snap.board[it] != 0 }))
         return if (valid) snap else null
     }
 
     private fun applySnapshot(snap: TicTacToeSnapshot) {
+        boardDim.value = snap.size
         board.value = snap.board.toIntArray()
         currentPlayer.value = snap.currentPlayer
         selectedSymbol.value = snap.selectedSymbol
@@ -334,11 +358,47 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      * Null when it is not a local human's turn, the round is over, or in network play.
      */
     fun hint(): Pair<Int, Int>? {
+        val request = beginHint() ?: return null
+        return finishHint(request, searchHint(request))
+    }
+
+    /**
+     * Step 1 of an off-thread hint (the screen runs the search on Dispatchers.Default so a 4x4 or
+     * 5x5 board never freezes the UI): captures the position on the calling (main) thread, or null
+     * under the same conditions [hint] returns null.
+     */
+    fun beginHint(): TicTacToeSearchRequest? {
         if (!started || matchOver.value || roundOver.value || isNetworked) return null
         if (context.players.getOrNull(currentPlayer.value - 1)?.isBot != false) return null
-        val move = minimaxBestMove(board.value, currentPlayer.value)
+        return TicTacToeSearchRequest(board.value.copyOf(), currentPlayer.value, roundNumber.value)
+    }
+
+    /** Step 2: the pure search; safe on any thread. It only reads the request and the rule flags. */
+    fun searchHint(request: TicTacToeSearchRequest): Pair<Int, Int>? = searchMove(request.board.copyOf(), request.player)
+
+    /**
+     * Step 3, back on the main thread: publishes [move] as [hintMove] and returns it, unless the
+     * position changed while the search ran (a move, an undo, a new round), in which case it is dropped.
+     */
+    fun finishHint(request: TicTacToeSearchRequest, move: Pair<Int, Int>?): Pair<Int, Int>? {
+        if (!isStillCurrent(request)) return null
         hintMove.value = move
         return move
+    }
+
+    /** True while the position the [request] was taken from is exactly the position on the board now. */
+    private fun isStillCurrent(request: TicTacToeSearchRequest): Boolean =
+        !roundOver.value && !matchOver.value &&
+            currentPlayer.value == request.player &&
+            roundNumber.value == request.roundNumber &&
+            board.value.contentEquals(request.board)
+
+    /** Perfect minimax on 3x3 (any variant); depth-limited alpha-beta with a line-count heuristic on 4x4 / 5x5. */
+    private fun searchMove(b: IntArray, player: Int): Pair<Int, Int>? {
+        val dim = dimOf(b.size)
+        if (dim == 3) return minimaxBestMove(b, player)
+        val cell = TicTacToeLineSearch(dim, linesOf(dim), winLength(dim), SEARCH_NODE_BUDGET).bestMove(b, player) ?: return null
+        return cell to player
     }
 
     override fun startMatch() {
@@ -433,7 +493,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
         hintMove.value = null
         startingPlayer = if (startingPlayer == 1) 2 else 1
         roundNumber.value += 1
-        board.value = IntArray(9)
+        board.value = IntArray(boardDim.value * boardDim.value)
         winningLine.value = null
         roundOver.value = false
         currentPlayer.value = startingPlayer
@@ -459,7 +519,8 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             draws = draws.value,
             roundNumber = roundNumber.value,
             matchOver = matchOver.value,
-            selectedSymbol = selectedSymbol.value
+            selectedSymbol = selectedSymbol.value,
+            size = boardDim.value
         )
         sendMessage(TicTacToeNetMessage.StateSync(stateVersion, snapshot), toPlayerId = toPlayerId)
     }
@@ -555,10 +616,11 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Sanity check on an inbound state so a corrupt message can't wedge the guest's board. */
     private fun isPlausibleNetState(s: TicTacToeNetState): Boolean {
         val line = s.winningLine
-        return s.board.size == 9 && s.board.all { it in 0..2 } &&
+        // Networked games are always 3x3; a state describing any other size is not ours.
+        return s.size == boardDim.value && s.board.size == boardDim.value * boardDim.value && s.board.all { it in 0..2 } &&
             s.currentPlayer in 1..2 && s.selectedSymbol in 1..2 &&
             s.scoreP1 >= 0 && s.scoreP2 >= 0 && s.draws >= 0 && s.roundNumber >= 1 &&
-            (line == null || (s.roundOver && line.size == 3 && line.all { it in 0..8 }))
+            (line == null || (s.roundOver && line.size == winLength(boardDim.value) && line.all { it in 0 until s.board.size }))
     }
 
     private fun handlePlayerLeft(playerId: String) {
@@ -610,7 +672,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      *  [cellClicked] when this instance IS the host (its own local tap), and by
      *  [handleNetworkMessage] when the host applies a validated guest intent. */
     private fun applyCellClicked(index: Int) {
-        if (index !in 0..8 || roundOver.value || matchOver.value || board.value[index] != 0) return
+        if (index !in board.value.indices || roundOver.value || matchOver.value || board.value[index] != 0) return
 
         // Undo only ever lands on a HUMAN's turn: remember the position before each local human
         // move (not the bot's, not network play's), so undoing against the CPU also takes the
@@ -665,15 +727,36 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      * bot, so it's safe to call speculatively.
      */
     fun playBotTurn() {
-        if (roundOver.value || matchOver.value) return
-        val botIndex = currentPlayer.value - 1
-        if (context.players.getOrNull(botIndex)?.isBot != true) return
+        val request = beginBotTurn() ?: return
+        val move = searchBotMove(request) ?: return
+        finishBotTurn(request, move)
+    }
 
-        val (cell, symbol) = chooseBotMove(board.value) ?: return
+    /**
+     * Step 1 of an off-thread bot turn (see [beginHint]): captures the position on the main thread,
+     * or null when the round/match is over or the player to move is not a bot.
+     */
+    fun beginBotTurn(): TicTacToeSearchRequest? {
+        if (roundOver.value || matchOver.value) return null
+        val botIndex = currentPlayer.value - 1
+        if (context.players.getOrNull(botIndex)?.isBot != true) return null
+        return TicTacToeSearchRequest(board.value.copyOf(), currentPlayer.value, roundNumber.value)
+    }
+
+    /** Step 2: picks the bot's (cell, symbol) for the captured position. Pure; safe on any thread. */
+    fun searchBotMove(request: TicTacToeSearchRequest): Pair<Int, Int>? = chooseBotMove(request.board.copyOf(), request.player)
+
+    /**
+     * Step 3, on the main thread: plays [move] unless the position changed while the search ran
+     * (then nothing happens and false is returned, so the caller can simply search again).
+     */
+    fun finishBotTurn(request: TicTacToeSearchRequest, move: Pair<Int, Int>): Boolean {
+        if (!isStillCurrent(request)) return false
         // Route through the same [selectedSymbol] the human's toggle writes
         // to, so cellClicked() doesn't need a bot-specific placement path.
-        selectedSymbol.value = symbol
-        cellClicked(cell)
+        selectedSymbol.value = move.second
+        cellClicked(move.first)
+        return true
     }
 
     /**
@@ -689,10 +772,10 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      * tier now returns a (cell, symbol) pair rather than just a cell, since
      * under [wild] the bot has to decide both — see [availableSymbols].
      */
-    private fun chooseBotMove(b: IntArray): Pair<Int, Int>? = when (difficulty) {
-        CpuDifficulty.HARD -> minimaxBestMove(b, currentPlayer.value)
-        CpuDifficulty.MEDIUM -> heuristicMove(b)
-        CpuDifficulty.EASY -> if (Random.nextFloat() < 0.35f) heuristicMove(b) else randomMove(b)
+    private fun chooseBotMove(b: IntArray, player: Int): Pair<Int, Int>? = when (difficulty) {
+        CpuDifficulty.HARD -> searchMove(b, player)
+        CpuDifficulty.MEDIUM -> heuristicMove(b, player)
+        CpuDifficulty.EASY -> if (Random.nextFloat() < 0.35f) heuristicMove(b, player) else randomMove(b, player)
     }
 
     /**
@@ -704,11 +787,11 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      */
     private fun availableSymbols(mover: Int): List<Int> = if (wild) listOf(1, 2) else listOf(mover)
 
-    private fun randomMove(b: IntArray): Pair<Int, Int>? {
+    private fun randomMove(b: IntArray, player: Int): Pair<Int, Int>? {
         val cell = b.indices.filter { b[it] == 0 }.randomOrNull() ?: return null
         // EASY doesn't strategize even in standard rules, so under [wild] its
         // symbol choice is just as arbitrary as its cell choice.
-        val symbol = if (wild) listOf(1, 2).random() else currentPlayer.value
+        val symbol = if (wild) listOf(1, 2).random() else player
         return cell to symbol
     }
 
@@ -728,8 +811,7 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
      * first; only standard rules (where the bot's and opponent's symbols are
      * genuinely fixed and distinct) still need an explicit block step.
      */
-    private fun heuristicMove(b: IntArray): Pair<Int, Int>? {
-        val bot = currentPlayer.value
+    private fun heuristicMove(b: IntArray, bot: Int): Pair<Int, Int>? {
         val opponent = if (bot == 1) 2 else 1
         val symbols = availableSymbols(bot)
 
@@ -742,7 +824,8 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
             winningMove(b, opponent)?.let { return it to bot }
         }
 
-        val preferredOrder = listOf(4, 0, 2, 6, 8, 1, 3, 5, 7)
+        // 3x3 keeps its hand-tuned centre, corners, edges order; bigger boards go centre outwards.
+        val preferredOrder = if (b.size == 9) listOf(4, 0, 2, 6, 8, 1, 3, 5, 7) else centerOutOrder(dimOf(b.size))
         val cell = preferredOrder.firstOrNull { b[it] == 0 } ?: return null
         return cell to symbols.first()
     }
@@ -874,31 +957,256 @@ class TicTacToeGame : GameModule, ResumableGame, UndoableGame {
     /** Returns every empty cell that would complete a line for `player` if played there. */
     private fun completingMoves(b: IntArray, player: Int): List<Int> {
         val moves = mutableListOf<Int>()
-        for (line in WIN_LINES) {
-            val cells = line.map { b[it] }
-            if (cells.count { it == player } == 2 && cells.count { it == 0 } == 1) {
-                moves += line[cells.indexOf(0)]
+        val lines = linesOf(dimOf(b.size))
+        val needed = lines.firstOrNull()?.size?.minus(1) ?: return moves
+        for (line in lines) {
+            var mine = 0
+            var empties = 0
+            var emptyCell = -1
+            for (cell in line) {
+                val v = b[cell]
+                if (v == player) {
+                    mine++
+                } else if (v == 0) {
+                    empties++
+                    emptyCell = cell
+                }
             }
+            if (mine == needed && empties == 1) moves += emptyCell
         }
         return moves
     }
 
-    /** Returns the 3 indices of the completed line, if any, regardless of which player completed it. */
+    /** Returns the indices of the completed line (3 on a 3x3 board, 4 on 4x4 and 5x5), if any, regardless of which player completed it. */
     private fun findWinningLine(b: IntArray): List<Int>? {
-        for (line in WIN_LINES) {
-            val (a, c, d) = line
-            if (b[a] != 0 && b[a] == b[c] && b[c] == b[d]) return line.toList()
+        for (line in linesOf(dimOf(b.size))) {
+            val first = b[line[0]]
+            if (first == 0) continue
+            var all = true
+            for (i in 1 until line.size) {
+                if (b[line[i]] != first) {
+                    all = false
+                    break
+                }
+            }
+            if (all) return line.toList()
         }
         return null
     }
 
     private fun isBoardFull(b: IntArray) = b.none { it == 0 }
 
+    /** The board edge this engine will use: [boardSize] for classic local play, else always 3. */
+    private fun resolveBoardDim(): Int =
+        if (misere || wild || isNetworked) 3 else if (boardSize in 3..5) boardSize else 3
+
     companion object {
-        private val WIN_LINES = listOf(
+        /** Positions the bot searches per move on the 4x4 / 5x5 boards; keeps a move well under a second. */
+        private const val SEARCH_NODE_BUDGET = 300_000
+
+        private val WIN_LINES_3 = listOf(
             intArrayOf(0, 1, 2), intArrayOf(3, 4, 5), intArrayOf(6, 7, 8),
             intArrayOf(0, 3, 6), intArrayOf(1, 4, 7), intArrayOf(2, 5, 8),
             intArrayOf(0, 4, 8), intArrayOf(2, 4, 6)
         )
+        private val WIN_LINES_4 = buildLines(4, 4)
+        private val WIN_LINES_5 = buildLines(5, 4)
+
+        /** How many marks in a row win on a [dim] x [dim] board: 3 on 3x3, 4 on 4x4 and 5x5. */
+        fun winLength(dim: Int): Int = if (dim == 3) 3 else 4
+
+        /** Every winning line of a [dim] x [dim] board as row-major cell indices (empty for an unsupported [dim]). */
+        fun winningLines(dim: Int): List<List<Int>> = linesOf(dim).map { it.toList() }
+
+        internal fun linesOf(dim: Int): List<IntArray> = when (dim) {
+            3 -> WIN_LINES_3
+            4 -> WIN_LINES_4
+            5 -> WIN_LINES_5
+            else -> emptyList()
+        }
+
+        /** Edge length for a board with [cellCount] cells; anything unrecognised is the classic 3. */
+        internal fun dimOf(cellCount: Int): Int = when (cellCount) {
+            16 -> 4
+            25 -> 5
+            else -> 3
+        }
+
+        /** All cells of a [dim] x [dim] board, nearest the centre first (ties by index). */
+        internal fun centerOutOrder(dim: Int): List<Int> =
+            (0 until dim * dim).sortedWith(
+                compareBy<Int>({ centerDistance(it, dim) }, { it })
+            )
+
+        internal fun centerDistance(cell: Int, dim: Int): Int {
+            val dr = (cell / dim) * 2 - (dim - 1)
+            val dc = (cell % dim) * 2 - (dim - 1)
+            return dr * dr + dc * dc
+        }
+
+        /** Rows, columns and both diagonal directions, [length] cells long, never wrapping around an edge. */
+        private fun buildLines(dim: Int, length: Int): List<IntArray> {
+            val out = mutableListOf<IntArray>()
+            val directions = listOf(0 to 1, 1 to 0, 1 to 1, 1 to -1)
+            for (r in 0 until dim) {
+                for (c in 0 until dim) {
+                    for ((dr, dc) in directions) {
+                        val endRow = r + dr * (length - 1)
+                        val endCol = c + dc * (length - 1)
+                        if (endRow !in 0 until dim || endCol !in 0 until dim) continue
+                        out += IntArray(length) { step -> (r + dr * step) * dim + (c + dc * step) }
+                    }
+                }
+            }
+            return out
+        }
+    }
+}
+
+/**
+ * A position captured on the main thread for an off-thread bot move or hint (see
+ * [TicTacToeGame.beginBotTurn] / [TicTacToeGame.beginHint]). The board is a private copy, so the search
+ * can run on any thread; applying the answer re-checks that the live position still matches.
+ */
+class TicTacToeSearchRequest internal constructor(
+    internal val board: IntArray,
+    internal val player: Int,
+    internal val roundNumber: Int
+)
+
+/**
+ * Bot search for the 4x4 and 5x5 boards (classic rules only, so a move is just a cell). A move that
+ * wins now is taken; otherwise an opponent's winning cell is blocked; otherwise iterative-deepening
+ * negamax with alpha-beta pruning runs until [nodeBudget] positions have been visited, scoring leaves
+ * with a line-count heuristic (open lines weighted by how many marks they hold). A depth that did not
+ * finish inside the budget is discarded, so the answer always comes from a fully searched depth.
+ */
+internal class TicTacToeLineSearch(
+    private val dim: Int,
+    private val lines: List<IntArray>,
+    private val winLength: Int,
+    private val nodeBudget: Int
+) {
+    private val cellCount = dim * dim
+    private val order: IntArray = TicTacToeGame.centerOutOrder(dim).toIntArray()
+    private val linesThrough: Array<IntArray> = Array(cellCount) { cell ->
+        lines.indices.filter { i -> lines[i].contains(cell) }.toIntArray()
+    }
+    private var nodes = 0
+    private var aborted = false
+
+    fun bestMove(position: IntArray, me: Int): Int? {
+        val b = position.copyOf()
+        var empty = 0
+        for (v in b) if (v == 0) empty++
+        if (empty == 0) return null
+        val opponent = 3 - me
+        for (cell in order) if (b[cell] == 0 && completes(b, cell, me)) return cell
+        for (cell in order) if (b[cell] == 0 && completes(b, cell, opponent)) return cell
+
+        nodes = 0
+        aborted = false
+        var best = order.first { b[it] == 0 }
+        var depth = 1
+        while (depth <= MAX_DEPTH) {
+            val (cell, score) = searchRoot(b, me, depth, best, empty)
+            if (aborted) break
+            best = cell
+            // A forced win or loss will not change with more depth.
+            if (score >= WIN - MAX_DEPTH - 1 || score <= -(WIN - MAX_DEPTH - 1)) break
+            if (depth >= empty) break
+            depth++
+        }
+        return best
+    }
+
+    private fun searchRoot(b: IntArray, me: Int, depth: Int, first: Int, empty: Int): Pair<Int, Int> {
+        var bestCell = first
+        var bestScore = -INF
+        var alpha = -INF
+        for (i in -1 until cellCount) {
+            val cell = if (i == -1) first else order[i]
+            if (i >= 0 && cell == first) continue
+            if (b[cell] != 0) continue
+            b[cell] = me
+            val score = -negamax(b, depth - 1, -INF, -alpha, 3 - me, 1, empty - 1)
+            b[cell] = 0
+            if (aborted) return bestCell to bestScore
+            if (score > bestScore) {
+                bestScore = score
+                bestCell = cell
+                if (score > alpha) alpha = score
+            }
+        }
+        return bestCell to bestScore
+    }
+
+    /** Score of the position for [player], who is to move; the position has no winner yet. */
+    private fun negamax(b: IntArray, depth: Int, alphaIn: Int, beta: Int, player: Int, ply: Int, empty: Int): Int {
+        if (empty == 0) return 0
+        if (depth == 0) return evaluate(b, player)
+        var alpha = alphaIn
+        var best = -INF
+        for (cell in order) {
+            if (b[cell] != 0) continue
+            nodes++
+            if (nodes > nodeBudget) {
+                aborted = true
+                return 0
+            }
+            b[cell] = player
+            val score = if (completes(b, cell, player)) {
+                WIN - ply
+            } else {
+                -negamax(b, depth - 1, -beta, -alpha, 3 - player, ply + 1, empty - 1)
+            }
+            b[cell] = 0
+            if (aborted) return 0
+            if (score > best) best = score
+            if (best > alpha) alpha = best
+            if (alpha >= beta) break
+        }
+        return best
+    }
+
+    /** True if every other cell of some line through [cell] already holds [player]'s mark. */
+    private fun completes(b: IntArray, cell: Int, player: Int): Boolean {
+        for (li in linesThrough[cell]) {
+            var all = true
+            for (c in lines[li]) {
+                if (c != cell && b[c] != player) {
+                    all = false
+                    break
+                }
+            }
+            if (all) return true
+        }
+        return false
+    }
+
+    /** Open-line count heuristic from [player]'s side: lines only they occupy count for, lines only the other occupies count against. */
+    private fun evaluate(b: IntArray, player: Int): Int {
+        var score = 0
+        for (line in lines) {
+            var mine = 0
+            var theirs = 0
+            for (c in line) {
+                val v = b[c]
+                if (v == player) mine++ else if (v != 0) theirs++
+            }
+            if (theirs == 0 && mine > 0) {
+                score += LINE_WEIGHT[mine]
+            } else if (mine == 0 && theirs > 0) {
+                score -= LINE_WEIGHT[theirs]
+            }
+        }
+        return score
+    }
+
+    private companion object {
+        const val INF = 1_000_000
+        const val WIN = 100_000
+        const val MAX_DEPTH = 8
+        val LINE_WEIGHT = intArrayOf(0, 1, 6, 40, 300, 2000)
     }
 }

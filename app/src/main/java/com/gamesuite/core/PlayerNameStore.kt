@@ -21,8 +21,15 @@ fun cleanPlayerName(raw: String, default: String): String {
  * are never derived from these.
  */
 class PlayerNameStore(context: Context) {
-    private val prefs = context.applicationContext
-        .getSharedPreferences("player_names", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+
+    /**
+     * Per profile (ProfileScope): the default profile keeps the pre-profiles "player_names" file, every other
+     * profile gets its own, resolved on every access so it follows a switch. A kid's Club name, mirrored here by
+     * ClubProfileStore, therefore never becomes the adult's Nearby / Online host name (and the adult's name never
+     * pre-fills a kid's pass-and-play seats).
+     */
+    private val prefs get() = appContext.getSharedPreferences(ProfileScope.prefsName("player_names"), Context.MODE_PRIVATE)
 
     fun name(slot: Int, default: String): String =
         cleanPlayerName(prefs.getString("slot_$slot", "") ?: "", default)

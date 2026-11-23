@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-run tips; move these into polish_strings.xml (GameTipsTest reads only that file) and delete this file -->
+    <string name="tip_chinese_checkers_1">Toca una canica para ver todos los huecos a los que llega y toca uno para mover.</string>
+    <string name="tip_chinese_checkers_2">Salta sobre cualquier canica al hueco libre de detrás y encadena saltos en un turno.</string>
+    <string name="tip_chinese_checkers_3">Llena primero la esquina opuesta para ganar. No dejes fichas atrás.</string>
+    <string name="tip_ludo_1">Toca Tirar y mueve una de tus fichas resaltadas tantas casillas como indique el dado.</string>
+    <string name="tip_ludo_2">Un seis saca una ficha del patio y te da otra tirada.</string>
+    <string name="tip_ludo_3">Cae sobre un rival para mandarlo a su patio, salvo en una casilla de salida o una estrella.</string>
+</resources>

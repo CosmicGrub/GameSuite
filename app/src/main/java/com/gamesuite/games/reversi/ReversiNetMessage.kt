@@ -16,7 +16,7 @@ sealed class ReversiNetMessage {
     @Serializable
     data class StateSync(val version: Int, val state: ReversiNetState) : ReversiNetMessage()
 
-    /** A guest's tap: "place my disc at [cell]" (row * 8 + col). The host validates it. */
+    /** A guest's tap: "place my disc at [cell]" (row * size + col). The host validates it. */
     @Serializable
     data class PlaceDisc(val cell: Int) : ReversiNetMessage()
 
@@ -46,5 +46,8 @@ data class ReversiNetState(
     val boardOver: Boolean,
     val winnerPlayerId: String?,
     val sessionWins: Map<String, Int>,
-    val sessionDraws: Int
+    val sessionDraws: Int,
+    /** Board edge length (6, 8 or 10). Optional on the wire: a sender that omits it means 8x8.
+     *  A receiver rejects a state whose [cells] count is not size squared. */
+    val size: Int = 8
 )

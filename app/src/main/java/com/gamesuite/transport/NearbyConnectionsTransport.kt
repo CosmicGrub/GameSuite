@@ -48,10 +48,11 @@ enum class NearbyRole { NONE, HOST, GUEST }
  *     [com.gamesuite.core.GameSessionManager.launchGame], and everything a `GameModule`
  *     sends/receives through the interface methods is translated through it from there.
  *
- * Auto-accepts every incoming connection request with no manual PIN confirmation step —
- * a reasonable simplification for a casual local-multiplayer game (not a security-
- * sensitive pairing flow), matching this pass's scope. [ConnectionInfo.authenticationDigits]
- * is available if a future pass wants to surface it for user confirmation instead.
+ * Admission policy (audit L1): the host accepts an incoming connection only while its lobby is
+ * open ([startHosting] until [stopAdvertising]/[disconnect]) and a seat is free ([NearbyAdmission]);
+ * everything else is rejected. What is broadcast is a neutral label plus a short random code,
+ * never a player name or device model. A per-guest host approval prompt is NOT implemented
+ * (it needs lobby UI work); [ConnectionInfo.authenticationDigits] remains unused.
  */
 class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
 
@@ -59,6 +60,18 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
 
     private var role: NearbyRole = NearbyRole.NONE
     private var localDisplayName: String = ""
+
+    // Host admission state. acceptingGuests is true only while the host lobby is open.
+    private var acceptingGuests = false
+    private var maxGuests = NearbyAdmission.DEFAULT_MAX_GUESTS
+    private val pendingGuests = mutableSetOf<String>()
+    // Guest side: only a host we actually asked to connect to may be accepted.
+    private val requestedEndpoints = mutableSetOf<String>()
+
+    /** Short code in the advertised label, so the host can read it out to guests. Null unless hosting. */
+    @Volatile
+    var hostCode: String? = null
+        private set
 
     private val _discoveredHosts = MutableStateFlow<List<DiscoveredHost>>(emptyList())
     val discoveredHosts: StateFlow<List<DiscoveredHost>> = _discoveredHosts.asStateFlow()
@@ -117,6 +130,10 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
         connectionsClient.stopAllEndpoints()
         stopAdvertising()
         stopDiscovery()
+        acceptingGuests = false
+        hostCode = null
+        pendingGuests.clear()
+        requestedEndpoints.clear()
         role = NearbyRole.NONE
         router.reset()
         _connectedPeers.value = emptyList()
@@ -144,15 +161,26 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
 
     // ---- Lobby layer (host) ----
 
-    fun startHosting(displayName: String) {
+    /**
+     * [displayName] is kept locally only; it is deliberately NOT advertised (see class KDoc).
+     * [maxGuests] caps simultaneous guests (the seat count excluding the host).
+     */
+    fun startHosting(displayName: String, maxGuests: Int = NearbyAdmission.DEFAULT_MAX_GUESTS) {
         role = NearbyRole.HOST
         localDisplayName = displayName
+        this.maxGuests = maxGuests
+        pendingGuests.clear()
+        acceptingGuests = true
+        val code = NearbyAdmission.randomCode().also { hostCode = it }
         val options = AdvertisingOptions.Builder().setStrategy(Strategy.P2P_CLUSTER).build()
-        connectionsClient.startAdvertising(displayName, SERVICE_ID, connectionLifecycleCallback, options)
+        connectionsClient.startAdvertising(NearbyAdmission.advertisedLabel(code), SERVICE_ID, connectionLifecycleCallback, options)
     }
 
     fun stopAdvertising() {
-        if (role == NearbyRole.HOST) connectionsClient.stopAdvertising()
+        if (role == NearbyRole.HOST) {
+            acceptingGuests = false
+            connectionsClient.stopAdvertising()
+        }
     }
 
     // ---- Lobby layer (guest) ----
@@ -169,17 +197,27 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
     }
 
     fun requestConnectionTo(endpointId: String) {
-        connectionsClient.requestConnection(localDisplayName, endpointId, connectionLifecycleCallback)
+        requestedEndpoints.add(endpointId)
+        connectionsClient.requestConnection(NearbyAdmission.GUEST_LABEL, endpointId, connectionLifecycleCallback)
     }
 
     // ---- Nearby callbacks ----
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
-            connectionsClient.acceptConnection(endpointId, payloadCallback)
+            val accept = when (role) {
+                NearbyRole.HOST -> NearbyAdmission.shouldAcceptGuest(
+                    acceptingGuests, _connectedPeers.value.size, pendingGuests.size, maxGuests
+                ).also { if (it) pendingGuests.add(endpointId) }
+                NearbyRole.GUEST -> endpointId in requestedEndpoints
+                NearbyRole.NONE -> false
+            }
+            if (accept) connectionsClient.acceptConnection(endpointId, payloadCallback)
+            else connectionsClient.rejectConnection(endpointId)
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
+            pendingGuests.remove(endpointId)
             if (result.status.statusCode != ConnectionsStatusCodes.STATUS_OK) return
             // Discovered-endpoint bookkeeping only applies on the guest side, but calling
             // this on the host is harmless (the id just won't be present).
@@ -194,6 +232,7 @@ class NearbyConnectionsTransport(context: Context) : MultiplayerTransport {
         }
 
         override fun onDisconnected(endpointId: String) {
+            pendingGuests.remove(endpointId)
             _connectedPeers.update { it.filterNot { peer -> peer.endpointId == endpointId } }
             router.playerIdFor(endpointId)?.let { leftListener?.invoke(it) }
         }

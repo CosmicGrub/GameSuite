@@ -194,6 +194,7 @@ class UnoNetworkedGuestTest {
             return
         }
         s.game.state.value = table()
+        val mark = s.transport.mark() // init legitimately sent the watcher-registering RequestState
         val actions = listOf<Pair<String, () -> Unit>>(
             "drawCard" to { s.game.drawCard(1) },
             "callUno" to { s.game.callUno(1) },
@@ -202,7 +203,7 @@ class UnoNetworkedGuestTest {
         for ((name, act) in actions) {
             try { act() } catch (e: Throwable) { fail("spectator $name must be dropped silently, but threw $e") }
         }
-        assertTrue(s.transport.sent.isEmpty())
+        assertTrue(s.transport.sentSince(mark).isEmpty())
     }
 
     // ---- What a guest must not do ----

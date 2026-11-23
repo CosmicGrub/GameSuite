@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Act It Out: coach card and first-run tips -->
+<resources>
+    <string name="coach_act_it_out_s1">Choose two teams or everyone for themselves, how long each turn lasts and how many rounds to play.</string>
+    <string name="coach_act_it_out_s2">Pick a card level for each team: little kids get easy picture cards, grown-ups get harder ones.</string>
+    <string name="coach_act_it_out_s3">Pass the device to the actor. They hold the pad to start and see the card while everyone else looks away.</string>
+    <string name="coach_act_it_out_s4">Act it out without talking. Tap Correct when the team guesses it, or Skip for a new card (three skips each turn).</string>
+    <string name="coach_act_it_out_s5">Correct cards score points for the actor\'s team. The team with the most points after the last round wins.</string>
+    <string name="coach_act_it_out_fact">Charades began as a parlour game in 18th-century France, where players acted out one syllable at a time.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tip_carrom_1">Slide the striker along your line, then drag back from it and let go to flick.</string>
+    <string name="tip_carrom_2">Pocket your own colour to shoot again. Cover the queen with one of your coins.</string>
+    <string name="tip_carrom_3">A pocketed striker is a foul: a coin goes back on the board.</string>
+    <string name="tip_curling_1">Tap the ice where you want the stone to stop, then press Throw.</string>
+    <string name="tip_curling_2">Turn the handle to curl left or right, and sweep while it slides to carry it further.</string>
+    <string name="tip_curling_3">After every stone is thrown, the stone nearest the button scores.</string>
+</resources>

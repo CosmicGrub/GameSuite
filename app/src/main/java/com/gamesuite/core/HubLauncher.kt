@@ -18,6 +18,9 @@ fun launchHubMode(
 ): HubLaunch {
     val result = buildHubLaunch(spec, mode, choices, names)
     if (result is HubLaunch.Local) {
+        // A kid whose time is up cannot start a new game; the launch is refused and a saved game is left alone.
+        // (The shell observer also sends the kid back to Kids home when the game route opens without a launch.)
+        if (!LaunchPolicy.allowsLaunch(result.launch.mode)) return result
         val launch = result.launch
         sessionManager.launchGame(launch.mode, launch.players, launch.localPlayerIndex, launch.options)
         val ctx = sessionManager.activeContext.value

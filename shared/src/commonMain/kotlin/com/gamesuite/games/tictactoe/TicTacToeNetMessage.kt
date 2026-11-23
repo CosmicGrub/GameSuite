@@ -35,7 +35,9 @@ data class TicTacToeNetState(
     val draws: Int,
     val roundNumber: Int,
     val matchOver: Boolean,
-    val selectedSymbol: Int
+    val selectedSymbol: Int,
+    /** Board edge length. Optional on the wire (an older peer omits it, meaning 3); networked games are always 3x3. */
+    val size: Int = 3
 )
 
 @Serializable
