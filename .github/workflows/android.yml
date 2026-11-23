@@ -103,7 +103,7 @@ jobs:
       # project compiles against, so the build doesn't depend on what the runner image has.
       - uses: android-actions/setup-android@v4
         with:
-          packages: 'platforms;android-34 build-tools;34.0.0 ndk;${{ env.NDK_VERSION }}'
+          packages: 'platforms;android-34 platforms;android-35 build-tools;34.0.0 ndk;${{ env.NDK_VERSION }}'
 
       # app/build.gradle.kts hands ANDROID_NDK_HOME to cargo-ndk and fails the build if the
       # NDK's clang toolchain isn't there; check it here so a bad install reads as one clear

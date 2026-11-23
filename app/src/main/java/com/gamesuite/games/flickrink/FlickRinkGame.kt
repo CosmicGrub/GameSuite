@@ -15,12 +15,13 @@ import kotlin.random.Random
  * [FlickRinkEngine]; this class is the shell glue (lifecycle, the Compose state the screen reads, the resume snapshot).
  * Same screen only: no Nearby, no Online in this version.
  *
- * Set [config] before [init] / [startMatch] (the screen builds it from the Hub's launch options). The engine is injected
- * so tests drive a fake and the scaffold ships a [StubFlickRinkEngine].
+ * Set [config] before [init] (the screen builds it from the Hub's launch options). The engine is injected so tests can drive
+ * their own. The match does not end by itself when the last rink is done: the score card is a screen state, and
+ * [finishMatch] (the "All done" button) or [leaveSession] reports the result to the shell.
  */
 class FlickRinkGame(
     private val random: Random = Random.Default,
-    private val engine: FlickRinkEngine = StubFlickRinkEngine()
+    private val engine: FlickRinkEngine = DefaultFlickRinkEngine()
 ) : GameModule, ResumableGame {
     override val gameId = "flick-rink"
     override val displayName = "Flick Rink"
@@ -39,12 +40,9 @@ class FlickRinkGame(
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private val lock: Any = this
 
-    private fun seats(): List<FlickSeat> {
-        val assisted = FlickRinkRules.assistSeats(config.assistFor, context.players.size)
-        return context.players.mapIndexed { i, p ->
-            FlickSeat(p.playerId, p.displayName, p.isBot, colorIndex = i, assist = if (i in assisted) config.assist else AimAssist.OFF)
-        }
-    }
+    /** False when the match has no table (the engine refused the config), so the screen can show nothing instead of crashing. */
+    var configured: Boolean = false
+        private set
 
     override fun init(context: GameContext) {
         synchronized(lock) {
@@ -52,7 +50,16 @@ class FlickRinkGame(
             matchOver.value = false
             state.value = null
             if (config.seed == 0L) config = config.copy(seed = random.nextLong())
-            engine.configure(config, seats())
+            val style = if (context.players.size == 1) FlickStyle.SOLO else config.style.takeIf { it != FlickStyle.SOLO } ?: FlickStyle.TURNS
+            config = config.copy(style = style, firstSeat = config.firstSeat.coerceIn(0, (context.players.size - 1).coerceAtLeast(0)))
+            configured = engine.configure(config, seatsFor(context, config))
+        }
+    }
+
+    private fun seatsFor(c: GameContext, cfg: FlickConfig): List<FlickSeat> {
+        val assisted = FlickRinkRules.assistSeats(cfg.assistFor, c.players.size)
+        return c.players.mapIndexed { i, p ->
+            FlickSeat(p.playerId, p.displayName, p.isBot, colorIndex = i, assist = if (i in assisted) cfg.assist else AimAssist.OFF)
         }
     }
 
@@ -61,6 +68,7 @@ class FlickRinkGame(
     @Synchronized
     override fun startMatch() {
         matchOver.value = false
+        if (!configured) return
         engine.start()
         commit()
     }
@@ -82,7 +90,6 @@ class FlickRinkGame(
         if (state.value == null || matchOver.value) return FlickOutcome.NONE
         val out = engine.flick(input, record)
         commit()
-        if (engine.state().phase == FlickPhase.MATCH_DONE) finish()
         return out
     }
 
@@ -91,7 +98,6 @@ class FlickRinkGame(
         if (state.value == null || matchOver.value) return false
         val ok = engine.nextRink()
         commit()
-        if (engine.state().phase == FlickPhase.MATCH_DONE) finish()
         return ok
     }
 
@@ -103,15 +109,46 @@ class FlickRinkGame(
         return ok
     }
 
-    /** The aim helper line for the active seat, for the screen to draw while the player drags. */
-    fun previewLine(input: FlickInput, maxLength: Int): FloatArray = engine.previewLine(input, maxLength)
+    /** Another match with the same settings and a fresh seed ("Play again"). */
+    @Synchronized
+    fun playAgain() {
+        if (matchOver.value || !configured) return
+        config = config.copy(seed = random.nextLong())
+        engine.configure(config, seatsFor(context, config))
+        engine.start()
+        commit()
+    }
+
+    /** The aim helper line for the active seat, written into [out] (no allocation). Returns floats written. */
+    fun previewInto(input: FlickInput, maxLength: Int, out: FloatArray): Int = engine.previewInto(input, maxLength, out)
+
+    fun seatAssist(seat: Int): AimAssist = engine.seatAssist(seat)
+
+    fun level(): RinkLevel? = engine.level()
 
     fun summary(): FlickMatchSummary? = engine.summary()
 
-    /** Ends the session from the leave dialog. In co-op everyone counts as having won together once a rink was cleared. */
-    fun leaveSession() {
-        if (matchOver.value) return
+    /**
+     * The computer pal's decision for the active seat. Slow for Hard: call it on a worker thread while it is the bot's turn
+     * and nobody is aiming (the engine's scratch simulation is shared with the aim helper). Not synchronized on purpose.
+     */
+    fun chooseBotMove(bot: FlickRinkBot): FlickInput = bot.choose(engine, config.difficulty, config.seed)
+
+    /** "All done" on the score card: reports the result to the shell. */
+    fun finishMatch() {
+        if (!::context.isInitialized || matchOver.value) return
         finish()
+    }
+
+    /**
+     * Ends the session from the leave dialog (or after the score card). With at least one rink played the result is reported
+     * (Co-op and Solo count as won together once a rink was cleared); with none it is an abort that records nothing.
+     */
+    fun leaveSession() {
+        if (!::context.isInitialized || matchOver.value) return
+        val st = engine.state()
+        val played = st.phase == FlickPhase.MATCH_DONE || st.rinkIndex > 0 || st.phase == FlickPhase.RINK_DONE
+        if (played) finish() else abortMatch()
     }
 
     private fun commit() {
@@ -122,9 +159,10 @@ class FlickRinkGame(
         if (matchOver.value) return
         val s = engine.summary()
         val together = config.style != FlickStyle.TURNS
+        val teamWon = s != null && (s.cleared || s.rinkStars.isNotEmpty())
         val scores = context.players.mapIndexed { i, p ->
             val score = s?.seatScores?.getOrNull(i) ?: 0
-            val winner = if (together) (s?.cleared == true) else (s?.winners?.contains(i) == true)
+            val winner = if (together) teamWon else (s?.winners?.contains(i) == true)
             PlayerScore(p.playerId, score, isWinner = winner)
         }
         endMatch(GameResult(scores = scores))
@@ -145,12 +183,10 @@ class FlickRinkGame(
 
     @Synchronized
     override fun restore(snapshot: String): Boolean {
-        val save = FlickSaveCodec.decode(snapshot, seats()) ?: return false
+        if (!::context.isInitialized || !configured) return false
+        val save = FlickSaveCodec.decode(snapshot, seatsFor(context, config)) ?: return false
         if (!engine.restore(save)) return false
-        config = config.copy(
-            style = FlickStyle.fromId(save.style), kind = FlickGameKind.fromId(save.kind), band = FlickBand.fromId(save.band),
-            length = FlickLength.fromId(save.length), relaxed = save.relaxed, seed = save.seed
-        )
+        config = engine.config()
         matchOver.value = false
         commit()
         return true
