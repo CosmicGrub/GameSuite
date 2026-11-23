@@ -109,11 +109,14 @@ private fun ReportBody(report: WeeklyReport) {
 fun teachesLine(gameId: String): String? {
     val skills = GameTeaches.skillsFor(gameId)
     if (skills.isEmpty()) return null
-    val names = skills.joinToString(", ") { stringResource(it.nameRes()) }
+    val res = androidx.compose.ui.platform.LocalContext.current.resources
+    val names = skills.joinToString(", ") { res.getString(it.nameRes()) }
     return stringResource(R.string.rw_teaches_label, names)
 }
 
 /** The friendly sentences for a game's skills, space separated. */
 @Composable
 fun teachesSentences(gameId: String): String =
-    GameTeaches.skillsFor(gameId).joinToString(" ") { stringResource(it.lineRes()) }
+    androidx.compose.ui.platform.LocalContext.current.resources.let { res ->
+        GameTeaches.skillsFor(gameId).joinToString(" ") { res.getString(it.lineRes()) }
+    }

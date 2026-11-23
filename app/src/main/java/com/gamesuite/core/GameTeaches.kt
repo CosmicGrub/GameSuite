@@ -75,6 +75,8 @@ object GameTeaches {
         t("stack-zoo", Skill.FINE_MOTOR, Skill.PLANNING); t("flick-rink", Skill.FINE_MOTOR, Skill.TURN_TAKING)
         t("bump-run", Skill.FINE_MOTOR, Skill.PLANNING); t("egg-garden", Skill.MEMORY, Skill.COUNTING)
         t("life-road", Skill.PLANNING, Skill.COUNTING)
+        // Wave 3 kid-visible games
+        t("gem-cascade", Skill.PLANNING, Skill.COUNTING); t("bot-bastion", Skill.PLANNING, Skill.DEDUCTION)
     }
 
     /** The skills [gameId] practises (one or two, main skill first); empty for a game that is not in the table. */
