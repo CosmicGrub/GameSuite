@@ -17,7 +17,24 @@ while true; do
   name=$(basename "$job" .job)
   mv "$job" "$Q/running/$name.job" 2>/dev/null || continue
   # job file format: line1 = worktree path, line2.. = gradle args
-  wt=$(sed -n 1p "$Q/running/$name.job" | tr -d '\r')
+  first=$(sed -n 1p "$Q/running/$name.job" | tr -d '\r')
+  if [ "${first#DEVICE:}" != "$first" ]; then
+    # Device jobs: line1 = "DEVICE:<worktree>", line2.. = ONE shell command that drives the device (e.g. via adb).
+    dwt="${first#DEVICE:}"; dlog="$Q/logs/$name.log"
+    # HARD GATE (owner rule 2026-11-07): nothing touches a device unless the owner created this file on purpose.
+    if [ ! -f "$Q/DEVICES_AUTHORIZED" ]; then
+      mkdir -p "$Q/held"; mv "$Q/running/$name.job" "$Q/held/$name.job"
+      echo "held=awaiting owner authorisation (create $Q/DEVICES_AUTHORIZED)" > "$Q/done/$name.result"; continue
+    fi
+    dcmd=$(sed -n '2,$p' "$Q/running/$name.job" | tr -d '\r')
+    until mkdir /tmp/gs-device.lock 2>/dev/null; do sleep 20; done   # one device job at a time (shared devices)
+    dstart=$(date +%s)
+    ( cd "$dwt" && eval "$dcmd" ) > "$dlog" 2>&1; drc=$?
+    rmdir /tmp/gs-device.lock 2>/dev/null
+    { echo "job=$name"; echo "type=device"; echo "worktree=$dwt"; echo "verdict=$([ $drc -eq 0 ] && echo GREEN || echo RED)"; echo "rc=$drc"; echo "seconds=$(( $(date +%s) - dstart ))"; echo "finished=$(date '+%F %T')"; echo "log=$dlog"; } > "$Q/done/$name.result"
+    rm -f "$Q/running/$name.job"; continue
+  fi
+  wt="$first"
   args=$(sed -n '2,$p' "$Q/running/$name.job" | tr -d '\r' | tr '\n' ' ')
   log="$Q/logs/$name.log"
   until mkdir /tmp/gs-gradle.lock 2>/dev/null; do sleep 15; done

@@ -14,6 +14,12 @@ then read its `integration-notes.md` / docs for done-vs-open and continue from t
 - `rust/target`: `cp -r` from `Z:\GameSuite-wt-game-kit\rust\target` if missing (robocopy fails silently). `df -h /z` must stay >4 GB.
 - Preserve CRLF. Path-scoped commits only, small and frequent, no `git add -A`, trailer
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
+- **Tests that must survive a usage limit:** submit them to the detached queue instead of running gradle inline:
+  `bash scripts/testq-submit.sh <worktree> <job-name> --tests 'com.gamesuite.games.foo.*'` (prints the result file to poll:
+  `/z/GameSuite-testq/done/<id>.result`, log in `/z/GameSuite-testq/logs/`). The worker (`scripts/testq-worker.sh`, kept alive by the
+  Windows task `GameSuite-TestQueueWorker`) runs jobs one at a time under the gradle lock and finishes them even if every Claude session is gone.
+  A resumed agent reads the `.result` files instead of re-running tests. Device-driving jobs use `--device <worktree> <name> "<one command>"`
+  and stay HELD until the owner creates `/z/GameSuite-testq/DEVICES_AUTHORIZED` (owner rule: no installs/driving of devices without an explicit yes).
 - Plain `git push origin <own session/* branch>` whenever targeted tests are green and at each milestone. Never force, never main,
   never rewrite history. Never merge into session/wave-3 (the integrator does).
 - Do not edit shared registration files (GameHubSpecs, GameCatalog, GameTheme, MainActivity, GameTips, GameCoach) except the
