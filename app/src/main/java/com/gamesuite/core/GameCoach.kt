@@ -92,7 +92,7 @@ object GameCoach {
         "sliding-puzzle" to CoachMotif.TILES, "color-flood" to CoachMotif.TILES, "edge-match" to CoachMotif.TILES,
         "breakout" to CoachMotif.BALL, "air-hockey" to CoachMotif.BALL, "tower-defence" to CoachMotif.PATH,
         "snake" to CoachMotif.PATH, "flow-lines" to CoachMotif.PATH,
-        "chutes-race" to CoachMotif.DICE, "draw-guess" to CoachMotif.PATH, "echo-pads" to CoachMotif.TILES,
+        "chutes-race" to CoachMotif.DICE, "gem-cascade" to CoachMotif.TILES, "bot-bastion" to CoachMotif.TILES, "draw-guess" to CoachMotif.PATH, "echo-pads" to CoachMotif.TILES,
         "act-it-out" to CoachMotif.CARDS, "bridge-builders" to CoachMotif.PATH
     )
 
@@ -176,6 +176,8 @@ object GameCoach {
         entry("ludo", listOf(R.string.coach_ludo_s1, R.string.coach_ludo_s2, R.string.coach_ludo_s3, R.string.coach_ludo_s4), R.string.coach_ludo_fact),
         entry("shogi", listOf(R.string.coach_shogi_s1, R.string.coach_shogi_s2, R.string.coach_shogi_s3, R.string.coach_shogi_s4), R.string.coach_shogi_fact),
         entry("mini-shogi", listOf(R.string.coach_mini_shogi_s1, R.string.coach_mini_shogi_s2, R.string.coach_mini_shogi_s3, R.string.coach_mini_shogi_s4), R.string.coach_mini_shogi_fact),
+        entry("bot-bastion", listOf(R.string.coach_bot_bastion_s1, R.string.coach_bot_bastion_s2, R.string.coach_bot_bastion_s3, R.string.coach_bot_bastion_s4, R.string.coach_bot_bastion_s5), R.string.coach_bot_bastion_fact),
+        entry("gem-cascade", listOf(R.string.coach_gem_cascade_s1, R.string.coach_gem_cascade_s2, R.string.coach_gem_cascade_s3, R.string.coach_gem_cascade_s4, R.string.coach_gem_cascade_s5), R.string.coach_gem_cascade_fact),
         entry("chutes-race", listOf(R.string.coach_chutes_race_s1, R.string.coach_chutes_race_s2, R.string.coach_chutes_race_s3, R.string.coach_chutes_race_s4, R.string.coach_chutes_race_s5), R.string.coach_chutes_race_fact),
         entry("draw-guess", listOf(R.string.coach_draw_guess_s1, R.string.coach_draw_guess_s2, R.string.coach_draw_guess_s3, R.string.coach_draw_guess_s4, R.string.coach_draw_guess_s5), R.string.coach_draw_guess_fact),
         entry("echo-pads", listOf(R.string.coach_echo_pads_s1, R.string.coach_echo_pads_s2, R.string.coach_echo_pads_s3, R.string.coach_echo_pads_s4), R.string.coach_echo_pads_fact),

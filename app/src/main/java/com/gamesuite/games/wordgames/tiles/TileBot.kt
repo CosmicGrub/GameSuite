@@ -120,7 +120,7 @@ object TileBot {
                 if (candidateCells.any { (r, c) -> c >= BOARD_SIZE || s.board[r][c].tile != null }) continue
                 for (letters in blankLetterCombinations(perm)) {
                     val word = letter.toString() + letters.joinToString("")
-                    if (WordDictionary.isValidWord(word)) {
+                    if (isBotWord(word)) {
                         return perm.mapIndexed { i, tile ->
                             PendingPlacementSpec(row, col + i + 1, tile, letters[i])
                         }
@@ -136,7 +136,7 @@ object TileBot {
                 if (candidateCells.any { (r, c) -> r >= BOARD_SIZE || s.board[r][c].tile != null }) continue
                 for (letters in blankLetterCombinations(perm)) {
                     val word = letter.toString() + letters.joinToString("")
-                    if (WordDictionary.isValidWord(word)) {
+                    if (isBotWord(word)) {
                         return perm.mapIndexed { i, tile ->
                             PendingPlacementSpec(row + i + 1, col, tile, letters[i])
                         }
@@ -154,7 +154,7 @@ object TileBot {
             for (perm in permutations(rack, len)) {
                 for (letters in blankLetterCombinations(perm)) {
                     val word = letters.joinToString("")
-                    if (WordDictionary.isValidWord(word)) return word
+                    if (isBotWord(word)) return word
                 }
             }
         }
@@ -167,7 +167,7 @@ object TileBot {
             for (perm in permutations(rack, len)) {
                 for (letters in blankLetterCombinations(perm)) {
                     val word = letters.joinToString("")
-                    if (WordDictionary.isValidWord(word)) return word
+                    if (isBotWord(word)) return word
                 }
             }
         }
@@ -198,7 +198,7 @@ object TileBot {
                 for (letters in blankLetterCombinations(perm)) {
                     if (lookups++ >= HARD_OPENING_WORD_BUDGET) break@outer
                     val word = letters.joinToString("")
-                    if (!WordDictionary.isValidWord(word)) continue
+                    if (!isBotWord(word)) continue
                     val value = perm.sumOf { TileBag.valueOf(it) }
                     if (value > bestValue) {
                         bestValue = value
@@ -261,4 +261,8 @@ object TileBot {
         }
         yieldAll(helper(emptyList(), rack))
     }
+
+    /** A word the bot may play: valid, and safe to show (the bot chooses it, the player did not type it). */
+    private fun isBotWord(word: String): Boolean =
+        WordDictionary.isValidWord(word) && com.gamesuite.games.wordgames.WordSafety.isSafe(word)
 }

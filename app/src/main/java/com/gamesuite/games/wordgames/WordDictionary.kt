@@ -16,6 +16,8 @@ import java.io.InputStreamReader
 object WordDictionary {
     private var allWords: Set<String> = emptySet()
     private var byLength: Map<Int, List<String>> = emptyMap()
+    // Same order as [byLength] but with blocklisted words removed ([WordSafety]); this is what the games CHOOSE from.
+    private var safeByLength: Map<Int, List<String>> = emptyMap()
     // @Volatile + @Synchronized: Word Search loads this off the main thread (Dispatchers.Default)
     // while other word games may call ensureLoaded from the main thread.
     @Volatile
@@ -53,6 +55,7 @@ object WordDictionary {
         }
         allWords = words
         byLength = words.groupBy { it.length }
+        safeByLength = byLength.mapValues { (_, list) -> list.filter { WordSafety.isSafe(it) } }
         loaded = true
     }
 
@@ -60,15 +63,19 @@ object WordDictionary {
 
     /** Random words of a given length, e.g. for word search grid seeding. */
     fun randomWordsOfLength(length: Int, count: Int, excluding: Set<String> = emptySet()): List<String> {
-        val pool = (byLength[length] ?: emptyList()).filterNot { it in excluding }
+        val pool = (safeByLength[length] ?: emptyList()).filterNot { it in excluding }
         return pool.shuffled().take(count)
     }
 
     /** Random words within a length range, e.g. for tile-game bot vocabulary sampling. */
     fun randomWords(minLength: Int, maxLength: Int, count: Int): List<String> {
-        val pool = allWords.filter { it.length in minLength..maxLength }
+        val pool = allWords.filter { it.length in minLength..maxLength && WordSafety.isSafe(it) }
         return pool.shuffled().take(count)
     }
 
-    fun wordsOfLength(length: Int): List<String> = byLength[length] ?: emptyList()
+    /** Words a game may CHOOSE and show: the raw list minus anything [WordSafety] blocks, in stable file order. */
+    fun wordsOfLength(length: Int): List<String> = safeByLength[length] ?: emptyList()
+
+    /** The unfiltered list, only for validating what a player typed. */
+    fun rawWordsOfLength(length: Int): List<String> = byLength[length] ?: emptyList()
 }

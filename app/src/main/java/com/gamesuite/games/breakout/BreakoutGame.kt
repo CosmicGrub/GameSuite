@@ -461,6 +461,7 @@ class BreakoutGame : GameModule {
      *  running, same as every solo game's own `playAgain()`. A no-op unless the current run has
      *  actually ended. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || !state.value.gameOver) return
         startMatch()
     }

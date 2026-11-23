@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parent dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 20px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.card{background:#141829;border:1px solid #232943;border-radius:20px;padding:16px}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin-bottom:10px}
+.row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1E2340}
+.sw{width:48px;height:28px;border-radius:14px;background:#2E3558;position:relative;flex:none}
+.sw.on{background:#FFB547}.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:#fff}.sw.on i{left:23px}
+.bar{flex:1;border-radius:6px 6px 0 0;background:#2A2F55}
+</style>
+</helmet>
+<div class="ph">
+<div style="margin-top:52px;display:flex;align-items:center;justify-content:space-between">
+<a href="KidsHome.dc.html" aria-label="Back to kids home" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+<h1 style="font-size:20px">Parent dashboard</h1><span style="width:44px"></span>
+</div>
+<div style="display:flex;gap:8px;margin-top:16px"><span style="height:40px;padding:0 16px;border-radius:20px;background:#F3F1EA;color:#0B0D1A;display:flex;align-items:center;gap:8px;font:600 14px Inter"><i style="width:22px;height:22px;border-radius:11px;background:#FFB547;display:inline-block"></i>Mia, 7</span><span style="height:40px;padding:0 16px;border-radius:20px;background:#1C2138;display:flex;align-items:center;gap:8px;font:500 14px Inter;color:#C9CDE0"><i style="width:22px;height:22px;border-radius:11px;background:#4AA8E8;display:inline-block"></i>Leo, 10</span><span style="height:40px;width:40px;border-radius:20px;background:#1C2138;display:flex;align-items:center;justify-content:center;font:600 20px Inter;color:#C9CDE0" aria-label="Add child">+</span></div>
+
+<div style="flex:1;overflow:hidden;margin-top:16px;display:flex;flex-direction:column;gap:14px">
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div class="lab" style="margin:0">This week</div><div style="font:600 13px Inter;color:#4ADE9B">Within limit every day</div></div>
+<div style="display:flex;align-items:flex-end;gap:8px;height:84px;margin-top:12px"><i class="bar" style="height:40%"></i><i class="bar" style="height:65%"></i><i class="bar" style="height:50%"></i><i class="bar" style="height:78%"></i><i class="bar" style="height:30%"></i><i class="bar" style="height:92%;background:#FFB547"></i><i class="bar" style="height:20%;opacity:.5"></i></div>
+<div style="display:flex;gap:8px;font:500 11px Inter;color:#9AA0B8;margin-top:6px"><span style="flex:1;text-align:center">M</span><span style="flex:1;text-align:center">T</span><span style="flex:1;text-align:center">W</span><span style="flex:1;text-align:center">T</span><span style="flex:1;text-align:center">F</span><span style="flex:1;text-align:center">S</span><span style="flex:1;text-align:center">S</span></div>
+<div class="mut" style="font-size:13px;margin-top:10px">Average 24 min a day. Most played: Memory, Count, Pop.</div>
+</div>
+
+<div class="card">
+<div class="lab">Play time</div>
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:700 26px Sora">30 min</div><div class="mut" style="font-size:13px">per day</div></div>
+<div style="position:relative;height:8px;border-radius:4px;background:#2E3558;margin:12px 6px 6px"><div style="position:absolute;left:0;top:0;height:8px;width:40%;border-radius:4px;background:#FFB547"></div><div style="position:absolute;left:40%;top:-8px;margin-left:-12px;width:24px;height:24px;border-radius:12px;background:#fff"></div></div>
+<div class="row" style="margin-top:8px"><div><div style="font-weight:600">Quiet hours</div><div class="mut" style="font-size:13px">No play 7:30 pm to 7:00 am</div></div><div class="sw on"><i></i></div></div>
+<div class="row" style="border:0;padding-bottom:0"><div><div style="font-weight:600">Gentle wind-down</div><div class="mut" style="font-size:13px">Warn at 5 minutes, finish the round</div></div><div class="sw on"><i></i></div></div>
+</div>
+
+<div class="card">
+<div class="lab">Safety</div>
+<div class="row" style="padding-top:0"><div><div style="font-weight:600">Online play and chat</div><div class="mut" style="font-size:13px">Always off for this profile</div></div><div style="font:600 12px Inter;color:#4ADE9B;background:#12301F;border-radius:10px;padding:4px 10px">Locked off</div></div>
+<div class="row"><div><div style="font-weight:600">Games shown</div><div class="mut" style="font-size:13px">Ages 4 to 8 · 18 games</div></div><span style="color:#FFB547;font:600 13px Inter">Edit</span></div>
+<div class="row" style="border:0;padding-bottom:0"><div><div style="font-weight:600">Ads and tracking</div><div class="mut" style="font-size:13px">None, ever</div></div><div style="font:600 12px Inter;color:#4ADE9B;background:#12301F;border-radius:10px;padding:4px 10px">None</div></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

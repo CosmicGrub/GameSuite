@@ -364,13 +364,7 @@ fun ToyTennisScreen(
         onHint = if (isNetworked) null else ({ game.requestHint(humanSeats.minOrNull() ?: 0) }),
         buttonFill = colors.bg, buttonContent = colors.text,
         leaveTitle = stringResource(R.string.ccl_leave_title),
-        leaveBody = stringResource(if (finished > 0) R.string.ccl_leave_body_session else R.string.ccl_leave_body),
-        extraItems = { _ ->
-            androidx.compose.runtime.DisposableEffect(Unit) {
-                game.pause()
-                onDispose { game.resume() }
-            }
-        }
+        leaveBody = stringResource(if (finished > 0) R.string.ccl_leave_body_session else R.string.ccl_leave_body)
     ) {
         val (_, openCoach) = rememberClCoach("toy-tennis", ready = true)
         BoxWithConstraints(Modifier.fillMaxSize().background(colors.bg)) {

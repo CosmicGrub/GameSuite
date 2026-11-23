@@ -1,60 +1,42 @@
-# Unbuilt items (as of 2026-11-07)
+# Unbuilt items (refreshed 2026-11-21)
 
-Source: roadmap docs, wave-5 design, QA reports, code-review report. "Built" = compiled and unit-tested; a lot of it is still unverified on real devices (see section G).
+Replaces the 2026-11-07 list. "Built" = compiled and unit-tested on `session/wave-3` (last green gate: 6747 tests, CI green on PR #16).
+Nothing below is installed on a device by Claude (owner's standing rule since 2026-11-07).
 
-## A. Wave 5 multiplayer (design approved, O1-O13 decided)
-- S1 client side: `OnlineTransport` wire messages, `OnlinePlayer.avatar`, peek / lock / kick / started handling
-- S2 friend-room UX: share and copy room code, deep link `gamesuite://join?...` (+ intent filter), paste field, real avatars, peek preview, lock/kick UI, `core/RoomCode.kt`
-- S5 quick-chat client: overlay in `GameChrome`, Nearby 0x00 prefix, settings (server side is built)
-- S8 Quick match client: `OnlineRatingStore`, `QuickMatchScreen` (turn-based games only)
-- S9 two-emulator end-to-end harness `scripts/e2e-two-emulators.py`
-- S10 voice-readiness docs
-- Always-on relay hosting (O1): not deployed; owner must choose host and payment. Docker image, hosting and CI relay workflow never run.
-- Nearby: ready check and remove-player not built; Online remove-player uses a host-stamped Rejected instead of the relay `kick` frame
-- Idle-turn timer (deferred)
-- Spanish for lobby problem messages (`lobbyGameProblem` is English)
+## Shipped since the first list (no longer unbuilt)
+- Profiles and family mode: per-profile data, kid-safe catalogue filter, play-time limits and quiet hours, kids home, parent dashboard.
+- Parent unlock beyond maths: phone screen lock, word code, parent PIN (salted hash), sums; persisted escalating lockout.
+- Five new games: Slide and Climb, Draw and Guess, Echo Pads, Act It Out, Bridge Builders; audited (docs/audit/06) and fixed.
+- Computer Arena for Slide and Climb, Bridge Builders, Chess, Checkers, Reversi, Connect Four (visible CPU-vs-CPU series).
+- Security/perf pass: stats corruption safety, backup off, relay URL validation, Nearby admission, SFX/dictionary/Chess search off main thread.
+- Docs: five-part audit, design canvas sources, release/store drafts (docs/release), scope packs for 11 games, research (BGG page 1).
 
-## B. Roadmap items never started
-- Voice chat (owner: LAST)
-- Takoyaki-style and Pig's Tail-style mini games (left out as unclear)
-- Mosaic-style multi-device play (Air Hockey table across devices)
-- Wireless/online versions of the party pack (all 8 are same-screen only; not in `networkedGames`)
-- Phone-as-controller mode for the party pack
-- Backgammon and Yahtzee networking
-- TicTacToe / Chess guest StateSync and PlayAgain gaps (handed off)
-- Candidate new games (owner has not chosen): Go, Xiangqi, Battleship, Quoridor, Hearts, Spades, etc.
-- Wave 3 brainstorm leftovers: Reversi variants done; Flow Free-style etc. status per `NEW_GAMES_BRAINSTORM_WAVE_3.md`
-- Scoring-honesty and "Premium 2026 vision" items the owner declined (true 3D / Filament) stay out unless re-opened
-- ESP32 cabinet hardware items (audio, addressable LEDs, etc.) were never built
+## A. Paused team work (branches `session/ws-*`, WIP, unverified)
+- A release: signing config, R8 keep rules, release AAB, CI lint + relay Docker build, targetSdk plan (build edits not merged)
+- B kids: rewards engine, 24 stickers, sticker book, teaches table, weekly parent report, report/block design
+- C: full builds of Sweet Trail, Trail Together, Find It Frenzy, Pie Detective, Stack Zoo, Flick Rink
+- E arena: 11 more games, tournament mode, shared "Help the young player" row on existing games
+- H audit leftovers: kid-safety verification table, skipped game-audit items, SecureWindow helper, code-review leftovers
 
-## C. Known defects and shortcuts left in built features
-- Spider daily deal depends on device speed (12 s wall-clock cap; needs a step budget)
-- Toy Tennis and Paddle Duel CPU levels lopsided (Paddle Duel Easy too hard)
-- `GameSpeed` enum labels English only; shared "How to play" sheet "Got it" below the fold on some Hub sheets
-- `hub_same_screen` string only defined in one party strings file (hidden dependency)
-- Games with several equal winners (Word Tiles, Dominoes ties, Word Search) still record WIN for each
-- Hub setup page: Start button not reachable in landscape at 1.6x font
-- Host lobby shows raw relay error text; landscape 1.6x font leaves the table a sliver
-- Whack-a-Mole holes ~26 dp in phone landscape; Paddle Duel court and Light-Trail portrait arena waste space
-- Reaction Duel / Paddle Duel occasional blank first frame on cold start (cause unknown)
-- 30 confirmed findings in `CODE-REVIEW-WAVES-1-4.md` (most fixed; check the file for any still open)
+## B. Not started
+- Games from scaffolds: Bump and Run, Egg Garden, Life Road, Property Tycoon, Territory Wars
+- Accessibility and Spanish sweep: text size honoured in 24 files, TalkBack gaps (Air Hockey), Spanish for ~27 games' screens, lobby problem messages
+- Design rollout: shared tokens (Midnight Club), bottom nav, Home, setup, action dock, result and score-card screens across games
+- Extra BGG-inspired games: Loop Pilot, Tower Climb, Scare Away, Gate Guard, Colour Cars, Gem Drop, stone-age gatherers, plank push-your-luck, real-time coop
 
-## D. Localization
-- Spanish for many game screens is still not done (hub + chrome + coach done; in-game screens partial)
-- Spanish native-speaker review of the quick-chat phrase list (O13)
+## C. Blocked on an owner decision
+- Online wave 5 client (friend rooms share/paste, quick chat client, Quick match, two-device e2e harness) and relay hosting: relay host not chosen; stranger testing skipped
+- Kids-category store listing (Families Policy / COPPA work)
 
-## E. Hardware / form factor
-- Fold inner screen and half-open (book) posture passes
-- Tablet-sized layout pass for 3-4 player party games
+## D. Longer term
+- Voice chat (last), wireless/online party pack, phone-as-controller, Backgammon/Yahtzee networking, Mosaic-style multi-device Air Hockey
+- Fold inner screen and half-open posture; tablet layout passes; real-device pass of everything (Nearby, multi-touch, TalkBack)
 
-## F. Process
-- Everything since commit `fb05659` is uncommitted: arcade games, QA fixes, wave-5 server and lobby work, review fixes, party pack. Nothing is pushed; no PR; CI not run on any of it.
-- Docker/CI workflow for the relay
+## E. Known open defects and skips
+- Echo Pads restore rule for a miss during checking; Draw and Guess long-drawing cost; Act It Out Recents thumbnail; Slide and Climb and Bridge Builders low items (see docs/audit/06)
+- Low code-review items still open (docs/roadmap/CODE-REVIEW-WAVES-1-4.md): idle-turn timer, duplicated helpers
+- Release build never verified: R8, signing, AAB, target SDK 35 (edge-to-edge) all unproven
+- Echo Pads mockup colours differ from the shipped colour-blind-safe palette (design canvas)
 
-## G. Built but never verified on a screen or device
-- Real tablet and Fold: multi-touch, Nearby, frame rate
-- In-game "Host left" dialog (never reached a started match)
-- Reduced Motion, Relaxed and one-switch modes on the party games (code-read only)
-- Review fixes for Shogi, Ludo, Spider, Matching (tests only)
-- Live TalkBack end to end
-- Nearby on any hardware
+## F. Owner actions
+Relay host; kids-category decision; trademark searches (Pie Detective, Life Road, Property Tycoon, Territory Wars, Flick Rink, Sweet Trail, Bump and Run, Trail Together, Slide and Climb); native Spanish review; BGG pages 2 and 3; whether builds may go on devices again.

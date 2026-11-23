@@ -358,6 +358,7 @@ class GomokuGame : GameModule, ResumableGame, UndoableGame {
 
     /** Deals a fresh board in the same session (a guest asks the host). */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value || state.value?.boardOver != true) return

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board table</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:radial-gradient(120% 60% at 50% 0%,#1B2050 0%,#0B0D1A 60%);color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.pl{display:flex;align-items:center;gap:12px;padding:0 20px;height:64px}
+.av{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font:700 16px Sora}
+.clk{margin-left:auto;height:44px;min-width:92px;border-radius:14px;background:#141829;border:1px solid #232943;display:flex;align-items:center;justify-content:center;font:600 20px Sora;font-variant-numeric:tabular-nums}
+.clk.on{background:#F3F1EA;color:#0B0D1A;border-color:#F3F1EA}
+.act{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;font:500 12px Inter;color:#C9CDE0}
+.act span{width:56px;height:56px;border-radius:28px;background:#1C2138;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px #2E3558}
+.mk{position:absolute;width:22px;height:22px;border-radius:11px;background:#FF6B7A;color:#2A050A;font:700 12px Inter;display:flex;align-items:center;justify-content:center;z-index:5}
+</style>
+</helmet>
+<div class="ph">
+<div style="padding:52px 20px 0;display:flex;align-items:center;justify-content:space-between">
+<a href="GameSetup.dc.html" aria-label="Menu" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></a>
+<div style="text-align:center"><h2 style="font-size:17px">Chess</h2><div class="mut" style="font-size:12px">Move 23 · Medium</div></div>
+<div style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F3F1EA" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+</div>
+
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div style="font:600 15px Sora">Computer</div><div class="mut" style="font-size:12px;letter-spacing:.1em">♟ ♟ ♞</div></div><div class="clk">8:41</div></div>
+
+<div style="padding:0 16px;position:relative">
+<div class="mk" style="left:6px;top:-6px">4</div>
+<svg width="358" height="358" viewBox="0 0 8 8" style="border-radius:16px;display:block;box-shadow:0 18px 40px rgba(0,0,0,.5)" role="img" aria-label="Chess board, white to move">
+<rect width="8" height="8" fill="#3B4278"/>
+<g fill="#6C75C4">
+<rect x="1" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/>
+<rect x="0" y="1" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="4" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/>
+<rect x="1" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/>
+<rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/>
+<rect x="1" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/>
+<rect x="0" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/>
+<rect x="1" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/>
+<rect x="0" y="7" width="1" height="1"/><rect x="2" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/>
+</g>
+<rect x="3" y="3" width="1" height="1" fill="#FFB547" opacity=".35"/><rect x="4" y="2" width="1" height="1" fill="#FFB547" opacity=".35"/>
+<rect x="5" y="5" width="1" height="1" fill="none" stroke="#FFB547" stroke-width=".08"/>
+<g fill="#FFB547" opacity=".85"><circle cx="4.5" cy="3.5" r=".16"/><circle cx="6.5" cy="4.5" r=".16"/><circle cx="3.5" cy="4.5" r=".16"/><circle cx="3.5" cy="6.5" r=".16"/><circle cx="6.5" cy="6.5" r=".16"/></g>
+<g font-family="'Noto Sans Symbols 2','Segoe UI Symbol',serif" font-size=".86" text-anchor="middle" style="font-variant-emoji:text">
+<g fill="#14183A" stroke="#C9CDE0" stroke-width=".02">
+<text x=".5" y=".85">♜</text><text x="4.5" y=".85">♚</text><text x="7.5" y=".85">♜</text><text x="2.5" y="1.85">♝</text><text x="5.5" y="1.85">♟</text><text x="6.5" y="1.85">♟</text><text x="3.5" y="2.85">♟</text><text x="2.5" y="2.85">♞</text><text x="4.5" y="3.85">♟</text>
+</g>
+<g fill="#F3F1EA" stroke="#14183A" stroke-width=".02">
+<text x="5.5" y="5.85">♞</text><text x="0.5" y="6.85">♟</text><text x="1.5" y="6.85">♟</text><text x="2.5" y="5.85">♟</text><text x="5.5" y="6.85">♟</text><text x="6.5" y="6.85">♟</text><text x="2.5" y="7.85">♗</text><text x="4.5" y="7.85">♔</text><text x="0.5" y="7.85">♖</text><text x="3.5" y="4.85">♕</text>
+</g>
+</g>
+</svg>
+</div>
+
+<div class="pl" style="margin-top:4px"><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><div><div style="font:600 15px Sora">Sam <span style="font:600 11px Inter;color:#0B0D1A;background:#FFB547;border-radius:8px;padding:2px 7px;margin-left:4px;vertical-align:2px">Your turn</span></div><div class="mut" style="font-size:12px;letter-spacing:.1em">♙ ♙ ♘ ♗</div></div><div class="clk on">9:42</div></div>
+
+<div style="margin:6px 20px 0;height:42px;border-radius:21px;background:#141829;border:1px solid #232943;display:flex;align-items:center;padding:0 16px;gap:10px;font-size:13px;color:#C9CDE0"><span style="color:#FFB547;font-weight:600">22.</span> Nf3 <span class="mut">·</span> Nc6 <span class="mut">·</span> <b style="color:#F3F1EA">Qd5</b></div>
+
+<div style="flex:1"></div>
+<div style="position:relative;display:flex;padding:0 14px 34px">
+<div class="mk" style="right:14px;top:-26px">5</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3F1EA" stroke-width="2.2" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></span>Undo</div>
+<div class="act"><span style="background:#FFB547;box-shadow:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1203" stroke-width="2.2" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg></span>Hint</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3F1EA" stroke-width="2.2" aria-hidden="true"><path d="M5 21V4l14 5-14 5"/></svg></span>Resign</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3F1EA" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M5 7h14M5 17h14"/></svg></span>Draw</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

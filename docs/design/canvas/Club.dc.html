@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Club profile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.card{background:#141829;border:1px solid #232943;border-radius:20px}
+.lab{font:600 12px Inter;letter-spacing:.1em;text-transform:uppercase;color:#9AA0B8;margin-bottom:10px}
+.nav{height:84px;flex:none;background:rgba(20,24,41,.96);border-top:1px solid #232943;display:flex;padding:8px 8px 22px}
+.nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:500 11px Inter;color:#9AA0B8;text-decoration:none}
+.nav a.on{color:#F3F1EA}
+.nav .pill{width:56px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center}
+.nav a.on .pill{background:#2A2F55}
+.ch{width:60px;height:60px;border-radius:20px;flex:none;display:flex;align-items:center;justify-content:center;font:700 20px Sora}
+.dot{width:36px;height:36px;border-radius:18px;flex:none}
+.th{flex:none;width:104px;height:72px;border-radius:16px;position:relative;overflow:hidden}
+.th b{position:absolute;left:8px;bottom:6px;font:600 11px Inter;color:#fff}
+</style>
+</helmet>
+<div class="ph">
+<div style="flex:1;overflow:hidden;padding:56px 20px 0;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;justify-content:space-between"><h1 style="font-size:30px">Club</h1><a href="Settings.dc.html" aria-label="Settings" style="width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></a></div>
+
+<div style="display:flex;align-items:center;gap:16px">
+<div style="width:96px;height:96px;border-radius:32px;background:linear-gradient(145deg,#8B7CFF,#3B2F9E);display:flex;align-items:center;justify-content:center;font:700 38px Sora;box-shadow:0 0 0 4px #FFB547,0 14px 30px rgba(0,0,0,.4)">S</div>
+<div><div style="font:700 24px Sora">Sam</div><div class="mut" style="font-size:14px">Level 7 · Club regular</div><div style="margin-top:6px;display:inline-flex;height:30px;padding:0 12px;border-radius:15px;background:#1C2138;align-items:center;font:600 12px Inter;color:#C9CDE0">Edit name and look</div></div>
+</div>
+
+<div><div class="lab">Character</div>
+<div style="display:flex;gap:10px;overflow:hidden;margin-right:-20px"><div class="ch" style="background:#8B7CFF;box-shadow:0 0 0 3px #FFB547">S</div><div class="ch" style="background:#4ADE9B;color:#06281A">F</div><div class="ch" style="background:#FF7A8A">R</div><div class="ch" style="background:#4AA8E8">O</div><div class="ch" style="background:#FFB547;color:#1A1203">K</div></div></div>
+
+<div><div class="lab">Colour and frame</div>
+<div style="display:flex;gap:10px;overflow:hidden"><i class="dot" style="background:#8B7CFF;box-shadow:0 0 0 3px #0B0D1A,0 0 0 5px #F3F1EA"></i><i class="dot" style="background:#4ADE9B"></i><i class="dot" style="background:#FF7A8A"></i><i class="dot" style="background:#4AA8E8"></i><i class="dot" style="background:#FFB547"></i><i class="dot" style="background:#E2E4F0"></i><span style="margin-left:auto;display:flex;gap:8px"><i class="dot" style="border:3px solid #FFB547;border-radius:12px"></i><i class="dot" style="border:3px dashed #5B6190;border-radius:12px"></i></span></div></div>
+
+<div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><div class="lab" style="margin:0">Board themes</div><span style="color:#FFB547;font:600 13px Inter">3 of 8</span></div>
+<div style="display:flex;gap:10px;overflow:hidden;margin-right:-20px">
+<div class="th" style="background:linear-gradient(135deg,#3B4278,#6C75C4);box-shadow:0 0 0 3px #FFB547"><b>Midnight</b></div>
+<div class="th" style="background:linear-gradient(135deg,#6B4E2E,#C9A26B)"><b>Walnut · new</b></div>
+<div class="th" style="background:linear-gradient(135deg,#0E7490,#4FC3DC)"><b>Lagoon</b></div>
+<div class="th" style="background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9AA0B8" stroke-width="2" style="position:absolute;right:8px;top:8px" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><b style="color:#9AA0B8">Win 25 games</b></div>
+</div></div>
+
+<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:14px;background:#2A2F55;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B9B2FF" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/></svg></div><div style="flex:1"><div style="font:600 15px Sora">Friends</div><div class="mut" style="font-size:13px">3 online · Maya is playing UNO</div></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA0B8" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></div>
+</div>
+<nav class="nav" aria-label="Main">
+<a href="Home.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>Home</a>
+<a href="Library.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span>Games</a>
+<a href="Lobby.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/></svg></span>Play</a>
+<a href="Progress.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>Progress</a>
+<a class="on" href="Club.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6z"/></svg></span>Club</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

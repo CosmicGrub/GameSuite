@@ -1,0 +1,11 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+shogi,3,3,2,2,3,13,"Read LocalColorblindMode in ShogiBoardView and add shape markers for select/legal/hint",S,"Hoist flight Animatable into Canvas draw and remember legal target sets (ShogiScreen.kt:514,302)",S
+minishogi,3,3,2,2,3,13,"Colour-blind shape markers (shared ShogiBoardView with shogi)",S,"Hoist flight and legal.filter out of composition (shared ShogiScreen)",S
+backgammon,3,2,3,2,2,12,"Add dice-roll SFX and win/lose chime in BackgammonScreen.kt:150-164 (only playTap exists)",S,"Dice tumble animation reusing Yahtzee die flip; Reduced Motion gated",M
+yahtzee,3,2,2,3,3,13,"Add SFX for roll/hold/score/Yahtzee via rememberProceduralSfx (screen has none)",S,"Run botPlan on Dispatchers.Default instead of main thread (YahtzeeGame.kt:401-434)",S
+mastermind,3,2,3,2,3,13,"Extract ~36 hard-coded English strings and semantics to values/ and values-es/ (MastermindScreen.kt:335,911-949)",M,"Raise PEG_MIN_DP from 28 or add 48dp hit slop for code slots",S
+towerdefence,2,2,2,1,2,9,"Localise TowerDefenceScreen (0 R.string; help, onClickLabel, zone text)",M,"Read state only inside Canvas draw plus derivedStateOf HUD to stop per-frame whole-screen recomposition (TowerDefenceScreen.kt:156)",M
+tankbattle,3,3,3,2,3,14,"Add polite/assertive live region announcing each shot result and win (0 liveRegion today)",S,"Replace fixed sp (TankBattleScreen.kt:553,563,617,715,725) with typography styles so Text size applies",S
+airhockey,2,3,1,0,1,7,"Shared lifecycle-gated frame clock plus State read only in draw; stop per-frame whole-screen recomposition and list allocation (AirHockeyScreen.kt:128,216,285)",M,"GameChrome overlay hook so help/leave dialogs freeze the puck (AirHockeyScreen.kt:373-377 resumes on menu close)",S
+breakout,2,2,3,2,2,11,"Localise BreakoutScreen (0 R.string; Score/Level/Tap to resume)",M,"Add multi-hit bricks and power-ups (wide paddle, multi-ball, slow) with injectable Random (BreakoutGame.kt:313)",M
+edgematch,3,2,2,2,3,12,"Localise EdgeMatchScreen (0 R.string; ~33 literals)",M,"Generate puzzle off main thread (EdgeMatchScreen.kt:219,290) with a building state",S

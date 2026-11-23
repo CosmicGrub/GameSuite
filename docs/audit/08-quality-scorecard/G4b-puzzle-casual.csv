@@ -1,0 +1,9 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+minesweeper,2,2,2,1,2,9,"Make the Daily mine layout independent of the first click (generate from seed, relocate mines from the first-click safe zone)",M,"Extract all strings to resources plus ES (0 stringResource, ~40 literals)",L
+lights-out,3,2,3,1,2,11,"Extract strings to resources plus ES (0 stringResource) and add stateDescription on cells",L,"Enforce a minimum solution length per tier after scramble (3x3 can be a 1-2 press board)",S
+sliding-puzzle,2,2,3,1,2,10,"Multi-tile slide when the tapped tile shares the blank's row or column",M,"Feedback (buzz, wiggle, status text) on illegal non-adjacent taps",S
+color-flood,1,3,3,1,2,10,"Add a move budget (par plus slack) and a lose state with retry",M,"Extract strings to resources plus ES (0 stringResource)",L
+game-2048,3,3,2,3,2,13,"Move slide/pop animation reads from composition to graphicsLayer/offset lambdas",S,"Property test: random move sequences on each size (conservation, game over iff no legal move, snapshot round trip)",S
+snake,3,2,2,2,3,12,"Fixed-timestep loop with absolute deadlines plus render interpolation between cells",M,"Turn-based step mode for TalkBack/switch users and live-region announcements",M
+flow-lines,3,2,3,3,3,14,"Add a connect chime and path-fill animation (Reduced Motion aware)",S,"Strip the whole puzzle from per-stroke history snapshots",S
+six-ball-puzzle,3,3,2,2,3,13,"Move the infinite pulse read into the Canvas draw lambda (idle recomposition at 60fps)",S,"Rethrow CancellationException and write progress outside the cancellable effect",S

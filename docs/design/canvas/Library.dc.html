@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Games library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.chip{height:38px;padding:0 16px;border-radius:19px;display:inline-flex;align-items:center;background:#1C2138;color:#C9CDE0;font:500 14px Inter;flex:none}
+.chip.on{background:#F3F1EA;color:#0B0D1A;font-weight:600}
+.nav{height:84px;flex:none;background:rgba(20,24,41,.96);border-top:1px solid #232943;display:flex;padding:8px 8px 22px}
+.nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:500 11px Inter;color:#9AA0B8;text-decoration:none}
+.nav a.on{color:#F3F1EA}
+.nav .pill{width:56px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center}
+.nav a.on .pill{background:#2A2F55}
+.g{border-radius:22px;position:relative;overflow:hidden;height:150px;padding:12px;display:flex;flex-direction:column;justify-content:flex-end;color:#fff}
+.g b{font:600 15px Sora}.g span{font-size:12px;opacity:.85}
+.g i{position:absolute;right:-10px;top:-10px;width:80px;height:80px;border-radius:40px;background:rgba(255,255,255,.14)}
+.g u{position:absolute;left:10px;top:10px;height:22px;padding:0 8px;border-radius:11px;background:rgba(0,0,0,.35);font:600 11px Inter;text-decoration:none;display:flex;align-items:center;gap:4px}
+</style>
+</helmet>
+<div class="ph">
+<div style="padding:56px 20px 0;display:flex;flex-direction:column;gap:14px">
+<h1 style="font-size:30px">Games</h1>
+<div style="height:48px;border-radius:24px;background:#141829;border:1px solid #232943;display:flex;align-items:center;gap:10px;padding:0 16px;color:#9AA0B8"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Search 75 games</div>
+<div style="display:flex;gap:8px;overflow:hidden;margin-right:-20px"><span class="chip on">All</span><span class="chip">Board</span><span class="chip">Cards</span><span class="chip">Puzzle</span><span class="chip">Arcade</span><span class="chip">Party</span></div>
+<div style="display:flex;gap:8px;overflow:hidden;margin-right:-20px"><span class="chip" style="height:32px;font-size:13px;background:transparent;box-shadow:inset 0 0 0 1px #2E3558">Players: any</span><span class="chip" style="height:32px;font-size:13px;background:transparent;box-shadow:inset 0 0 0 1px #2E3558">Time: any</span><span class="chip" style="height:32px;font-size:13px;background:transparent;box-shadow:inset 0 0 0 1px #2E3558">Online</span><span class="chip" style="height:32px;font-size:13px;background:transparent;box-shadow:inset 0 0 0 1px #2E3558">Solo</span></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:16px 20px 0">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<div class="g" style="background:linear-gradient(150deg,#4A55A2,#1E2350)"><i></i><u>1-2 · Online</u><b>Chess</b><span>Classic strategy</span></div>
+<div class="g" style="background:linear-gradient(150deg,#D1495B,#6A1B2C)"><i></i><u>2-10 · Online</u><b>UNO</b><span>Match colours, shout UNO</span></div>
+<div class="g" style="background:linear-gradient(150deg,#8B1E3F,#3A0B1B)"><i></i><u>2-6 · Online</u><b>Texas Hold'em</b><span>Play chips only</span></div>
+<div class="g" style="background:linear-gradient(150deg,#0E7490,#0B2F3D)"><i></i><u>1-4</u><b>Darts</b><span>Flick to throw</span></div>
+<div class="g" style="background:linear-gradient(150deg,#3E7C59,#133524)"><i></i><u>1-2 · Online</u><b>Reversi</b><span>Flip the board</span></div>
+<div class="g" style="background:linear-gradient(150deg,#C2410C,#5B1F08)"><i></i><u>2-4 · Same screen</u><b>Tap Race</b><span>Fastest fingers win</span></div>
+<div class="g" style="background:linear-gradient(150deg,#6B4E2E,#2C1E0F)"><i></i><u>1 · Daily</u><b>Sudoku</b><span>Today's puzzle</span></div>
+<div class="g" style="background:linear-gradient(150deg,#86254A,#35091E)"><i></i><u>1-4</u><b>Bowling</b><span>Swipe and spin</span></div>
+</div>
+</div>
+<nav class="nav" aria-label="Main">
+<a href="Home.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>Home</a>
+<a class="on" href="Library.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span>Games</a>
+<a href="Lobby.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/></svg></span>Play</a>
+<a href="Progress.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>Progress</a>
+<a href="Club.dc.html"><span class="pill"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Club</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

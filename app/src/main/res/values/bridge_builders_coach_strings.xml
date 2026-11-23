@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Coach card text of Bridge Builders (bridge_builders_coach_s1..s5 and _fact) and its first-run tips (tip_bridge_builders_1..3; move them to polish_strings.xml when GameTips is updated) -->
+    <!-- Coach card text of Bridge Builders (bridge_builders_coach_s1..s5 and _fact). The first-run tips live in polish_strings.xml (tip_bridge_builders_1..3) and GameTips -->
     <string name="coach_bridge_builders_s1">Everybody builds one bridge together, from their own lane, all at the same time. You win together or you try again together.</string>
     <string name="coach_bridge_builders_s2">A cart slides back and forth along your lane. Tap when it is inside the green spot (marked with a frame and a diamond) to place a plank.</string>
     <string name="coach_bridge_builders_s3">The nearer the middle you tap, the sturdier the plank. Sturdy planks push the water back and make the final crossing quicker. A miss only makes your cart rest a moment.</string>

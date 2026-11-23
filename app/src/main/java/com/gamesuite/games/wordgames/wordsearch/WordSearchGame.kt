@@ -3,7 +3,10 @@ package com.gamesuite.games.wordgames.wordsearch
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.gamesuite.core.*
+import com.gamesuite.games.wordgames.KidWordPool
 import com.gamesuite.games.wordgames.WordDictionary
+import com.gamesuite.games.wordgames.WordSafety
+import com.gamesuite.games.wordguess.WordGuessAnswerList
 import com.gamesuite.settings.CpuDifficulty
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -289,7 +292,12 @@ class WordSearchGame(
     /** Call once, from the UI, before startMatch() — loads the shared dictionary asset. */
     fun loadDictionary(androidContext: Context) {
         WordDictionary.ensureLoaded(androidContext)
+        WordGuessAnswerList.ensureLoaded(androidContext)
     }
+
+    /** True when the active profile is a KID profile; swapped in tests. */
+    internal var kidModeProvider: () -> Boolean = { ProfileScope.isActiveKid }
+    internal var kidWordsOfLength: (Int) -> List<String> = { KidWordPool.ofLength(it) }
 
     override fun startMatch() {
         startMatch(seed = null)
@@ -323,6 +331,7 @@ class WordSearchGame(
 
     private fun generatePuzzle(params: TierParams, seed: Long? = null): WordSearchState {
         val rng: Random = if (seed != null) Random(seed) else Random.Default
+        val kid = kidModeProvider()
         val gridSize = params.gridSize
         val grid = Array(gridSize) { CharArray(gridSize) { ' ' } }
         val placed = mutableListOf<PlacedWord>()
@@ -332,9 +341,10 @@ class WordSearchGame(
         while (placed.size < params.wordCount && attempts < 500) {
             attempts++
             val length = candidateLengths[attempts % candidateLengths.size]
-            val pool = wordsOfLength(length)
+            val pool = if (kid) kidWordsOfLength(length) else wordsOfLength(length)
             if (pool.isEmpty()) continue
             val word = pool[rng.nextInt(pool.size)]
+            if (!WordSafety.isSafe(word)) continue
             // The pool is lowercase (see WordDictionary.kt); placed words are stored uppercase
             // below, so compare case-insensitively or the same word can be placed twice.
             if (placed.any { it.word.equals(word, ignoreCase = true) }) continue
@@ -436,6 +446,7 @@ class WordSearchGame(
 
     /** Called from the solved panel's "New Puzzle" button — keeps the running tally, generates a fresh board. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

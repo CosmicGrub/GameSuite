@@ -37,7 +37,8 @@ class TowerDefenceStatsStore(private val context: Context) {
         val BEST_WAVES_JSON = stringPreferencesKey("best_waves_json")
     }
 
-    private fun keyFor(levelId: String, difficulty: CpuDifficulty): String = "$levelId:${difficulty.name}"
+    private fun keyFor(levelId: String, difficulty: CpuDifficulty, gentle: Boolean = false): String =
+        TdStatsKeys.key(levelId, difficulty, gentle)
 
     /** All (level, difficulty) best-wave entries, keyed by [keyFor]; a combination with no entry
      *  has never been played to a run-over. */
@@ -47,8 +48,8 @@ class TowerDefenceStatsStore(private val context: Context) {
 
     /** Reads [bestWaves] for one specific (level, difficulty) combination — a small convenience
      *  over collecting the whole map and indexing by [keyFor] at every call site. */
-    fun bestWaveFor(levelId: String, difficulty: CpuDifficulty): Flow<Int?> =
-        bestWaves.map { it[keyFor(levelId, difficulty)] }
+    fun bestWaveFor(levelId: String, difficulty: CpuDifficulty, gentle: Boolean = false): Flow<Int?> =
+        bestWaves.map { it[keyFor(levelId, difficulty, gentle)] }
 
     /**
      * Records one finished run's [waveReached] for (levelId, difficulty). Returns true if it's a
@@ -57,8 +58,8 @@ class TowerDefenceStatsStore(private val context: Context) {
      * another read/write can't compare against a stale value — same reasoning
      * BreakoutStatsStore.recordScore documents for its own transaction.
      */
-    suspend fun recordWave(levelId: String, difficulty: CpuDifficulty, waveReached: Int): Boolean {
-        val key = keyFor(levelId, difficulty)
+    suspend fun recordWave(levelId: String, difficulty: CpuDifficulty, waveReached: Int, gentle: Boolean = false): Boolean {
+        val key = keyFor(levelId, difficulty, gentle)
         var isNewBest = false
         context.towerDefenceStatsDataStore.edit { prefs ->
             val current = decode(prefs[Keys.BEST_WAVES_JSON])
@@ -75,6 +76,23 @@ class TowerDefenceStatsStore(private val context: Context) {
         if (raw.isNullOrBlank()) return emptyMap()
         // A corrupted or (hypothetically) future-format blob should never crash app start --
         // same defensive stance every other stats store here takes.
-        return runCatching { Json.decodeFromString<Map<String, Int>>(raw) }.getOrDefault(emptyMap())
+        return TdStatsKeys.sanitize(runCatching { Json.decodeFromString<Map<String, Int>>(raw) }.getOrDefault(emptyMap()))
     }
+}
+
+/**
+ * The stats key format, unchanged since the three Classic maps shipped: "$mapId:DIFFICULTY". Open maps
+ * follow the same format, and the Gentle tier files under "$mapId:GENTLE". The theme is deliberately
+ * NOT part of the key (a map's best wave is the same whichever skin is shown). [sanitize] drops
+ * malformed or impossible entries from a stored blob and keeps everything else, so an old install's
+ * records survive the upgrade untouched.
+ */
+object TdStatsKeys {
+    private val KEY = Regex("^[a-z0-9][a-z0-9-]*:(EASY|MEDIUM|HARD|GENTLE)$")
+
+    fun key(levelId: String, difficulty: CpuDifficulty, gentle: Boolean = false): String =
+        if (gentle) "$levelId:GENTLE" else "$levelId:${difficulty.name}"
+
+    fun sanitize(raw: Map<String, Int>): Map<String, Int> =
+        raw.filter { (k, v) -> KEY.matches(k) && v in 1..TowerDefenceGame.TOTAL_WAVES }
 }

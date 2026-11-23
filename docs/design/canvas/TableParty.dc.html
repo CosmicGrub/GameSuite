@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Same-screen party</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#fff;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.half{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.big{font:700 96px/1 Sora;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.pad{width:230px;height:230px;border-radius:115px;display:flex;align-items:center;justify-content:center;font:700 28px Sora;box-shadow:inset 0 0 0 6px rgba(255,255,255,.35),0 20px 50px rgba(0,0,0,.35)}
+.mid{height:76px;flex:none;background:#0B0D1A;display:flex;align-items:center;padding:0 16px;gap:12px;position:relative;z-index:2}
+.bar{flex:1;height:14px;border-radius:7px;background:#232943;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:7px}
+</style>
+</helmet>
+<div class="ph">
+<div class="half" style="background:linear-gradient(180deg,#0F6E5B,#0A4A3E);transform:rotate(180deg)">
+<div style="font:600 14px Sora;opacity:.9">Player 2 · Mint</div>
+<div class="big">17</div>
+<div class="pad" style="background:#14A58A">TAP</div>
+</div>
+<div class="mid">
+<a href="Library.dc.html" aria-label="Pause" style="width:48px;height:48px;border-radius:24px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA;flex:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="#F3F1EA" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></a>
+<div style="flex:1"><div style="display:flex;justify-content:space-between;font:600 12px Inter;color:#C9CDE0;margin-bottom:6px"><span>Mint 17</span><span style="font:700 18px Sora;color:#fff;font-variant-numeric:tabular-nums">0:12</span><span>Saffron 21</span></div>
+<div class="bar"><i style="width:45%;background:#14A58A"></i><i style="left:auto;right:0;width:55%;background:#FFB547"></i></div></div>
+</div>
+<div class="half" style="background:linear-gradient(180deg,#C2410C,#7A2608)">
+<div style="font:600 14px Sora;opacity:.95">Player 1 · Saffron</div>
+<div class="big">21</div>
+<div class="pad" style="background:#FFB547;color:#1A1203">TAP</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
