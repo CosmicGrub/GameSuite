@@ -79,7 +79,7 @@ import kotlin.math.roundToInt
  * no procedural level generation, no enemy variety beyond stat scaling. All explicitly flagged in
  * the design doc for future revisit, not oversights.
  */
-class TowerDefenceGame : GameModule {
+class TowerDefenceGame : GameModule, ResumableGame {
     override val gameId = "tower-defence"
     override val displayName = "Tower Defence"
     override val category = GameCategory.ARCADE
@@ -240,9 +240,11 @@ class TowerDefenceGame : GameModule {
         val pos: Offset = Offset.Zero,
         val slow: Float = 0f,
         val slowRemaining: Float = 0f,
-        val stunRemaining: Float = 0f,
-        val burnRemaining: Float = 0f
+        val stunRemaining: Float = 0f
     )
+
+    /** A patch of burning ground left by a Blast fire branch: walkers inside take [TdRules.BURN_DPS] until [remaining] runs out. Radius in tiles. */
+    data class TdFirePatch(val id: Int, val pos: Offset, val radius: Float, val remaining: Float)
 
     data class TowerDefenceTower(
         val id: Int,
@@ -310,7 +312,12 @@ class TowerDefenceGame : GameModule {
         val gentle: Boolean = false,
         /** Open maps: the kinds still to walk out this wave, in order. */
         val pendingSpawns: List<TdEnemyKind> = emptyList(),
-        val lastCastleHit: CastleHitEvent? = null
+        val lastCastleHit: CastleHitEvent? = null,
+        val firePatches: List<TdFirePatch> = emptyList(),
+        val mode: TdMode = TdMode.CAMPAIGN,
+        /** Daily only: the UTC day number and that day's twist. */
+        val dailyDay: Long = 0L,
+        val modifier: TdModifier? = null
     ) {
         val waveInProgress: Boolean get() = enemiesRemainingToSpawn > 0 || enemies.isNotEmpty()
         val runOver: Boolean get() = runResult != null
@@ -332,11 +339,27 @@ class TowerDefenceGame : GameModule {
     /** Gentle tier (Tower Defence only): applies on top of any [difficulty]; stats are filed under "<map>:GENTLE". */
     var gentle: Boolean = false
 
-    private fun tierConfig(difficulty: CpuDifficulty, gentle: Boolean): TdTierConfig {
-        if (gentle) return GENTLE
-        val c = difficultyConfig.getValue(difficulty)
-        return TdTierConfig(c.startingGold, c.enemyHpMultiplier, c.enemySpeedMultiplier, c.enemyCountMultiplier, 1f)
+    private fun tierConfig(difficulty: CpuDifficulty, gentle: Boolean, modifier: TdModifier? = null): TdTierConfig {
+        val base = if (gentle) GENTLE else {
+            val c = difficultyConfig.getValue(difficulty)
+            TdTierConfig(c.startingGold, c.enemyHpMultiplier, c.enemySpeedMultiplier, c.enemyCountMultiplier, 1f)
+        }
+        return modifier?.apply(base) ?: base
     }
+
+    private fun tierOf(s: TowerDefenceState): TdTierConfig = tierConfig(s.difficulty, s.gentle, s.modifier)
+
+    /** Campaign (default), Endless or Daily; set by the screen before [startMatch]. Non-campaign modes need an open map. */
+    var mode: TdMode = TdMode.CAMPAIGN
+
+    /** Daily: the UTC day number to play (the screen sets it from DailySeed). Its map, modifier and fixed Medium tier override [level] and [difficulty]. */
+    var dailyDay: Long = 0L
+
+    /** Number of skins the screen has, so a Daily plan's theme index maps the same way everywhere. */
+    var themeCount: Int = 1
+
+    /** The Daily plan being played, or null outside Daily. */
+    fun dailyPlan(): TdDailyPlan? = if (state.value.mode == TdMode.DAILY) TdDaily.plan(state.value.dailyDay, themeCount) else null
 
     private fun classicConfig(s: TowerDefenceState): DifficultyConfig =
         if (s.gentle) DifficultyConfig(GENTLE.startingGold, GENTLE.hpMultiplier, GENTLE.speedMultiplier, GENTLE.countMultiplier)
@@ -371,6 +394,9 @@ class TowerDefenceGame : GameModule {
     private var occupied: BooleanArray = BooleanArray(TdGrid.CELLS)
     private var flowSignature = 0
 
+    /** The build-phase save of the wave now running (see [snapshot]); null between waves and before the first. */
+    private var checkpoint: String? = null
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
     private var nextEnemyId = 0
@@ -399,10 +425,19 @@ class TowerDefenceGame : GameModule {
     }
 
     override fun startMatch() {
-        val cfg = tierConfig(difficulty, gentle)
+        var modifier: TdModifier? = null
+        if (mode != TdMode.CAMPAIGN && !level.isOpen) level = OPEN_LEVELS.first()
+        if (mode == TdMode.DAILY) {
+            val plan = TdDaily.plan(dailyDay, themeCount)
+            level = levelById(plan.mapId) ?: OPEN_LEVELS.first()
+            difficulty = CpuDifficulty.MEDIUM
+            gentle = false
+            modifier = plan.modifier
+        }
+        val cfg = tierConfig(difficulty, gentle, modifier)
         val castleStart = (STARTING_LIVES * cfg.castleMultiplier).roundToInt()
         nextEnemyId = 0; nextTowerId = 0; nextProjectileId = 0; eventSeq = 0L
-        ids.enemy = 0; ids.tower = 0; ids.projectile = 0; ids.event = 0L
+        ids.enemy = 0; ids.tower = 0; ids.projectile = 0; ids.patch = 0; ids.event = 0L
         state.value = TowerDefenceState(
             level = level,
             difficulty = difficulty,
@@ -413,9 +448,13 @@ class TowerDefenceGame : GameModule {
             interWaveCooldown = if (level.isOpen) OPEN_FIRST_WAVE_SECONDS else INTER_WAVE_SECONDS,
             runSeq = state.value.runSeq + 1,
             castleMax = castleStart,
-            gentle = gentle
+            gentle = gentle,
+            mode = mode,
+            dailyDay = if (mode == TdMode.DAILY) dailyDay else 0L,
+            modifier = modifier
         )
         rebuildFlow()
+        checkpoint = null
         matchOver.value = false
         pausedByLifecycle = false
     }
@@ -718,7 +757,8 @@ class TowerDefenceGame : GameModule {
     private fun tickOpen(s: TowerDefenceState, dtSeconds: Float) {
         val terrain = s.level.terrain ?: return
         ensureFlow(s)
-        val next = TdSiege.step(s, dtSeconds, tierConfig(s.difficulty, s.gentle), terrain, flow!!, occupied, ids)
+        val next = TdSiege.step(s, dtSeconds, tierOf(s), terrain, flow!!, occupied, ids)
+        if (!s.waveInProgress && next.waveInProgress && !next.runOver) checkpoint = exportSnapshot()
         if (next.runResult == TowerDefenceRunResult.WON) everWonThisSession = true
         if (next.runResult != null) {
             bestWaveThisSession = maxOf(bestWaveThisSession, next.waveNumber)
@@ -827,8 +867,8 @@ class TowerDefenceGame : GameModule {
         val s = state.value
         if (!s.level.isOpen || s.runOver) return emptyList()
         val wave = if (s.waveInProgress) s.waveNumber + 1 else s.waveNumber
-        if (wave > s.totalWaves) return emptyList()
-        val order = TdWaves.spawnOrder(wave, tierConfig(s.difficulty, s.gentle).countMultiplier)
+        if (s.mode != TdMode.ENDLESS && wave > s.totalWaves) return emptyList()
+        val order = TdWaves.spawnOrder(wave, tierOf(s).countMultiplier)
         return TdEnemyKind.entries.map { k -> k to order.count { it == k } }.filter { it.second > 0 }
     }
 
@@ -853,7 +893,8 @@ class TowerDefenceGame : GameModule {
                 castle = s.lives, castleMax = s.castleMax, gold = s.gold,
                 towers = s.towers.map {
                     TdSnapshot.TowerS(it.role.name, it.branch.name, it.target.name, it.upgradeLevel, it.cx, it.cy, it.invested)
-                }
+                },
+                mode = s.mode.name, day = s.dailyDay
             )
         )
     }
@@ -865,6 +906,8 @@ class TowerDefenceGame : GameModule {
         difficulty = CpuDifficulty.valueOf(d.difficulty)
         gentle = d.gentle
         level = lvl
+        mode = TdMode.valueOf(d.mode)
+        dailyDay = d.day
         startMatch()
         nextTowerId = d.towers.size
         state.value = state.value.copy(
@@ -881,6 +924,31 @@ class TowerDefenceGame : GameModule {
         )
         rebuildFlow()
         return true
+    }
+
+    /**
+     * [ResumableGame]: between waves the build phase itself; while a wave runs, the checkpoint taken when
+     * that wave began (so a resume restarts the wave with the towers and gold it began with). Null on
+     * Classic maps, after the run ends, outside a single-player launch, or before a first wave.
+     */
+    override fun snapshot(): String? {
+        return try {
+            if (!this::context.isInitialized || context.activeMode != PlayMode.SINGLE_PLAYER_VS_BOT) return null
+            val s = state.value
+            if (matchOver.value || s.runOver) return null
+            exportSnapshot() ?: if (s.waveInProgress) checkpoint else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun restore(snapshot: String): Boolean {
+        return try {
+            if (!this::context.isInitialized) return false
+            restoreSnapshot(snapshot)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /** Called from the finished-run panel's "Play Again" button — restarts the SAME level and

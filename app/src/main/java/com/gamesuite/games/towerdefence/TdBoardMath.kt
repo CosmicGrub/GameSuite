@@ -29,6 +29,32 @@ object TdBoardMath {
         return ax.coerceIn(0, TdGrid.COLS - 2) to ay.coerceIn(0, TdGrid.ROWS - 2)
     }
 
+    /**
+     * The anchor for a pointer at ([rootX], [rootY]) in ROOT coordinates while a card is dragged from the
+     * tray: the board's top-left in the same space is ([boardLeft], [boardTop]) and the ghost rides [liftPx]
+     * above the finger. Null when the finger is outside the board, so releasing there cancels.
+     */
+    fun anchorForDrag(
+        rootX: Float, rootY: Float, boardLeft: Float, boardTop: Float, wPx: Float, hPx: Float, liftPx: Float, snap: Boolean = true
+    ): Pair<Int, Int>? {
+        val x = rootX - boardLeft
+        val y = rootY - boardTop
+        if (x < 0f || x > wPx || y < 0f || y > hPx) return null
+        // The ghost is lifted above the finger, but the finger itself must be on the board.
+        return anchorFor(x, (y - liftPx).coerceAtLeast(0f), wPx, hPx, snap)
+    }
+
+    /**
+     * One keyboard / D-pad step of the placement cursor: a whole tile (2 cells) when [snap], one cell
+     * otherwise, kept on the board. Anchors are top-left cells of the 2 x 2 footprint.
+     */
+    fun moveAnchor(ax: Int, ay: Int, dx: Int, dy: Int, snap: Boolean = true): Pair<Int, Int> {
+        val step = if (snap) TdGrid.CELLS_PER_TILE else 1
+        val nx = (ax + dx * step).coerceIn(0, TdGrid.COLS - 2)
+        val ny = (ay + dy * step).coerceIn(0, TdGrid.ROWS - 2)
+        return if (snap) (nx / 2 * 2) to (ny / 2 * 2) else nx to ny
+    }
+
     /** The tower under the pointer (footprint plus a [haloTiles] halo), nearest centre first; null if none. */
     fun towerAt(
         towers: List<TowerDefenceGame.TowerDefenceTower>, xPx: Float, yPx: Float, wPx: Float, hPx: Float, haloTiles: Float
