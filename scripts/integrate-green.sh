@@ -87,16 +87,13 @@ done < "$LIST"
 
 if [ "${#merged[@]}" -eq 0 ]; then say "nothing merged"; exit 0; fi
 
-# ---- full gate ----
-say "running full gate"
-until mkdir "$GRADLE_LOCK" 2>/dev/null; do sleep 15; done
-./gradlew :app:testDebugUnitTest --build-cache --max-workers=2 \
-  -Dorg.gradle.jvmargs=-Xmx5g -Pkotlin.compiler.execution.strategy=in-process \
-  > /tmp/gs-integrate-gate.log 2>&1
-gate_rc=$?
-rmdir "$GRADLE_LOCK" 2>/dev/null
-
-read -r classes tests fails errs < <(python - <<'PY'
+# ---- full gate (function) ----
+run_gate() {
+  until mkdir "$GRADLE_LOCK" 2>/dev/null; do sleep 15; done
+  ./gradlew :app:testDebugUnitTest :shared:allTests --build-cache --max-workers=2     -Dorg.gradle.jvmargs=-Xmx5g -Pkotlin.compiler.execution.strategy=in-process     > /tmp/gs-integrate-gate.log 2>&1
+  gate_rc=$?
+  rmdir "$GRADLE_LOCK" 2>/dev/null
+  read -r classes tests fails errs < <(python - <<'PY'
 import glob,re
 c=t=f=e=0
 for p in glob.glob('app/build/test-results/testDebugUnitTest/*.xml'):
@@ -105,18 +102,37 @@ for p in glob.glob('app/build/test-results/testDebugUnitTest/*.xml'):
 print(c,t,f,e)
 PY
 )
-# a truncated run (memory crash) shows far fewer tests than the last known-good baseline
-BASELINE_TESTS=${BASELINE_TESTS:-7200}
-if [ "$gate_rc" -ne 0 ] || [ "${fails:-1}" -ne 0 ] || [ "${errs:-1}" -ne 0 ] || [ "${tests:-0}" -lt "$BASELINE_TESTS" ]; then
-  git reset -q --hard "$start_sha"
-  note "gate NOT green for [${merged[*]}] (rc=$gate_rc classes=$classes tests=$tests failures=$fails errors=$errs); merges rolled back locally, nothing pushed"
-  exit 0
-fi
+  # a truncated run (memory crash) shows far fewer tests than the last known-good baseline
+  BASELINE_TESTS=${BASELINE_TESTS:-7200}
+  if [ "$gate_rc" -ne 0 ] || [ "${fails:-1}" -ne 0 ] || [ "${errs:-1}" -ne 0 ] || [ "${tests:-0}" -lt "$BASELINE_TESTS" ]; then return 1; fi
+  return 0
+}
+push_green() {  # $@ = branches merged
+  gsha=$(git rev-parse HEAD)
+  if git push origin "$BASE" >/tmp/gs-push.out 2>&1; then
+    mkdir -p /z/GameSuite-testq; echo "$tests tests, $classes classes" > "/z/GameSuite-testq/green-$gsha"
+    for b in "$@"; do git push origin "$b" >/dev/null 2>&1 || true; done
+    note "GREEN and pushed: merged [$*]; classes=$classes tests=$tests failures=0 errors=0"
+    git add "$LOGFILE" && git commit -q -m "Integrator log: merged $* after green gate" -- "$LOGFILE" 2>/dev/null && git push origin "$BASE" >/dev/null 2>&1
+  else
+    note "gate green but push failed (see /tmp/gs-push.out); merges kept locally"
+  fi
+}
 
-if git push origin "$BASE" >/tmp/gs-push.out 2>&1; then
-  for br in "${merged[@]}"; do git push origin "$br" >/dev/null 2>&1 || true; done
-  note "GREEN and pushed: merged [${merged[*]}]; classes=$classes tests=$tests failures=0 errors=0"
-  git add "$LOGFILE" && git commit -q -m "Integrator log: merged ${merged[*]} after green gate" -- "$LOGFILE" 2>/dev/null && git push origin "$BASE" >/dev/null 2>&1
-else
-  note "gate green but push failed (see /tmp/gs-push.out); merges kept locally"
-fi
+say "running full gate on [${merged[*]}]"
+if run_gate; then push_green "${merged[@]}"; exit 0; fi
+git reset -q --hard "$start_sha"
+note "batch gate NOT green for [${merged[*]}] (rc=$gate_rc classes=$classes tests=$tests failures=$fails errors=$errs); rolled back"
+[ "${#merged[@]}" -le 1 ] && exit 0
+
+# ---- one bad branch must not block the others: gate each branch on its own ----
+say "bisecting: gating each branch individually"
+good=()
+for br in "${merged[@]}"; do
+  cur=$(git rev-parse HEAD)
+  if ! git merge --no-ff -m "Merge $br (auto-integrated after green gate)" "$br" >/tmp/gs-merge.out 2>&1; then git merge --abort 2>/dev/null; note "$br: conflict in single-branch round; deferred"; continue; fi
+  if run_gate; then good+=("$br"); note "$br: green on its own ($tests tests)"
+  else git reset -q --hard "$cur"; note "$br: RED on its own (rc=$gate_rc failures=$fails errors=$errs tests=$tests); excluded this round, see /tmp/gs-integrate-gate.log"; fi
+done
+[ "${#good[@]}" -gt 0 ] && push_green "${good[@]}"
+exit 0
