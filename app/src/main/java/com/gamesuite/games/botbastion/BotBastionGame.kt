@@ -162,6 +162,7 @@ class BotBastionGame : GameModule, ResumableGame {
     fun buyAegis(pid: Int) = engine?.buyAegis(pid).also { touched() }
     fun useSpecial(pid: Int, k: SpecialKind) = engine?.useSpecial(pid, k).also { touched() }
     fun callEarly(pid: Int) = engine?.callEarly(pid).also { touched() }
+    fun gift(from: Int, to: Int, amount: Int) = engine?.gift(from, to, amount).also { touched() }
     fun setPriority(botId: Int, p: TargetPriority) = engine?.setPriority(botId, p).also { touched() }
 
     override fun snapshot(): String? = try {

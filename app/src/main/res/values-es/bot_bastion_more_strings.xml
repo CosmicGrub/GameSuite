@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bot Bastion: mapa Horno, regalos de chatarra, barras de mesa -->
+    <string name="bot_bastion_map_furnace">Horno</string>
+    <string name="bot_bastion_gift">Regalar %1$d de chatarra al jugador %2$d</string>
+    <string name="bot_bastion_bar_label">Controles del jugador %1$d</string>
+</resources>

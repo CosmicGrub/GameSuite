@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bot Bastion follow-ups: Furnace map, Scrap gifts, tabletop bars -->
+    <string name="bot_bastion_map_furnace">Furnace</string>
+    <string name="bot_bastion_gift">Gift %1$d Scrap to player %2$d</string>
+    <string name="bot_bastion_bar_label">Player %1$d controls</string>
+</resources>

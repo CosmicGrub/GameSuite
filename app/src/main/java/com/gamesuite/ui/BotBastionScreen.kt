@@ -44,10 +44,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -63,6 +67,7 @@ import com.gamesuite.R
 import com.gamesuite.audio.SfxKind
 import com.gamesuite.audio.rememberProceduralSfx
 import com.gamesuite.core.GameSessionManager
+import com.gamesuite.foldable.LocalFoldState
 import com.gamesuite.games.botbastion.BbArena
 import com.gamesuite.games.botbastion.BbEngine
 import com.gamesuite.games.botbastion.BbEntry
@@ -101,6 +106,7 @@ private fun mapNameRes(id: String): Int? = when (id) {
     "cross" -> R.string.bot_bastion_map_cross
     "wake" -> R.string.bot_bastion_map_wake
     "rift" -> R.string.bot_bastion_map_rift
+    "furnace" -> R.string.bot_bastion_map_furnace
     "pinwheel" -> R.string.bot_bastion_map_pinwheel
     "hourglass" -> R.string.bot_bastion_map_hourglass
     "tidal" -> R.string.bot_bastion_map_tidal
@@ -294,12 +300,17 @@ fun BotBastionScreen(
         onAbort = { game.abortMatch() },
         leaveKeepsProgress = true
     ) {
+        val (coachShown, openCoach) = rememberClCoach("bot-bastion", ready = true)
+        // The how-to card and the shell's dialogs take focus away from the arena: the run waits for them.
+        val windowFocused = LocalWindowInfo.current.isWindowFocused
+        LaunchedEffect(windowFocused, coachShown) {
+            if (!windowFocused || coachShown) game.pause() else game.resume()
+        }
         BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            val landscape = this.maxWidth > this.maxHeight
             if (inMenu || engine == null || hud == null) {
                 MenuUi(
                     maps = maps, profile = profile, mapId = menuMapId, tier = menuTier, crew = menuCrew, maxCrew = maxCrew,
-                    onMap = { menuMapId = it }, onTier = { menuTier = it }, onCrew = { menuCrew = it },
+                    onMap = { menuMapId = it }, onTier = { menuTier = it }, onCrew = { menuCrew = it }, onCoach = openCoach, stars = stars,
                     onStart = {
                         game.mapId = menuMapId; game.tier = menuTier; game.playerCount = menuCrew
                         game.startMatch()
@@ -308,23 +319,30 @@ fun BotBastionScreen(
                     }
                 )
             } else {
-                Column(Modifier.fillMaxSize().padding(8.dp)) {
-                    HudRow(hud, engine, game, paused, acting, onAct = { act(it) }, onActing = { acting = it }, rev = rev)
-                    if (landscape) {
+                val players = hud.scrap.size
+                val mode = BbLayout.mode(this.maxWidth.value, this.maxHeight.value, players, LocalFoldState.current.isTabletopPosture)
+                val onNode: (Int) -> Unit = { n -> selNode = n; selBotId = engine.botAtNode(n)?.id; rev++ }
+                val onSelBot: (Int) -> Unit = { selBotId = it; selNode = null; rev++ }
+                if (mode == BbLayoutMode.TABLETOP) {
+                    TabletopUi(
+                        game, engine, hud, fx, stars, selNode, selBotId, reduced, announce, acting, rev, message,
+                        paused, this.maxWidth, this.maxHeight, onNode, onSelBot, { acting = it }, { act(it) }, openCoach
+                    )
+                } else Column(Modifier.fillMaxSize().padding(BbLayout.PAD.dp)) {
+                    HudRow(hud, engine, game, paused, acting, onAct = { act(it) }, onActing = { acting = it }, rev = rev, coachOpen = openCoach)
+                    if (mode == BbLayoutMode.WIDE) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopStart) {
-                                val w = min(maxWidth.value, maxHeight.value * 16f / 9f).dp
-                                Arena(game, engine, fx, stars, selNode, selBotId, reduced, announce, acting, w,
-                                    onNode = { n -> selNode = n; selBotId = engine.botAtNode(n)?.id; rev++ })
+                                val w = BbLayout.wideArenaWidth(maxWidth.value, maxHeight.value).dp
+                                Arena(game, engine, fx, stars, selNode, selBotId, reduced, announce, acting, w, onNode = onNode)
                             }
-                            Panel(game, engine, hud, selNode, selBotId, acting, rev, Modifier.width(260.dp).fillMaxHeight(),
-                                onSelBot = { selBotId = it; selNode = null; rev++ }, onAct = { act(it) }, message = message)
+                            Panel(game, engine, hud, selNode, selBotId, acting, rev, Modifier.width(BbLayout.SIDE_PANEL.dp).fillMaxHeight(),
+                                onSelBot = onSelBot, onAct = { act(it) }, message = message)
                         }
                     } else {
-                        Arena(game, engine, fx, stars, selNode, selBotId, reduced, announce, acting, this@BoxWithConstraints.maxWidth - 16.dp,
-                            onNode = { n -> selNode = n; selBotId = engine.botAtNode(n)?.id; rev++ })
+                        Arena(game, engine, fx, stars, selNode, selBotId, reduced, announce, acting, BbLayout.portraitArenaWidth(this@BoxWithConstraints.maxWidth.value).dp, onNode = onNode)
                         Panel(game, engine, hud, selNode, selBotId, acting, rev, Modifier.weight(1f).fillMaxWidth(),
-                            onSelBot = { selBotId = it; selNode = null; rev++ }, onAct = { act(it) }, message = message)
+                            onSelBot = onSelBot, onAct = { act(it) }, message = message)
                     }
                 }
                 if (outcome != null) {
@@ -352,11 +370,12 @@ fun BotBastionScreen(
 @Composable
 private fun MenuUi(
     maps: List<MapDef>, profile: BbProfile, mapId: String, tier: Tier, crew: Int, maxCrew: Int,
-    onMap: (String) -> Unit, onTier: (Tier) -> Unit, onCrew: (Int) -> Unit, onStart: () -> Unit
+    onMap: (String) -> Unit, onTier: (Tier) -> Unit, onCrew: (Int) -> Unit, onCoach: () -> Unit, stars: List<Triple<Float, Float, Float>>, onStart: () -> Unit
 ) {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth().padding(end = GameChromeEndInset), verticalAlignment = Alignment.CenterVertically) {
+            ClCoachButton("bot-bastion", onCoach)
             Text(stringResource(R.string.bot_bastion_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text(stringResource(R.string.bot_bastion_total_stars, profile.totalStars(maps)), fontWeight = FontWeight.Bold)
         }
@@ -385,6 +404,8 @@ private fun MenuUi(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                MapThumb(m, stars)
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(name, fontWeight = FontWeight.Bold)
                     Text(stringResource(sectorRes(m.sector)) + " - " + stringResource(R.string.bot_bastion_map_info, m.lanes.size, m.nodes.size), fontSize = 12.sp)
@@ -403,6 +424,15 @@ private fun MenuUi(
     }
 }
 
+/** A small sector backdrop with the map's lanes, so the picker shows where each map lives. Decorative: the row has its own label. */
+@Composable
+private fun MapThumb(m: MapDef, stars: List<Triple<Float, Float, Float>>) {
+    Canvas(Modifier.size(72.dp, 40.5.dp).clip(RoundedCornerShape(6.dp))) {
+        drawBbSectorBackdrop(m.sector, stars)
+        drawBbMap(m, size.width / BbArena.W.toFloat())
+    }
+}
+
 // ================================================================================================
 // HUD
 // ================================================================================================
@@ -411,19 +441,20 @@ private fun MenuUi(
 @Composable
 private fun HudRow(
     hud: BbHud, engine: BbEngine, game: BotBastionGame, paused: Boolean, acting: Int, rev: Int,
-    onAct: (() -> BbResult?) -> Unit, onActing: (Int) -> Unit
+    onAct: (() -> BbResult?) -> Unit, onActing: (Int) -> Unit, showCrew: Boolean = true, coachOpen: (() -> Unit)? = null
 ) {
     val players = hud.scrap.size
     Column(Modifier.fillMaxWidth().padding(end = GameChromeEndInset)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(if (hud.goal > 0) stringResource(R.string.bot_bastion_wave, hud.wave, hud.goal) else stringResource(R.string.bot_bastion_wave_endless, hud.wave), fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.bot_bastion_scrap, hud.scrap.getOrElse(acting) { 0 }), fontWeight = FontWeight.Bold)
+            Text(waveText(hud), fontWeight = FontWeight.Bold)
+            if (showCrew) Text(stringResource(R.string.bot_bastion_scrap, hud.scrap.getOrElse(acting) { 0 }), fontWeight = FontWeight.Bold)
             Text(stringResource(R.string.bot_bastion_score, hud.score) + if (hud.scoreMult > 1) " x${hud.scoreMult}" else "")
             val shield = if (hud.shield > 0) " + " + stringResource(R.string.bot_bastion_shield, hud.shield) else ""
             Text(stringResource(R.string.bot_bastion_core, hud.coreHp) + shield, color = if (hud.coreHp <= 25) BbPalette.danger else MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
             if (hud.scrapMult > 1) Text(stringResource(R.string.bot_bastion_scrap_mult, hud.scrapMult))
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (coachOpen != null) ClCoachButton("bot-bastion", coachOpen)
             // Pause acts on the very next frame: it only flips a flag, nothing animates or waits.
             OutlinedButton(onClick = { game.togglePause() }, modifier = Modifier.heightIn(min = MIN_TARGET)) {
                 Text(stringResource(if (paused) R.string.bot_bastion_resume else R.string.bot_bastion_pause))
@@ -437,7 +468,7 @@ private fun HudRow(
                 }
                 Text(stringResource(R.string.bot_bastion_next_in, hud.buildSeconds), fontSize = 13.sp)
             }
-            if (players > 1) for (p in 0 until players) {
+            if (players > 1 && showCrew) for (p in 0 until players) {
                 FilterChip(selected = acting == p, onClick = { onActing(p) }, label = { Text(stringResource(R.string.bot_bastion_player_chip, p + 1, hud.scrap[p])) }, modifier = Modifier.heightIn(min = MIN_TARGET))
             }
         }
@@ -464,6 +495,10 @@ private fun Arena(
 ) {
     val height = width * 9f / 16f
     val hud = game.hud.value
+    val sector = engine.map.sector
+    val motes = remember(sector) { bbMotes(sector) }
+    val motion = if (reduced) BbAmbientMotion.FROZEN else BbAmbientMotion.STANDARD
+    val boxes = remember(engine.map, width.value) { BbLayout.nodeBoxes(engine.map.nodes, width.value) }
     val summary = stringResource(R.string.bot_bastion_a11y_summary, hud?.wave ?: 0, hud?.coreHp ?: 0, hud?.scrap?.firstOrNull() ?: 0)
     val arenaLabel = stringResource(R.string.bot_bastion_arena)
     Box(
@@ -480,7 +515,8 @@ private fun Arena(
         Canvas(Modifier.fillMaxSize()) {
             game.frame.longValue // the only per-frame read: invalidates this draw, nothing else
             val scale = size.width / BbArena.W.toFloat()
-            drawBbBackdrop(stars)
+            drawBbSectorBackdrop(sector, stars)
+            drawBbSectorAmbient(sector, motes, bbAmbientPhase(engine.time, motion))
             drawBbMap(engine.map, scale)
             for ((i, n) in engine.map.nodes.withIndex()) drawBbNode(Offset(n.x.toFloat() * scale, n.y.toFloat() * scale), scale, selNode == i, engine.botAtNode(i) != null)
             val now = engine.time
@@ -495,17 +531,15 @@ private fun Arena(
             }
             drawBbFx(fx, now, scale, reduced)
         }
-        val box = min(48f, width.value / BbArena.W.toFloat() * 1.15f).dp
         val nodes = engine.map.nodes
-        for ((i, n) in nodes.withIndex()) {
+        for (i in nodes.indices) {
             val bot = engine.botAtNode(i)
             val label = if (bot == null) stringResource(R.string.bot_bastion_node_empty, i + 1, nodes.size)
             else stringResource(R.string.bot_bastion_node_bot, i + 1, nodes.size, stringResource(botNameRes(bot.type)), bot.level)
-            val cx = (n.x / BbArena.W * width.value).dp
-            val cy = (n.y / BbArena.H * height.value).dp
+            val hb = boxes[i]
             Box(
-                Modifier.offset { IntOffset((cx - box / 2).roundToPx(), (cy - box / 2).roundToPx()) }
-                    .size(box)
+                Modifier.offset(hb.left.dp, hb.top.dp)
+                    .size(hb.size.dp)
                     .clickable(role = Role.Button, onClickLabel = label) { onNode(i) }
                     .semantics { contentDescription = label }
             )
@@ -576,6 +610,80 @@ private fun Panel(
                 }
             }
         }
+        if (hud.scrap.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (to in hud.scrap.indices) if (to != acting) {
+                OutlinedButton(onClick = { onAct { game.gift(acting, to, BbLayout.GIFT_AMOUNT) } }, enabled = scrap >= BbLayout.GIFT_AMOUNT, modifier = Modifier.heightIn(min = MIN_TARGET)) {
+                    Text(stringResource(R.string.bot_bastion_gift, BbLayout.GIFT_AMOUNT, to + 1))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun waveText(hud: BbHud): String =
+    if (hud.goal > 0) stringResource(R.string.bot_bastion_wave, hud.wave, hud.goal) else stringResource(R.string.bot_bastion_wave_endless, hud.wave)
+
+// ================================================================================================
+// tabletop co-op: a build bar on each player's side, the shared Core and arena in the middle
+// ================================================================================================
+
+@Composable
+private fun TabletopUi(
+    game: BotBastionGame, engine: BbEngine, hud: BbHud, fx: List<BbFx>, stars: List<Triple<Float, Float, Float>>,
+    selNode: Int?, selBotId: Int?, reduced: Boolean, announce: String, acting: Int, rev: Int, message: Int?, paused: Boolean,
+    maxW: androidx.compose.ui.unit.Dp, maxH: androidx.compose.ui.unit.Dp,
+    onNode: (Int) -> Unit, onSelBot: (Int) -> Unit, onActing: (Int) -> Unit, onAct: (() -> BbResult?) -> Unit, coachOpen: () -> Unit
+) {
+    val players = hud.scrap.size
+    val near = BbLayout.nearPlayers(players)
+    val far = BbLayout.farPlayers(players)
+    var nearPid by remember(players) { mutableIntStateOf(BbLayout.firstOf(near)) }
+    var farPid by remember(players) { mutableIntStateOf(BbLayout.firstOf(far)) }
+    val arenaW = BbLayout.tabletopArenaWidth(maxW.value, maxH.value, if (far.isEmpty()) 1 else 2).dp
+    Column(Modifier.fillMaxSize().padding(BbLayout.PAD.dp)) {
+        if (far.isNotEmpty()) PlayerBar(
+            game, engine, hud, far, farPid, { farPid = it; onActing(it) }, selNode, selBotId, rev, true, message,
+            Modifier.weight(1f).fillMaxWidth(), onSelBot, onAct, { onActing(farPid) }
+        )
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            HudRow(hud, engine, game, paused, acting, onAct = onAct, onActing = onActing, rev = rev, showCrew = false, coachOpen = coachOpen)
+            Arena(game, engine, fx, stars, selNode, selBotId, reduced, announce, acting, arenaW, onNode = onNode)
+        }
+        PlayerBar(
+            game, engine, hud, near, nearPid, { nearPid = it; onActing(it) }, selNode, selBotId, rev, false, message,
+            Modifier.weight(1f).fillMaxWidth(), onSelBot, onAct, { onActing(nearPid) }
+        )
+    }
+}
+
+/** One player's build bar. The far player's bar is turned 180 degrees (drawing and touch together) so it reads from their side. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlayerBar(
+    game: BotBastionGame, engine: BbEngine, hud: BbHud, pids: List<Int>, pid: Int, onPid: (Int) -> Unit,
+    selNode: Int?, selBotId: Int?, rev: Int, rotated: Boolean, message: Int?, modifier: Modifier,
+    onSelBot: (Int) -> Unit, onAct: (() -> BbResult?) -> Unit, onTouched: () -> Unit
+) {
+    Column(
+        modifier
+            .graphicsLayer { rotationZ = if (rotated) 180f else 0f }
+            .pointerInput(pid) {
+                // a touch anywhere on the bar makes this player the acting one (their pilot follows arena drags); never consumed
+                awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); onTouched() } }
+            },
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.bot_bastion_bar_label, pid + 1), fontWeight = FontWeight.Bold, color = BbPalette.players[pid.coerceIn(0, 3)])
+            Text(waveText(hud), fontSize = 13.sp)
+            Text(stringResource(R.string.bot_bastion_core, hud.coreHp), fontSize = 13.sp, color = if (hud.coreHp <= 25) BbPalette.danger else MaterialTheme.colorScheme.onBackground)
+            Text(stringResource(R.string.bot_bastion_scrap, hud.scrap.getOrElse(pid) { 0 }), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            if (pids.size > 1) for (p in pids) {
+                FilterChip(selected = pid == p, onClick = { onPid(p) }, label = { Text(stringResource(R.string.bot_bastion_player_chip, p + 1, hud.scrap.getOrElse(p) { 0 })) }, modifier = Modifier.heightIn(min = MIN_TARGET))
+            }
+        }
+        Panel(game, engine, hud, selNode, selBotId, pid, rev, Modifier.weight(1f).fillMaxWidth(), onSelBot = onSelBot, onAct = onAct, message = message)
     }
 }
 
