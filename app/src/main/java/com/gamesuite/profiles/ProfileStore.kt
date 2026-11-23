@@ -195,22 +195,37 @@ class ProfileStore internal constructor(
     companion object {
         private const val BOOTSTRAP_TIMEOUT_MILLIS = 2_500L
 
-        @Volatile private var bootstrapResult: Bootstrap? = null
+        private var bootstrapTask: java.util.concurrent.FutureTask<Bootstrap>? = null
         private val bootstrapLock = Any()
+
+        /** The one bootstrap run of this process; started on its own thread the first time anyone asks. */
+        private fun bootstrapRun(app: Context): java.util.concurrent.FutureTask<Bootstrap> = synchronized(bootstrapLock) {
+            bootstrapTask ?: java.util.concurrent.FutureTask { runBootstrap(app) }.also {
+                bootstrapTask = it
+                Thread(it, "profile-bootstrap").apply { isDaemon = true }.start()
+            }
+        }
+
+        /** Starts the bootstrap off the main thread (call from Application.onCreate); [bootstrapBlocking] then joins it. */
+        fun prewarm(context: Context) { bootstrapRun(context.applicationContext) }
 
         /**
          * App-start bootstrap (call from Activity.onCreate before setContent): runs the migration, points
          * [ProfileScope] at the stored active profile so every scoped store opens the right file from the first
          * read, reads the parent controls once and hydrates the parent gate's persisted lock state.
          *
-         * Runs ONCE per process (an Activity re-creation gets the cached result). It blocks the main thread for the
-         * few DataStore reads it needs, capped by [BOOTSTRAP_TIMEOUT_MILLIS], and NEVER throws: on an IO error or a
-         * timeout it returns a result with nulls and the caller stays fail-closed.
+         * Runs ONCE per process, on its own thread ([prewarm] starts it from Application.onCreate; an Activity
+         * re-creation gets the cached result). The caller waits for it, so the main-thread wait is only what is left of
+         * the few DataStore reads, capped by [BOOTSTRAP_TIMEOUT_MILLIS]. NEVER throws: on an IO error or a timeout
+         * it returns a result with nulls and the caller stays fail-closed.
          */
         fun bootstrapBlocking(context: Context): Bootstrap {
-            bootstrapResult?.let { return it }
-            return synchronized(bootstrapLock) {
-                bootstrapResult ?: runBootstrap(context.applicationContext).also { bootstrapResult = it }
+            val task = bootstrapRun(context.applicationContext)
+            // The run itself is capped by BOOTSTRAP_TIMEOUT_MILLIS; the extra margin only covers thread start-up.
+            return try {
+                task.get(BOOTSTRAP_TIMEOUT_MILLIS + 500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (e: Exception) {
+                Bootstrap(null, false, null) // fail closed; the collectors in the ViewModel deliver the real state later
             }
         }
 

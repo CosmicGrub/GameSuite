@@ -69,6 +69,7 @@
          Profile name, relay URL, saved games and music-folder URIs are device-specific and
          should not be restored onto another device. -->
     <application
+        android:name=".GameSuiteApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
