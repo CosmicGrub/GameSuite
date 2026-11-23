@@ -12,6 +12,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -75,6 +78,17 @@ fun NavGraphBuilder.profileRoutes(
         )
     }
     composable(ProfileGuard.PARENT_DASHBOARD) {
+        // P13: any touch here counts as activity (observed on the Initial pass, never consumed).
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize().pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        vm.parentActivity()
+                    }
+                }
+            }
+        ) {
         ParentDashboardScreen(
             viewModel = vm,
             allSpecs = GameHubSpecs.all,
@@ -84,6 +98,7 @@ fun NavGraphBuilder.profileRoutes(
                 if (!navController.popBackStack()) navController.navigate(if (kid) ProfileGuard.KIDS_HOME else "menu")
             }
         )
+        }
     }
     composable(ProfileGuard.KIDS_HOME) {
         // A kid is back in kid land: the parent window is closed again.

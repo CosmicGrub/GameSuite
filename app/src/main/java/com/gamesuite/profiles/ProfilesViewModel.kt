@@ -141,11 +141,27 @@ class ProfilesViewModel(app: Application) : AndroidViewModel(app) {
         allSpecs = GameHubSpecs.all
     )
 
-    fun setParentUnlocked(unlocked: Boolean) { _parentUnlocked.value = unlocked }
+    private val unlockWindow = ParentUnlockWindow()
+
+    fun setParentUnlocked(unlocked: Boolean) {
+        if (unlocked) unlockWindow.unlock(android.os.SystemClock.elapsedRealtime()) else unlockWindow.close()
+        _parentUnlocked.value = unlocked
+    }
+
+    /** A touch inside the parent area (P13): keeps the unlocked window from going idle. */
+    fun parentActivity() { unlockWindow.touch(android.os.SystemClock.elapsedRealtime()) }
+
+    /** App went to the background (P13): the parent window closes at once. */
+    fun onAppStopped() { if (_parentUnlocked.value) setParentUnlocked(false) }
+
+    /** Polled while unlocked (P13): closes the window after the idle timeout. */
+    fun expireParentUnlockIfIdle() {
+        if (_parentUnlocked.value && !unlockWindow.isOpen(android.os.SystemClock.elapsedRealtime())) _parentUnlocked.value = false
+    }
 
     fun switchTo(id: String) {
         val target = _profiles.value?.byId(id) ?: return
-        _parentUnlocked.value = false
+        setParentUnlocked(false)
         ProfileScope.setActive(id)
         ProfileScope.setActiveKid(target.isKid)
         // Optimistic: access rules must follow the switch at once, not after the DataStore round-trip.

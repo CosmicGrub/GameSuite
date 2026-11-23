@@ -106,6 +106,7 @@ fun ProfileShellObserver(
     sessionManager: GameSessionManager
 ) {
     val context = LocalContext.current
+    val lifecycleOwner0 = LocalLifecycleOwner.current
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
     val gameIdArg = backStack?.arguments?.getString("gameId")
@@ -141,6 +142,17 @@ fun ProfileShellObserver(
             vm.pickerHandled = true
             if (st.needsPicker) navController.navigate(ProfileGuard.PICKER) { launchSingleTop = true }
         }
+    }
+
+    // P13: the parent window closes when the app goes to the background and after 2 minutes without a touch.
+    val unlockedNow by vm.parentUnlocked.collectAsStateWithLifecycle()
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner0) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP) vm.onAppStopped() }
+        lifecycleOwner0.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner0.lifecycle.removeObserver(obs) }
+    }
+    LaunchedEffect(unlockedNow) {
+        while (unlockedNow) { delay(5_000L); vm.expireParentUnlockIfIdle() }
     }
 
     // Play time: foreground ticks only (repeatOnLifecycle RESUMED), kid profiles only.
