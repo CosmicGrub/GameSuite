@@ -116,6 +116,7 @@ class FindItGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         engine.playAgain()
         commit()
     }

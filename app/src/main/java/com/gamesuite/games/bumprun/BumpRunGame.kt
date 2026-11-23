@@ -196,6 +196,7 @@ class BumpRunGame(
 
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         startMatch()
     }
 

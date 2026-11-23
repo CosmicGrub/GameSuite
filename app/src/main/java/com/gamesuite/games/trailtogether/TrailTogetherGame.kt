@@ -101,6 +101,7 @@ class TrailTogetherGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         configure()
         engine.start(random.nextLong())
         commit()

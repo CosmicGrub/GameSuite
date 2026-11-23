@@ -138,6 +138,7 @@ class StackZooGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         carry = 0.0
         engine.playAgain()
         commit()

@@ -106,6 +106,7 @@ class PieDetectiveGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         configure()
         engine.startBook(random.nextLong())
         commit()
