@@ -51,6 +51,13 @@ object ProfileScope {
 
     fun current(): String = _activeId.value
 
+    @Volatile private var activeKid = false
+
+    /** True when the active profile is a KID profile (word games then draw only from curated word pools). */
+    val isActiveKid: Boolean get() = activeKid
+
+    fun setActiveKid(kid: Boolean) { activeKid = kid }
+
     /** Ids become part of file names, so only a conservative alphabet is accepted. */
     fun isSafeId(id: String): Boolean =
         id.isNotEmpty() && id.length <= 24 && id.all { it in 'a'..'z' || it in '0'..'9' || it == '-' }

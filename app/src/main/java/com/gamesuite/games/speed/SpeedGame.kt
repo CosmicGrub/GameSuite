@@ -256,8 +256,26 @@ class SpeedGame(
         commit()
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /** Wall-clock reading when paused (null while running), and the total paused so far: the game's own time is wall time minus the pauses, so every stored deadline (countdown, computer plans, chain windows) simply stops. */
+    private var pausedAt: Long? = null
+    private var pausedTotal = 0L
+
+    /** The game clock: frozen while paused. */
+    private fun now(): Long = (pausedAt ?: clock()) - pausedTotal
+
+    @Synchronized
+    override fun pause() {
+        if (pausedAt != null || state.value == null || matchOver.value) return
+        if (isNetworked) return // the host's clock is the shared clock; a guest cannot pause it
+        pausedAt = clock()
+    }
+
+    @Synchronized
+    override fun resume() {
+        val at = pausedAt ?: return
+        pausedTotal += clock() - at
+        pausedAt = null
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -280,6 +298,7 @@ class SpeedGame(
     /** A fresh board in the same session (after a finished one). */
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value || state.value?.boardOver != true) return
@@ -318,7 +337,7 @@ class SpeedGame(
             phase = SpeedPhase.PLAYING
         } else {
             phase = SpeedPhase.COUNTDOWN
-            goAt = clock() + SpeedRules.COUNTDOWN_MS
+            goAt = now() + SpeedRules.COUNTDOWN_MS
         }
     }
 
@@ -348,7 +367,7 @@ class SpeedGame(
     @Synchronized
     fun play(seat: Int, cardId: Int, pile: Int): SpeedReject {
         val s = state.value ?: return SpeedReject.NOT_PLAYING
-        if (matchOver.value || s.boardOver) return SpeedReject.NOT_PLAYING
+        if (matchOver.value || s.boardOver || pausedAt != null) return SpeedReject.NOT_PLAYING
         if (isNetworked) {
             if (seat != context.localPlayerIndex || opponentLeft.value) return SpeedReject.NOT_YOUR_SEAT
             if (!isHost) {
@@ -379,7 +398,7 @@ class SpeedGame(
         if (slot < 0) return SpeedReject.NO_SUCH_CARD
         val card = table.hands[seat][slot]!!
         val top = table.piles[pile].lastOrNull()
-        val now = clock()
+        val now = now()
         if (!SpeedRules.canPlay(card, top)) {
             val rec = lastPlay[pile]
             if (rec != null && rec.seat != seat && now - rec.at <= SpeedRules.GRACE_MS && SpeedRules.canPlay(card, rec.prevTop)) {
@@ -502,8 +521,8 @@ class SpeedGame(
     @Synchronized
     fun tick(): Boolean {
         if (isNetworked && !isHost) return false
-        if (state.value == null || matchOver.value) return false
-        val now = clock()
+        if (state.value == null || matchOver.value || pausedAt != null) return false
+        val now = now()
         var changed = false
         if (phase == SpeedPhase.COUNTDOWN && now >= goAt) {
             phase = SpeedPhase.PLAYING
@@ -732,7 +751,7 @@ class SpeedGame(
             phase = SpeedPhase.PLAYING
         } else {
             phase = SpeedPhase.COUNTDOWN
-            goAt = clock() + SpeedRules.COUNTDOWN_MS
+            goAt = now() + SpeedRules.COUNTDOWN_MS
         }
         state.value = buildState()
         return true

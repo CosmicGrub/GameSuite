@@ -90,6 +90,23 @@ object BridgeRules {
     const val MAX_CATCHUP_STEPS = 100
     const val COUNTDOWN_MS = 3000L
 
+    /** A live pause at least this long is followed by a [RESUME_COUNTDOWN_MS] "3-2-1" when play resumes. */
+    const val RESUME_GRACE_AFTER_MS = 3000L
+    const val RESUME_COUNTDOWN_MS = 3000L
+
+    fun needsResumeCountdown(pausedForMs: Long): Boolean = pausedForMs >= RESUME_GRACE_AFTER_MS
+
+    /** How much a milestone matters when two land in one beat: the larger wins. */
+    fun eventPriority(kind: String): Int = when (kind) {
+        BridgeEvent.WIN, BridgeEvent.LOSE -> 6
+        BridgeEvent.CROSS -> 5
+        BridgeEvent.WATER_HIGH -> 4
+        BridgeEvent.ROW -> 3
+        BridgeEvent.WATER_HALF -> 2
+        BridgeEvent.GO -> 1
+        else -> 0
+    }
+
     /** The cooperation rule: no lane may be more than this many planks ahead of the slowest lane. */
     const val MAX_LEAD = 2
 

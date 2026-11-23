@@ -95,6 +95,7 @@ import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalReducedMotion
 import com.gamesuite.settings.SettingsViewModel
 import com.gamesuite.uikit.GameChrome
+import com.gamesuite.uikit.SecureWindowEffect
 import com.gamesuite.uikit.GameChromeEndInset
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -609,6 +610,8 @@ private fun AiHoldPad(label: String, holdingLabel: String, hold: Boolean, colors
 
 @Composable
 private fun AiCardFace(card: ActItOutCard, colors: ActItOutColors, glyphSize: Dp, reduced: Boolean, modifier: Modifier = Modifier) {
+    // While a card is on screen the window is secure (no Recents thumbnail or screenshot spoils it); cleared when the card leaves.
+    SecureWindowEffect(true)
     val ctx = LocalContext.current
     // Keyed on the locale too: the activity survives a language change, so the cached text must not.
     val localeTag = LocalConfiguration.current.locales.toLanguageTags()

@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solitaire, UNO, Speed refinements</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;color:#F3F1EA;font:400 14px/1.4 Inter,sans-serif;overflow:hidden}
+.cap{position:absolute;top:12px;height:28px;padding:0 11px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 11px Inter;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;color:#C9CDE0;white-space:nowrap}
+.cap.t{background:#3A1B24;border-color:#7A2E3C;color:#FFB7BF}
+.cap.a{background:#123226;border-color:#1F6B4A;color:#8FF0C0}
+.pw{position:absolute;top:50px;width:242px;height:523px}
+.ph{width:390px;height:844px;transform:scale(.62);transform-origin:0 0;position:absolute;left:0;top:0;background:#0B0D1A;overflow:hidden;font:400 15px/1.4 Inter,sans-serif;box-shadow:0 0 0 3px #232943;border-radius:30px}
+.rd{position:absolute;width:22px;height:22px;border-radius:11px;background:#E5243B;color:#fff;font:700 12px/22px Inter;text-align:center;box-shadow:0 0 0 2px #0B0D1A;z-index:20}
+.rb{position:absolute;border:2px dashed #FF4D5E;border-radius:8px;z-index:19;pointer-events:none}
+.lgt{position:absolute;left:16px;top:582px;font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8}
+.lg{position:absolute;left:16px;top:604px;width:2118px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(5,auto);gap:8px 26px;font-size:12px;line-height:1.35;color:#C9CDE0}
+.li{display:flex;gap:8px;align-items:flex-start}
+.li .n{flex:none;width:20px;height:20px;border-radius:10px;background:#E5243B;color:#fff;font:700 11px/20px Inter;text-align:center;margin-top:1px}
+.li b{color:#F3F1EA;font-weight:600}
+.sz{display:inline-block;padding:0 6px;border-radius:8px;background:#2A2F55;color:#FFB547;font:700 11px/16px Inter;margin-left:2px}
+h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.bar{position:absolute;left:0;right:0;top:48px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.chip{height:30px;padding:0 12px;border-radius:15px;background:#1C2138;border:1px solid #2E3558;font:600 13px Inter;display:flex;align-items:center;gap:6px;color:#F3F1EA}
+.btn{height:56px;border-radius:28px;font:600 16px Sora;display:flex;align-items:center;justify-content:center;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558}
+.btn.pri{background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28)}
+.felt{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,#14405A 0%,#0C2436 65%,#081624 100%)}
+/* unified deck */
+.c{position:absolute;display:block;width:5.4em;height:7.5em;border-radius:.55em;background:#F8F6F0;color:#14183A;box-shadow:0 .2em .5em rgba(0,0,0,.5);font:700 8.6px Sora}
+.c.r{color:#C0243C}
+.c.L{font-size:10px}
+.c .ix{position:absolute;left:.3em;top:.35em;width:1.4em;display:flex;flex-direction:column;align-items:center;font:700 1.5em/1 Sora;font-style:normal}
+.c .ix svg{width:.9em;height:.9em;fill:currentColor;margin-top:.12em}
+.c .ix.b{left:auto;right:.3em;top:auto;bottom:.35em;transform:rotate(180deg)}
+.c .big{position:absolute;left:50%;top:50%;width:2.5em;height:2.5em;margin:-1.25em 0 0 -1.25em;fill:currentColor}
+.c .p{position:absolute;width:1.2em;height:1.2em;fill:currentColor}
+.c.back{background:repeating-linear-gradient(45deg,#3B2F9E 0 .5em,#2E2480 .5em 1em);box-shadow:inset 0 0 0 .3em #F8F6F0,0 .2em .5em rgba(0,0,0,.5)}
+.c.slot{background:rgba(243,241,234,.06);box-shadow:inset 0 0 0 1.5px rgba(243,241,234,.28);color:rgba(243,241,234,.5)}
+.bs{position:absolute;width:46.4px;border-radius:5px;background:repeating-linear-gradient(180deg,#F8F6F0 0 1.2px,#2E2480 1.2px 3px,#3B2F9E 3px 10px)}
+.ft{position:absolute;width:46.4px;height:60px;border-radius:4px;background:#E9EBF2;color:#14183A;font:600 13px Inter;padding:3px 4px}
+.fb{position:absolute;width:46.4px;border-radius:4px;background:#3A4060}
+/* uno */
+.u{position:absolute;width:5.4em;height:7.8em;border-radius:.7em;box-shadow:0 .25em .6em rgba(0,0,0,.5),inset 0 0 0 .22em #F8F6F0;color:#14183A;font:700 10px Sora;overflow:hidden}
+.u .o{position:absolute;left:.7em;top:1.2em;width:4em;height:5.4em;border-radius:50%;background:#F8F6F0;transform:rotate(25deg)}
+.u .n{position:absolute;left:0;right:0;top:1.9em;text-align:center;font:700 2.2em/1 Sora;font-style:normal}
+.u .k{position:absolute;left:.55em;top:.5em;font:700 1.05em/1 Sora;font-style:normal}
+.u .m{position:absolute;left:50%;margin-left:-.65em;bottom:1.3em;width:1.3em;height:1.3em;fill:#14183A}
+.ur{background:#FF6B7A}.uy{background:#FFB547}.ug{background:#4ADE9B}.ub{background:#8B7CFF}
+.uw{background:conic-gradient(#FF6B7A 0 25%,#FFB547 0 50%,#4ADE9B 0 75%,#8B7CFF 0)}
+.av{width:46px;height:46px;border-radius:23px;display:flex;align-items:center;justify-content:center;font:700 16px Sora;color:#14183A}
+.tg{position:absolute;height:24px;padding:0 10px;border-radius:12px;font:600 12px/24px Inter;white-space:nowrap}
+.tg.s{background:#FFB547;color:#1A1203}
+.tg.m{background:#4ADE9B;color:#06281A}
+.tgl{position:absolute;display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;font:600 13px Inter}
+.tog{width:48px;height:28px;border-radius:14px;background:#2E3558;position:relative;flex:none}
+.tog i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:#F3F1EA}
+.tog.on{background:#4ADE9B}.tog.on i{left:23px;background:#06281A}
+.row{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 14px;border-radius:16px;background:#141829;border:1px solid #232943}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="sp" viewBox="0 0 24 24"><path d="M12 2C9 7 4 9.500 4 14a4.500 4.500 0 0 0 7 3.700C10.800 19.800 10 21 8.500 22h7c-1.500-1-2.300-2.200-2.500-4.300A4.500 4.500 0 0 0 20 14c0-4.500-5-7-8-12z"/></symbol>
+<symbol id="he" viewBox="0 0 24 24"><path d="M12 21C5 15.500 2 12 2 8.200A4.800 4.800 0 0 1 12 6a4.800 4.800 0 0 1 10 2.200C22 12 19 15.500 12 21z"/></symbol>
+<symbol id="di" viewBox="0 0 24 24"><path d="M12 2l7 10-7 10L5 12z"/></symbol>
+<symbol id="cl" viewBox="0 0 24 24"><path d="M12 2.500a4.200 4.200 0 0 0-3.500 6.500A4.200 4.200 0 1 0 11 15.500C11 18 10.200 20.500 8 22h8c-2.200-1.500-3-4-3-6.500a4.200 4.200 0 1 0 2.500-6.500A4.200 4.200 0 0 0 12 2.500z"/></symbol>
+<symbol id="mt" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/></symbol>
+<symbol id="ms" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></symbol>
+<symbol id="mc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+<symbol id="md" viewBox="0 0 24 24"><path d="M12 1l10 11-10 11L2 12z"/></symbol>
+</defs></svg>
+
+<span class="cap t" style="left:16px">1 Solitaire today</span>
+<span class="cap a" style="left:284px">2 Board, daily deal, hint</span>
+<span class="cap a" style="left:552px">3 Drag a run</span>
+<span class="cap a" style="left:820px">4 Auto-complete</span>
+<span class="cap a" style="left:1088px">5 UNO hint glow</span>
+<span class="cap a" style="left:1356px">6 Wild colour picker</span>
+<span class="cap a" style="left:1624px">7 UNO house rules</span>
+<span class="cap a" style="left:1892px">8 Speed paused</span>
+
+<!-- 1 TODAY Solitaire -->
+<div class="pw" style="left:16px"><div class="ph" style="background:#10141F">
+<div class="bar"><div class="ib" style="background:#232943">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Solitaire</h2><div style="font-size:12px;color:#9AA0B8">Random deal</div></div><div class="ib" style="background:#232943">=</div></div>
+<div style="position:absolute;left:12px;top:104px;font:600 13px Inter;color:#C9CDE0">Score 180   Moves 23   02:41</div>
+<div class="ft" style="left:12px;top:148px;background:#3A4060"></div><div class="ft" style="left:64.4px;top:148px">6C</div>
+<div class="ft" style="left:169.2px;top:148px;background:#232943;color:#C9CDE0">AS</div><div class="ft" style="left:221.6px;top:148px;background:#232943;color:#C9CDE0">AH</div><div class="ft" style="left:274px;top:148px;background:#232943;color:#C9CDE0">-</div><div class="ft" style="left:326.4px;top:148px;background:#232943;color:#C9CDE0">-</div>
+<i class="fb" style="left:64.4px;top:236px;height:22px"></i><div class="ft" style="left:64.4px;top:246px">QC</div>
+<i class="fb" style="left:116.8px;top:236px;height:32px"></i><div class="ft" style="left:116.8px;top:256px">6S</div><div class="ft" style="left:116.8px;top:278px">5D</div>
+<i class="fb" style="left:169.2px;top:236px;height:42px"></i><div class="ft" style="left:169.2px;top:266px">JH</div>
+<i class="fb" style="left:221.6px;top:236px;height:52px"></i><div class="ft" style="left:221.6px;top:276px">8S</div>
+<i class="fb" style="left:274px;top:236px;height:62px"></i><div class="ft" style="left:274px;top:286px;box-shadow:0 0 0 3px #FFB547">7D</div>
+<i class="fb" style="left:326.4px;top:236px;height:72px"></i><div class="ft" style="left:326.4px;top:296px">KD</div>
+<div class="ft" style="left:12px;top:236px">9H</div>
+<div style="position:absolute;left:12px;right:12px;top:380px;height:34px;border-radius:17px;background:#232943;color:#C9CDE0;font:500 13px/34px Inter;padding:0 14px">Selected 7D. Tap a column to move.</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Undo</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Hint</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">New game</div></div>
+</div>
+<div class="rb" style="left:100px;top:178px;width:34px;height:42px"></div><i class="rd" style="left:128px;top:166px">1</i>
+<div class="rb" style="left:174px;top:226px;width:60px;height:24px"></div><i class="rd" style="left:226px;top:214px">2</i>
+<div class="rb" style="left:60px;top:60px;width:130px;height:24px"></div><i class="rd" style="left:182px;top:48px">3</i>
+<div class="rb" style="left:8px;top:476px;width:226px;height:40px"></div><i class="rd" style="left:226px;top:462px">4</i>
+</div>
+
+<!-- 2 AFTER board -->
+<div class="pw" style="left:284px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Klondike</h2><div style="display:inline-flex;align-items:center;gap:6px;margin-top:3px;height:22px;padding:0 10px;border-radius:11px;background:#123226;border:1px solid #1F6B4A;color:#8FF0C0;font:600 12px Inter"><svg width="12" height="12" viewBox="0 0 24 24" fill="#8FF0C0" aria-hidden="true"><path d="M12 2l3 7 7 .6-5.300 4.600 1.700 7L12 17.600 5.600 21.200l1.700-7L2 9.600 9 9z"/></svg>Daily deal 21 Nov, winnable</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">Score 180</span><span class="chip">23 moves</span><span class="chip">02:41</span><span class="chip" style="margin-left:auto;color:#FFB547">Draw 1</span></div>
+<i class="c back L" style="left:12px;top:148px;font-size:8.6px"></i>
+<b class="c" style="left:64.4px;top:148px"><i class="ix">6<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">6<svg><use href="#cl"/></svg></i></b>
+<b class="c slot" style="left:169.2px;top:148px"><svg class="big" style="width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em"><use href="#sp"/></svg></b>
+<b class="c" style="left:169.2px;top:148px"><i class="ix">2<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">2<svg><use href="#sp"/></svg></i></b>
+<b class="c r" style="left:221.6px;top:148px"><i class="ix">A<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">A<svg><use href="#he"/></svg></i></b>
+<b class="c slot r" style="left:274px;top:148px"><svg class="big" style="width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em"><use href="#di"/></svg></b>
+<b class="c slot" style="left:326.4px;top:148px"><svg class="big" style="width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em"><use href="#cl"/></svg></b>
+<b class="c r" style="left:12px;top:236px"><i class="ix">9<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">9<svg><use href="#he"/></svg></i></b>
+<i class="bs" style="left:64.4px;top:236px;height:14px"></i><b class="c" style="left:64.4px;top:246px"><i class="ix">Q<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">Q<svg><use href="#cl"/></svg></i></b>
+<i class="bs" style="left:116.8px;top:236px;height:24px"></i><b class="c" style="left:116.8px;top:256px"><i class="ix">6<svg><use href="#sp"/></svg></i></b><b class="c r" style="left:116.8px;top:278px"><i class="ix">5<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">5<svg><use href="#di"/></svg></i></b>
+<i class="bs" style="left:169.2px;top:236px;height:34px"></i><b class="c r" style="left:169.2px;top:266px"><i class="ix">J<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">J<svg><use href="#he"/></svg></i></b>
+<i class="bs" style="left:221.6px;top:236px;height:44px"></i><b class="c" style="left:221.6px;top:276px"><i class="ix">8<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">8<svg><use href="#sp"/></svg></i></b>
+<i class="bs" style="left:274px;top:236px;height:54px"></i><b class="c r" style="left:274px;top:286px"><i class="ix">7<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">7<svg><use href="#di"/></svg></i></b>
+<i class="bs" style="left:326.4px;top:236px;height:64px"></i><b class="c r" style="left:326.4px;top:296px"><i class="ix">K<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">K<svg><use href="#di"/></svg></i></b>
+<div style="position:absolute;left:62px;top:146px;width:50px;height:69px;border-radius:7px;box-shadow:0 0 0 3px #FFB547,0 0 18px rgba(255,181,71,.6);z-index:3"></div>
+<div style="position:absolute;left:272px;top:284px;width:50px;height:69px;border-radius:7px;box-shadow:0 0 0 3px #FFB547,0 0 18px rgba(255,181,71,.6);z-index:3"></div>
+<svg width="390" height="844" style="position:absolute;left:0;top:0;z-index:4" aria-hidden="true"><path d="M100 215C130 270 230 300 270 322" stroke="#FFB547" stroke-width="3" fill="none" stroke-dasharray="7 6" stroke-linecap="round"/><path d="M270 322l-12 -2 4 -12z" fill="#FFB547"/></svg>
+<div style="position:absolute;left:16px;right:16px;top:392px;height:44px;border-radius:22px;background:rgba(20,24,41,.92);border:1px solid #2E3558;display:flex;align-items:center;gap:8px;padding:0 16px;font:500 14px Inter;color:#F3F1EA"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFB547" aria-hidden="true"><path d="M12 2a7 7 0 0 0-4 12.700V18h8v-3.300A7 7 0 0 0 12 2zM9 20h6v2H9z"/></svg>Hint: 6 of clubs onto the 7 of diamonds</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div><div class="btn" style="flex:1;opacity:.55">Auto</div></div>
+</div>
+<div class="rb" style="left:-4px;top:93px;width:60px;height:46px;border-radius:8px;border-color:transparent"></div>
+<div class="rb" style="left:34px;top:26px;width:176px;height:34px"></div><i class="rd" style="left:208px;top:14px">5</i>
+<div class="rb" style="left:130px;top:90px;width:42px;height:46px"></div><i class="rd" style="left:164px;top:80px">6</i>
+<div class="rb" style="left:166px;top:176px;width:34px;height:44px"></div><i class="rd" style="left:192px;top:166px">7</i>
+<div class="rb" style="left:8px;top:478px;width:226px;height:40px"></div><i class="rd" style="left:226px;top:464px">8</i>
+</div>
+
+<!-- 3 AFTER drag -->
+<div class="pw" style="left:552px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Klondike</h2><div class="mut" style="font-size:12px">Moving 2 cards</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">Score 180</span><span class="chip">23 moves</span><span class="chip">02:41</span></div>
+<i class="c back" style="left:12px;top:148px"></i>
+<b class="c" style="left:64.4px;top:148px"><i class="ix">10<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">10<svg><use href="#sp"/></svg></i></b>
+<b class="c" style="left:169.2px;top:148px"><i class="ix">2<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">2<svg><use href="#sp"/></svg></i></b>
+<b class="c r" style="left:221.6px;top:148px"><i class="ix">A<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">A<svg><use href="#he"/></svg></i></b>
+<b class="c slot r" style="left:274px;top:148px"><svg class="big" style="width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em"><use href="#di"/></svg></b>
+<b class="c slot" style="left:326.4px;top:148px"><svg class="big" style="width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em"><use href="#cl"/></svg></b>
+<b class="c r" style="left:12px;top:236px"><i class="ix">9<svg><use href="#he"/></svg></i></b>
+<i class="bs" style="left:64.4px;top:236px;height:14px"></i><b class="c" style="left:64.4px;top:246px"><i class="ix">Q<svg><use href="#cl"/></svg></i></b>
+<i class="bs" style="left:116.8px;top:236px;height:24px"></i>
+<b class="c" style="left:116.8px;top:256px;opacity:.3"><i class="ix">6<svg><use href="#sp"/></svg></i></b><b class="c r" style="left:116.8px;top:278px;opacity:.3"><i class="ix">5<svg><use href="#di"/></svg></i></b>
+<i class="bs" style="left:169.2px;top:236px;height:34px"></i><b class="c r" style="left:169.2px;top:266px"><i class="ix">J<svg><use href="#he"/></svg></i></b>
+<i class="bs" style="left:221.6px;top:236px;height:44px"></i><b class="c" style="left:221.6px;top:276px"><i class="ix">8<svg><use href="#sp"/></svg></i></b>
+<i class="bs" style="left:274px;top:236px;height:54px"></i><b class="c r" style="left:274px;top:286px"><i class="ix">7<svg><use href="#di"/></svg></i></b>
+<i class="bs" style="left:326.4px;top:236px;height:64px"></i><b class="c r" style="left:326.4px;top:296px"><i class="ix">K<svg><use href="#di"/></svg></i></b>
+<div style="position:absolute;left:270px;top:282px;width:54px;height:132px;border-radius:9px;border:2px dashed #4ADE9B;background:rgba(74,222,155,.1);z-index:2"></div>
+<div style="position:absolute;left:226px;top:392px;height:26px;padding:0 10px;border-radius:13px;background:#4ADE9B;color:#06281A;font:600 12px/26px Inter;z-index:6;white-space:nowrap">Drop on 7 of diamonds</div>
+<div style="position:absolute;left:262px;top:312px;z-index:7;transform:rotate(3deg)">
+<b class="c" style="left:2px;top:3px;font-size:9.4px;box-shadow:0 14px 28px rgba(0,0,0,.6)"><i class="ix">6<svg><use href="#sp"/></svg></i></b>
+<b class="c r" style="left:0;top:26px;font-size:9.4px;box-shadow:0 14px 28px rgba(0,0,0,.6),0 0 0 3px #FFB547"><i class="ix">5<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">5<svg><use href="#di"/></svg></i></b></div>
+<div style="position:absolute;left:274px;top:362px;width:44px;height:44px;border-radius:22px;background:rgba(243,241,234,.22);border:2px solid rgba(243,241,234,.7);z-index:8"></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px;opacity:.5"><div class="btn" style="flex:1">Undo</div><div class="btn" style="flex:1">Hint</div><div class="btn" style="flex:1">Auto</div></div>
+</div>
+<div class="rb" style="left:162px;top:174px;width:42px;height:96px;border-color:#FF4D5E"></div><i class="rd" style="left:150px;top:160px">9</i>
+<div class="rb" style="left:60px;top:150px;width:46px;height:70px;border-radius:6px;border-style:solid"></div><i class="rd" style="left:98px;top:138px">10</i>
+<div class="rb" style="left:76px;top:170px;width:34px;height:12px;border:0"></div>
+</div>
+
+<!-- 4 AFTER auto-complete -->
+<div class="pw" style="left:820px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Klondike</h2><div class="mut" style="font-size:12px">Every card is face up</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">Score 640</span><span class="chip">61 moves</span><span class="chip">05:12</span></div>
+<b class="c L" style="left:30px;top:162px;font-size:11px"><i class="ix">K<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">K<svg><use href="#sp"/></svg></i></b>
+<b class="c L r" style="left:110px;top:162px;font-size:11px"><i class="ix">J<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">J<svg><use href="#he"/></svg></i></b>
+<b class="c L r" style="left:190px;top:162px;font-size:11px"><i class="ix">9<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">9<svg><use href="#di"/></svg></i></b>
+<b class="c L" style="left:270px;top:162px;font-size:11px"><i class="ix">Q<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">Q<svg><use href="#cl"/></svg></i></b>
+<svg width="390" height="300" style="position:absolute;left:0;top:250px;z-index:2" aria-hidden="true"><path d="M60 270C80 200 70 120 56 20" stroke="#4ADE9B" stroke-width="3" fill="none" stroke-dasharray="2 8" stroke-linecap="round" opacity=".7"/><path d="M180 270C190 200 210 120 214 20" stroke="#4ADE9B" stroke-width="3" fill="none" stroke-dasharray="2 8" stroke-linecap="round" opacity=".7"/><path d="M300 270C310 190 290 110 296 20" stroke="#4ADE9B" stroke-width="3" fill="none" stroke-dasharray="2 8" stroke-linecap="round" opacity=".7"/></svg>
+<b class="c r" style="left:64px;top:330px;font-size:9.4px;transform:rotate(-14deg);z-index:3"><i class="ix">10<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg></b>
+<b class="c r" style="left:204px;top:410px;font-size:9.4px;transform:rotate(10deg);z-index:3"><i class="ix">10<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg></b>
+<b class="c" style="left:290px;top:360px;font-size:9.4px;transform:rotate(-6deg);z-index:3"><i class="ix">J<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg></b>
+<b class="c" style="left:120px;top:490px;font-size:9.4px;transform:rotate(8deg);z-index:3;opacity:.85"><i class="ix">Q<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg></b>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;border-radius:24px;background:#141829;border:1px solid #232943;padding:14px 16px;z-index:5">
+<div style="display:flex;align-items:center;justify-content:space-between"><h2 style="font-size:16px">Auto-completing</h2><span class="mut" style="font-size:13px">38 of 52 home</span></div>
+<div style="margin-top:10px;height:8px;border-radius:4px;background:#2E3558"><div style="width:73%;height:8px;border-radius:4px;background:#4ADE9B"></div></div>
+<div style="margin-top:12px;display:flex;gap:10px"><div class="btn" style="flex:1;height:48px;font-size:15px">Tap to stop</div><div class="btn" style="width:96px;height:48px;font-size:14px;color:#FFB547">Speed 1x</div></div></div>
+</div>
+<div class="rb" style="left:8px;top:424px;width:226px;height:88px"></div><i class="rd" style="left:226px;top:412px">11</i>
+</div>
+
+<!-- 5 UNO hint -->
+<div class="pw" style="left:1088px"><div class="ph"><div class="felt" style="background:radial-gradient(ellipse at 50% 40%,#2A1F6E 0%,#16123F 65%,#0E0B2B 100%)"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">UNO</h2><div class="mut" style="font-size:12px">Round 2, clockwise</div></div><div style="display:flex;gap:8px"><div class="chip" style="height:44px;border-radius:22px;color:#FFB547;border-color:#FFB547">Hint 2</div><div class="ib">=</div></div></div>
+<div style="position:absolute;left:0;right:0;top:112px;display:flex;justify-content:space-around;padding:0 20px;text-align:center;font:600 12px Inter"><div><div class="av" style="background:#8B7CFF;margin:0 auto">M</div>Maya<div class="mut">4 cards</div></div><div><div class="av" style="background:#FFB547;margin:0 auto;box-shadow:0 0 0 3px #FF6B7A">J</div>Jo<div style="color:#FF9FA9">1 card, UNO!</div></div><div><div class="av" style="background:#4ADE9B;margin:0 auto">R</div>Rex<div class="mut">6 cards</div></div></div>
+<i class="u" style="left:112px;top:262px;box-shadow:0 .25em .6em rgba(0,0,0,.5);background:#1C2138;font-size:10px"><i class="o" style="background:#2E3558"></i></i>
+<div class="u ug" style="left:200px;top:258px;font-size:10px;box-shadow:0 0 0 4px #4ADE9B,0 .25em .6em rgba(0,0,0,.5),inset 0 0 0 .22em #F8F6F0"><i class="k">7</i><i class="o"></i><b class="n">7</b><svg class="m"><use href="#mc"/></svg></div>
+<div style="position:absolute;left:0;right:0;top:360px;text-align:center"><span style="display:inline-block;height:32px;padding:0 14px;border-radius:16px;background:#141829;border:1px solid #232943;font:500 13px/30px Inter">Your turn: play green or a 7</span></div>
+<div style="position:absolute;left:0;right:0;top:470px;text-align:center"><span class="tg s" style="position:relative;display:inline-block;top:-4px">Best play: green draw two</span></div>
+<div class="u ur" style="left:22px;top:560px;transform:rotate(-14deg);opacity:.5"><i class="k">2</i><i class="o"></i><b class="n">2</b><svg class="m"><use href="#mt"/></svg></div>
+<div class="u ug" style="left:66px;top:522px;transform:rotate(-9deg);box-shadow:0 0 0 3px #4ADE9B,0 .25em .6em rgba(0,0,0,.5),inset 0 0 0 .22em #F8F6F0"><i class="k">4</i><i class="o"></i><b class="n">4</b><svg class="m"><use href="#mc"/></svg></div>
+<div class="u uy" style="left:112px;top:564px;transform:rotate(-4deg);opacity:.5"><i class="k">9</i><i class="o"></i><b class="n">9</b><svg class="m"><use href="#ms"/></svg></div>
+<div class="u ub" style="left:158px;top:522px;transform:rotate(1deg);box-shadow:0 0 0 3px #4ADE9B,0 .25em .6em rgba(0,0,0,.5),inset 0 0 0 .22em #F8F6F0"><i class="k">7</i><i class="o"></i><b class="n">7</b><svg class="m"><use href="#md"/></svg></div>
+<div class="u ug" style="left:204px;top:496px;transform:rotate(6deg);box-shadow:0 0 0 4px #FFB547,0 0 26px rgba(255,181,71,.85),inset 0 0 0 .22em #F8F6F0"><i class="k">+2</i><i class="o"></i><b class="n">+2</b><svg class="m"><use href="#mc"/></svg></div>
+<div class="u ur" style="left:250px;top:562px;transform:rotate(11deg);opacity:.5"><i class="k">5</i><i class="o"></i><b class="n">5</b><svg class="m"><use href="#mt"/></svg></div>
+<div class="u uw" style="left:292px;top:530px;transform:rotate(16deg);box-shadow:0 0 0 3px #4ADE9B,0 .25em .6em rgba(0,0,0,.5),inset 0 0 0 .22em #F8F6F0"><i class="k">W</i><i class="o"></i><b class="n">W</b></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Draw a card</div><div class="btn" style="flex:1;background:transparent;box-shadow:inset 0 0 0 2px #5A6188;color:#B5BAD0;flex-direction:column;font-size:15px;line-height:1.1">Say UNO<span style="font:400 11px Inter">needs 2 cards</span></div></div>
+</div>
+<div class="rb" style="left:114px;top:304px;width:46px;height:56px"></div><i class="rd" style="left:150px;top:294px">12</i>
+<div class="rb" style="left:12px;top:316px;width:218px;height:70px;border-style:dotted"></div><i class="rd" style="left:2px;top:304px">13</i>
+<div class="rb" style="left:128px;top:478px;width:106px;height:40px"></div><i class="rd" style="left:226px;top:464px">14</i>
+</div>
+
+<!-- 6 UNO picker -->
+<div class="pw" style="left:1356px"><div class="ph"><div class="felt" style="background:radial-gradient(ellipse at 50% 40%,#2A1F6E 0%,#16123F 65%,#0E0B2B 100%)"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">UNO</h2><div class="mut" style="font-size:12px">You played a wild</div></div><div class="ib">=</div></div>
+<div class="u uw" style="left:150px;top:200px;font-size:11px"><i class="k">W</i><i class="o"></i><b class="n">W</b></div>
+<div style="position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(11,13,26,.62)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:520px;border-radius:28px 28px 0 0;background:#141829;border-top:1px solid #2E3558;padding:14px 20px">
+<div style="width:40px;height:4px;border-radius:2px;background:#2E3558;margin:0 auto 14px"></div>
+<h2 style="font-size:20px">Pick a colour</h2><div class="mut" style="font-size:13px;margin-top:2px">Elige un color. Each colour has its own shape.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+<div style="height:116px;border-radius:22px;background:#FF6B7A;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:700 17px Sora"><svg width="42" height="42" viewBox="0 0 24 24" fill="#14183A" aria-hidden="true"><use href="#mt"/></svg>Red</div>
+<div style="height:116px;border-radius:22px;background:#FFB547;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:700 17px Sora"><svg width="42" height="42" viewBox="0 0 24 24" fill="#14183A" aria-hidden="true"><use href="#ms"/></svg>Yellow</div>
+<div style="height:116px;border-radius:22px;background:#4ADE9B;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:700 17px Sora;box-shadow:0 0 0 4px #F3F1EA"><svg width="42" height="42" viewBox="0 0 24 24" fill="#14183A" aria-hidden="true"><use href="#mc"/></svg>Green, most of your hand</div>
+<div style="height:116px;border-radius:22px;background:#8B7CFF;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:700 17px Sora"><svg width="42" height="42" viewBox="0 0 24 24" fill="#14183A" aria-hidden="true"><use href="#md"/></svg>Blue</div>
+</div>
+<div class="row" style="margin-top:16px;border-color:#FFB547"><div style="flex:1"><b style="font:600 15px Sora">One card left</b><div class="mut" style="font-size:12px">Say UNO before the next player moves</div></div><div class="btn pri" style="width:132px;height:48px;font-size:15px">Say UNO</div></div>
+</div></div>
+<div class="rb" style="left:12px;top:219px;width:218px;height:90px"></div><i class="rd" style="left:2px;top:207px">15</i>
+<div class="rb" style="left:12px;top:416px;width:218px;height:46px"></div><i class="rd" style="left:222px;top:404px">16</i>
+</div>
+
+<!-- 7 UNO house rules -->
+<div class="pw" style="left:1624px"><div class="ph">
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">House rules</h2><div class="mut" style="font-size:12px">Reglas de la casa</div></div><span style="width:44px"></span></div>
+<div style="position:absolute;left:16px;right:16px;top:112px;display:flex;gap:8px"><span class="chip" style="background:#FFB547;color:#1A1203;border-color:#FFB547">Classic</span><span class="chip">Family</span><span class="chip">Party</span><span class="chip">Custom</span></div>
+<div style="position:absolute;left:16px;right:16px;top:164px;display:flex;flex-direction:column;gap:8px">
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Stack draw twos</b><div class="mut" style="font-size:12px">Pass a +2 along to the next player</div></div><div class="tog on"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Stack draw fours</b><div class="mut" style="font-size:12px">Off keeps the +4 challenge</div></div><div class="tog"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Jump in</b><div class="mut" style="font-size:12px">Play an identical card out of turn</div></div><div class="tog on"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Sevens swap, zeros rotate</b><div class="mut" style="font-size:12px">Hands move when these are played</div></div><div class="tog"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Draw until you can play</b><div class="mut" style="font-size:12px">Otherwise draw one and pass</div></div><div class="tog"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Say UNO by hand</b><div class="mut" style="font-size:12px">Forget it and draw two</div></div><div class="tog on"><i></i></div></div>
+<div class="row"><div style="flex:1"><b style="font:600 15px Sora">Points to win</b></div><span class="chip">250</span><span class="chip" style="background:#FFB547;color:#1A1203;border-color:#FFB547">500</span></div>
+</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px"><div class="btn pri">Start with these rules</div></div>
+</div>
+<div class="rb" style="left:8px;top:68px;width:226px;height:26px;border-style:dotted"></div><i class="rd" style="left:2px;top:56px">17</i>
+<div class="rb" style="left:8px;top:464px;width:226px;height:40px"></div><i class="rd" style="left:226px;top:450px">18</i>
+</div>
+
+<!-- 8 Speed paused -->
+<div class="pw" style="left:1892px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Speed</h2><div class="mut" style="font-size:12px">Paused</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:0;right:0;top:112px;display:flex;justify-content:center;gap:6px;opacity:.5"><i class="c back" style="position:relative"></i><i class="c back" style="position:relative"></i><i class="c back" style="position:relative"></i><i class="c back" style="position:relative"></i></div>
+<div style="position:absolute;left:0;right:0;top:640px;display:flex;justify-content:center;gap:6px;opacity:.5">
+<b class="c" style="position:relative"><i class="ix">4<svg><use href="#sp"/></svg></i></b><b class="c r" style="position:relative"><i class="ix">8<svg><use href="#he"/></svg></i></b><b class="c" style="position:relative"><i class="ix">Q<svg><use href="#cl"/></svg></i></b><b class="c r" style="position:relative"><i class="ix">2<svg><use href="#di"/></svg></i></b></div>
+<div style="position:absolute;inset:0;background:rgba(8,22,36,.72)"></div>
+<b class="c L" style="left:124px;top:300px;font-size:11px;z-index:2;box-shadow:0 0 0 3px #8FD3FF,0 0 24px rgba(143,211,255,.5)"><i class="ix">9<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">9<svg><use href="#sp"/></svg></i></b>
+<b class="c L r" style="left:206px;top:300px;font-size:11px;z-index:2;box-shadow:0 0 0 3px #8FD3FF,0 0 24px rgba(143,211,255,.5)"><i class="ix">J<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">J<svg><use href="#di"/></svg></i></b>
+<div style="position:absolute;left:0;right:0;top:394px;text-align:center;color:#8FD3FF;font:600 12px Inter;z-index:2">Piles frozen. Nobody can play.</div>
+<div style="position:absolute;left:24px;right:24px;top:440px;border-radius:24px;background:#141829;border:1px solid #2E3558;padding:18px;z-index:3">
+<h2 style="font-size:20px">Paused</h2><div class="mut" style="font-size:13px;margin-top:2px">Your opponent waits too. Nothing moves until you resume.</div>
+<div class="btn pri" style="margin-top:14px">Resume</div>
+<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font:600 12px Inter;color:#C9CDE0">
+<span style="display:flex;align-items:center;gap:6px"><i style="width:26px;height:26px;border-radius:13px;border:2px solid #FFB547;display:inline-block;text-align:center;font:700 13px/22px Sora">3</i></span><span class="mut">then</span><i style="width:26px;height:26px;border-radius:13px;border:2px solid #FFB547;display:inline-block;text-align:center;font:700 13px/22px Sora">2</i><span class="mut">then</span><i style="width:26px;height:26px;border-radius:13px;border:2px solid #FFB547;display:inline-block;text-align:center;font:700 13px/22px Sora">1</i><span class="mut">then</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#4ADE9B;color:#06281A;font:700 13px/26px Sora">Go</span></div>
+</div></div>
+<div class="rb" style="left:70px;top:176px;width:100px;height:46px"></div><i class="rd" style="left:162px;top:164px">19</i>
+<div class="rb" style="left:12px;top:276px;width:218px;height:34px;border-style:dotted"></div><i class="rd" style="left:222px;top:264px">20</i>
+</div>
+
+<div class="lgt">Redlines: finding, evidence, fix, size</div>
+<div class="lg">
+<div class="li"><span class="n">1</span><div><b>SOLITAIRE 8/15.</b> Flat white tile with a "7S" label, no pips or court art (SolitaireScreen.kt:1016). Use the shared unified deck face with suit shapes, corner indices, red and ink. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">2</span><div><b>Tap-select only.</b> clickable at :1116, :1192, :1273, no drag. Keep tap-select as the fallback and for TalkBack. <span class="sz">L</span></div></div>
+<div class="li"><span class="n">3</span><div><b>Unseeded deal.</b> Deck.shuffled52() at SolitaireGame.kt:435, so no replay or daily. Header says "Random deal" in English only. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">4</span><div><b>English only.</b> 0 stringResource in 1694 lines; haptics are chosen by parsing lastAction text (:403-405). Move to string resources and an event enum. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">5</span><div><b>Daily deal badge.</b> Seeded, solver-checked "winnable" deal, same for everyone by shared UTC date (systemic finding 5; Spider has the template). <span class="sz">M</span></div></div>
+<div class="li"><span class="n">6</span><div><b>Hint.</b> Existing hint priorities (:381-420) now show the card, a dashed path and a spoken line. Saffron ring plus arrow, never colour alone. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">7</span><div><b>Real faces on foundations.</b> Empty foundations show the suit outline so the four homes read at a glance. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">8</span><div><b>Controls.</b> 56 dp buttons already pass; durations must go through LocalGameSpeed (0 hits today, SOLITAIRE_*_MS constants). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">9</span><div><b>Ghost stack.</b> Dragging a run lifts the whole run, tilted 3 degrees with a deep shadow; origin dims to 30 percent. Reuse Spider's drag and its custom a11y actions. <span class="sz">L</span></div></div>
+<div class="li"><span class="n">10</span><div><b>Drop highlight.</b> Only legal targets glow mint, dashed landing slot plus a words chip ("Drop on 7 of diamonds"). Illegal columns stay plain. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">11</span><div><b>Auto-complete.</b> Today it is a silent step loop. Show progress (38 of 52), a stop tap and a speed chip; finale cascade stays, off under Reduced Motion. Tests missing for autocomplete and win. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">12</span><div><b>UNO 10/15, no hint.</b> The only "hint" in UnoScreen.kt is the spectate string (:1238). Saffron glow on the best play, mint on other legal cards, the rest dim. Reuse the seeded bot as the source. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">13</span><div><b>Legal-play highlight.</b> Playable cards lift 14 dp with a mint ring; unplayable drop to 50 percent opacity (never below readable). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">14</span><div><b>Say UNO.</b> Button is outlined until the hand is 2 cards, then saffron with a ring pulse. Owner decision: manual call or automatic. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">15</span><div><b>Wild picker.</b> "Choose a color" is an English literal (UnoScreen.kt:1506). Four 116 dp tiles with a name and a shape: triangle red, square yellow, circle green, diamond blue. Reuses the glyph chip (PlayingCardView.kt:215-290). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">16</span><div><b>Say UNO in the sheet.</b> When the wild leaves one card the call sits inside the picker so it cannot be missed behind a dialog. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">17</span><div><b>House rules.</b> UnoHouseRulesScreen.kt has 0 stringResource; add ES parity (22 sites in UnoScreen.kt, engine lastAction to typed events). Preset chips Classic, Family, Party. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">18</span><div><b>Rule rows.</b> Each toggle gets a one-line effect text and 60 dp rows; fixed .sp literals (14 in UnoScreen) move to scalable text. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">19</span><div><b>SPEED 10/15, pause empty.</b> pause() and resume() are empty (SpeedGame.kt:259-260) and the loop at SpeedScreen.kt:157-161 keeps ticking behind help, leave and menu dialogs. One overlayOpen hook from GameChrome freezes the piles and the CPU. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">20</span><div><b>Ready countdown.</b> Resume shifts goAt, stuckSince and readyAt by the paused time, then 3, 2, 1, Go so nobody loses a play. Add a polite live region for pile changes (0 today). <span class="sz">S</span></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

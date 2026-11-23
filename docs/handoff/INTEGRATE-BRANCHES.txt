@@ -1,0 +1,19 @@
+# Branches scripts/integrate-green.sh may auto-merge into session/wave-3 once the full gate is green.
+# One per line. Order = merge order (lowest risk first).
+session/ws-plat2
+session/ws-bb3d
+session/ws-release
+session/ws-bb2
+session/ws-td2
+session/ws-kids
+session/ws-arena
+session/ws-sweet-trail
+session/ws-trail-together
+session/ws-find-it
+session/ws-pie-detective
+session/ws-stack-zoo
+session/ws-flick-rink
+session/ws-style
+session/ws-bump-egg
+session/ws-board3
+session/cloud-*   # branches pushed by the cloud routine

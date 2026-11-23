@@ -1,0 +1,15 @@
+id,gameplay,feel,robustness,a11y_i18n,tests,total,top_fix_1,top_fix_1_effort,top_fix_2,top_fix_2_effort
+darts,3,3,2,3,3,14,"Gate the sway infinite transition on canAim so bot turns and idle stop redrawing the board at 60 Hz (DartsScreen.kt:193)",S,"Cache the static board rings and numbers with drawWithCache",M
+bowling,3,3,2,2,3,13,"Read LocalColorblindMode in BowlingScreen (never read today) for pin and ball cues",S,"Replace literal 13/14/36sp with typography (BowlingScreen.kt:501 683 687)",S
+carrom,3,3,2,3,3,14,"Read pulse inside the draw lambda instead of composition (CarromScreen.kt:602)",S,"Cache board and frame gradients with drawWithCache",M
+curling,3,3,2,3,2,13,"Read pulse in draw and stop liveTick forcing per-frame recomposition of the controls (CurlingScreen.kt:642 and 519)",S,"Add CurlingNetworkedTest and CurlingBotTest",M
+billiards,3,3,2,3,3,14,"Pre-build 16 ball brushes and clips with remember instead of per-frame in drawPoolBall (BilliardsScreen.kt:805)",S,"Cache the table layer with drawWithCache",M
+minigolf,3,3,2,3,3,14,"Stop the unconditional timeSec frame loop unless the hole has animated hazards (MiniGolfScreen.kt:274)",S,"Cache the static hole layer",M
+toysoccer,3,3,2,3,3,14,"Make GameChrome pause real-time games while help or leave dialogs are open (GameChrome.kt:164 212)",S,"Split HUD state from per-frame draw state to stop whole-screen recomposition (ToySoccerGame.kt:555)",M
+toytennis,3,2,2,3,3,13,"Make GameChrome pause real-time games while help or leave dialogs are open",S,"Give figures and rackets real art instead of the shared disc (ToySoccerTennisArt.kt:34)",M
+toyboxing,3,3,1,2,3,12,"Implement pause and resume (empty at ToyBoxingGame.kt:294) and hook GameChrome so the CPU stops punching during dialogs and backgrounding",S,"Auto-enable turn-based assist when touch exploration is on (ToyBoxingScreen.kt:163)",S
+toybaseball,2,2,3,2,2,11,"Add ToyBaseballGameTest covering hint resume and hot-seat hand-over",M,"Add a field view with animated ball flight and runner moves",M
+slotcars,3,3,2,3,3,14,"Make GameChrome pause the race while help or leave dialogs are open (SlotCarsScreen.kt:280)",S,"Split HUD state from per-frame draw state (SlotCarsGame.kt:384)",M
+fishing,3,3,2,3,3,14,"Make GameChrome pause the contest while help or leave dialogs are open (FishingScreen.kt:319)",S,"Cache the lake backdrop and read drift only in draw (FishingScreen.kt:380)",M
+shootinggallery,3,3,2,2,2,12,"Pause the screen-local range clock on menu and dialogs (ShootingGalleryScreen.kt:312 339)",S,"Offer shoot-nearest as a setting not only for touch exploration or relaxed mode (ShootingGalleryScreen.kt:404)",S
+pigdice,3,2,3,3,3,14,"Give the dice a moulded material look (PigDiceArt.kt has no gradients)",M,"Add a PigScreen UI test (only PigDieGeometryTest exists)",S

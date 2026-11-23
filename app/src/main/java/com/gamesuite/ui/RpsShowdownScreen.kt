@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.gamesuite.uikit.palmRejecting
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -547,6 +548,7 @@ private fun RpsZone(
                         val desc = stringResource(R.string.rps_btn_play, name, label)
                         Column(
                             Modifier.weight(1f).heightIn(min = 56.dp).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = if (pal.bg.luminance() < 0.5f) 0.14f else 0.7f))
+                                .palmRejecting()
                                 .clickable(onClickLabel = desc, role = Role.Button) { onPick(m) }
                                 .semantics { contentDescription = desc; role = Role.Button }.padding(2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center

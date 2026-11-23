@@ -340,6 +340,7 @@ class MahjongGame(
 
     /** Starts another board of the current layout (the session continues). */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatchWith(layout, null)
     }

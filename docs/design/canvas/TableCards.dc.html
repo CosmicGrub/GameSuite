@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card table</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.ph{width:390px;height:844px;background:#0B0D1A;color:#F3F1EA;font:400 15px/1.4 Inter,sans-serif;position:relative;overflow:hidden;display:flex;flex-direction:column}
+h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.felt{position:absolute;left:-60px;right:-60px;top:130px;height:480px;border-radius:50%;background:radial-gradient(ellipse at 50% 40%,#7A1F3D 0%,#4A0F25 70%);box-shadow:inset 0 0 0 10px #2A0A17,inset 0 0 0 12px #8B1E3F,0 30px 60px rgba(0,0,0,.6)}
+.seat{position:absolute;width:84px;text-align:center}
+.seat .a{width:48px;height:48px;border-radius:24px;margin:0 auto;display:flex;align-items:center;justify-content:center;font:700 16px Sora;box-shadow:0 0 0 3px #0B0D1A}
+.seat .n{font:600 12px Inter;margin-top:4px}.seat .c{font:500 11px Inter;color:#E8C9D3}
+.cd{width:46px;height:64px;border-radius:8px;background:#F8F6F0;color:#14183A;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 18px Sora;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.cd small{font-size:16px;line-height:1}
+.back{background:linear-gradient(135deg,#3B2F9E,#1E2350);box-shadow:0 4px 10px rgba(0,0,0,.4),inset 0 0 0 3px #F8F6F0}
+.ab{flex:1;height:56px;border-radius:28px;font:600 16px Sora;display:flex;align-items:center;justify-content:center;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558}
+</style>
+</helmet>
+<div class="ph">
+<div style="padding:52px 20px 0;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:3">
+<a href="Library.dc.html" aria-label="Menu" style="width:44px;height:44px;border-radius:22px;background:rgba(28,33,56,.9);display:flex;align-items:center;justify-content:center;color:#F3F1EA"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></a>
+<div style="text-align:center"><h2 style="font-size:17px">Texas Hold'em</h2><div class="mut" style="font-size:12px">Play chips only · Blinds 20/40</div></div>
+<div style="width:44px;height:44px;border-radius:22px;background:rgba(28,33,56,.9);display:flex;align-items:center;justify-content:center;font:600 13px Inter">Hand 7</div>
+</div>
+<div class="felt"></div>
+
+<div class="seat" style="left:153px;top:112px"><div class="a" style="background:#2E3558">M</div><div class="n">Maya</div><div class="c">1,480</div></div>
+<div class="seat" style="left:22px;top:214px"><div class="a" style="background:#0E7490">J</div><div class="n">Jo</div><div class="c" style="color:#9AA0B8">Folded</div></div>
+<div class="seat" style="left:284px;top:214px"><div class="a" style="background:#6B4E2E">R</div><div class="n">Rex</div><div class="c">920 · Bet 40</div></div>
+
+<div style="position:absolute;left:0;right:0;top:304px;display:flex;flex-direction:column;align-items:center;gap:10px">
+<div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:15px;background:rgba(11,13,26,.6);font:600 13px Sora"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#FFB547"/><circle cx="12" cy="12" r="5" fill="none" stroke="#1A1203" stroke-width="2"/></svg>Pot 260</div>
+<div style="display:flex;gap:6px">
+<div class="cd"><span>K</span><small style="color:#14183A">♠</small></div><div class="cd"><span style="color:#C0243C">9</span><small style="color:#C0243C">♥</small></div><div class="cd"><span>3</span><small>♣</small></div><div class="cd back" aria-label="Turn card not dealt"></div><div class="cd back" style="opacity:.5" aria-label="River card not dealt"></div>
+</div>
+<div class="mut" style="font-size:12px;color:#E8C9D3">Flop</div>
+</div>
+
+<div style="position:absolute;left:0;right:0;top:540px;display:flex;justify-content:center;align-items:flex-end;gap:0;height:140px">
+<div class="cd" style="width:78px;height:108px;font-size:28px;transform:rotate(-8deg) translateX(14px);"><span style="color:#C0243C">A</span><small style="color:#C0243C;font-size:26px">♦</small></div>
+<div class="cd" style="width:78px;height:108px;font-size:28px;transform:rotate(7deg) translateX(-14px) translateY(4px)"><span>K</span><small style="font-size:26px">♣</small></div>
+</div>
+<div style="position:absolute;left:0;right:0;top:662px;text-align:center"><div style="display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;border-radius:20px;background:#141829;border:1px solid #232943"><div class="a" style="width:28px;height:28px;border-radius:14px;background:linear-gradient(145deg,#8B7CFF,#3B2F9E);display:flex;align-items:center;justify-content:center;font:700 12px Sora">S</div><b style="font:600 14px Sora">You</b><span class="mut" style="font-size:13px">1,200 · Pair of kings</span></div></div>
+
+<div style="position:absolute;left:0;right:0;bottom:0;padding:0 20px 34px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:12px"><span class="mut" style="font-size:12px;width:34px">Raise</span><div style="flex:1;position:relative;height:8px;border-radius:4px;background:#2E3558"><div style="position:absolute;left:0;top:0;height:8px;width:38%;border-radius:4px;background:#FFB547"></div><div style="position:absolute;left:38%;top:-8px;margin-left:-12px;width:24px;height:24px;border-radius:12px;background:#fff"></div></div><b style="font:600 15px Sora;width:44px;text-align:right">120</b></div>
+<div style="display:flex;gap:10px"><div class="ab">Fold</div><div class="ab">Call 40</div><div class="ab" style="background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28)">Raise 120</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

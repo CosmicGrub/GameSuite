@@ -207,6 +207,7 @@ class SumoPushGame(
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value || phase != SuPhase.MATCH_OVER) return
         startMatch()
     }

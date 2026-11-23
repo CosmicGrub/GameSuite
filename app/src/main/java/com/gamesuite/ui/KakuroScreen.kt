@@ -80,6 +80,7 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -253,7 +254,7 @@ fun KakuroScreen(
         val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
         // A solve that used a hint is assisted: it still counts as solved for the session
         // (puzzlesSolved) but must not set a best time.
-        reportedNewBest = if (game.hintsUsed.value > 0) false else statsStore.recordWin(game.difficulty, finalTime)
+        reportedNewBest = if (game.hintsUsed.value > 0) false else withContext(NonCancellable) { statsStore.recordWin(game.difficulty, finalTime) }
     }
 
     // Derived once per change of the cells / selection, not once per cell per frame.

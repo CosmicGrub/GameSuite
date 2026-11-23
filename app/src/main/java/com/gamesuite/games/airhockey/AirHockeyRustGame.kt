@@ -38,7 +38,7 @@ import com.gamesuite.sim.AirHockeySnapshot
  * fully intact (rather than an expect/actual split inside the shared module)
  * was judged the lower-risk choice for an Air-Hockey-only pilot.
  */
-class AirHockeyRustGame : GameModule {
+class AirHockeyRustGame : GameModule, com.gamesuite.core.PausableGame {
     override val gameId = "air-hockey"
     override val displayName = "Air Hockey"
     override val category = GameCategory.ARCADE
@@ -114,6 +114,7 @@ class AirHockeyRustGame : GameModule {
     /** While true, [tick] is a no-op so the puck freezes (the corner menu is open). Idempotent. */
     private var paused = false
 
+    override val isPaused: Boolean get() = paused
     override fun pause() { paused = true }
     override fun resume() { paused = false }
 

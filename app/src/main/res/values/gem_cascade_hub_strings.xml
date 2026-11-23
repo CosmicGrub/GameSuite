@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Gem Cascade (hubKey names); shared texts such as Play and Classic already exist elsewhere -->
+    <string name="hub_gem_cascade">Gem Cascade</string>
+    <string name="hub_match_gems_chain_cascades_and_reach_the_goals">Match gems, chain cascades and reach the goals.</string>
+    <string name="hub_daily_challenge">Daily challenge</string>
+    <string name="hub_game_type">Game type</string>
+    <string name="hub_pick_how_you_want_to_play">Pick how you want to play.</string>
+    <string name="hub_level_up_until_no_moves_are_left">Level up until no moves are left.</string>
+    <string name="hub_zen">Zen</string>
+    <string name="hub_relax_no_timer_and_no_ending">Relax: no timer and no ending.</string>
+    <string name="hub_lightning">Lightning</string>
+    <string name="hub_beat_the_clock_combos_add_time">Beat the clock: combos add time.</string>
+    <string name="hub_quest">Quest</string>
+    <string name="hub_puzzle_levels_with_goals_and_obstacles">Puzzle levels with goals and obstacles.</string>
+    <string name="hub_twist">Twist</string>
+    <string name="hub_turn_2_by_2_blocks_to_make_matches">Turn 2 by 2 blocks to make matches.</string>
+    <string name="hub_mine">Mine</string>
+    <string name="hub_dig_down_to_bring_treasure_to_the_bottom">Dig down to bring treasure to the bottom.</string>
+    <string name="hub_butterflies">Butterflies</string>
+    <string name="hub_guide_butterflies_to_the_top_and_stop_the_spider_0d5c38">Guide butterflies to the top and stop the spiders.</string>
+    <string name="hub_countdown">Countdown</string>
+    <string name="hub_defuse_the_bombs_before_they_go_off">Defuse the bombs before they go off.</string>
+    <string name="hub_quest_level">Quest level</string>
+    <string name="hub_which_puzzle_level_to_play">Which puzzle level to play.</string>
+    <string name="hub_bigger_boards_have_more_gems">Bigger boards have more gems.</string>
+    <string name="hub_6_by_6">6 by 6</string>
+    <string name="hub_7_by_7">7 by 7</string>
+    <string name="hub_8_by_8">8 by 8</string>
+    <string name="hub_9_by_9">9 by 9</string>
+    <string name="hub_10_by_10">10 by 10</string>
+    <string name="hub_one_switch_mode">One-switch mode</string>
+    <string name="hub_the_board_scans_by_itself_so_one_button_can_play">The board scans by itself so one button can play.</string>
+</resources>

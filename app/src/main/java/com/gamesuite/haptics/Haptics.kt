@@ -6,9 +6,15 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import com.gamesuite.settings.LocalHapticsEnabled
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * The "premium 2026 vision" pitch's single most-repeated finding: nearly
@@ -30,7 +36,7 @@ import com.gamesuite.settings.LocalHapticsEnabled
  *
  * A small, deliberately generic vocabulary — not one enum value per
  * game-specific event name. Every game maps its own moments onto these
- * seven buckets; see each screen's own call sites for which bucket a given
+ * ten buckets (7 core + ROLL, LANDING, RIPPLE_STEP); see each screen's own call sites for which bucket a given
  * moment landed in and why.
  */
 enum class HapticSignal {
@@ -54,30 +60,25 @@ enum class HapticSignal {
     /** The single biggest moment a game has — checkmate, a match win, a
      *  full-grid solve. Reserved for genuinely rare events; using this for
      *  anything routine defeats the whole point of having it. */
-    CELEBRATION
+    CELEBRATION,
+
+    /** A short dice-rattle burst: the moment dice are thrown (Backgammon's roll, a party-toolkit
+     *  die). Intended to be followed by a LIGHT_TICK when the dice settle. */
+    ROLL,
+
+    /** A soft thud for a piece or disc LANDING on the board (a Connect Four disc reaching its
+     *  slot). Softer and a touch longer than NORMAL_ACTION: weight, not a click. */
+    LANDING,
+
+    /** The faintest tick, one per step of a CASCADE (each flipped Reversi disc). Meant to be
+     *  chained 40-60 ms apart; on its own it is barely perceptible by design. */
+    RIPPLE_STEP
 }
 
-private fun VibrationEffect.orNull(): VibrationEffect? = this
-
-private fun effectFor(signal: HapticSignal): VibrationEffect = when (signal) {
-    HapticSignal.LIGHT_TICK ->
-        VibrationEffect.createOneShot(12, 90)
-    HapticSignal.NORMAL_ACTION ->
-        VibrationEffect.createOneShot(25, 140)
-    HapticSignal.STRONG_ACTION ->
-        VibrationEffect.createWaveform(longArrayOf(0, 20, 40, 30), intArrayOf(0, 200, 0, 220), -1)
-    HapticSignal.ESCALATING ->
-        VibrationEffect.createWaveform(longArrayOf(0, 15, 60, 15, 60, 20), intArrayOf(0, 120, 0, 160, 0, 200), -1)
-    HapticSignal.SUCCESS ->
-        VibrationEffect.createWaveform(longArrayOf(0, 18, 50, 28), intArrayOf(0, 150, 0, 220), -1)
-    HapticSignal.FAILURE ->
-        VibrationEffect.createWaveform(longArrayOf(0, 60, 40, 60), intArrayOf(0, 180, 0, 140), -1)
-    HapticSignal.CELEBRATION ->
-        VibrationEffect.createWaveform(
-            longArrayOf(0, 25, 40, 25, 40, 25, 40, 60),
-            intArrayOf(0, 160, 0, 190, 0, 220, 0, 255),
-            -1
-        )
+/** Thin Android adapter: the waveform numbers live in the pure [HapticPatterns] table. */
+private fun effectFor(signal: HapticSignal): VibrationEffect {
+    val pattern = HapticPatterns.patternFor(signal)
+    return VibrationEffect.createWaveform(pattern.timings, pattern.amplitudes, -1)
 }
 
 /**
@@ -106,7 +107,7 @@ fun performHaptic(context: Context, signal: HapticSignal) {
     // quirk, a future platform change) -- runCatching here mirrors the same
     // "never let a flourish crash a screen" defensive stance PremiumShaders.kt
     // already established for AGSL shader failures.
-    runCatching { vibrator.vibrate(effectFor(signal).orNull()) }
+    runCatching { vibrator.vibrate(effectFor(signal)) }
 }
 
 /**
@@ -125,5 +126,36 @@ fun rememberHaptics(): (HapticSignal) -> Unit {
     val enabled = LocalHapticsEnabled.current
     return remember(context, enabled) {
         { signal: HapticSignal -> if (enabled) performHaptic(context, signal) }
+    }
+}
+
+/**
+ * Plays a [HapticSequence] (several signals with delays between them) on the vibrator. Starting a
+ * new sequence cancels one still in flight, leaving the composition cancels it too, and nothing is
+ * scheduled at all when the haptics setting is off ([LocalHapticsEnabled]). Each signal still goes
+ * through [performHaptic]'s own guards (no vibrator, missing permission).
+ *
+ * Callers fire it from a `LaunchedEffect` keyed on an event or serial id, never from the body of a
+ * composable (that would replay on every recomposition).
+ */
+@Composable
+fun rememberHapticSequencer(): (HapticSequence) -> Unit {
+    val context = LocalContext.current
+    val enabled by rememberUpdatedState(LocalHapticsEnabled.current)
+    val scope = rememberCoroutineScope()
+    val running = remember { arrayOfNulls<Job>(1) }
+    DisposableEffect(Unit) {
+        onDispose { running[0]?.cancel(); running[0] = null }
+    }
+    return remember(context, scope) {
+        { sequence: HapticSequence ->
+            running[0]?.cancel()
+            running[0] = null
+            if (enabled && !sequence.isEmpty) {
+                running[0] = scope.launch {
+                    sequence.play(fire = { signal -> if (enabled) performHaptic(context, signal) })
+                }
+            }
+        }
     }
 }
