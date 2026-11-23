@@ -49,7 +49,7 @@
     <string name="td_branch_blast_a">Wide blast</string>
     <string name="td_branch_blast_a_desc">Bigger blast radius.</string>
     <string name="td_branch_blast_b">Burning shells</string>
-    <string name="td_branch_blast_b_desc">Sets enemies burning.</string>
+    <string name="td_branch_blast_b_desc">Leaves burning ground that hurts walkers.</string>
     <string name="td_branch_control_a">Deep slow</string>
     <string name="td_branch_control_a_desc">Slows much more. Bosses resist half.</string>
     <string name="td_branch_control_b">Chain stun</string>

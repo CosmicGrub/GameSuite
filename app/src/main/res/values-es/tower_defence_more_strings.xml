@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tower Defence follow-ups: Roman Frontier and Cherry Ridge skins, modes, snap, keyboard, layouts. New file. -->
+    <string name="td_theme_roman">Frontera romana</string>
+    <string name="td_theme_roman_blurb">Defiende el fuerte fronterizo de los clanes de las colinas y un elefante de guerra.</string>
+    <string name="td_tower_roman_bolt">Torre de balista</string>
+    <string name="td_tower_roman_blast">Onagro</string>
+    <string name="td_tower_roman_control">Caldero de aceite</string>
+    <string name="td_tower_roman_support">Estandarte de la legión</string>
+    <string name="td_enemy_roman_runner">Explorador del clan</string>
+    <string name="td_enemy_roman_brute">Guardia del jefe</string>
+    <string name="td_enemy_roman_flyer">Halcón de guerra</string>
+    <string name="td_enemy_roman_boss">Elefante de guerra</string>
+    <string name="td_base_roman">Fuerte de la legión</string>
+    <string name="td_theme_cherry">Cresta del cerezo</string>
+    <string name="td_theme_cherry_blurb">Defiende la fortaleza del cerezo al anochecer de exploradores de niebla, oni de hierro y el gran tengu.</string>
+    <string name="td_tower_cherry_bolt">Arco Kasumi</string>
+    <string name="td_tower_cherry_blast">Trueno taiko</string>
+    <string name="td_tower_cherry_control">Santuario sakura</string>
+    <string name="td_tower_cherry_support">Estandarte de la grulla</string>
+    <string name="td_enemy_cherry_runner">Explorador de niebla</string>
+    <string name="td_enemy_cherry_brute">Oni de hierro</string>
+    <string name="td_enemy_cherry_flyer">Espíritu cometa de papel</string>
+    <string name="td_enemy_cherry_boss">Gran tengu</string>
+    <string name="td_base_cherry">Fortaleza del cerezo</string>
+    <string name="td_wave_endless">Oleada %1$d</string>
+    <string name="td_wave_spoken_endless">Oleada %1$d, modo sin fin</string>
+    <string name="td_endless_over">Fin de la partida sin fin</string>
+    <string name="td_endless_reached">Sin fin: llegaste a la oleada %1$d</string>
+    <string name="td_daily_title">Asedio diario</string>
+    <string name="td_daily_info">Diario: %1$s. Variante: %2$s</string>
+    <string name="td_daily_score">Puntuación diaria: %1$d</string>
+    <string name="td_best_score">Mejor puntuación: %1$d</string>
+    <string name="td_mod_swarm">más enemigos</string>
+    <string name="td_mod_tough">enemigos más duros</string>
+    <string name="td_mod_swift">enemigos más rápidos</string>
+    <string name="td_mod_lean">menos oro inicial</string>
+    <string name="td_mode_locked_note">El modo fija el mapa y la dificultad.</string>
+    <string name="td_snap_off">Colocación libre</string>
+    <string name="td_snap_off_help">Coloca torres entre casillas en lugar de ajustarlas a la cuadrícula.</string>
+    <string name="td_key_help">Teclado o cruceta: las flechas mueven el cursor, Intro construye o selecciona, 1 a 4 eligen torre, U mejora, S vende, M mueve, T objetivo, P pausa, N inicia oleada, Esc cancela.</string>
+    <string name="td_cursor_desc">Cursor en la fila %1$d, columna %2$s</string>
+    <string name="td_hint_drag">Arrastra una carta al campo para colocarla.</string>
+    <string name="td_minimap">Vista general del mapa</string>
+    <string name="td_minimap_desc">Vista general del mapa. Toca o arrastra para mover la vista.</string>
+    <string name="td_castle_pinned">Castillo %1$d de %2$d</string>
+    <string name="td_castle_pinned_desc">Salud del castillo %1$d de %2$d. Toca para ver el castillo.</string>
+    <string name="td_board_state_endless">Oleada %1$d, modo sin fin, castillo %2$d de %3$d, %4$d de oro</string>
+</resources>

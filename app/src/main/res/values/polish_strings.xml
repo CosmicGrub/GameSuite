@@ -76,8 +76,9 @@
     <string name="tip_mastermind_2">Each guess gets feedback pegs: one kind for a right colour in the right place, another for a right colour in the wrong place.</string>
     <string name="tip_breakout_1">Drag to move the paddle and keep the ball in play.</string>
     <string name="tip_breakout_2">Clear every brick to finish the level.</string>
-    <string name="tip_tower_defence_1">Build towers along the path before each wave arrives.</string>
-    <string name="tip_tower_defence_2">Earn coins for every enemy you stop and spend them on new towers.</string>
+    <string name="tip_tower_defence_1">Build anywhere you like, but always leave enemies a way to the gate.</string>
+    <string name="tip_tower_defence_2">Brutes shrug off Bolt shots. Blast towers hurt them and anything near them.</string>
+    <string name="tip_tower_defence_3">Tap a tower to change its targeting, upgrade it or sell it for most of its gold.</string>
     <string name="tip_air_hockey_1">Drag your paddle to hit the puck into your opponent\'s goal.</string>
     <string name="tip_air_hockey_2">The first player to reach the target score wins.</string>
     <string name="tip_party_toolkit_1">Pick a tool from the toolkit: dice, spinners, timers or score keepers.</string>

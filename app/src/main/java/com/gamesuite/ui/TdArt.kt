@@ -99,7 +99,12 @@ object TdArt {
                         drawCircle(skin.rock, cw * 0.62f, Offset(cx, cy))
                         drawCircle(skin.rock.copy(alpha = 0.5f), cw * 0.3f, Offset(cx - cw * 0.2f, cy - ch * 0.2f))
                     }
-                    TdThemeId.CASTLE -> {
+                    TdThemeId.CHERRY -> {
+                        // Mossy boulders with a pale highlight.
+                        drawCircle(skin.rock, cw * 0.68f, Offset(cx, cy))
+                        drawCircle(Color(0xFF6FA06B).copy(alpha = 0.7f), cw * 0.32f, Offset(cx + cw * 0.15f, cy - ch * 0.25f))
+                    }
+                    TdThemeId.CASTLE, TdThemeId.ROMAN -> {
                         drawRoundRect(skin.rock, Offset(x * cw, y * ch), Size(cw, ch), CornerRadius(cw * 0.4f))
                         if ((x * 7 + y * 3) % 4 == 0) drawCircle(Color.White.copy(alpha = 0.18f), cw * 0.25f, Offset(cx - cw * 0.15f, cy - ch * 0.15f))
                     }
@@ -146,6 +151,56 @@ object TdArt {
                 // Gate with portcullis.
                 drawRect(Color(0xFF3A2A1E), Offset(x0 - cw * 0.5f, y0 + h * 0.35f), Size(cw * 1.2f, h * 0.3f))
                 for (k in 0..2) drawLine(Color(0xFF8A8A94), Offset(x0 - cw * 0.5f + k * cw * 0.5f, y0 + h * 0.35f), Offset(x0 - cw * 0.5f + k * cw * 0.5f, y0 + h * 0.65f), 1.4f)
+            }
+            TdThemeId.ROMAN -> {
+                // Legion fort: palisade stakes along the front, marble gatehouse with a terracotta roof,
+                // red banners and a simple gold standard (an original eagle-less pole and crossbar).
+                drawRoundRect(skin.castleWall, Offset(x0, y0), Size(w, h), CornerRadius(cw * 0.2f))
+                val stakes = 7
+                for (k in 0 until stakes) {
+                    drawRect(Color(0xFF7A5A32), Offset(x0 - cw * 0.55f, y0 + k * h / stakes), Size(cw * 0.55f, h / stakes * 0.7f))
+                }
+                val gw = w * 0.62f
+                val gx = x0 + w * 0.2f
+                drawRect(skin.castleWall, Offset(gx, y0 - ch * 0.8f), Size(gw, h + ch * 1.6f))
+                drawRect(skin.castleRoof, Offset(gx - cw * 0.2f, y0 - ch * 1.5f), Size(gw + cw * 0.4f, ch * 0.9f))
+                // Columns.
+                for (k in 0..3) drawRect(Color(0xFFCFC4AA), Offset(gx + cw * 0.3f + k * (gw - cw * 0.9f) / 3f, y0 - ch * 0.5f), Size(cw * 0.35f, h + ch))
+                // Banner and standard.
+                val fx = gx + gw * 0.5f
+                drawLine(Color(0xFF4A3A22), Offset(fx, y0 - ch * 1.5f), Offset(fx, y0 - ch * 3.4f), 2f)
+                drawLine(skin.accent, Offset(fx - cw * 0.6f, y0 - ch * 3.1f), Offset(fx + cw * 0.6f, y0 - ch * 3.1f), 2.4f)
+                drawCircle(skin.accent, cw * 0.28f, Offset(fx, y0 - ch * 3.5f))
+                val banner = Path().apply {
+                    moveTo(fx + cw * 0.15f, y0 - ch * 3.0f); lineTo(fx + cw * 1.5f + flagTip, y0 - ch * 2.7f); lineTo(fx + cw * 0.15f, y0 - ch * 2.2f); close()
+                }
+                drawPath(banner, skin.flag)
+            }
+            TdThemeId.CHERRY -> {
+                // Cherry Keep: stone slope, three tiers of plaster with curved tile roofs, a red gate, blossom.
+                drawRoundRect(Color(0xFF8C93A6), Offset(x0 - cw * 0.3f, y0 + h * 0.55f), Size(w + cw * 0.6f, h * 0.45f), CornerRadius(cw * 0.3f))
+                for (tier in 0..2) {
+                    val tw = w * (0.95f - tier * 0.22f)
+                    val tx = x0 + (w - tw) / 2f
+                    val ty = y0 + h * (0.5f - tier * 0.27f)
+                    drawRect(skin.castleWall, Offset(tx, ty), Size(tw, h * 0.26f))
+                    val roof = Path().apply {
+                        moveTo(tx - cw * 0.5f, ty + ch * 0.1f)
+                        quadraticBezierTo(tx + tw * 0.5f, ty - ch * 1.6f, tx + tw + cw * 0.5f, ty + ch * 0.1f)
+                        lineTo(tx + tw, ty + ch * 0.5f); lineTo(tx, ty + ch * 0.5f); close()
+                    }
+                    drawPath(roof, skin.castleRoof)
+                }
+                drawRect(skin.flag, Offset(x0 - cw * 0.4f, y0 + h * 0.62f), Size(cw * 1.1f, h * 0.3f))
+                drawLine(Color(0xFF3A1A1A), Offset(x0 + cw * 0.15f, y0 + h * 0.62f), Offset(x0 + cw * 0.15f, y0 + h * 0.92f), 1.4f)
+                // Crane banner: a simple white swoosh and head on the top tier.
+                val bx = x0 + w * 0.5f
+                val by = y0 - ch * 0.4f
+                drawLine(Color(0xFF3A1A1A), Offset(bx, by), Offset(bx, by - ch * 1.6f), 2f)
+                val crane = Path().apply { moveTo(bx, by - ch * 1.5f); lineTo(bx + cw * 1.3f + flagTip, by - ch * 1.2f); lineTo(bx, by - ch * 0.8f); close() }
+                drawPath(crane, Color(0xFFF2EFE6))
+                // Blossom dots around the base.
+                for (k in 0..5) drawCircle(Color(0xFFF4A6B8), cw * 0.3f, Offset(x0 + w * (0.1f + k * 0.16f), y0 + h * 1.0f + (k % 2) * ch * 0.3f))
             }
             TdThemeId.SPACE -> {
                 val c = Offset(x0 + w * 0.55f, y0 + h / 2f)
@@ -209,6 +264,15 @@ object TdArt {
         if (base) {
             when (skin.id) {
                 TdThemeId.TOY -> drawRoundRect(skin.towerBase.copy(alpha = alpha), Offset(centre.x - r, centre.y - r), Size(2 * r, 2 * r), CornerRadius(r * 0.5f))
+                TdThemeId.CHERRY -> {
+                    drawRoundRect(skin.towerBase.copy(alpha = alpha), Offset(centre.x - r, centre.y - r * 0.6f), Size(2 * r, 1.6f * r), CornerRadius(r * 0.2f))
+                    val roof = Path().apply {
+                        moveTo(centre.x - r * 1.15f, centre.y - r * 0.5f)
+                        quadraticBezierTo(centre.x, centre.y - r * 1.5f, centre.x + r * 1.15f, centre.y - r * 0.5f)
+                        close()
+                    }
+                    drawPath(roof, skin.castleRoof.copy(alpha = alpha))
+                }
                 TdThemeId.SPACE -> {
                     drawCircle(skin.towerBase.copy(alpha = alpha), r, centre)
                     drawCircle(skin.accent.copy(alpha = 0.6f * alpha), r, centre, style = Stroke(width = 1.5f))
