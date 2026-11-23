@@ -1,0 +1,50 @@
+[
+ {
+  "file": "ZSOverview.dc.html",
+  "title": "Bot Bastion: overview, source mechanics mapping, original identity",
+  "w": 2150,
+  "h": 940
+ },
+ {
+  "file": "ZSInGame.dc.html",
+  "title": "Bot Bastion: in-game screen, build phase, boss wave, co-op",
+  "w": 2150,
+  "h": 1300
+ },
+ {
+  "file": "ZSWeaponsEnemies.dc.html",
+  "title": "Bot Bastion: bot weapons, enemy roster, waves, specials, tiers",
+  "w": 2150,
+  "h": 1060
+ },
+ {
+  "file": "ZSMaps.dc.html",
+  "title": "Bot Bastion: twelve original arenas",
+  "w": 2150,
+  "h": 1210
+ },
+ {
+  "file": "ZSModesMenu.dc.html",
+  "title": "Bot Bastion: modes hub, campaign, setup, leaderboards, co-op",
+  "w": 2150,
+  "h": 1000
+ },
+ {
+  "file": "ZSResults.dc.html",
+  "title": "Bot Bastion: results, score card, stars",
+  "w": 2150,
+  "h": 940
+ },
+ {
+  "file": "ZSTabletPhone.dc.html",
+  "title": "Bot Bastion: tablet, Fold and phone layouts",
+  "w": 2150,
+  "h": 1060
+ },
+ {
+  "file": "ZSLivingWorld.dc.html",
+  "title": "Bot Bastion: living space and storyboards",
+  "w": 2150,
+  "h": 1460
+ }
+]

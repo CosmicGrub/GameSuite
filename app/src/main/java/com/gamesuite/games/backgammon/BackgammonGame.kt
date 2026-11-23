@@ -221,6 +221,7 @@ class BackgammonGame(
 
     /** Called from the result panel's "Play Again": keeps the session tally and deals a new game. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (state.value?.phase != BackgammonPhase.OVER) return
         startMatch()

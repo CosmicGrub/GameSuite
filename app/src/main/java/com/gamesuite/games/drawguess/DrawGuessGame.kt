@@ -161,6 +161,15 @@ class DrawGuessGame(
 
     var config: DrawGuessConfig = DrawGuessConfig()
 
+    /** The roster seat that draws first (the Hub's "who goes first"), set by the screen before [init]; anything that does not play is ignored. */
+    var firstMover: Int = 0
+
+    /** True when a match is under way (started and not left): a screen that re-runs its set-up must not start another over it. */
+    val hasLiveMatch: Boolean get() = state.value != null && !matchOver.value
+
+    /** True once [init] found fewer than two human seats, so no match can ever start (the screen says so instead of waiting). */
+    val unplayable = mutableStateOf(false)
+
     private lateinit var context: GameContext
     private var onMatchEnd: ((GameResult) -> Unit)? = null
 
@@ -185,6 +194,10 @@ class DrawGuessGame(
             val b = seats.filter { context.players[it].teamId == 1 }
             a.indices.flatMap { listOf(a[it], b[it]) }
         } else seats
+        // The Hub's "who goes first": the drawing order starts at that seat (teams keep alternating, the order is a cycle).
+        val at = order.indexOf(firstMover)
+        if (at > 0) order = order.drop(at) + order.take(at)
+        unplayable.value = order.size < 2
     }
 
     fun setOnMatchEnd(listener: (GameResult) -> Unit) { onMatchEnd = listener }
@@ -322,7 +335,7 @@ class DrawGuessGame(
     /** A card tapped. True when it was the answer. */
     fun guessCard(key: String): Boolean {
         val s = state.value ?: return false
-        if (s.phase != DrawPhase.GUESS || key !in s.options || key in s.eliminated) return false
+        if (s.phase != DrawPhase.GUESS || config.typeIt || key !in s.options || key in s.eliminated) return false
         return resolve(s, key == s.wordKey, typed = false, wrongKey = key)
     }
 
@@ -331,6 +344,8 @@ class DrawGuessGame(
         val s = state.value ?: return false
         if (s.phase != DrawPhase.GUESS) return false
         val word = DrawGuessWordBank.byKey(s.wordKey ?: return false) ?: return false
+        // Nothing real was typed (empty, or only punctuation): not a guess, so it never costs the guesser their go.
+        if (DrawGuessWordBank.normalize(text).length < 2) return false
         return resolve(s, DrawGuessWordBank.matches(word, text), typed = true, wrongKey = null)
     }
 
@@ -396,7 +411,7 @@ class DrawGuessGame(
         return true
     }
 
-    fun playAgain() { if (!matchOver.value) startMatch() }
+    fun playAgain() { if (!matchOver.value && com.gamesuite.core.LaunchPolicy.requestNewRound()) startMatch() }
 
     // ---- results -----------------------------------------------------------------------------------
 

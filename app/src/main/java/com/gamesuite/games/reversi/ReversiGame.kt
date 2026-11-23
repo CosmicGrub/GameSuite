@@ -732,6 +732,7 @@ class ReversiGame : GameModule, ResumableGame, UndoableGame {
     /** Called from the board-over panel's "Play Again" button — keeps the running session tally
      *  and deals a fresh board within the same session. Mirrors ConnectFourGame.playAgain(). */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             // Only a finished board with both players present can be replayed. A guest asks the host;

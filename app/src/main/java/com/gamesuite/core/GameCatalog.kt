@@ -126,6 +126,8 @@ fun gameGlyph(gameId: String): String = when (gameId) {
     "paddle-duel" -> "🏓"
     "rps-showdown" -> "✊"
     "chutes-race" -> "🎢"
+    "gem-cascade" -> "💎"
+    "bot-bastion" -> "🛸"
     "draw-guess" -> "✏"
     "echo-pads" -> "🎶"
     "act-it-out" -> "🎭"

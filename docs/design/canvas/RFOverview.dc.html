@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quality program overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.root{width:1200px;height:1000px;background:#0B0D1A;color:#F3F1EA;font:400 14px/1.4 Inter,sans-serif;padding:32px 56px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.sm{font-size:12px}
+.lab{font:600 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8;margin-bottom:8px}
+.pn{background:#141829;border:1px solid #232943;border-radius:16px;padding:14px 16px}
+table{border-collapse:collapse;width:100%}
+th{font:600 11px Inter;color:#9AA0B8;letter-spacing:.06em;text-transform:uppercase;padding:6px 4px 10px;text-align:left}
+td{padding:3px 3px;font-size:13px;line-height:1.25}
+td .mut{font-size:11px;display:block}
+.cell{display:block;height:30px;border-radius:8px;color:#0B0D1A;font:700 14px Sora;text-align:center;line-height:30px}
+.dt{position:absolute;top:-8px;width:18px;height:18px;border-radius:9px;background:#FF6B7A;color:#2A050A;font:700 11px/18px Inter;text-align:center;font-style:normal}
+.gr{display:flex;align-items:center;gap:8px;height:27px;font-size:13px}
+.gn{width:112px;white-space:nowrap}
+.bar{flex:1;height:8px;border-radius:4px;background:#1C2138;overflow:hidden}
+.bar i{display:block;height:8px;border-radius:4px}
+.gr b{width:22px;text-align:right;font:600 13px Sora}
+.it{display:flex;gap:10px;align-items:flex-start;background:#141829;border:1px solid #232943;border-radius:12px;padding:8px 10px;height:50px;overflow:hidden}
+.it b{font:600 13px Sora;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n{width:22px;height:22px;border-radius:11px;background:#FF6B7A;color:#2A050A;font:700 12px/22px Inter;text-align:center;flex:none;font-style:normal;margin-top:1px}
+.ef{font:700 12px Sora;width:26px;height:26px;border-radius:8px;background:#1C2138;border:1px solid #3A4270;color:#F3F1EA;text-align:center;line-height:24px;flex:none}
+.ph{background:#141829;border:1px solid #232943;border-radius:16px;padding:12px 14px;flex:1;display:flex;flex-direction:column;gap:4px}
+.ph .tag{font:700 12px Sora;color:#0B0D1A;background:#FFB547;border-radius:8px;padding:2px 8px;align-self:flex-start}
+.ph b{font:600 15px Sora}
+.chip{display:inline-block;font:600 11px Inter;border:1px solid #3A4270;border-radius:8px;padding:1px 7px;margin:2px 4px 0 0;color:#C9CDE0}
+.lg{font:600 11px Inter;color:#0B0D1A;padding:3px 8px;border-radius:6px}
+</style>
+</helmet>
+<div class="root">
+<div style="display:flex;justify-content:space-between;align-items:flex-end;height:66px">
+<div><div class="lab" style="margin:0 0 4px">Refinement program · overview</div><h1 style="font-size:34px">81 games, one quality bar</h1></div>
+<div class="mut" style="text-align:right;font-size:13px;max-width:430px">Average 11.7 of 15, scored by reading code, never by playing. Gameplay 2.53, feel 2.35, robustness 2.27, a11y and i18n 2.02, tests 2.51.</div>
+</div>
+
+<div style="display:flex;gap:14px;height:352px">
+<div class="pn" style="width:520px;position:relative">
+<div class="lab">Family average by axis (0 to 3)</div>
+<table>
+<tr><th style="width:150px">Family</th>
+<th style="position:relative;text-align:center">Gameplay</th>
+<th style="position:relative;text-align:center">Feel<i class="dt" style="right:22px">2</i><i class="dt" style="right:2px">3</i></th>
+<th style="position:relative;text-align:center">Robust.<i class="dt" style="right:42px">5</i><i class="dt" style="right:22px">6</i><i class="dt" style="right:2px">8</i></th>
+<th style="position:relative;text-align:center">A11y<i class="dt" style="right:2px">1</i></th>
+<th style="position:relative;text-align:center">Tests</th>
+<th style="text-align:center">Total /15</th></tr>
+<tr><td><b>Board classics</b><span class="mut">G1 · 14 games</span></td><td><span class="cell" style="background:#8B7CFF">2.57</span></td><td><span class="cell" style="background:#8B7CFF">2.57</span></td><td><span class="cell" style="background:#8B7CFF">2.64</span></td><td><span class="cell" style="background:#FF6B7A">1.64</span></td><td><span class="cell" style="background:#8B7CFF">2.57</span></td><td><span class="cell" style="background:#8B7CFF">12.0</span></td></tr>
+<tr><td><b>Strategy and arcade</b><span class="mut">G2 · 10 games</span></td><td><span class="cell" style="background:#4ADE9B">2.70</span></td><td><span class="cell" style="background:#8B7CFF">2.40</span></td><td><span class="cell" style="background:#FFB547">2.30</span></td><td><span class="cell" style="background:#FF6B7A">1.80</span></td><td><span class="cell" style="background:#8B7CFF">2.50</span></td><td><span class="cell" style="background:#FFB547">11.7</span></td></tr>
+<tr><td><b>Cards</b><span class="mut">G3 · 12 games</span></td><td><span class="cell" style="background:#4ADE9B">2.83</span></td><td><span class="cell" style="background:#FFB547">2.25</span></td><td><span class="cell" style="background:#8B7CFF">2.58</span></td><td><span class="cell" style="background:#FFB547">2.08</span></td><td><span class="cell" style="background:#8B7CFF">2.50</span></td><td><span class="cell" style="background:#8B7CFF">12.3</span></td></tr>
+<tr><td><b>Word and logic</b><span class="mut">G4a · 9 games</span></td><td><span class="cell" style="background:#FF6B7A">1.67</span></td><td><span class="cell" style="background:#FFB547">2.11</span></td><td><span class="cell" style="background:#FF6B7A">1.89</span></td><td><span class="cell" style="background:#FFB547">2.00</span></td><td><span class="cell" style="background:#FFB547">2.33</span></td><td><span class="cell" style="background:#FFB547">10.0</span></td></tr>
+<tr><td><b>Puzzle and casual</b><span class="mut">G4b · 8 games</span></td><td><span class="cell" style="background:#8B7CFF">2.50</span></td><td><span class="cell" style="background:#FFB547">2.38</span></td><td><span class="cell" style="background:#8B7CFF">2.50</span></td><td><span class="cell" style="background:#FF6B7A">1.75</span></td><td><span class="cell" style="background:#FFB547">2.38</span></td><td><span class="cell" style="background:#FFB547">11.5</span></td></tr>
+<tr><td><b>Toy sports</b><span class="mut">G5 · 14 games</span></td><td><span class="cell" style="background:#4ADE9B">2.93</span></td><td><span class="cell" style="background:#4ADE9B">2.79</span></td><td><span class="cell" style="background:#FFB547">2.07</span></td><td><span class="cell" style="background:#4ADE9B">2.71</span></td><td><span class="cell" style="background:#4ADE9B">2.79</span></td><td><span class="cell" style="background:#8B7CFF">13.3</span></td></tr>
+<tr><td><b>Party and kids</b><span class="mut">G6 · 14 games</span></td><td><span class="cell" style="background:#FFB547">2.29</span></td><td><span class="cell" style="background:#FF6B7A">1.86</span></td><td><span class="cell" style="background:#FF6B7A">1.93</span></td><td><span class="cell" style="background:#FFB547">2.00</span></td><td><span class="cell" style="background:#FFB547">2.36</span></td><td><span class="cell" style="background:#FFB547">10.4</span></td></tr>
+</table>
+<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><span class="lg" style="background:#FF6B7A">under 2.0</span><span class="lg" style="background:#FFB547">2.0 to 2.39</span><span class="lg" style="background:#8B7CFF">2.4 to 2.69</span><span class="lg" style="background:#4ADE9B">2.7 and up</span><span class="mut sm" style="padding:3px 0">Red dots name the systemic finding below.</span></div>
+</div>
+
+<div class="pn" style="flex:1"><div class="lab" style="color:#4ADE9B">Strongest 10</div>
+<div class="gr"><span class="gn">Blackjack</span><span class="bar"><i style="width:100%;background:#4ADE9B"></i></span><b>15</b></div>
+<div class="gr"><span class="gn">Spider Solitaire</span><span class="bar"><i style="width:100%;background:#4ADE9B"></i></span><b>15</b></div>
+<div class="gr"><span class="gn">Nine Men's Morris</span><span class="bar"><i style="width:100%;background:#4ADE9B"></i></span><b>15</b></div>
+<div class="gr"><span class="gn">Billiards</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Carrom</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Darts</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Fishing</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Flow Lines</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Hare and Hounds</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="gr"><span class="gn">Hex</span><span class="bar"><i style="width:93%;background:#4ADE9B"></i></span><b>14</b></div>
+<div class="mut sm" style="margin-top:6px">17 games score 14 or more; ties by name.</div></div>
+
+<div class="pn" style="flex:1"><div class="lab" style="color:#FF6B7A">Weakest 10</div>
+<div class="gr"><span class="gn">Air Hockey</span><span class="bar"><i style="width:47%;background:#FF6B7A"></i></span><b>7</b></div>
+<div class="gr"><span class="gn">Crossword</span><span class="bar"><i style="width:53%;background:#FF6B7A"></i></span><b>8</b></div>
+<div class="gr"><span class="gn">Hangman</span><span class="bar"><i style="width:53%;background:#FF6B7A"></i></span><b>8</b></div>
+<div class="gr"><span class="gn">Paddle Duel</span><span class="bar"><i style="width:53%;background:#FF6B7A"></i></span><b>8</b></div>
+<div class="gr"><span class="gn">Party Toolkit</span><span class="bar"><i style="width:53%;background:#FF6B7A"></i></span><b>8</b></div>
+<div class="gr"><span class="gn">Solitaire</span><span class="bar"><i style="width:53%;background:#FF6B7A"></i></span><b>8</b></div>
+<div class="gr"><span class="gn">Minesweeper</span><span class="bar"><i style="width:60%;background:#FF6B7A"></i></span><b>9</b></div>
+<div class="gr"><span class="gn">Reaction Duel</span><span class="bar"><i style="width:60%;background:#FF6B7A"></i></span><b>9</b></div>
+<div class="gr"><span class="gn">Tower Defence</span><span class="bar"><i style="width:60%;background:#FF6B7A"></i></span><b>9</b></div>
+<div class="gr"><span class="gn">Whack-a-Mole</span><span class="bar"><i style="width:60%;background:#FF6B7A"></i></span><b>9</b></div>
+<div class="mut sm" style="margin-top:6px">Air Hockey is the only 7; ten games sit at 7 to 9.</div></div>
+</div>
+
+<div style="height:290px">
+<div class="lab" style="margin-bottom:6px">Systemic findings by reach · red number is the scorecard rank · box is engineering effort S, M or L</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;grid-auto-flow:column;grid-template-rows:repeat(5,50px);gap:7px 14px">
+<div class="it"><i class="n">1</i><div style="flex:1;min-width:0"><b>English-only screens</b><div class="mut sm">62 games at 2 or less · solitaire, uno, speed</div></div><span class="ef">L</span></div>
+<div class="it"><i class="n">2</i><div style="flex:1;min-width:0"><b>No overlay pause in GameChrome</b><div class="mut sm">8 named · airhockey, speed, toyboxing, whackamole</div></div><span class="ef">S</span></div>
+<div class="it"><i class="n">3</i><div style="flex:1;min-width:0"><b>Per-frame whole-screen recomposition</b><div class="mut sm">7 named · airhockey, towerdefence, toysoccer</div></div><span class="ef">M</span></div>
+<div class="it"><i class="n">4</i><div style="flex:1;min-width:0"><b>Six card renderers, fixed sp, 4 clips</b><div class="mut sm">12 card games · hanafuda, texasholdem</div></div><span class="ef">L</span></div>
+<div class="it"><i class="n">5</i><div style="flex:1;min-width:0"><b>Daily puzzles not stable</b><div class="mut sm">all dailies but Word Guess · minesweeper</div></div><span class="ef">S</span></div>
+<div class="it"><i class="n">6</i><div style="flex:1;min-width:0"><b>Generators on the main thread</b><div class="mut sm">4 named · kenken, nonogram, sudoku, edgematch</div></div><span class="ef">M</span></div>
+<div class="it"><i class="n">7</i><div style="flex:1;min-width:0"><b>Palm rejection in 4 games, blank first frame</b><div class="mut sm">4 blank-frame games · taprace, reactionduel</div></div><span class="ef">M</span></div>
+<div class="it"><i class="n">8</i><div style="flex:1;min-width:0"><b>Personal best in cancellable effect</b><div class="mut sm">7 of 8 casual screens · write lost on exit</div></div><span class="ef">S</span></div>
+<div class="it"><i class="n">9</i><div style="flex:1;min-width:0"><b>No score card or sticker moment</b><div class="mut sm">76 of 81 games · only the 5 newest have one</div></div><span class="ef">M</span></div>
+<div class="it"><i class="n">10</i><div style="flex:1;min-width:0"><b>fitBoard square only, no hit-slop helper</b><div class="mut sm">every non-square board · 48 dp by hand today</div></div><span class="ef">M</span></div>
+</div>
+</div>
+
+<div style="display:flex;gap:12px;height:178px">
+<div class="ph"><span class="tag">R1</span><b>Shared platform</b><div class="mut sm">GameChrome v2 with overlay pause, frame clock, DailySeed, async generation, deck, sound and haptic facade, hit-slop, fitBoard.</div><div><span class="chip">RFChrome</span><span class="chip">RFCards</span><span class="chip">RFSpec</span></div></div>
+<div class="ph"><span class="tag">R2</span><b>Correctness and safety</b><div class="mut sm">Kid-safe word lists, Word Guess dictionary, Crossword, Minesweeper daily, snapshot checks, bots, real pause().</div><div><span class="chip">no mockup, tests only</span></div></div>
+<div class="ph"><span class="tag">R3</span><b>Appearance</b><div class="mut sm">Board materials, unified deck, motion and sound vocabulary, score card and sticker moment, weakest families first.</div><div><span class="chip">RFCards</span><span class="chip">RFScoreCard</span></div></div>
+<div class="ph"><span class="tag">R4</span><b>Localisation and a11y</b><div class="mut sm">String sweep, text scale, TalkBack, then screenshot tests. Needs a JVM screenshot library decision: no device installs.</div><div><span class="chip">RFSpec</span></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

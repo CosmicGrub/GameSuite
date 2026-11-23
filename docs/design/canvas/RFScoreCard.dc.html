@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Score card v2</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=Baloo+2:wght@600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;font:400 14px/1.4 Inter,sans-serif;color:#F3F1EA;overflow:hidden}
+.cap{position:absolute;top:10px;height:28px;padding:0 14px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;color:#F3F1EA}
+.pw{position:absolute;top:48px;width:312px;height:675px;border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px #2E3558}
+.ph{width:390px;height:844px;transform:scale(.8);transform-origin:0 0;background:radial-gradient(120% 60% at 50% 0%,#1B2050 0%,#0B0D1A 60%);position:relative;overflow:hidden;display:flex;flex-direction:column;padding:0 16px}
+.ph.kid{background:linear-gradient(180deg,#FFE9B8 0%,#FFF4DC 40%);color:#2B1B4A;font-family:'Baloo 2',Inter,sans-serif}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.sm{font-size:12px}
+.tb{padding-top:52px;display:flex;align-items:center;justify-content:space-between;height:96px}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.bn{display:flex;gap:14px;align-items:center;margin-top:6px}
+.bi{width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none}
+.bn h1{font-size:38px;line-height:1.05}
+.hero{margin-top:14px;background:#141829;border:1px solid #232943;border-radius:24px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.cnt{width:100%;display:flex;justify-content:space-between;align-items:center}
+.cnt div{display:flex;align-items:center;gap:8px;font:600 15px Sora}
+.cnt b{font:700 28px Sora}
+.bar{width:100%;height:12px;border-radius:6px;display:flex;overflow:hidden;background:#14183A;border:1px solid #3A4270}
+.stats{display:flex;gap:8px;margin-top:10px}
+.stat{flex:1;background:#141829;border:1px solid #232943;border-radius:16px;padding:10px 6px;text-align:center}
+.stat b{display:block;font:700 22px Sora}
+.stat span{font-size:12px;color:#9AA0B8}
+.chp{margin-top:10px;display:flex;align-items:center;gap:10px;min-height:48px;border-radius:16px;padding:8px 14px;font:500 14px/1.3 Inter;border:1px solid #2E3558;background:#1C2138;color:#F3F1EA}
+.btn{height:56px;border-radius:28px;display:flex;align-items:center;justify-content:center;font:700 17px Sora}
+.pri{background:#FFB547;color:#1A1203}
+.sec{background:#1C2138;border:1px solid #3A4270;color:#F3F1EA}
+.lnk{height:48px;display:flex;align-items:center;justify-content:center;font:600 15px Inter;color:#C9CDE0}
+.mk{position:absolute;width:26px;height:26px;border-radius:13px;background:#FF6B7A;color:#2A050A;font:700 13px/26px Inter;text-align:center;z-index:9;box-shadow:0 0 0 3px rgba(11,13,26,.7)}
+.kid .pill{background:#fff;border-radius:28px;box-shadow:0 5px 0 rgba(43,27,74,.14)}
+.kid .kb{height:64px;border-radius:32px;background:#FF7A3C;color:#2B1B4A;font:700 24px 'Baloo 2';display:flex;align-items:center;justify-content:center;box-shadow:0 6px 0 #B8531F}
+.ar{position:absolute;top:372px;width:106px;text-align:center;font:600 12px Inter;color:#9AA0B8}
+.nt{position:absolute;top:738px;width:384px;display:flex;flex-direction:column;gap:7px}
+.nr{display:flex;gap:9px;font:400 12.5px/1.35 Inter;color:#C9CDE0}
+.nr b{color:#F3F1EA;font-weight:600}
+.nd{width:20px;height:20px;border-radius:10px;background:#FF6B7A;color:#2A050A;font:700 11px/20px Inter;text-align:center;flex:none;margin-top:1px}
+.ef{font:700 11px Sora;font-style:normal;border:1px solid #5A6394;border-radius:6px;padding:0 5px;margin-left:4px;color:#F3F1EA}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-cup" viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M12 14v4M8 21h8M10 18h4"/></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.200M4 4v4h4"/></symbol>
+<symbol id="i-bal" viewBox="0 0 24 24"><path d="M12 4v16M8 20h8M6 8h12M6 8l-3 6a3.500 3.500 0 0 0 6 0zM18 8l-3 6a3.500 3.500 0 0 0 6 0z"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+<g id="dw"><circle cx=".5" cy=".5" r=".38" fill="#F3F1EA" stroke="#14183A" stroke-width=".03"/></g>
+<g id="do"><circle cx=".5" cy=".5" r=".38" fill="#14183A" stroke="#C9CDE0" stroke-width=".04"/></g>
+<g id="rvw"><rect width="8" height="8" fill="#2F3768"/><path d="M1 0v8M0 1h8M2 0v8M0 2h8M3 0v8M0 3h8M4 0v8M0 4h8M5 0v8M0 5h8M6 0v8M0 6h8M7 0v8M0 7h8" stroke="#4A5290" stroke-width=".06"/><use href="#dw" transform="translate(0,0)"/><use href="#do" transform="translate(1,0)"/><use href="#dw" transform="translate(2,0)"/><use href="#do" transform="translate(3,0)"/><use href="#dw" transform="translate(4,0)"/><use href="#do" transform="translate(5,0)"/><use href="#do" transform="translate(6,0)"/><use href="#do" transform="translate(7,0)"/><use href="#dw" transform="translate(0,1)"/><use href="#dw" transform="translate(1,1)"/><use href="#dw" transform="translate(2,1)"/><use href="#do" transform="translate(3,1)"/><use href="#dw" transform="translate(4,1)"/><use href="#do" transform="translate(5,1)"/><use href="#dw" transform="translate(6,1)"/><use href="#do" transform="translate(7,1)"/><use href="#dw" transform="translate(0,2)"/><use href="#do" transform="translate(1,2)"/><use href="#do" transform="translate(2,2)"/><use href="#do" transform="translate(3,2)"/><use href="#do" transform="translate(4,2)"/><use href="#do" transform="translate(5,2)"/><use href="#do" transform="translate(6,2)"/><use href="#dw" transform="translate(7,2)"/><use href="#dw" transform="translate(0,3)"/><use href="#dw" transform="translate(1,3)"/><use href="#dw" transform="translate(2,3)"/><use href="#do" transform="translate(3,3)"/><use href="#do" transform="translate(4,3)"/><use href="#do" transform="translate(5,3)"/><use href="#dw" transform="translate(6,3)"/><use href="#do" transform="translate(7,3)"/><use href="#do" transform="translate(0,4)"/><use href="#dw" transform="translate(1,4)"/><use href="#dw" transform="translate(2,4)"/><use href="#dw" transform="translate(3,4)"/><use href="#do" transform="translate(4,4)"/><use href="#dw" transform="translate(5,4)"/><use href="#dw" transform="translate(6,4)"/><use href="#dw" transform="translate(7,4)"/><use href="#dw" transform="translate(0,5)"/><use href="#do" transform="translate(1,5)"/><use href="#dw" transform="translate(2,5)"/><use href="#dw" transform="translate(3,5)"/><use href="#dw" transform="translate(4,5)"/><use href="#dw" transform="translate(5,5)"/><use href="#do" transform="translate(6,5)"/><use href="#dw" transform="translate(7,5)"/><use href="#dw" transform="translate(0,6)"/><use href="#do" transform="translate(1,6)"/><use href="#dw" transform="translate(2,6)"/><use href="#dw" transform="translate(3,6)"/><use href="#do" transform="translate(4,6)"/><use href="#dw" transform="translate(5,6)"/><use href="#dw" transform="translate(6,6)"/><use href="#do" transform="translate(7,6)"/><use href="#dw" transform="translate(0,7)"/><use href="#dw" transform="translate(1,7)"/><use href="#dw" transform="translate(2,7)"/><use href="#do" transform="translate(3,7)"/><use href="#dw" transform="translate(4,7)"/><use href="#dw" transform="translate(5,7)"/><use href="#dw" transform="translate(6,7)"/><use href="#dw" transform="translate(7,7)"/></g>
+<g id="rvl"><rect width="8" height="8" fill="#2F3768"/><path d="M1 0v8M0 1h8M2 0v8M0 2h8M3 0v8M0 3h8M4 0v8M0 4h8M5 0v8M0 5h8M6 0v8M0 6h8M7 0v8M0 7h8" stroke="#4A5290" stroke-width=".06"/><use href="#do" transform="translate(0,0)"/><use href="#dw" transform="translate(1,0)"/><use href="#do" transform="translate(2,0)"/><use href="#dw" transform="translate(3,0)"/><use href="#do" transform="translate(4,0)"/><use href="#do" transform="translate(5,0)"/><use href="#dw" transform="translate(6,0)"/><use href="#dw" transform="translate(7,0)"/><use href="#do" transform="translate(0,1)"/><use href="#do" transform="translate(1,1)"/><use href="#dw" transform="translate(2,1)"/><use href="#do" transform="translate(3,1)"/><use href="#do" transform="translate(4,1)"/><use href="#do" transform="translate(5,1)"/><use href="#do" transform="translate(6,1)"/><use href="#dw" transform="translate(7,1)"/><use href="#do" transform="translate(0,2)"/><use href="#do" transform="translate(1,2)"/><use href="#do" transform="translate(2,2)"/><use href="#do" transform="translate(3,2)"/><use href="#do" transform="translate(4,2)"/><use href="#do" transform="translate(5,2)"/><use href="#dw" transform="translate(6,2)"/><use href="#dw" transform="translate(7,2)"/><use href="#dw" transform="translate(0,3)"/><use href="#do" transform="translate(1,3)"/><use href="#do" transform="translate(2,3)"/><use href="#do" transform="translate(3,3)"/><use href="#do" transform="translate(4,3)"/><use href="#dw" transform="translate(5,3)"/><use href="#dw" transform="translate(6,3)"/><use href="#do" transform="translate(7,3)"/><use href="#dw" transform="translate(0,4)"/><use href="#dw" transform="translate(1,4)"/><use href="#dw" transform="translate(2,4)"/><use href="#do" transform="translate(3,4)"/><use href="#dw" transform="translate(4,4)"/><use href="#do" transform="translate(5,4)"/><use href="#do" transform="translate(6,4)"/><use href="#do" transform="translate(7,4)"/><use href="#do" transform="translate(0,5)"/><use href="#dw" transform="translate(1,5)"/><use href="#do" transform="translate(2,5)"/><use href="#dw" transform="translate(3,5)"/><use href="#dw" transform="translate(4,5)"/><use href="#do" transform="translate(5,5)"/><use href="#do" transform="translate(6,5)"/><use href="#dw" transform="translate(7,5)"/><use href="#do" transform="translate(0,6)"/><use href="#dw" transform="translate(1,6)"/><use href="#dw" transform="translate(2,6)"/><use href="#do" transform="translate(3,6)"/><use href="#do" transform="translate(4,6)"/><use href="#dw" transform="translate(5,6)"/><use href="#do" transform="translate(6,6)"/><use href="#do" transform="translate(7,6)"/><use href="#dw" transform="translate(0,7)"/><use href="#do" transform="translate(1,7)"/><use href="#dw" transform="translate(2,7)"/><use href="#do" transform="translate(3,7)"/><use href="#dw" transform="translate(4,7)"/><use href="#do" transform="translate(5,7)"/><use href="#dw" transform="translate(6,7)"/><use href="#do" transform="translate(7,7)"/></g>
+<g id="rvd"><rect width="8" height="8" fill="#2F3768"/><path d="M1 0v8M0 1h8M2 0v8M0 2h8M3 0v8M0 3h8M4 0v8M0 4h8M5 0v8M0 5h8M6 0v8M0 6h8M7 0v8M0 7h8" stroke="#4A5290" stroke-width=".06"/><use href="#dw" transform="translate(0,0)"/><use href="#do" transform="translate(1,0)"/><use href="#dw" transform="translate(2,0)"/><use href="#dw" transform="translate(3,0)"/><use href="#dw" transform="translate(4,0)"/><use href="#dw" transform="translate(5,0)"/><use href="#do" transform="translate(6,0)"/><use href="#dw" transform="translate(7,0)"/><use href="#dw" transform="translate(0,1)"/><use href="#do" transform="translate(1,1)"/><use href="#dw" transform="translate(2,1)"/><use href="#dw" transform="translate(3,1)"/><use href="#do" transform="translate(4,1)"/><use href="#do" transform="translate(5,1)"/><use href="#do" transform="translate(6,1)"/><use href="#dw" transform="translate(7,1)"/><use href="#do" transform="translate(0,2)"/><use href="#dw" transform="translate(1,2)"/><use href="#do" transform="translate(2,2)"/><use href="#do" transform="translate(3,2)"/><use href="#do" transform="translate(4,2)"/><use href="#dw" transform="translate(5,2)"/><use href="#do" transform="translate(6,2)"/><use href="#dw" transform="translate(7,2)"/><use href="#dw" transform="translate(0,3)"/><use href="#do" transform="translate(1,3)"/><use href="#do" transform="translate(2,3)"/><use href="#dw" transform="translate(3,3)"/><use href="#dw" transform="translate(4,3)"/><use href="#dw" transform="translate(5,3)"/><use href="#do" transform="translate(6,3)"/><use href="#do" transform="translate(7,3)"/><use href="#dw" transform="translate(0,4)"/><use href="#do" transform="translate(1,4)"/><use href="#do" transform="translate(2,4)"/><use href="#dw" transform="translate(3,4)"/><use href="#do" transform="translate(4,4)"/><use href="#do" transform="translate(5,4)"/><use href="#dw" transform="translate(6,4)"/><use href="#dw" transform="translate(7,4)"/><use href="#dw" transform="translate(0,5)"/><use href="#do" transform="translate(1,5)"/><use href="#do" transform="translate(2,5)"/><use href="#dw" transform="translate(3,5)"/><use href="#dw" transform="translate(4,5)"/><use href="#do" transform="translate(5,5)"/><use href="#dw" transform="translate(6,5)"/><use href="#do" transform="translate(7,5)"/><use href="#do" transform="translate(0,6)"/><use href="#do" transform="translate(1,6)"/><use href="#do" transform="translate(2,6)"/><use href="#do" transform="translate(3,6)"/><use href="#do" transform="translate(4,6)"/><use href="#dw" transform="translate(5,6)"/><use href="#dw" transform="translate(6,6)"/><use href="#dw" transform="translate(7,6)"/><use href="#dw" transform="translate(0,7)"/><use href="#do" transform="translate(1,7)"/><use href="#do" transform="translate(2,7)"/><use href="#dw" transform="translate(3,7)"/><use href="#do" transform="translate(4,7)"/><use href="#do" transform="translate(5,7)"/><use href="#dw" transform="translate(6,7)"/><use href="#dw" transform="translate(7,7)"/></g>
+
+</defs></svg>
+
+<span class="cap" style="left:60px">1 Reversi · win</span><span class="cap" style="left:490px">2 Reversi · loss</span><span class="cap" style="left:920px">3 Reversi · draw</span><span class="cap" style="left:1350px">4 Air Hockey · arcade</span><span class="cap" style="left:1780px">5 Tap Race · kids</span>
+<svg width="2150" height="920" style="position:absolute;left:0;top:0;pointer-events:none" aria-hidden="true" fill="none" stroke="#5A6394" stroke-width="2" stroke-linecap="round"><path d="M386 400h88M468 394l8 6-8 6"/><path d="M816 400h88M898 394l8 6-8 6"/><path d="M1246 400h88M1328 394l8 6-8 6"/><path d="M1676 400h88M1758 394l8 6-8 6"/></svg>
+<span class="ar" style="left:378px">same slots</span><span class="ar" style="left:808px">same slots</span><span class="ar" style="left:1238px">arcade variant</span><span class="ar" style="left:1668px">kids theme</span>
+
+<!-- 1 win -->
+<div class="pw" style="left:60px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Close"><use href="#i-x"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Reversi</h2><div class="mut sm">Medium · 61 moves</div></div><span style="width:44px"></span></div>
+<div class="bn"><div class="bi" style="background:#2A2113;color:#FFB547"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><use href="#i-cup"/></svg></div><div><div class="mut sm" style="letter-spacing:.1em;text-transform:uppercase">Result</div><h1>You win</h1></div></div>
+<div class="hero"><svg width="188" height="188" viewBox="0 0 8 8" style="border-radius:12px" role="img" aria-label="Final board: you 38 discs, bot 26 discs"><use href="#rvw"/></svg>
+<div class="cnt"><div><svg width="22" height="22" viewBox="0 0 1 1"><use href="#dw"/></svg>You <b>38</b></div><div><b>26</b> Bot<svg width="22" height="22" viewBox="0 0 1 1"><use href="#do"/></svg></div></div>
+<div class="bar"><div style="width:59.4%;background:#F3F1EA"></div><div style="flex:1"></div></div></div>
+<div class="stats"><div class="stat"><b>3</b><span>Corners</span></div><div class="stat"><b>7</b><span>Longest flip</span></div><div class="stat"><b>6:12</b><span>Time</span></div></div>
+<div class="chp" style="background:#2A2113;border-color:#6B5320"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFB547" stroke-width="2.2" aria-hidden="true"><path d="M12 3l2.600 5.600 6 .7-4.500 4.100 1.200 6L12 16.400 6.700 19.400l1.200-6L3.400 9.300l6-.7z"/></svg><span><b>New best: 38 discs.</b> Was 35 on Medium.</span></div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding-bottom:26px"><div class="btn pri">Rematch</div><div style="display:flex;gap:8px"><div class="btn sec" style="flex:1;height:52px;font-size:15px">New game</div><div class="btn sec" style="flex:1;height:52px;font-size:15px">Review board</div></div></div>
+<div class="mk" style="left:76px;top:100px">1</div>
+<div class="mk" style="left:350px;top:516px">2</div>
+<div class="mk" style="left:12px;top:216px">3</div>
+</div></div>
+
+<!-- 2 loss -->
+<div class="pw" style="left:490px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Close"><use href="#i-x"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Reversi</h2><div class="mut sm">Medium · 60 moves</div></div><span style="width:44px"></span></div>
+<div class="bn"><div class="bi" style="background:#1C2138;color:#B9B0FF"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><use href="#i-redo"/></svg></div><div><div class="mut sm" style="letter-spacing:.1em;text-transform:uppercase">Result</div><h1>Close game</h1></div></div>
+<div class="hero"><svg width="188" height="188" viewBox="0 0 8 8" style="border-radius:12px" role="img" aria-label="Final board: you 26 discs, bot 38 discs"><use href="#rvl"/></svg>
+<div class="cnt"><div><svg width="22" height="22" viewBox="0 0 1 1"><use href="#dw"/></svg>You <b>26</b></div><div><b>38</b> Bot<svg width="22" height="22" viewBox="0 0 1 1"><use href="#do"/></svg></div></div>
+<div class="bar"><div style="width:40.6%;background:#F3F1EA"></div><div style="flex:1"></div></div></div>
+<div class="stats"><div class="stat"><b>1</b><span>Corners</span></div><div class="stat"><b>5</b><span>Longest flip</span></div><div class="stat"><b>5:48</b><span>Time</span></div></div>
+<div class="chp"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B9B0FF" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.500h.01"/></svg><span><b>Try this:</b> take corners early. The bot took 3 of 4.</span></div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding-bottom:26px"><div class="btn pri">Rematch</div><div style="display:flex;gap:8px"><div class="btn sec" style="flex:1;height:52px;font-size:15px">Easier level</div><div class="btn sec" style="flex:1;height:52px;font-size:15px">Review board</div></div></div>
+<div class="mk" style="left:76px;top:100px">4</div>
+<div class="mk" style="left:350px;top:516px">5</div>
+<div class="mk" style="left:350px;top:742px">6</div>
+</div></div>
+
+<!-- 3 draw -->
+<div class="pw" style="left:920px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Close"><use href="#i-x"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Reversi</h2><div class="mut sm">Medium · 60 moves</div></div><span style="width:44px"></span></div>
+<div class="bn"><div class="bi" style="background:#1C2138;color:#4ADE9B"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><use href="#i-bal"/></svg></div><div><div class="mut sm" style="letter-spacing:.1em;text-transform:uppercase">Result</div><h1>All square</h1></div></div>
+<div class="hero"><svg width="188" height="188" viewBox="0 0 8 8" style="border-radius:12px" role="img" aria-label="Final board: 32 discs each"><use href="#rvd"/></svg>
+<div class="cnt"><div><svg width="22" height="22" viewBox="0 0 1 1"><use href="#dw"/></svg>You <b>32</b></div><div><b>32</b> Bot<svg width="22" height="22" viewBox="0 0 1 1"><use href="#do"/></svg></div></div>
+<div class="bar" style="position:relative"><div style="width:50%;background:#F3F1EA"></div><div style="flex:1"></div><div style="position:absolute;left:50%;top:-3px;width:2px;height:16px;background:#4ADE9B"></div></div></div>
+<div class="stats"><div class="stat"><b>2</b><span>Corners</span></div><div class="stat"><b>6</b><span>Longest flip</span></div><div class="stat"><b>6:30</b><span>Time</span></div></div>
+<div class="chp"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ADE9B" stroke-width="2.2" aria-hidden="true"><path d="M4 12h16M4 8h16M4 16h16"/></svg><span><b>Draws are rare.</b> Rematch swaps who plays first.</span></div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding-bottom:26px"><div class="btn pri">Rematch</div><div style="display:flex;gap:8px"><div class="btn sec" style="flex:1;height:52px;font-size:15px">New game</div><div class="btn sec" style="flex:1;height:52px;font-size:15px">Review board</div></div></div>
+<div class="mk" style="left:76px;top:100px">7</div>
+<div class="mk" style="left:350px;top:386px">8</div>
+<div class="mk" style="left:350px;top:516px">9</div>
+</div></div>
+
+<!-- 4 air hockey -->
+<div class="pw" style="left:1350px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Close"><use href="#i-x"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Air Hockey</h2><div class="mut sm">First to 7 · Hard</div></div><span style="width:44px"></span></div>
+<div class="bn"><div class="bi" style="background:#2A2113;color:#FFB547"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><use href="#i-cup"/></svg></div><div><div class="mut sm" style="letter-spacing:.1em;text-transform:uppercase">Result</div><h1>Match won</h1></div></div>
+<div class="hero" style="gap:6px;padding:14px 16px">
+<div style="display:flex;align-items:center;justify-content:center;gap:22px;width:100%"><div style="text-align:center"><div style="font:700 84px/1 Sora">7</div><div class="mut sm">You</div></div><div style="font:600 36px Sora;color:#5A6394">:</div><div style="text-align:center"><div style="font:700 84px/1 Sora;color:#C9CDE0">4</div><div class="mut sm">Bot</div></div></div>
+<svg width="326" height="110" viewBox="0 0 326 110" role="img" aria-label="Rink with the last puck trail"><rect x="1" y="1" width="324" height="108" rx="28" fill="#1C2138" stroke="#3A4270" stroke-width="2"/><path d="M163 6v98" stroke="#3A4270" stroke-width="2"/><circle cx="163" cy="55" r="18" fill="none" stroke="#3A4270" stroke-width="2"/><path d="M262 90C220 40 170 20 100 36" stroke="#FFB547" stroke-width="3" fill="none" stroke-dasharray="2 7" stroke-linecap="round"/><circle cx="100" cy="36" r="9" fill="#F3F1EA" stroke="#0B0D1A" stroke-width="2"/><rect x="2" y="38" width="8" height="34" rx="4" fill="#8B7CFF"/></svg>
+</div>
+<div class="stats"><div class="stat"><b>38</b><span>Fastest, m/s</span></div><div class="stat"><b>14</b><span>Longest rally</span></div><div class="stat"><b>12</b><span>Saves</span></div></div>
+<div class="chp" style="flex-wrap:wrap;gap:8px"><span style="flex:1;min-width:100px"><b>Handicap</b><br><span class="mut sm">Per player, kept for next match</span></span>
+<span style="display:flex;gap:4px"><span style="height:40px;padding:0 12px;border-radius:20px;background:#F3F1EA;color:#0B0D1A;font:700 13px Inter;display:flex;align-items:center">Even</span><span style="height:40px;padding:0 12px;border-radius:20px;border:1px solid #5A6394;font:600 13px Inter;display:flex;align-items:center">You -2</span><span style="height:40px;padding:0 12px;border-radius:20px;border:1px solid #5A6394;font:600 13px Inter;display:flex;align-items:center">Bot -2</span></span></div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding-bottom:26px"><div class="btn pri">Rematch</div><div style="display:flex;gap:8px"><div class="btn sec" style="flex:1;height:52px;font-size:15px">Change level</div><div class="btn sec" style="flex:1;height:52px;font-size:15px">Home</div></div></div>
+<div class="mk" style="left:76px;top:100px">10</div>
+<div class="mk" style="left:350px;top:586px">11</div>
+<div class="mk" style="left:14px;top:226px">12</div>
+</div></div>
+
+<!-- 5 tap race kids -->
+<div class="pw" style="left:1780px"><div class="ph kid">
+<div style="padding-top:56px;display:flex;align-items:center;justify-content:space-between;height:112px"><div style="width:56px;height:56px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 rgba(43,27,74,.18);color:#2B1B4A"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.600" aria-label="Back"><use href="#i-back"/></svg></div><div style="font:700 30px 'Baloo 2'">Tap Race</div><span style="width:56px"></span></div>
+<div style="font:700 46px/1 'Baloo 2';margin-top:4px">You won!</div>
+<div style="font:600 18px 'Baloo 2';margin-top:2px;color:#4B3A73">48 taps in 10 seconds</div>
+<div class="pill" style="margin-top:12px;padding:12px 14px;height:168px;display:flex;flex-direction:column;justify-content:space-between" role="img" aria-label="Final order: Mia first with 48 taps, Leo second with 41 taps">
+<div style="display:flex;align-items:center;gap:10px"><span style="font:700 22px 'Baloo 2';width:22px">1</span><svg width="40" height="40" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" fill="#E0415A"/></svg><div style="flex:1;height:14px;border-radius:7px;background:#FFE9B8;overflow:hidden"><div style="width:100%;height:14px;background:#E0415A"></div></div><span style="font:700 22px 'Baloo 2';width:34px;text-align:right">48</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span style="font:700 22px 'Baloo 2';width:22px">2</span><svg width="40" height="40" viewBox="0 0 44 44" aria-hidden="true"><rect x="4" y="4" width="36" height="36" rx="8" fill="#2A7FD0"/></svg><div style="flex:1;height:14px;border-radius:7px;background:#FFE9B8;overflow:hidden"><div style="width:85%;height:14px;background:#2A7FD0"></div></div><span style="font:700 22px 'Baloo 2';width:34px;text-align:right">41</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span style="font:700 22px 'Baloo 2';width:22px">3</span><svg width="40" height="40" viewBox="0 0 44 44" aria-hidden="true"><path d="M22 4l19 34H3z" fill="#2E9E5B"/></svg><div style="flex:1;height:14px;border-radius:7px;background:#FFE9B8;overflow:hidden"><div style="width:71%;height:14px;background:#2E9E5B"></div></div><span style="font:700 22px 'Baloo 2';width:34px;text-align:right">34</span></div>
+</div>
+<div class="pill" style="margin-top:12px;padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:14px;align-items:center"><svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label="Sticker: Quick Fingers, a yellow star with a lightning bolt" style="flex:none"><path d="M52 6l13 28 30 3-22 21 6 30-27-15-27 15 6-30L9 37l30-3z" fill="#FFC531" stroke="#2B1B4A" stroke-width="4" stroke-linejoin="round"/><path d="M56 30L40 56h12l-6 20 20-28H54z" fill="#E0415A" stroke="#2B1B4A" stroke-width="3" stroke-linejoin="round"/><path d="M86 104L104 86V104z" fill="#FFE9B8"/></svg>
+<div><div style="font:700 15px 'Baloo 2';color:#7A3A00;letter-spacing:.04em;text-transform:uppercase">New sticker</div><div style="font:700 28px/1.05 'Baloo 2'">Quick Fingers</div><div style="font:500 14px/1.3 Inter;color:#4B3A73;margin-top:2px">Everyone who finishes a race gets one.</div></div></div>
+<div class="kb" style="height:56px;font-size:22px;background:#1E7B46;color:#fff;box-shadow:0 5px 0 #14522E">Add to my book</div>
+</div>
+<div style="flex:1"></div>
+<div class="kb" style="margin-bottom:8px">Play again</div>
+<div style="height:56px;display:flex;align-items:center;justify-content:center;font:700 20px 'Baloo 2';margin-bottom:14px">Home</div>
+<div class="mk" style="left:0;top:116px">13</div>
+<div class="mk" style="left:350px;top:388px">14</div>
+<div class="mk" style="left:350px;top:586px">15</div>
+</div></div>
+
+<!-- notes -->
+<div class="nt" style="left:26px">
+<div class="nr"><i class="nd">1</i><div><b>One outcome pattern:</b> title, final-state hero, score, three stats, one primary action. 76 of 81 games have no score card (finding 9).<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">2</i><div><b>Best is saved before this screen shows,</b> in a non-cancellable scope; the chip says what changed ("was 35"). 7 of 8 casual screens lose it today (finding 8).<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">3</i><div><b>One celebration:</b> 24 confetti, double pulse. Reduced Motion: static trophy. reversi ignores it today (ReversiScreen.kt:585-594).<i class="ef">M</i></div></div>
+</div>
+<div class="nt" style="left:456px">
+<div class="nr"><i class="nd">4</i><div><b>"Close game", never "You lose".</b> No confetti, one low pulse, same layout, so players learn one screen.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">5</i><div><b>Tip is an event id the screen localises.</b> It is English-only in 62 games (finding 1); reversi scores 10 of 15.<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">6</i><div><b>"Easier level" appears after two losses in a row,</b> not the first. Rematch stays the only filled button.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:886px">
+<div class="nr"><i class="nd">7</i><div><b>Draw is its own event</b> with a balance icon; engines emit GameEnded(draw), not a win or loss flag.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">8</i><div><b>Ties print twice:</b> numbers and a centre tick on the bar, so colour is never the only cue.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">9</i><div><b>Rematch swaps who plays first</b> after a draw, so neither side keeps the opening.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:1316px">
+<div class="nr"><i class="nd">10</i><div><b>Arcade variant:</b> score replaces the board. airhockey is the weakest game, 7 of 15, a11y 0.<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">11</i><div><b>Per-seat handicap chip</b> (even, you -2, bot -2), kept per profile. No pure-arcade game has handicaps today (finding 9).<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">12</i><div><b>Rink freezes first:</b> the result opens after the frame clock stops, so nothing runs behind it (findings 2 and 3).<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:1746px">
+<div class="nr"><i class="nd">13</i><div><b>Kid theme, same slots:</b> Baloo 2 title, one 64 dp button. taprace is 10 of 15: blank first frame, no pause (top fixes).<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">14</i><div><b>Sticker moment for kid profiles,</b> win or lose: 1.2 s peel, static card under Reduced Motion. Only 10 achievements exist.<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">15</i><div><b>Add to my book</b> is a 56 dp green button with white text at 5:1; Play again stays the one big orange button.<i class="ef">S</i></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

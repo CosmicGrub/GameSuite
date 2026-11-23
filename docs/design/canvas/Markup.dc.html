@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Markup and specs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.root{width:1200px;height:1040px;background:#0B0D1A;color:#F3F1EA;font:400 14px/1.5 Inter,sans-serif;padding:52px 64px;display:flex;flex-direction:column;gap:26px}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 28px}
+.it{display:flex;gap:14px;background:#141829;border:1px solid #232943;border-radius:16px;padding:14px 16px}
+.n{width:26px;height:26px;border-radius:13px;background:#FF6B7A;color:#2A050A;font:700 13px Inter;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px}
+.it b{font:600 15px Sora;display:block;margin-bottom:2px}
+.lab{font:600 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8;margin-bottom:12px}
+table{border-collapse:collapse;width:100%}
+td,th{text-align:left;padding:9px 12px;border-bottom:1px solid #1E2340;vertical-align:top;font-size:13px}
+th{font:600 12px Inter;color:#9AA0B8;letter-spacing:.08em;text-transform:uppercase}
+</style>
+</helmet>
+<div class="root">
+<div><div class="lab" style="margin:0 0 8px">Redlines</div><h1 style="font-size:40px">Markup and specs</h1><div class="mut" style="margin-top:6px;font-size:16px;max-width:780px">Red numbered dots on the screens point to the notes below. The table maps each audit finding to the screen that answers it.</div></div>
+
+<div class="grid">
+<div class="it"><div class="n">1</div><div><b>Home: resume first</b>Hero card 28 radius, 20 padding, min height 196. Resume is the only saffron button on screen. Shows a live mini board; tap anywhere on the card also resumes.</div></div>
+<div class="it"><div class="n">2</div><div><b>Home: daily row</b>Three equal cards, 12 padding, 36 icon chips. Done state turns the chip mint and adds a tick, never colour alone. Counts toward the streak.</div></div>
+<div class="it"><div class="n">3</div><div><b>Setup: pinned Start</b>56 high, 28 radius, always above the gesture bar, with a fade behind it. Fixes the unreachable Start button at 1.6x text in landscape.</div></div>
+<div class="it"><div class="n">4</div><div><b>Board table</b>Board is square, 16 horizontal margin, fills the width. Last move tinted saffron 35%, legal moves are dots, pieces carry an outline so they read on both square colours.</div></div>
+<div class="it"><div class="n">5</div><div><b>Action dock</b>Four 56 dp round buttons with text labels under each. Hint is the only filled one. Undo and Hint leave the overflow menu. 12 sp labels scale with text size.</div></div>
+<div class="it"><div class="n">6</div><div><b>Result</b>One celebration, one primary action (Rematch). Confetti 24 shapes, double haptic pulse. Reduced Motion: static trophy, no confetti, no pulse.</div></div>
+<div class="it"><div class="n">7</div><div><b>Kids: grown-ups lock</b>56 dp lock in the corner. A short tap does nothing, so it cannot be hit by accident; the parent gate opens on a press-and-hold of 1.5 s.</div></div>
+<div class="it"><div class="n">8</div><div><b>Kids targets and voice</b>Tiles 150 by 176, text 22 sp rounded type, one idea per screen. A speaker button re-reads the instruction. Pre-readers play by icon and sound.</div></div>
+</div>
+
+<div>
+<div class="lab">Audit finding, and where this design answers it</div>
+<table>
+<tr><th style="width:36%">Finding (docs/audit)</th><th style="width:34%">Answered by</th><th>Still needs engineering</th></tr>
+<tr><td>No kids mode, parent gate or time limits</td><td>Who is playing, Kids home, Parent gate, Parent dashboard</td><td>Profile model, limit enforcement, kid game curation</td></tr>
+<tr><td>No sticker or reward system, 10 achievements only</td><td>Sticker book, Result unlock card, Progress achievements</td><td>Reward rules and art for each sticker</td></tr>
+<tr><td>One profile only, no per-person stats</td><td>Profile picker, Club</td><td>Per-profile storage and migration</td></tr>
+<tr><td>Quick chat built on the relay, no client UI</td><td>Lobby chips, Tablet table chips, Quick match safety line</td><td>Wave 5 slices S2, S5, S8</td></tr>
+<tr><td>Text size ignores in-app slider in 24 files</td><td>Settings text size, 12 sp minimum labels everywhere</td><td>Replace 71 hard-coded font sizes</td></tr>
+<tr><td>Icon-only or hidden controls, undo and hint buried</td><td>Board table action dock</td><td>Apply the dock to every game screen</td></tr>
+<tr><td>Spanish stops at the game screen for 27 games</td><td>All copy kept short for translation</td><td>Translate about 985 strings</td></tr>
+<tr><td>Home screen feels empty, thin stats</td><td>Home, Progress</td><td>Best-score and history storage</td></tr>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

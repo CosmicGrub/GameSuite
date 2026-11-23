@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import com.gamesuite.uikit.measuringContacts
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import com.gamesuite.games.partypack.ReactionWhackLayout
@@ -52,19 +53,26 @@ internal fun RwTouchSurface(
     content: @Composable BoxScope.() -> Unit
 ) {
     val press by rememberUpdatedState(onPress)
+    // Shared palm rejection: a resting palm is not a reaction press (it would be a false start).
+    val guard = com.gamesuite.uikit.rememberPalmGuard()
     Box(
         modifier
             .fillMaxSize()
-            .pointerInput(layout) {
+            .measuringContacts(guard.contacts)
+            .pointerInput(layout, guard) {
                 val map = ReactionWhackPointerMap { x, y -> ReactionWhackZones.zoneAt(layout.zones, x, y) }
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val nowUptime = SystemClock.uptimeMillis()
+                        guard.gate.retain(event.changes.filter { it.pressed }.map { it.id.value })
                         // A finger the system no longer reports (a cancelled gesture) must not stay bound forever.
                         map.reconcile(event.changes.map { it.id.value })
                         for (c in event.changes) {
                             val id = c.id.value
+                            if (c.changedToDownIgnoreConsumed() && !guard.acceptDown(id, c.position.x, c.position.y)) {
+                                continue
+                            }
                             if (c.changedToDownIgnoreConsumed()) {
                                 val seat = map.down(id, c.position.x, c.position.y)
                                 val zone = layout.zones.firstOrNull { it.seat == seat }
@@ -73,7 +81,8 @@ internal fun RwTouchSurface(
                                     press(seat, cx, cy, (nowUptime - c.uptimeMillis).coerceAtLeast(0L))
                                 }
                             } else if (c.changedToUpIgnoreConsumed()) {
-                                map.up(id)
+                                if (!guard.gate.isRejected(id)) map.up(id)
+                                guard.gate.release(id)
                             }
                         }
                     }

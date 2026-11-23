@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mahjong, Hanafuda, card tables</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;color:#F3F1EA;font:400 14px/1.4 Inter,sans-serif;overflow:hidden}
+.cap{position:absolute;top:12px;height:28px;padding:0 11px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 11px Inter;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;color:#C9CDE0;white-space:nowrap}
+.cap.t{background:#3A1B24;border-color:#7A2E3C;color:#FFB7BF}
+.cap.a{background:#123226;border-color:#1F6B4A;color:#8FF0C0}
+.pw{position:absolute;top:50px;width:242px;height:523px}
+.ph{width:390px;height:844px;transform:scale(.62);transform-origin:0 0;position:absolute;left:0;top:0;background:#0B0D1A;overflow:hidden;font:400 15px/1.4 Inter,sans-serif;box-shadow:0 0 0 3px #232943;border-radius:30px}
+.rd{position:absolute;width:22px;height:22px;border-radius:11px;background:#E5243B;color:#fff;font:700 12px/22px Inter;text-align:center;box-shadow:0 0 0 2px #0B0D1A;z-index:20}
+.rb{position:absolute;border:2px dashed #FF4D5E;border-radius:8px;z-index:19;pointer-events:none}
+.lgt{position:absolute;left:16px;top:582px;font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:#9AA0B8}
+.lg{position:absolute;left:16px;top:604px;width:2118px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(5,auto);gap:8px 26px;font-size:12px;line-height:1.35;color:#C9CDE0}
+.li{display:flex;gap:8px;align-items:flex-start}
+.li .n{flex:none;width:20px;height:20px;border-radius:10px;background:#E5243B;color:#fff;font:700 11px/20px Inter;text-align:center;margin-top:1px}
+.li b{color:#F3F1EA;font-weight:600}
+.sz{display:inline-block;padding:0 6px;border-radius:8px;background:#2A2F55;color:#FFB547;font:700 11px/16px Inter;margin-left:2px}
+h2{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.bar{position:absolute;left:0;right:0;top:48px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.chip{height:30px;padding:0 12px;border-radius:15px;background:#1C2138;border:1px solid #2E3558;font:600 13px Inter;display:flex;align-items:center;gap:6px;color:#F3F1EA;white-space:nowrap}
+.btn{height:56px;border-radius:28px;font:600 16px Sora;display:flex;align-items:center;justify-content:center;color:#F3F1EA;background:#1C2138;box-shadow:inset 0 0 0 1px #2E3558}
+.btn.pri{background:#FFB547;color:#1A1203;box-shadow:0 8px 24px rgba(255,181,71,.28)}
+.felt{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,#14405A 0%,#0C2436 65%,#081624 100%)}
+.felt.w{background:radial-gradient(ellipse at 50% 35%,#6B1B3A 0%,#3A0D22 70%,#240716 100%)}
+.felt.j{background:radial-gradient(ellipse at 50% 30%,#1B3B2E 0%,#0F241C 70%,#08150F 100%)}
+.fm{position:absolute;left:26px;top:210px;display:grid;grid-template-columns:repeat(7,46px);gap:2px 2px}
+.fm i{height:58px;background:#E9EBF2;color:#14183A;font:600 13px Inter;font-style:normal;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.c{position:absolute;display:block;width:5.4em;height:7.5em;border-radius:.55em;background:#F8F6F0;color:#14183A;box-shadow:0 .2em .5em rgba(0,0,0,.5);font:700 8.6px Sora}
+.c.r{color:#C0243C}
+.c .ix{position:absolute;left:.3em;top:.35em;width:1.4em;display:flex;flex-direction:column;align-items:center;font:700 1.5em/1 Sora;font-style:normal}
+.c .ix svg{width:.9em;height:.9em;fill:currentColor;margin-top:.12em}
+.c .ix.b{left:auto;right:.3em;top:auto;bottom:.35em;transform:rotate(180deg)}
+.c .big{position:absolute;left:50%;top:50%;width:2.5em;height:2.5em;margin:-1.25em 0 0 -1.25em;fill:currentColor}
+.c.back{background:repeating-linear-gradient(45deg,#3B2F9E 0 .5em,#2E2480 .5em 1em);box-shadow:inset 0 0 0 .3em #F8F6F0,0 .2em .5em rgba(0,0,0,.5)}
+.c.slot{background:rgba(243,241,234,.06);box-shadow:inset 0 0 0 1.5px rgba(243,241,234,.4)}
+.hc{position:absolute;width:56px;height:86px;border-radius:6px;background:#F8F2E0;box-shadow:0 3px 8px rgba(0,0,0,.5);overflow:hidden}
+.hc .ar{position:absolute;left:8px;top:20px;width:40px;height:52px}
+.hc .mo{position:absolute;left:4px;top:4px;width:18px;height:18px;border-radius:9px;background:#14183A;color:#fff;font:700 11px/18px Sora;text-align:center;font-style:normal}
+.hc .ty{position:absolute;right:5px;bottom:5px;width:13px;height:13px;border:2px solid #14183A}
+.ty.br{border-radius:50%;background:#FFB547}.ty.an{transform:rotate(45deg);background:#F8F2E0;width:11px;height:11px}.ty.ri{height:7px;width:18px;background:#C0243C;right:4px;bottom:7px}.ty.pl{width:7px;height:7px;border-radius:50%;background:#14183A}
+.hint{box-shadow:0 0 0 3px #4ADE9B,0 0 14px rgba(74,222,155,.6)!important}
+.dm{opacity:.5}
+.av{width:46px;height:46px;border-radius:23px;display:flex;align-items:center;justify-content:center;font:700 16px Sora;color:#14183A}
+.pf{font:600 12px Inter;color:#C9CDE0}
+.c.mt{font-size:11.5px}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="sp" viewBox="0 0 24 24"><path d="M12 2C9 7 4 9.500 4 14a4.500 4.500 0 0 0 7 3.700C10.800 19.800 10 21 8.500 22h7c-1.500-1-2.300-2.200-2.500-4.300A4.500 4.500 0 0 0 20 14c0-4.500-5-7-8-12z"/></symbol>
+<symbol id="he" viewBox="0 0 24 24"><path d="M12 21C5 15.500 2 12 2 8.200A4.800 4.800 0 0 1 12 6a4.800 4.800 0 0 1 10 2.200C22 12 19 15.500 12 21z"/></symbol>
+<symbol id="di" viewBox="0 0 24 24"><path d="M12 2l7 10-7 10L5 12z"/></symbol>
+<symbol id="cl" viewBox="0 0 24 24"><path d="M12 2.500a4.200 4.200 0 0 0-3.500 6.500A4.200 4.200 0 1 0 11 15.500C11 18 10.200 20.500 8 22h8c-2.200-1.500-3-4-3-6.500a4.200 4.200 0 1 0 2.500-6.500A4.200 4.200 0 0 0 12 2.500z"/></symbol>
+<!-- mahjong tile art -->
+<symbol id="rb" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6.500" fill="#1F5FA8"/><circle cx="7" cy="7" r="3.600" fill="#F4F0E2"/><circle cx="7" cy="7" r="1.800" fill="#1F5FA8"/></symbol>
+<symbol id="rg" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6.500" fill="#1E8A5A"/><circle cx="7" cy="7" r="3.600" fill="#F4F0E2"/><circle cx="7" cy="7" r="1.800" fill="#1E8A5A"/></symbol>
+<symbol id="rr" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6.500" fill="#C0243C"/><circle cx="7" cy="7" r="3.600" fill="#F4F0E2"/><circle cx="7" cy="7" r="1.800" fill="#C0243C"/></symbol>
+<symbol id="bk" viewBox="0 0 8 20"><rect x="1" y="0" width="6" height="20" rx="3" fill="#1E8A5A"/><rect x="0" y="9" width="8" height="2" fill="#0F5A3A"/><rect x="2.500" y="3" width="1" height="5" fill="#8FE0B8"/></symbol>
+<symbol id="bkr" viewBox="0 0 8 20"><rect x="1" y="0" width="6" height="20" rx="3" fill="#C0243C"/><rect x="0" y="9" width="8" height="2" fill="#7A1226"/><rect x="2.500" y="3" width="1" height="5" fill="#FFB7BF"/></symbol>
+<symbol id="tb" viewBox="0 0 46 58"><rect x="3" y="4" width="41" height="52" rx="6" fill="#1E7A66"/><rect x="0" y="0" width="41" height="52" rx="6" fill="#F4F0E2"/><rect x=".5" y=".5" width="40" height="51" rx="5.500" fill="none" stroke="#CFC8AE"/></symbol>
+<symbol id="t-d3" viewBox="0 0 46 58"><use href="#tb"/><use href="#rb" x="5" y="6" width="13" height="13"/><use href="#rr" x="14" y="19" width="13" height="13"/><use href="#rg" x="23" y="32" width="13" height="13"/></symbol>
+<symbol id="t-d5" viewBox="0 0 46 58"><use href="#tb"/><use href="#rb" x="5" y="5" width="12" height="12"/><use href="#rg" x="24" y="5" width="12" height="12"/><use href="#rr" x="14.500" y="20" width="12" height="12"/><use href="#rg" x="5" y="35" width="12" height="12"/><use href="#rb" x="24" y="35" width="12" height="12"/></symbol>
+<symbol id="t-b3" viewBox="0 0 46 58"><use href="#tb"/><use href="#bk" x="16.500" y="4" width="8" height="20"/><use href="#bk" x="8" y="28" width="8" height="20"/><use href="#bk" x="25" y="28" width="8" height="20"/></symbol>
+<symbol id="t-b5" viewBox="0 0 46 58"><use href="#tb"/><use href="#bk" x="6" y="4" width="8" height="20"/><use href="#bk" x="27" y="4" width="8" height="20"/><use href="#bkr" x="16.500" y="16" width="8" height="20"/><use href="#bk" x="6" y="28" width="8" height="20"/><use href="#bk" x="27" y="28" width="8" height="20"/></symbol>
+<symbol id="t-cA" viewBox="0 0 46 58"><use href="#tb"/><text x="20.500" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#14183A" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">三</text><text x="20.500" y="45" text-anchor="middle" font-size="18" font-weight="700" fill="#C0243C" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">萬</text></symbol>
+<symbol id="t-cB" viewBox="0 0 46 58"><use href="#tb"/><text x="20.500" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#14183A" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">五</text><text x="20.500" y="45" text-anchor="middle" font-size="18" font-weight="700" fill="#C0243C" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">萬</text></symbol>
+<symbol id="t-wE" viewBox="0 0 46 58"><use href="#tb"/><text x="20.500" y="36" text-anchor="middle" font-size="26" font-weight="700" fill="#14183A" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">東</text></symbol>
+<symbol id="t-dr" viewBox="0 0 46 58"><use href="#tb"/><rect x="7" y="8" width="27" height="36" rx="4" fill="none" stroke="#C0243C" stroke-width="2"/><text x="20.500" y="35" text-anchor="middle" font-size="24" font-weight="700" fill="#C0243C" font-family="'Noto Sans SC','Microsoft YaHei',sans-serif">中</text></symbol>
+<symbol id="t-fl" viewBox="0 0 46 58"><use href="#tb"/><rect x="2" y="2" width="37" height="48" rx="5" fill="none" stroke="#FFB547" stroke-width="2"/><g fill="#E8527F"><circle cx="20.500" cy="14" r="6"/><circle cx="29" cy="21" r="6"/><circle cx="26" cy="31" r="6"/><circle cx="15" cy="31" r="6"/><circle cx="12" cy="21" r="6"/></g><circle cx="20.500" cy="23" r="4" fill="#FFB547"/><text x="20.500" y="48" text-anchor="middle" font-size="9" font-weight="700" fill="#14183A" font-family="Inter,sans-serif">1</text></symbol>
+<symbol id="t-ss" viewBox="0 0 46 58"><use href="#tb"/><rect x="2" y="2" width="37" height="48" rx="5" fill="none" stroke="#FFB547" stroke-width="2"/><circle cx="20.500" cy="23" r="9" fill="#F28C1B"/><g stroke="#F28C1B" stroke-width="2.500" stroke-linecap="round"><path d="M20.500 6v4M20.500 36v4M3.500 23h4M33.500 23h4M9 11l3 3M29 32l3 3M32 11l-3 3M12 32l-3 3"/></g><text x="20.500" y="48" text-anchor="middle" font-size="9" font-weight="700" fill="#14183A" font-family="Inter,sans-serif">2</text></symbol>
+<!-- hanafuda art -->
+<symbol id="hf1" viewBox="0 0 40 52"><path d="M20 4l12 14H8zM20 14l15 16H5zM20 26l17 18H3z" fill="#1E8A5A"/><rect x="18" y="44" width="4" height="7" fill="#6B4E2E"/></symbol>
+<symbol id="hf2" viewBox="0 0 40 52"><path d="M4 48C16 36 24 22 36 6" stroke="#6B4E2E" stroke-width="3" fill="none"/><g fill="#E8527F"><circle cx="14" cy="36" r="6"/><circle cx="26" cy="22" r="6"/><circle cx="32" cy="36" r="6"/></g><g fill="#FFB547"><circle cx="14" cy="36" r="2"/><circle cx="26" cy="22" r="2"/><circle cx="32" cy="36" r="2"/></g></symbol>
+<symbol id="hf3" viewBox="0 0 40 52"><g fill="#F08CB0"><circle cx="13" cy="14" r="7"/><circle cx="28" cy="20" r="7"/><circle cx="16" cy="34" r="7"/><circle cx="30" cy="42" r="6"/></g><g fill="#8A2D55"><circle cx="13" cy="14" r="2"/><circle cx="28" cy="20" r="2"/><circle cx="16" cy="34" r="2"/><circle cx="30" cy="42" r="2"/></g></symbol>
+<symbol id="hf4" viewBox="0 0 40 52"><path d="M4 6h32" stroke="#6B4E2E" stroke-width="3"/><g fill="#7C5CD6"><circle cx="12" cy="14" r="5"/><circle cx="26" cy="14" r="5"/><circle cx="14" cy="25" r="5"/><circle cx="28" cy="25" r="5"/><circle cx="20" cy="36" r="5"/><circle cx="20" cy="46" r="4"/></g></symbol>
+<symbol id="hf5" viewBox="0 0 40 52"><path d="M20 4C10 14 12 26 20 32 28 26 30 14 20 4z" fill="#2457C5"/><path d="M6 50C10 38 16 34 20 32 24 34 30 38 34 50" stroke="#1E8A5A" stroke-width="4" fill="none"/></symbol>
+<symbol id="hf6" viewBox="0 0 40 52"><circle cx="20" cy="26" r="16" fill="#D93A55"/><circle cx="20" cy="26" r="10" fill="#A81B3A"/><circle cx="20" cy="26" r="4" fill="#FFB547"/></symbol>
+<symbol id="hf7" viewBox="0 0 40 52"><path d="M20 50V10M20 36L8 24M20 28L32 14" stroke="#1E8A5A" stroke-width="3" fill="none"/><g fill="#C0243C"><circle cx="8" cy="22" r="4"/><circle cx="32" cy="12" r="4"/><circle cx="20" cy="8" r="4"/><circle cx="14" cy="36" r="3"/></g></symbol>
+<symbol id="hf8" viewBox="0 0 40 52"><circle cx="20" cy="18" r="11" fill="#FFB547"/><path d="M6 50C10 38 14 34 20 30M20 50V30M34 50C30 38 26 34 20 30" stroke="#1E8A5A" stroke-width="3" fill="none"/></symbol>
+</defs></svg>
+
+<span class="cap t" style="left:16px">1 Mahjong today</span>
+<span class="cap a" style="left:284px">2 Tiles and free-tile cue</span>
+<span class="cap a" style="left:552px">3 Match frames, stuck</span>
+<span class="cap a" style="left:820px">4 Hanafuda</span>
+<span class="cap a" style="left:1088px">5 President</span>
+<span class="cap a" style="left:1356px">6 Sevens</span>
+<span class="cap a" style="left:1624px">7 War</span>
+<span class="cap a" style="left:1892px">8 Matching</span>
+
+<!-- 1 Mahjong today -->
+<div class="pw" style="left:16px"><div class="ph" style="background:#10141F">
+<div class="bar"><div class="ib" style="background:#232943">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Mahjong Solitaire</h2><div style="font-size:12px;color:#9AA0B8">Pairs left 72</div></div><div class="ib" style="background:#232943">=</div></div>
+<div class="fm"><i>5W</i><i>B3</i><i>3W</i><i>E</i><i>D5</i><i>B5</i><i>D3</i><i>5W</i><i>RD</i><i>D3</i><i>B3</i><i>3W</i><i>D5</i><i>B5</i><i>B3</i><i>D5</i><i>E</i><i style="box-shadow:0 0 0 3px #FFB547">3W</i><i>B5</i><i>RD</i><i>E</i><i>B5</i><i>D3</i><i>RD</i><i>B3</i><i>D5</i><i>3W</i><i>D3</i></div>
+<div style="position:absolute;left:26px;top:480px;right:26px;font:500 13px Inter;color:#C9CDE0">All tiles look the same height; text in a box.</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Undo</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Hint</div><div class="btn" style="flex:1;background:#232943;font:600 15px Inter">Shuffle</div></div>
+</div>
+<div class="rb" style="left:12px;top:126px;width:218px;height:150px"></div><i class="rd" style="left:222px;top:114px">1</i>
+<div class="rb" style="left:12px;top:296px;width:218px;height:24px;border-style:dotted"></div><i class="rd" style="left:222px;top:284px">2</i>
+</div>
+
+<!-- 2 Mahjong after -->
+<div class="pw" style="left:284px"><div class="ph"><div class="felt j"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Mahjong Solitaire</h2><div class="mut" style="font-size:12px">Turtle layout, 72 pairs left</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">04:12</span><span class="chip">6 free pairs</span><span class="chip" style="margin-left:auto;color:#FFB547">Speed 1x</span></div>
+<svg width="390" height="520" viewBox="0 0 390 520" style="position:absolute;left:0;top:150px" aria-hidden="true">
+<g transform="translate(0,-150)">
+<use href="#t-d3" x="26" y="190" width="46" height="58"/><use href="#t-cB" x="26" y="244" width="46" height="58" /><use href="#t-b3" x="26" y="310" width="46" height="58"/><use href="#t-wE" x="26" y="370" width="46" height="58"/>
+<use href="#t-d3" x="314" y="190" width="46" height="58"/><use href="#t-b5" x="314" y="250" width="46" height="58"/><use href="#t-cB" x="314" y="310" width="46" height="58"/><use href="#t-cA" x="314" y="370" width="46" height="58"/>
+<g opacity=".5">
+<use href="#t-b3" x="74" y="190" width="46" height="58"/><use href="#t-cA" x="122" y="190" width="46" height="58"/><use href="#t-wE" x="170" y="190" width="46" height="58"/><use href="#t-d5" x="218" y="190" width="46" height="58"/><use href="#t-b5" x="266" y="190" width="46" height="58"/>
+<use href="#t-dr" x="74" y="250" width="46" height="58"/><use href="#t-d3" x="122" y="250" width="46" height="58"/><use href="#t-b3" x="170" y="250" width="46" height="58"/><use href="#t-cA" x="218" y="250" width="46" height="58"/><use href="#t-d5" x="266" y="250" width="46" height="58"/>
+<use href="#t-d5" x="74" y="310" width="46" height="58"/><use href="#t-wE" x="122" y="310" width="46" height="58"/><use href="#t-cA" x="170" y="310" width="46" height="58"/><use href="#t-b5" x="218" y="310" width="46" height="58"/><use href="#t-dr" x="266" y="310" width="46" height="58"/>
+<use href="#t-b5" x="74" y="370" width="46" height="58"/><use href="#t-d3" x="122" y="370" width="46" height="58"/><use href="#t-dr" x="170" y="370" width="46" height="58"/><use href="#t-b3" x="218" y="370" width="46" height="58"/><use href="#t-d5" x="266" y="370" width="46" height="58"/>
+</g>
+<use href="#t-b5" x="71" y="245" width="46" height="58"/><use href="#t-dr" x="119" y="245" width="46" height="58"/><g opacity=".5"><use href="#t-wE" x="167" y="245" width="46" height="58"/><use href="#t-d3" x="215" y="245" width="46" height="58"/></g><use href="#t-cA" x="263" y="245" width="46" height="58"/>
+<use href="#t-d5" x="71" y="305" width="46" height="58"/><g opacity=".5"><use href="#t-cB" x="119" y="305" width="46" height="58"/><use href="#t-b3" x="167" y="305" width="46" height="58"/><use href="#t-dr" x="215" y="305" width="46" height="58"/></g><use href="#t-b5" x="263" y="305" width="46" height="58"/>
+<use href="#t-cA" x="116" y="240" width="46" height="58"/><use href="#t-fl" x="164" y="240" width="46" height="58"/><use href="#t-ss" x="212" y="240" width="46" height="58"/>
+<rect x="311" y="307" width="52" height="64" rx="8" fill="none" stroke="#4ADE9B" stroke-width="3"/>
+<rect x="23" y="240" width="52" height="64" rx="8" fill="none" stroke="#FFB547" stroke-width="3"/>
+<path d="M75 270C150 230 250 230 311 335" stroke="#FFB547" stroke-width="2.500" fill="none" stroke-dasharray="6 6"/>
+</g></svg>
+<div style="position:absolute;left:16px;right:16px;top:604px;height:44px;border-radius:22px;background:rgba(20,24,41,.92);border:1px solid #2E3558;display:flex;align-items:center;padding:0 16px;gap:8px;font:500 14px Inter">Free tile: nothing on top and one side open</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div><div class="btn" style="flex:1">Shuffle</div></div>
+</div>
+<div class="rb" style="left:8px;top:122px;width:42px;height:54px;border-style:solid"></div><i class="rd" style="left:44px;top:110px">3</i>
+<div class="rb" style="left:12px;top:70px;width:218px;height:280px;border-style:dotted"></div><i class="rd" style="left:222px;top:58px">4</i>
+<div class="rb" style="left:190px;top:134px;width:30px;height:40px;border-style:solid;border-color:#FF4D5E"></div><i class="rd" style="left:210px;top:122px">5</i>
+<div class="rb" style="left:60px;top:324px;width:60px;height:56px;display:none"></div>
+<i class="rd" style="left:100px;top:150px">6</i>
+</div>
+
+<!-- 3 Mahjong frames + stuck -->
+<div class="pw" style="left:552px"><div class="ph"><div class="felt j"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Match, in four frames</h2><div class="mut" style="font-size:12px">About 420 ms at 1x speed</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;top:112px;width:170px;height:150px;border-radius:16px;background:#141829;border:1px solid #232943"><svg width="170" height="150" viewBox="0 0 170 150" aria-hidden="true"><use href="#t-cB" x="22" y="26" width="46" height="58"/><use href="#t-cB" x="102" y="36" width="46" height="58"/><rect x="19" y="23" width="52" height="64" rx="8" fill="none" stroke="#FFB547" stroke-width="3"/><rect x="99" y="33" width="52" height="64" rx="8" fill="none" stroke="#4ADE9B" stroke-width="3" stroke-dasharray="5 4"/></svg><div style="position:absolute;left:10px;bottom:6px;font:600 12px Inter;color:#F3F1EA">1 Select: lift 6 px, ring</div></div>
+<div style="position:absolute;left:204px;top:112px;width:170px;height:150px;border-radius:16px;background:#141829;border:1px solid #232943"><svg width="170" height="150" viewBox="0 0 170 150" aria-hidden="true"><path d="M60 52C85 36 100 36 112 52" stroke="#FFB547" stroke-width="3" fill="none" stroke-dasharray="5 5"/><use href="#t-cB" x="22" y="26" width="46" height="58"/><use href="#t-cB" x="102" y="26" width="46" height="58"/><rect x="19" y="23" width="52" height="64" rx="8" fill="none" stroke="#FFB547" stroke-width="3"/><rect x="99" y="23" width="52" height="64" rx="8" fill="none" stroke="#FFB547" stroke-width="3"/></svg><div style="position:absolute;left:10px;bottom:6px;font:600 12px Inter;color:#F3F1EA">2 Match: both glow, 120 ms</div></div>
+<div style="position:absolute;left:16px;top:274px;width:170px;height:150px;border-radius:16px;background:#141829;border:1px solid #232943"><svg width="170" height="150" viewBox="0 0 170 150" aria-hidden="true"><g opacity=".55"><use href="#t-cB" x="14" y="16" width="55" height="70"/><use href="#t-cB" x="96" y="16" width="55" height="70"/></g><g fill="#FFB547"><path d="M84 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/><path d="M60 100l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M120 96l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></g></svg><div style="position:absolute;left:10px;bottom:6px;font:600 12px Inter;color:#F3F1EA">3 Clear: grow 1.12, fade, 180 ms</div></div>
+<div style="position:absolute;left:204px;top:274px;width:170px;height:150px;border-radius:16px;background:#141829;border:1px solid #232943"><svg width="170" height="150" viewBox="0 0 170 150" aria-hidden="true"><rect x="22" y="26" width="41" height="52" rx="6" fill="none" stroke="#5A6188" stroke-dasharray="4 4"/><rect x="102" y="26" width="41" height="52" rx="6" fill="none" stroke="#5A6188" stroke-dasharray="4 4"/><use href="#t-d5" x="72" y="26" width="46" height="58"/><rect x="69" y="23" width="52" height="64" rx="8" fill="none" stroke="#4ADE9B" stroke-width="3"/></svg><div style="position:absolute;left:10px;bottom:6px;font:600 12px Inter;color:#F3F1EA">4 Settle: neighbour now free</div></div>
+<div style="position:absolute;left:16px;right:16px;top:448px;border-radius:22px;background:#141829;border:1px solid #FFB547;padding:14px 16px">
+<div style="display:flex;align-items:center;gap:10px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FFB547" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h10l-3-3M20 16H10l3 3M4 8l2 8M20 16l-2-8"/></svg><div style="flex:1"><h2 style="font-size:17px">No free pairs</h2><div class="mut" style="font-size:13px">Every open tile is different. Shuffle keeps the same layout.</div></div></div>
+<div style="display:flex;gap:10px;margin-top:12px"><div class="btn pri" style="flex:1;height:48px;font-size:15px">Shuffle tiles</div><div class="btn" style="flex:1;height:48px;font-size:15px">Undo last pair</div></div></div>
+<svg width="390" height="120" viewBox="0 0 390 120" style="position:absolute;left:0;top:640px" aria-hidden="true"><g><use href="#t-d3" x="20" y="20" width="40" height="50"/><use href="#t-b5" x="66" y="20" width="40" height="50"/><use href="#t-cA" x="112" y="20" width="40" height="50"/><use href="#t-wE" x="158" y="20" width="40" height="50"/><use href="#t-dr" x="204" y="20" width="40" height="50"/><use href="#t-d5" x="250" y="20" width="40" height="50"/><use href="#t-b3" x="296" y="20" width="40" height="50"/></g><text x="20" y="100" font-size="12" fill="#9AA0B8" font-family="Inter,sans-serif">Shuffle always leaves at least one winning route.</text></svg>
+</div>
+<div class="rb" style="left:8px;top:70px;width:226px;height:106px;border-style:dotted"></div><i class="rd" style="left:2px;top:58px">7</i>
+<div class="rb" style="left:8px;top:276px;width:226px;height:80px"></div><i class="rd" style="left:226px;top:264px">8</i>
+</div>
+
+<!-- 4 Hanafuda -->
+<div class="pw" style="left:820px"><div class="ph"><div class="felt w"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Koi-Koi</h2><div class="mut" style="font-size:12px">March, round 2 of 3</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;border-radius:20px;background:rgba(20,24,41,.9);border:1px solid #2E3558;padding:10px 14px">
+<div style="display:flex;justify-content:space-between;font:600 13px Inter"><span>Akatan, red poem ribbons</span><span style="color:#FFB547">2 of 3</span></div>
+<div style="display:flex;gap:6px;margin-top:8px"><i style="width:44px;height:12px;border-radius:3px;background:#C0243C;border:2px solid #F3F1EA"></i><i style="width:44px;height:12px;border-radius:3px;background:#C0243C;border:2px solid #F3F1EA"></i><i style="width:44px;height:12px;border-radius:3px;border:2px dashed #9AA0B8"></i><span class="pf" style="margin-left:auto">Rex has 1 of 3 for Aotan</span></div></div>
+<div style="position:absolute;left:24px;top:320px;width:56px;height:86px;border-radius:6px;background:repeating-linear-gradient(45deg,#7A1F3D 0 4px,#5A1230 4px 8px);box-shadow:inset 0 0 0 3px #F8F2E0,0 3px 8px rgba(0,0,0,.5)"></div>
+<div class="hc dm" style="left:100px;top:244px"><i class="mo">1</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf1"/></svg><i class="ty br"></i></div>
+<div class="hc hint" style="left:166px;top:244px"><i class="mo">3</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf3"/></svg><i class="ty ri"></i></div>
+<div class="hc dm" style="left:232px;top:244px"><i class="mo">6</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf6"/></svg><i class="ty pl"></i></div>
+<div class="hc dm" style="left:298px;top:244px"><i class="mo">8</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf8"/></svg><i class="ty an"></i></div>
+<div class="hc dm" style="left:100px;top:344px"><i class="mo">5</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf5"/></svg><i class="ty an"></i></div>
+<div class="hc hint" style="left:166px;top:344px"><i class="mo">3</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf3"/></svg><i class="ty pl"></i></div>
+<div class="hc dm" style="left:232px;top:344px"><i class="mo">4</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf4"/></svg><i class="ty ri"></i></div>
+<div class="hc dm" style="left:298px;top:344px"><i class="mo">7</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf7"/></svg><i class="ty pl"></i></div>
+<div style="position:absolute;left:0;right:0;top:448px;text-align:center"><span style="display:inline-block;height:32px;padding:0 14px;border-radius:16px;background:#141829;border:1px solid #232943;font:500 13px/30px Inter">Cherry blossom matches two cards on the table</span></div>
+<div style="position:absolute;left:16px;right:16px;top:496px;display:flex;gap:14px;font:600 12px Inter;color:#C9CDE0;align-items:center"><span style="display:flex;gap:5px;align-items:center"><i style="width:12px;height:12px;border-radius:50%;background:#FFB547;border:2px solid #F3F1EA;display:inline-block"></i>Bright</span><span style="display:flex;gap:5px;align-items:center"><i style="width:9px;height:9px;transform:rotate(45deg);border:2px solid #F3F1EA;display:inline-block"></i>Animal</span><span style="display:flex;gap:5px;align-items:center"><i style="width:16px;height:7px;background:#C0243C;border:2px solid #F3F1EA;display:inline-block"></i>Ribbon</span><span style="display:flex;gap:5px;align-items:center"><i style="width:7px;height:7px;border-radius:50%;background:#F3F1EA;display:inline-block"></i>Plain</span></div>
+<div class="hc dm" style="left:12px;top:590px"><i class="mo">1</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf1"/></svg><i class="ty pl"></i></div>
+<div class="hc dm" style="left:54px;top:590px"><i class="mo">2</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf2"/></svg><i class="ty ri"></i></div>
+<div class="hc dm" style="left:96px;top:590px"><i class="mo">4</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf4"/></svg><i class="ty pl"></i></div>
+<div class="hc hint" style="left:138px;top:566px;z-index:3"><i class="mo">3</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf3"/></svg><i class="ty br"></i></div>
+<div class="hc dm" style="left:180px;top:590px"><i class="mo">6</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf6"/></svg><i class="ty an"></i></div>
+<div class="hc dm" style="left:222px;top:590px"><i class="mo">7</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf7"/></svg><i class="ty an"></i></div>
+<div class="hc dm" style="left:264px;top:590px"><i class="mo">8</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf8"/></svg><i class="ty br"></i></div>
+<div class="hc dm" style="left:306px;top:590px"><i class="mo">5</i><svg class="ar" viewBox="0 0 40 52"><use href="#hf5"/></svg><i class="ty pl"></i></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div></div>
+</div>
+<div class="rb" style="left:8px;top:64px;width:226px;height:48px"></div><i class="rd" style="left:226px;top:52px">9</i>
+<div class="rb" style="left:96px;top:148px;width:76px;height:112px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:162px;top:136px">10</i>
+<div class="rb" style="left:12px;top:302px;width:218px;height:20px"></div><i class="rd" style="left:222px;top:290px">11</i>
+</div>
+
+<!-- 5 President -->
+<div class="pw" style="left:1088px"><div class="ph"><div class="felt w"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">President</h2><div class="mut" style="font-size:12px">Pairs only this trick</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:0;right:0;top:112px;display:flex;justify-content:space-around;padding:0 20px;text-align:center;font:600 12px Inter"><div><div class="av" style="background:#8B7CFF;margin:0 auto">M</div>Maya<div class="mut">President, 7 cards</div></div><div><div class="av" style="background:#FFB547;margin:0 auto">J</div>Jo<div class="mut">Neutral, 9 cards</div></div><div><div class="av" style="background:#4ADE9B;margin:0 auto">R</div>Rex<div class="mut">Last, 8 cards</div></div></div>
+<b class="c" style="left:134px;top:290px;font-size:11px;transform:rotate(-6deg)"><i class="ix">8<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">8<svg><use href="#cl"/></svg></i></b>
+<b class="c r" style="left:190px;top:296px;font-size:11px;transform:rotate(5deg)"><i class="ix">8<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">8<svg><use href="#di"/></svg></i></b>
+<div style="position:absolute;left:0;right:0;top:394px;text-align:center"><span style="display:inline-block;height:30px;padding:0 14px;border-radius:15px;background:#141829;border:1px solid #232943;font:600 13px/28px Inter">Maya played a pair of 8s</span></div>
+<div style="position:absolute;left:16px;right:16px;top:450px;height:40px;border-radius:20px;background:rgba(20,24,41,.92);border:1px solid #2E3558;display:flex;align-items:center;padding:0 14px;font:500 13px Inter">Jack of clubs: this trick needs two cards</div>
+<b class="c L" style="left:14px;top:560px;transform:rotate(-12deg);opacity:.5"><i class="ix">3<svg><use href="#cl"/></svg></i></b>
+<b class="c L r" style="left:56px;top:540px;transform:rotate(-8deg);opacity:.5"><i class="ix">5<svg><use href="#di"/></svg></i></b>
+<b class="c L" style="left:98px;top:532px;transform:rotate(-4deg);opacity:.5"><i class="ix">6<svg><use href="#sp"/></svg></i></b>
+<b class="c L" style="left:140px;top:500px;transform:rotate(0deg);box-shadow:0 0 0 3px #4ADE9B,0 0 18px rgba(74,222,155,.6)"><i class="ix">9<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">9<svg><use href="#sp"/></svg></i></b>
+<b class="c L r" style="left:182px;top:500px;transform:rotate(2deg);box-shadow:0 0 0 3px #4ADE9B,0 0 18px rgba(74,222,155,.6)"><i class="ix">9<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">9<svg><use href="#he"/></svg></i></b>
+<b class="c L" style="left:224px;top:536px;transform:rotate(6deg);opacity:.5"><i class="ix">J<svg><use href="#cl"/></svg></i></b>
+<b class="c L" style="left:266px;top:548px;transform:rotate(10deg);opacity:.5"><i class="ix">K<svg><use href="#sp"/></svg></i></b>
+<b class="c L r" style="left:308px;top:566px;transform:rotate(14deg);opacity:.5"><i class="ix">2<svg><use href="#he"/></svg></i></b>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="width:110px">Pass</div><div class="btn pri" style="flex:1">Play pair of 9s</div></div>
+</div>
+<div class="rb" style="left:78px;top:306px;width:90px;height:56px;display:none"></div>
+<div class="rb" style="left:84px;top:304px;width:76px;height:76px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:150px;top:292px">12</i>
+<div class="rb" style="left:12px;top:276px;width:218px;height:26px"></div><i class="rd" style="left:222px;top:264px">13</i>
+</div>
+
+<!-- 6 Sevens -->
+<div class="pw" style="left:1356px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Sevens</h2><div class="mut" style="font-size:12px">4 ways to play</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;right:16px;top:106px;display:flex;gap:8px"><span class="chip">Maya 9</span><span class="chip">Jo 8</span><span class="chip">Rex 10</span><span class="chip" style="margin-left:auto;color:#FFB547">You 7</span></div>
+<!-- lanes -->
+<div style="position:absolute;left:8px;right:8px;top:150px;height:62px;border-radius:12px;background:rgba(243,241,234,.05)"></div><div style="position:absolute;left:8px;right:8px;top:224px;height:62px;border-radius:12px;background:rgba(243,241,234,.05)"></div><div style="position:absolute;left:8px;right:8px;top:298px;height:62px;border-radius:12px;background:rgba(243,241,234,.05)"></div><div style="position:absolute;left:8px;right:8px;top:372px;height:62px;border-radius:12px;background:rgba(243,241,234,.05)"></div>
+<svg width="22" height="22" style="position:absolute;left:14px;top:170px;fill:#F3F1EA" aria-label="Spades lane"><use href="#sp"/></svg><svg width="22" height="22" style="position:absolute;left:14px;top:244px;fill:#FF8A98" aria-label="Hearts lane"><use href="#he"/></svg><svg width="22" height="22" style="position:absolute;left:14px;top:318px;fill:#FF8A98" aria-label="Diamonds lane"><use href="#di"/></svg><svg width="22" height="22" style="position:absolute;left:14px;top:392px;fill:#F3F1EA" aria-label="Clubs lane"><use href="#cl"/></svg>
+<!-- spades 5-9 : x=12+(r-1)*27.2 -->
+<b class="c" style="left:120.8px;top:154px;font-size:7.4px"><i class="ix">5<svg><use href="#sp"/></svg></i></b><b class="c" style="left:148px;top:154px;font-size:7.4px"><i class="ix">6<svg><use href="#sp"/></svg></i></b><b class="c" style="left:175.2px;top:154px;font-size:7.4px"><i class="ix">7<svg><use href="#sp"/></svg></i></b><b class="c" style="left:202.4px;top:154px;font-size:7.4px"><i class="ix">8<svg><use href="#sp"/></svg></i></b><b class="c" style="left:229.6px;top:154px;font-size:7.4px"><i class="ix">9<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg></b>
+<b class="c slot" style="left:267px;top:154px;font-size:7.4px;box-shadow:inset 0 0 0 2px #4ADE9B;background:rgba(74,222,155,.14)"></b>
+<!-- hearts 6-8 -->
+<b class="c r" style="left:148px;top:228px;font-size:7.4px"><i class="ix">6<svg><use href="#he"/></svg></i></b><b class="c r" style="left:175.2px;top:228px;font-size:7.4px"><i class="ix">7<svg><use href="#he"/></svg></i></b><b class="c r" style="left:202.4px;top:228px;font-size:7.4px"><i class="ix">8<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg></b>
+<b class="c slot" style="left:244px;top:228px;font-size:7.4px;box-shadow:inset 0 0 0 2px #4ADE9B;background:rgba(74,222,155,.14)"></b>
+<!-- diamonds 5-10 -->
+<b class="c r" style="left:120.8px;top:302px;font-size:7.4px"><i class="ix">5<svg><use href="#di"/></svg></i></b><b class="c r" style="left:148px;top:302px;font-size:7.4px"><i class="ix">6<svg><use href="#di"/></svg></i></b><b class="c r" style="left:175.2px;top:302px;font-size:7.4px"><i class="ix">7<svg><use href="#di"/></svg></i></b><b class="c r" style="left:202.4px;top:302px;font-size:7.4px"><i class="ix">8<svg><use href="#di"/></svg></i></b><b class="c r" style="left:229.6px;top:302px;font-size:7.4px"><i class="ix">9<svg><use href="#di"/></svg></i></b><b class="c r" style="left:256.8px;top:302px;font-size:7.4px"><i class="ix">10<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg></b>
+<b class="c slot" style="left:294px;top:302px;font-size:7.4px;box-shadow:inset 0 0 0 2px #4ADE9B;background:rgba(74,222,155,.14)"></b>
+<!-- clubs 7 -->
+<b class="c" style="left:175.2px;top:376px;font-size:7.4px"><i class="ix">7<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg></b>
+<b class="c slot" style="left:148px;top:376px;font-size:7.4px;box-shadow:inset 0 0 0 2px #4ADE9B;background:rgba(74,222,155,.14)"></b>
+<b class="c slot" style="left:214px;top:376px;font-size:7.4px;box-shadow:inset 0 0 0 1.5px rgba(243,241,234,.4)"></b>
+<div style="position:absolute;left:16px;right:16px;top:452px;height:40px;border-radius:20px;background:rgba(20,24,41,.92);border:1px solid #2E3558;display:flex;align-items:center;padding:0 14px;font:500 13px Inter">4 cards can go down. Green slots show where.</div>
+<b class="c L" style="left:20px;top:590px;transform:rotate(-8deg);opacity:.5"><i class="ix">2<svg><use href="#sp"/></svg></i></b>
+<b class="c L" style="left:66px;top:560px;transform:rotate(-5deg);box-shadow:0 0 0 3px #4ADE9B,0 0 16px rgba(74,222,155,.6)"><i class="ix">10<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">10<svg><use href="#sp"/></svg></i></b>
+<b class="c L r" style="left:112px;top:564px;transform:rotate(-2deg);box-shadow:0 0 0 3px #4ADE9B,0 0 16px rgba(74,222,155,.6)"><i class="ix">9<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">9<svg><use href="#he"/></svg></i></b>
+<b class="c L r" style="left:158px;top:566px;transform:rotate(1deg);box-shadow:0 0 0 3px #4ADE9B,0 0 16px rgba(74,222,155,.6)"><i class="ix">J<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg><i class="ix b">J<svg><use href="#di"/></svg></i></b>
+<b class="c L" style="left:204px;top:566px;transform:rotate(4deg);box-shadow:0 0 0 3px #4ADE9B,0 0 16px rgba(74,222,155,.6)"><i class="ix">6<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">6<svg><use href="#cl"/></svg></i></b>
+<b class="c L" style="left:250px;top:572px;transform:rotate(7deg);opacity:.5"><i class="ix">Q<svg><use href="#cl"/></svg></i></b>
+<b class="c L r" style="left:296px;top:586px;transform:rotate(10deg);opacity:.5"><i class="ix">K<svg><use href="#he"/></svg></i></b>
+<div style="position:absolute;left:16px;right:16px;bottom:34px"><div class="btn" style="opacity:.55">Pass, only when nothing fits</div></div>
+</div>
+<div class="rb" style="left:8px;top:92px;width:226px;height:182px;border-style:dotted"></div><i class="rd" style="left:2px;top:80px">14</i>
+<div class="rb" style="left:160px;top:94px;width:30px;height:32px;display:none"></div>
+<div class="rb" style="left:38px;top:340px;width:170px;height:80px;border-style:solid;border-color:#4ADE9B"></div><i class="rd" style="left:200px;top:328px">15</i>
+</div>
+
+<!-- 7 War -->
+<div class="pw" style="left:1624px"><div class="ph"><div class="felt w"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">War</h2><div class="mut" style="font-size:12px">Round 14</div></div><div class="ib">=</div></div>
+<div style="position:absolute;left:16px;top:112px;display:flex;align-items:center;gap:10px"><i class="c back" style="position:relative;font-size:6px"></i><div><b style="font:600 14px Sora">Rex</b><div class="mut" style="font-size:12px">15 cards</div></div></div>
+<div style="position:absolute;left:0;right:0;top:212px;text-align:center"><span style="display:inline-block;height:40px;padding:0 22px;border-radius:20px;background:#C0243C;color:#fff;font:700 18px/40px Sora;letter-spacing:.05em">Tie, war!</span></div>
+<b class="c" style="left:50px;top:272px;font-size:15px"><i class="ix">8<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">8<svg><use href="#he"/></svg></i></b>
+<b class="c" style="left:259px;top:272px;font-size:15px"><i class="ix">8<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg><i class="ix b">8<svg><use href="#sp"/></svg></i></b>
+<div style="position:absolute;left:0;right:0;top:300px;text-align:center;font:700 22px Sora;color:#F3F1EA">VS</div>
+<i class="c back" style="left:60px;top:410px;font-size:7px;transform:rotate(-6deg)"></i><i class="c back" style="left:78px;top:416px;font-size:7px"></i><i class="c back" style="left:96px;top:410px;font-size:7px;transform:rotate(6deg)"></i>
+<i class="c back" style="left:230px;top:410px;font-size:7px;transform:rotate(-6deg)"></i><i class="c back" style="left:248px;top:416px;font-size:7px"></i><i class="c back" style="left:266px;top:410px;font-size:7px;transform:rotate(6deg)"></i>
+<div style="position:absolute;left:0;right:0;top:470px;text-align:center"><span style="display:inline-block;height:32px;padding:0 14px;border-radius:16px;background:#141829;border:1px solid #232943;font:500 13px/30px Inter">Pot: 10 cards. Winner takes all.</span></div>
+<div style="position:absolute;left:16px;right:16px;top:520px;border-radius:20px;background:#141829;border:1px solid #232943;padding:12px 14px;font:500 13px Inter;color:#C9CDE0"><b style="color:#F3F1EA;font-weight:600">Recap</b><br>Round 13: you 5 over Rex 3, you took 2<br>Round 12: war, Rex won 10 cards</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn pri" style="flex:1">Flip the war cards</div><div class="btn" style="width:120px">Auto x5</div></div>
+<div style="position:absolute;left:16px;bottom:100px;font:600 12px Inter;color:#C9CDE0">You: 18 cards</div>
+</div>
+<div class="rb" style="left:28px;top:166px;width:80px;height:100px;border-style:solid"></div><i class="rd" style="left:96px;top:154px">16</i>
+<div class="rb" style="left:8px;top:318px;width:226px;height:66px"></div><i class="rd" style="left:226px;top:306px">17</i>
+</div>
+
+<!-- 8 Matching -->
+<div class="pw" style="left:1892px"><div class="ph"><div class="felt"></div>
+<div class="bar"><div class="ib">&lt;</div><div style="text-align:center"><h2 style="font-size:17px">Matching</h2><div class="mut" style="font-size:12px">3 of 10 pairs found</div></div><div class="ib">=</div></div>
+<!-- row 0 -->
+<b class="c r mt" style="left:12px;top:130px;opacity:.55;box-shadow:inset 0 0 0 3px #4ADE9B"><i class="ix">6<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg></b>
+<i class="c back mt" style="left:84px;top:130px"></i><i class="c back mt" style="left:156px;top:130px"></i>
+<b class="c mt" style="left:228px;top:130px;opacity:.55;box-shadow:inset 0 0 0 3px #4ADE9B"><i class="ix">9<svg><use href="#sp"/></svg></i><svg class="big"><use href="#sp"/></svg></b>
+<i class="c back mt" style="left:300px;top:130px"></i>
+<!-- row 1 -->
+<i class="c back mt" style="left:12px;top:230px"></i>
+<b class="c mt" style="left:84px;top:230px;box-shadow:0 0 0 3px #FF6B7A,0 .2em .5em rgba(0,0,0,.5)"><i class="ix">K<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg><i class="ix b">K<svg><use href="#cl"/></svg></i></b>
+<i class="c back mt" style="left:156px;top:230px"></i><i class="c back mt" style="left:228px;top:230px"></i>
+<b class="c r mt" style="left:300px;top:230px;opacity:.55;box-shadow:inset 0 0 0 3px #4ADE9B"><i class="ix">6<svg><use href="#di"/></svg></i><svg class="big"><use href="#di"/></svg></b>
+<!-- row 2 -->
+<i class="c back mt" style="left:12px;top:330px"></i><i class="c back mt" style="left:84px;top:330px"></i>
+<b class="c mt" style="left:156px;top:330px;opacity:.55;box-shadow:inset 0 0 0 3px #4ADE9B"><i class="ix">9<svg><use href="#cl"/></svg></i><svg class="big"><use href="#cl"/></svg></b>
+<b class="c r mt" style="left:228px;top:330px;box-shadow:0 0 0 3px #FF6B7A,0 .2em .5em rgba(0,0,0,.5)"><i class="ix">4<svg><use href="#he"/></svg></i><svg class="big"><use href="#he"/></svg><i class="ix b">4<svg><use href="#he"/></svg></i></b>
+<i class="c back mt" style="left:300px;top:330px"></i>
+<!-- row 3 -->
+<i class="c back mt" style="left:12px;top:430px"></i><i class="c back mt" style="left:84px;top:430px"></i><i class="c back mt" style="left:156px;top:430px"></i><i class="c back mt" style="left:228px;top:430px"></i><i class="c back mt" style="left:300px;top:430px"></i>
+<div style="position:absolute;left:68px;top:300px;height:30px;padding:0 12px;border-radius:15px;background:#FF6B7A;color:#14183A;font:700 13px/30px Inter;z-index:3;display:flex;gap:6px;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#14183A" stroke-width="4" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>No match, K and 4</div>
+<div style="position:absolute;left:16px;right:16px;top:540px;display:flex;gap:10px"><div style="flex:1;border-radius:18px;background:#141829;border:1px solid #FFB547;padding:10px 12px"><b style="font:600 14px Sora">You</b><div class="pf">2 pairs, your turn</div></div><div style="flex:1;border-radius:18px;background:#141829;border:1px solid #232943;padding:10px 12px"><b style="font:600 14px Sora">Maya</b><div class="pf">1 pair, remembers 4</div></div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;gap:10px"><div class="btn" style="flex:1">Undo</div><div class="btn pri" style="flex:1">Hint</div></div>
+</div>
+<div class="rb" style="left:46px;top:140px;width:50px;height:62px;display:none"></div>
+<div class="rb" style="left:48px;top:184px;width:96px;height:66px;border-style:solid;border-color:#FF6B7A"></div><i class="rd" style="left:134px;top:172px">18</i>
+<div class="rb" style="left:6px;top:76px;width:230px;height:70px;border-style:dotted"></div><i class="rd" style="left:2px;top:64px">19</i>
+</div>
+
+<div class="lgt">Redlines: finding, evidence, fix, size</div>
+<div class="lg">
+<div class="li"><span class="n">1</span><div><b>MAHJONG 11/15, feel 1.</b> Tiles are text glyphs in boxes (MahjongScreen.kt:880-960): no pips, bamboo, characters. Draw each type once as vector art, cached in drawWithCache. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">2</span><div><b>No depth cue.</b> Free and blocked tiles look identical; 905 per-tile semantics exist but sighted players get nothing. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">3</span><div><b>Free-tile highlight.</b> Free tiles stay full strength with a jade side edge; blocked tiles drop to 50 percent. Selected tile lifts and rings saffron, its pair rings mint. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">4</span><div><b>Layered layout.</b> Three layers with a 3 by 5 px step so the stack reads as a stack; fitBoard already sizes the board. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">5</span><div><b>Flowers and seasons.</b> Gold frame says "any flower matches any flower"; corner number keeps colour-blind marker (branch at :927). <span class="sz">S</span></div></div>
+<div class="li"><span class="n">6</span><div><b>Hint path.</b> Dashed saffron line joins the best winnable pair (hint already prefers winnable pairs). One chip says what "free" means. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">7</span><div><b>Match animation.</b> Only animateFloat is the hint pulse (:822). Four frames, 420 ms in total, scaled by LocalGameSpeed (0 hits) and off under Reduced Motion. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">8</span><div><b>Stuck state.</b> Shuffle exists (MahjongGame.kt:256-264); add the prompt, a live-region line and a clack clip (0 CardSounds hooks). Owner decision: does Shuffle count as assisted for records? <span class="sz">S</span></div></div>
+<div class="li"><span class="n">9</span><div><b>HANAFUDA 13/15.</b> LocalColorblindMode is read nowhere (0 hits); add a month number chip and a type mark (bright, animal, ribbon, plain) on every face. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">10</span><div><b>Legal-match highlight.</b> The chosen hand card lifts, the two same-month table cards ring mint, the rest dim; a sentence names the month. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">11</span><div><b>Yaku progress panel.</b> Shows slots filled and what the rival is chasing, with a TalkBack summary. Art pass ties card back and tabletop together (HanafudaArt.kt, 8 canvas sites). <span class="sz">M</span></div></div>
+<div class="li"><span class="n">12</span><div><b>PRESIDENT 13/15.</b> Legal set (a pair of 9s) lifts together; everything else dims. Card text uses fixed sp 11-15 (PsCardUi.kt:473-499), so move to scaledSp. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">13</span><div><b>Why not.</b> A tapped illegal card says why, from explainPlay reject codes (PresidentGame.kt:132). Rank titles shown as words, not colour. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">14</span><div><b>SEVENS 12/15.</b> The board is one contentDescription for all lanes (:417, suspected). Four named lanes, overlapped rows so indices stay readable. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">15</span><div><b>Open-end slots.</b> Mint slots mark where a card can go, matching the lifted hand cards; pass stays disabled until nothing fits. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">16</span><div><b>WAR 14/15.</b> Best of the six: keep the rules, adopt the unified face. Banner "Tie, war!" in words and shape; pot size spoken. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">17</span><div><b>War recap and auto.</b> Round recap list, "Auto x5" fast-forward for the long game (maxRounds cap exists); verify reveal timing at 0.5x and 2x. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">18</span><div><b>MATCHING 12/15.</b> Mismatch shows an X chip plus a coral ring, not colour alone; matched pairs keep a mint ring. Only 4 semantics sites and 0 live regions today. <span class="sz">S</span></div></div>
+<div class="li"><span class="n">19</span><div><b>Own art.</b> Matching reuses Speed's back and colours; fitBoard has 0 hits, so large boards overflow the Fold cover screen. Share one deck back. <span class="sz">M</span></div></div>
+<div class="li"><span class="n">20</span><div><b>Systemic.</b> Six card renderers (finding 4): all five card phones here use one StandardCardFace; 4-colour suits as an option. <span class="sz">L</span></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

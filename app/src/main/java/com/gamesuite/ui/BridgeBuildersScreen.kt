@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -140,7 +142,8 @@ fun BridgeBuildersScreen(
             // Re-asserted every beat: an Activity resume (or the arena) must not un-pause the game behind an open dialog.
             if (uiHold) game.pause()
             game.tick()
-            delay(25)
+            // One beat per display frame, so the drawn cart and the scored cart are never more than a frame apart.
+            withFrameNanos { }
         }
     }
 
@@ -483,6 +486,11 @@ private fun BridgeZone(seat: Int, s: BridgeState, reduced: Boolean, dark: Boolea
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             ClSeatBadge(color, tapTugGlyph(seat), 22)
+            val laneLabel = stringResource(R.string.bridge_builders_lane_label, seat + 1)
+            Text(
+                laneLabel, Modifier.padding(start = 6.dp).semantics { contentDescription = laneLabel }, color = onSurface,
+                fontWeight = FontWeight.ExtraBold, maxLines = 1, style = MaterialTheme.typography.titleSmall
+            )
             Text(
                 ctx.seatLabel(lane.name) + if (lane.isBot) " " + stringResource(R.string.bridge_builders_robot_tag) else "",
                 Modifier.weight(1f).padding(start = 6.dp), color = onSurface, fontWeight = FontWeight.Bold, maxLines = 1,

@@ -78,6 +78,8 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlin.math.floor
 
@@ -204,7 +206,7 @@ fun FlowLinesScreen(
     val colorblind = LocalColorblindMode.current
     val colors = if (colorblind) FlowColorblindColors else FlowStandardColors
 
-    val dailySeed: Long? = remember(daily) { if (daily) java.time.LocalDate.now().toEpochDay() else null }
+    val dailySeed: Long? = remember(daily) { if (daily) com.gamesuite.core.DailySeed.todayEpochDay() else null }
     var dailyBoardActive by remember { mutableStateOf(daily) }
     var resumedAsSolved by remember { mutableStateOf(false) }
 
@@ -253,7 +255,7 @@ fun FlowLinesScreen(
         // An assisted solve (any hint taken) counts as solved but sets no record.
         if (reportedResult == null && game.hintsUsed.value == 0) {
             val finalTime = game.finishedElapsedMillis.value ?: game.activeElapsedMillis() ?: 0L
-            val result = statsStore.recordSolve(game.tier, s.moves, finalTime)
+            val result = withContext(NonCancellable) { statsStore.recordSolve(game.tier, s.moves, finalTime) }
             reportedResult = result.isNewBestMoves to result.isNewBestTimeMillis
         }
     }
