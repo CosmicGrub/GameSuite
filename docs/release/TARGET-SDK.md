@@ -27,9 +27,12 @@ the temporary opt-outs.
 | CI runner (`android.yml`) | installs `platforms;android-34 build-tools;34.0.0` | change to `android-35 build-tools;35.0.0` | `android-36 build-tools;36.0.0` |
 
 So raising `compileSdk` to 35 alone needs no other change and has no runtime effect (compileSdk only changes
-which APIs and lint checks are visible). It is safe to do together with the CI package update. It was not
-done here because the release build could not be completed on the build machine (see the report: the system
-drive ran out of space) and a compileSdk change should be verified by `:app:assembleDebug` plus the unit tests.
+which APIs and lint checks are visible). **Done and verified (2026-11-22):** `:app` compileSdk is 35 and
+`:app:assembleRelease` + `:app:bundleRelease` succeed with it (targetSdk stays 34). `:shared` stays at 34.
+Build-machine gotcha: `Z:\Android\Sdk` has no `platforms;android-35`; Gradle then tries to auto-install it, fails
+("SDK XML version 4" sdkmanager mismatch), and leaves a broken `platforms/android-35` stub with no `android.jar`.
+Delete that stub and point `local.properties` (gitignored) at an SDK that has platform 35, e.g.
+`sdk.dir=C:/Users/Obliv/android-sdk`, or install the platform with a current sdkmanager.
 
 ## Behaviour changes that matter at targetSdk 35
 
@@ -66,16 +69,16 @@ Play requires 16 KB support for apps targeting 35+ (from November 2025). Three s
 
 1. **Rust libraries** (`libgamesuite_sim.so`, `libgamesuite_audio.so`): built with cargo-ndk 4.1.2 against
    NDK 28.2.13676358 (`resolveAndroidNdkHome()` and the `cargoNdk*` tasks in `app/build.gradle.kts`). NDK r28
-   links with 16 KB max page size by default, so no `-C link-arg=-Wl,-z,max-page-size=16384` is needed. This
+   links with 16 KB max page size by default, so no `-C link-arg=-Wl,-z,max-page-size=16384` is needed. This was
    **Measured** on the release APK built in this branch (`llvm-readelf -lW`, all `LOAD` segments): both
    `libgamesuite_sim.so` and `libgamesuite_audio.so` have `Align 0x4000` on arm64-v8a and x86_64, as do
    `libandroidx.graphics.path.so` and `libdatastore_shared_counter.so`. No linker flag is needed. To re-check, for
    each ABI (arm64-v8a and x86_64 matter for 16 KB devices; armeabi-v7a is 32-bit and not subject to it):
    `llvm-readelf -lW app/src/main/jniLibs/arm64-v8a/libgamesuite_sim.so | grep LOAD` and confirm every
    `Align` column reads `0x4000`. The NDK ships `llvm-readelf` under `toolchains/llvm/prebuilt/*/bin`.
-2. **JNA 5.14.0 (`@aar`)** bundles `libjnidispatch.so`. **Measured:** arm64-v8a `Align 0x10000` (64 KB, which is
+2. **JNA 5.14.0 (`@aar`)** bundles `libjnidispatch.so`. **Measured again 2026-11-22 on the release APK from this branch:** arm64-v8a `Align 0x10000` (64 KB, which is
    fine for 16 KB pages) but **x86_64 `Align 0x1000` (4 KB), which fails the 16 KB check** (armeabi-v7a is not
-   subject to it). Play's pre-launch/Console check inspects x86_64 too, so this will be flagged for targetSdk 35+
+   subject to it). The APK also carries JNA's legacy `armeabi`, `mips`, `mips64` and `x86` copies (harmless, but dead weight). Play's pre-launch/Console check inspects x86_64 too, so this will be flagged for targetSdk 35+
    uploads unless the x86_64 ABI is dropped or JNA is upgraded. JNA **5.17.0** is the first release built with 16 KB alignment (release notes: "Android
    16 KB page size support"). Recommended change when targeting 35: `net.java.dev.jna:jna:5.17.0@aar` (and the
    test-only desktop jar to the same version). Version number is from memory of the JNA changelog; confirm it

@@ -25,7 +25,7 @@ CI (`.github/workflows/android.yml`) runs the first three on pull requests and p
 
 ## Environment
 
-- JDK 17. compileSdk/targetSdk 34, minSdk 26. `local.properties` (gitignored) supplies
+- JDK 17. compileSdk 35 (`:shared` 34), targetSdk 34, minSdk 26. `local.properties` (gitignored) supplies
   `sdk.dir`; `session-worktree.sh new` copies it into new worktrees.
 - Rust libraries (`rust/gamesuite-sim`, `rust/gamesuite-audio`) are built by Gradle `Exec`
   tasks in `app/build.gradle.kts`: cross-compiled with **cargo-ndk 4.1.2** against **NDK

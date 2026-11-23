@@ -24,6 +24,31 @@ All four must be present. If any is missing the release build type is **unsigned
 - `-PdebugSignRelease=true` signs the local release build with the debug key so it can be sideloaded for a
   smoke test. Never upload a debug-signed build (Play rejects it).
 
+## Verified facts (2026-11-22, branch session/ws-release)
+
+`./gradlew :app:assembleRelease :app:bundleRelease` ran to BUILD SUCCESSFUL (6m48s cold-ish) with NO keystore and no
+secrets present: R8 + resource shrinking ran, `lintVitalRelease` passed, and the outputs are **unsigned**:
+
+| Artifact | Size |
+| --- | --- |
+| `app/build/outputs/apk/release/app-release-unsigned.apk` (universal, 3 ABIs) | 14.85 MB (14,849,678 B) |
+| `app/build/outputs/bundle/release/app-release.aab` | 18.06 MB (18,057,649 B) |
+| `app/build/outputs/mapping/release/mapping.txt` | 135.7 MB (upload to Play Console with the AAB) |
+
+The `.aab` is larger than the APK because it holds every ABI and density split input; Play serves per-device
+splits that are far smaller than either. Final DEX: one `classes.dex`, 54,446 method refs, 11,228 classes (limit
+65,536 refs for a single dex, so ~11k of headroom; R8 reports the build still fits one dex).
+`zipalign -c -P 16 -v 4` on the APK: all entries OK. The `-PdebugSignRelease=true` path and a keystore-signed
+build were **not** run (no key, and nothing may be installed); the signing branch reads the same four values and
+is trivial, but treat the first signed build as untested.
+
+**R8 verification scope:** statically confirmed from `mapping.txt` that `com.sun.jna.{Native,Structure,Library}`,
+`com.gamesuite.sim.*` and `com.gamesuite.audio.rust.*` are kept unrenamed and that the build has no missing-class
+failure. NOT confirmed at runtime: no device or emulator was used, so launching a game from the minified build
+(UniFFI/JNA calls, kotlinx.serialization of saved games, `getIdentifier` string lookups) is unverified. The first
+step after this is a smoke run of a release (debug-signed via `-PdebugSignRelease=true`) build by someone allowed
+to install it, playing at least one Rust-backed game (Air Hockey, ambient audio) and resuming a saved game.
+
 ## Generate an upload key (once)
 
 Keep the keystore outside the repository (for example `C:\Users\<you>\keys\gamesuite-upload.jks`) and back it
