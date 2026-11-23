@@ -64,6 +64,15 @@ by the app's developer.
 have no online or Nearby modes. If the app joins the Designed for Families programme, the Data safety form must
 still reflect adult-profile online play, and the listing text should say children's profiles never go online.
 
+## Sideload builds only: update check (NOT part of the Play release)
+
+The `release` build type (what goes to Play) has the in-app updater compiled out: `BuildConfig.SIDELOAD_UPDATES = false`,
+no `REQUEST_INSTALL_PACKAGES` permission, no update FileProvider (checked by `SideloadGateTest`). Nothing in this
+section applies to the Play data-safety form. For the `debug` and `sideload` builds, the update check makes HTTPS calls
+to `api.github.com` (release list) and `github.com` / `objects.githubusercontent.com` /
+`release-assets.githubusercontent.com` (APK download) with a generic User-Agent, no tokens and no personal data; see
+`docs/release/SIDELOAD-UPDATES.md` and the "Update check" section of `PRIVACY_POLICY.md`.
+
 ## Permissions and justification
 
 | Permission | Why | Manifest limits |

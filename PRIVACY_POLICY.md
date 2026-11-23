@@ -135,6 +135,18 @@ policies.
 Anything you type as a display name is visible to the other players in the
 same Nearby or online match and to spectators of an online room.
 
+## Update check (sideload builds only)
+
+Builds installed outside Google Play (the "sideload" build used for direct installs from the project's GitHub
+releases) include an optional **App updates** section in Settings for adult profiles. It is not present in the Google
+Play version. When you tap Check now, Update, or switch on automatic checks (off by default, at most once every six
+hours), the app makes HTTPS requests to `api.github.com` (the list of releases) and, if you choose to update,
+`github.com` and GitHub's download hosts (`objects.githubusercontent.com`, `release-assets.githubusercontent.com`) to
+download the new app file. No account, token, identifier or personal data is sent; GitHub sees your IP address and a
+generic client name, as any web request shows. The download is checked against a published SHA-256 checksum and must be
+signed with the same key as the installed app before Android's installer is opened; you confirm the install in Android's
+own screen. Child profiles never see or use this feature.
+
 ## Children
 
 GameSuite has no accounts, ads, analytics or free-text chat, and it collects no

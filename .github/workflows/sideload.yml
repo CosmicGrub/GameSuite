@@ -1,0 +1,209 @@
+# Builds the SIDELOAD APK for a release tag and publishes it as a GitHub prerelease, so the in-app updater
+# (Settings > App updates, sideload builds only) can find, download and hand it to Android's installer.
+#
+# Flow: scripts/cut-release.sh bumps versionCode/versionName in app/build.gradle.kts, commits, creates the annotated
+# tag `wave3-<versionCode>-<shortsha>` and pushes both. Pushing that tag triggers this workflow. This workflow NEVER
+# creates or moves a tag; it checks out the existing tag, builds, and attaches the files to a prerelease for it.
+#
+# Signing: if the four SIDELOAD_* repository secrets exist, the APK is signed with that keystore (so it can update over
+# an install signed with the same key). Otherwise it falls back to the CI debug key and the release notes say, loudly,
+# that it cannot update an install signed with a different key. Secrets are passed only as step environment variables,
+# never echoed. See docs/release/SIDELOAD-UPDATES.md.
+#
+# Not run by the Play release path: Play builds use the `release` build type, which has the updater compiled out.
+name: Sideload APK
+
+on:
+  push:
+    tags:
+      - 'wave3-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and (re)publish, e.g. wave3-12-abc1234'
+        required: true
+        type: string
+
+# The only workflow in this repo that writes: it creates/updates a release for an existing tag.
+permissions:
+  contents: write
+
+concurrency:
+  group: sideload-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NDK_VERSION: '28.2.13676358'
+  CARGO_NDK_VERSION: '4.1.2'
+  KEEP_RELEASES: '5'
+
+jobs:
+  sideload:
+    name: Build and publish sideload APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          if ! echo "$TAG" | grep -Eq '^wave3-[0-9]+-[0-9a-fA-F]{4,40}$'; then
+            echo "::error::Tag '$TAG' is not wave3-<versionCode>-<shortsha>"; exit 1
+          fi
+          CODE="$(echo "$TAG" | cut -d- -f2)"
+          SHA="$(echo "$TAG" | cut -d- -f3)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          fetch-depth: 1
+
+      - name: Check the tag matches the committed versionCode
+        env:
+          CODE: ${{ steps.tag.outputs.code }}
+        run: |
+          FILE_CODE="$(grep -E '^\s*versionCode\s*=\s*[0-9]+' app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
+          if [ "$FILE_CODE" != "$CODE" ]; then
+            echo "::error::Tag versionCode $CODE does not match app/build.gradle.kts versionCode $FILE_CODE"; exit 1
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-34 platforms;android-35 build-tools;34.0.0 ndk;${{ env.NDK_VERSION }}'
+
+      - name: Point cargo-ndk at the pinned NDK
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          NDK_HOME="$SDK_ROOT/ndk/$NDK_VERSION"
+          if [ ! -d "$NDK_HOME/toolchains/llvm/prebuilt" ]; then
+            echo "::error::NDK $NDK_VERSION not found under '$SDK_ROOT/ndk'"; exit 1
+          fi
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          save-if: 'false'
+
+      - name: Install cargo-ndk
+        run: |
+          if ! cargo ndk --version 2>/dev/null | grep -q "$CARGO_NDK_VERSION"; then
+            cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
+          fi
+          cargo ndk --version
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: 'true'
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # Decode the keystore (if the secrets exist) to a temp file. The base64 value is only ever in this step's env.
+      - name: Prepare signing key
+        id: key
+        env:
+          KS_B64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.SIDELOAD_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.SIDELOAD_KEY_ALIAS }}
+          KS_KEYPASS: ${{ secrets.SIDELOAD_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KS_ALIAS" ] && [ -n "$KS_KEYPASS" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/sideload.keystore"
+            echo "file=$RUNNER_TEMP/sideload.keystore" >> "$GITHUB_OUTPUT"
+            echo "signed_with=repository key" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=" >> "$GITHUB_OUTPUT"
+            echo "signed_with=CI debug key" >> "$GITHUB_OUTPUT"
+            echo "::warning::SIDELOAD_* secrets are missing: signing with the CI debug key. This APK cannot update an install signed with another key."
+          fi
+
+      - name: Build sideload APK
+        env:
+          SIDELOAD_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          SIDELOAD_KEYSTORE_PASSWORD: ${{ secrets.SIDELOAD_KEYSTORE_PASSWORD }}
+          SIDELOAD_KEY_ALIAS: ${{ secrets.SIDELOAD_KEY_ALIAS }}
+          SIDELOAD_KEY_PASSWORD: ${{ secrets.SIDELOAD_KEY_PASSWORD }}
+        run: >
+          ./gradlew --console=plain --stacktrace
+          "-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8"
+          :app:assembleSideload
+
+      - name: Name the files, hash them, read the signing certificate
+        id: pack
+        env:
+          CODE: ${{ steps.tag.outputs.code }}
+          SHA: ${{ steps.tag.outputs.sha }}
+        run: |
+          mkdir -p out
+          SRC="$(ls app/build/outputs/apk/sideload/*.apk | head -1)"
+          NAME="GameSuite-sideload-${CODE}-${SHA}.apk"
+          cp "$SRC" "out/$NAME"
+          (cd out && sha256sum "$NAME" > "$NAME.sha256")
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          CERT="$("$SDK_ROOT"/build-tools/34.0.0/apksigner verify --print-certs "out/$NAME" | grep -i 'SHA-256 digest' | head -1 | sed 's/.*: //')"
+          HASH="$(cut -d' ' -f1 "out/$NAME.sha256")"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        env:
+          SIGNED_WITH: ${{ steps.key.outputs.signed_with }}
+          CERT: ${{ steps.pack.outputs.cert }}
+          HASH: ${{ steps.pack.outputs.hash }}
+          NAME: ${{ steps.pack.outputs.name }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          {
+            echo "Sideload build \`$TAG\`. Install via the app (Settings > App updates) or download the APK below."
+            echo
+            if [ "$SIGNED_WITH" != "repository key" ]; then
+              echo "> **WARNING: signed with the CI debug key.** It cannot update an app installed with any other signing key; Android will refuse it. Add the SIDELOAD_* repository secrets (docs/release/SIDELOAD-UPDATES.md) and re-run this workflow for this tag."
+              echo
+            fi
+            echo "Signing: $SIGNED_WITH"
+            echo "Signing certificate SHA-256: $CERT"
+            echo
+            echo "sha256: $HASH  $NAME"
+          } > notes.md
+
+      - name: Publish prerelease for the existing tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          NAME: ${{ steps.pack.outputs.name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "out/$NAME" "out/$NAME.sha256" --clobber
+            gh release edit "$TAG" --prerelease --notes-file notes.md
+          else
+            gh release create "$TAG" "out/$NAME" "out/$NAME.sha256" \
+              --verify-tag --prerelease --title "Build ${TAG}" --notes-file notes.md
+          fi
+
+      # Keep only the newest few wave3 prereleases (tags stay; only the release entries and their files go).
+      - name: Prune old sideload prereleases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 100 --json tagName,isPrerelease,createdAt \
+            --jq '[.[] | select(.isPrerelease and (.tagName | startswith("wave3-")))] | sort_by(.createdAt) | reverse | .['"$KEEP_RELEASES"':] | .[].tagName' \
+            | while read -r old; do
+                [ -n "$old" ] && gh release delete "$old" --yes
+              done
