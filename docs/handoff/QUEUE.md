@@ -30,3 +30,16 @@ Status: `running` (agent live at write time) | `ready` (launch when slots free) 
 
 Rules: when a `build` job finishes, run the integrator procedure (RESUME doc), then unblock dependents and launch the next `ready`/unblocked
 job. Add every new branch to docs/handoff/INTEGRATE-BRANCHES.txt.
+
+## Cloud lane (routine `GameSuite cloud resume`, hourly, runs in Anthropic's cloud from GitHub; marked `cloud-ok`)
+The cloud agent never touches session/wave-3, main or any branch a local agent owns. It pushes ONLY branches named `session/cloud-<job>`
+(plain push). The local integrator (`scripts/integrate-green.sh`, pattern `session/cloud-*`) fetches them, merges only after the full green gate,
+and the local Claude task registers games. Cloud builds are best-effort (Android SDK may be missing): its tests count as unverified until the local gate.
+
+| # | Job | Branch | Type | Status |
+|---|---|---|---|---|
+| 20 | Preliminary trademark screening of every working title (public web search; not legal advice) -> docs/release/TRADEMARK-PRELIM.md | session/cloud-trademark | light | cloud-ok |
+| 21 | Static accessibility audit of the new games' screens (contrast, 48dp, semantics, reduced motion) -> docs/audit/09-a11y-new-games.md + small safe fixes with tests | session/cloud-a11y-audit | build-light | cloud-ok |
+| 22 | Resume a cut-off job: if a local branch on origin has had no push for >2 h and its brief in AGENT-BRIEFS.md is unfinished, continue it on `session/cloud-resume-<branch-name>` (branch from that origin branch; never push the original) | session/cloud-resume-* | build | cloud-ok |
+| 23 | Test-gap scan: add JVM tests for pure logic in the newest game packages that lack them | session/cloud-tests | build-light | cloud-ok |
+
