@@ -17,3 +17,11 @@ session/ws-style
 session/ws-bump-egg
 session/ws-board3
 session/cloud-*   # branches pushed by the cloud routine
+session/ws-register-a
+session/ws-register-b
+session/ws-register-c
+session/ws-bb3d-render
+session/ws-gem2
+session/ws-td3
+session/ws-style2
+session/ws-a11y

@@ -1,4 +1,4 @@
-# Intelligent job queue (consumed by the hourly Claude task `gamesuite-integrator-keepalive`)
+# Intelligent job queue (the whole roadmap is now ALSO encoded in docs/handoff/AGENT-JOBS.txt and executed by the detached headless runner scripts/agent-runner.sh, which creates worktrees and launches jobs as their `needs` markers appear; this table stays the human-readable view) (consumed by the hourly Claude task `gamesuite-integrator-keepalive`)
 
 How to use (resumed Claude session): read AGENT-BRIEFS.md COMMON RULES first. Pick work in priority order, never exceeding
 **MAX_LIVE_AGENTS = 8** (use ListAgents; the box has ONE gradle build slot, so more agents only queue; each agent also burns the shared

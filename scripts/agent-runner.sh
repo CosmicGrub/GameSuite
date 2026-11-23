@@ -18,15 +18,22 @@ live=0
 for f in "$RUN"/pids/*.pid; do [ -f "$f" ] || continue; if kill -0 "$(cat "$f")" 2>/dev/null; then live=$((live+1)); else rm -f "$f"; fi; done
 # pass 1: which groups are busy (any worktree in the group recently active or with a test job in flight)?
 busy=" "
-while IFS='|' read -r name wt br scope grp; do
+while IFS='|' read -r name wt br scope grp needs; do
   case "$name" in ''|\#*) continue ;; esac
   [ -d "$wt" ] || continue
   if [ -n "$(find "$wt" -path "$wt/.git" -prune -o -type f -mmin -"$STALE_MIN" -print -quit 2>/dev/null)" ] || grep -lq "$wt" "$Q"/pending/*.job "$Q"/running/*.job 2>/dev/null || [ -f "$RUN/pids/$name.pid" ]; then busy="$busy$grp "; fi
 done < "$LIST"
-while IFS='|' read -r name wt br scope grp; do
+while IFS='|' read -r name wt br scope grp needs; do
   case "$name" in ''|\#*) continue ;; esac
   case "$busy" in *" $grp "*) echo "$name: group $grp busy; skip"; continue ;; esac
-  [ -d "$wt" ] || continue
+  ok=1; for n in $(echo "${needs:-}" | tr ',' ' '); do [ -f "$PRIMARY/docs/handoff/done/$n.done" ] || ok=0; done
+  [ "$ok" -eq 1 ] || { echo "$name: waiting on ${needs}; skip"; continue; }
+  if [ ! -d "$wt" ]; then
+    [ -n "${DRY_RUN:-}" ] && { echo "$name: would create worktree $wt"; continue; }
+    free=$(df -BG /z | awk 'NR==2{gsub("G","",$4);print $4}'); [ "${free:-0}" -ge 8 ] || { echo "$name: low disk; skip"; continue; }
+    git -C "$PRIMARY" worktree add -q -b "$br" "$wt" session/wave-3 2>/dev/null || git -C "$PRIMARY" worktree add -q "$wt" "$br" || continue
+    cp "$PRIMARY/local.properties" "$wt/" 2>/dev/null; [ -d "$wt/rust/target" ] || cp -r "$PRIMARY/rust/target" "$wt/rust/target" 2>/dev/null
+  fi
   [ -f "$RUN/pids/$name.pid" ] && continue
   [ -f "$wt/docs/handoff/done/$name.done" ] && continue
   [ "$live" -ge "$MAX_LIVE" ] && break
