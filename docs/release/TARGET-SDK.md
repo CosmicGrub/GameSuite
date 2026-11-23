@@ -1,8 +1,5 @@
 # targetSdk / compileSdk: findings and plan
 
-> **Status note (2026-11-21):** the statements below about `compileSdk 35` for `:app`, `app/proguard-rules.pro` and the CI package names refer to edits on branch `session/ws-release`, which are NOT merged into `session/wave-3` (unverified by a build). On `session/wave-3` both `targetSdk` and `compileSdk` are still 34.
-
-
 Status: **targetSdk stays at 34 in this branch; compileSdk of `:app` was raised to 35** (see below; `:shared`
 stays at 34, which is fine because a library may be compiled against an older SDK than its consumer). The bump is not "safe and minimal" because the
 app has no edge-to-edge convention, and Android 15 enforces edge-to-edge for apps that target 35. Everything

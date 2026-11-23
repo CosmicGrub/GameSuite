@@ -114,3 +114,17 @@
 -keep class com.gamesuite.games.uno.UnoIntentPayload$* { *; }
 -keep class com.gamesuite.transport.NearbyLobbyMessage$* { *; }
 -keep class com.gamesuite.transport.OnlineLobbyMessage$* { *; }
+
+# ---------------------------------------------------------------------------
+# JNA + UniFFI generated bindings (gamesuite-sim -> com.gamesuite.sim,
+# gamesuite-audio -> com.gamesuite.audio.rust)
+# ---------------------------------------------------------------------------
+# JNA reflects over Library/Structure/Callback subclasses and looks native methods up by name, and the
+# UniFFI-generated Kotlin declares Structure subclasses (RustBuffer, ForeignBytes, RustCallStatus, vtables)
+# and Callback interfaces whose field names and method names are the C ABI. Keep all of it unobfuscated.
+-dontwarn java.awt.*
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.** { *; }
+-keepclassmembers class * extends com.sun.jna.** { public *; }
+-keep class com.gamesuite.sim.** { *; }
+-keep class com.gamesuite.audio.rust.** { *; }

@@ -1,8 +1,5 @@
 # Release signing
 
-> **Status note (2026-11-21):** the signing configuration this document describes (`signingConfigs` reading `keystore.properties` or the environment, `-PdebugSignRelease`) lives on branch `session/ws-release` and is NOT merged into `session/wave-3` yet: it has not been verified by a release build. Only the `.gitignore` entries are merged. Until the branch is merged, `app/build.gradle.kts` has no release signing.
-
-
 No key, keystore or password is ever committed. `app/build.gradle.kts` reads them at build time and the
 build still works when none is present.
 
