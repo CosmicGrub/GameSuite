@@ -12,7 +12,7 @@ Status: DESIGN DRAFT, 2026-11-22. All twelve layouts are original geometry; none
 
 | # | Id | Name | Sector | Lanes | Nodes | Lane length (u) | pace | trav (s) | Unlock stars |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `hearth` | Hearth Orbit | 1 Cradle Reach | 1 | 14 | 44.8 | 1.55 | 30 | 0 |
+| 1 | `hearth` | Hearth Orbit | 1 Cradle Reach | 1 | 14 | 44.8 | 1.40 | 33 | 0 |
 | 2 | `twin` | Twin Gates | 1 Cradle Reach | 2 | 16 | 11.2, 11.2 | 0.5 | 23 | 0 |
 | 3 | `pebble` | Pebble Ring | 1 Cradle Reach | 1 | 18 | 27.0 | 0.95 | 30 | 2 |
 | 4 | `cross` | Crosswind | 2 Glass Belt | 4 | 18 | 8.8, 8.8, 6.3, 6.3 | 0.5 | 16 | 4 |

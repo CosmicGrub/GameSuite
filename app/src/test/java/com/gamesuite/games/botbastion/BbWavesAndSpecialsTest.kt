@@ -21,15 +21,21 @@ class WaveGeneratorTest {
         assertEquals(90, BbRules.waveCount(40))
     }
 
-    @Test fun hpGrowsByElevenPercentPerWaveAndMatchesTheSampleTable() {
+    @Test fun hpGrowsFifteenPercentToWave30ThenPlateausThenSteepensAndMatchesTheSampleTable() {
         assertEquals(1.0, BbRules.hpGrowth(1), 1e-9)
-        assertEquals(2.56, BbRules.hpGrowth(10), 0.01)
-        assertEquals(7.26, BbRules.hpGrowth(20), 0.01)
-        assertEquals(20.62, BbRules.hpGrowth(30), 0.02)
+        assertEquals(3.52, BbRules.hpGrowth(10), 0.01)
+        assertEquals(14.23, BbRules.hpGrowth(20), 0.01)
+        assertEquals(57.58, BbRules.hpGrowth(30), 0.05)
+        // plateau of 1% per wave to the Hero goal, then 7% per wave for Endless
+        assertEquals(63.60, BbRules.hpGrowth(40), 0.06)
+        assertEquals(63.60 * 1.07, BbRules.hpGrowth(41), 0.07)
+        assertEquals(63.60 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07 * 1.07, BbRules.hpGrowth(50), 0.15)
+        for (w in 2..80) assertTrue("growth never falls at wave $w", BbRules.hpGrowth(w) > BbRules.hpGrowth(w - 1))
         val s = BbWaves.mainSpawns(map, Tier.CAPTAIN, 1, 1L, 10).first { it.type == EnemyType.DRIFTER }
-        assertEquals(77.0, EnemyType.DRIFTER.hp * s.hpMult, 0.6)
+        assertEquals(105.5, EnemyType.DRIFTER.hp * s.hpMult, 0.6)
         val h = BbWaves.mainSpawns(map, Tier.HERO, 1, 1L, 1).first()
-        assertEquals(1.25, h.hpMult, 1e-9)
+        assertEquals(1.1, h.hpMult, 1e-9)
+        assertEquals(1.15, BbWaves.hpMult(1, Tier.INSANITY, 1), 1e-9)
     }
 
     @Test fun compositionFollowsTheTable() {
@@ -325,7 +331,7 @@ class CoopRulesTest {
         assertEquals(5.0, e.pilots[0].x, 1e-6); assertEquals(4.0, e.pilots[0].y, 1e-6)
         val en = e.put(EnemyType.DRIFTER, 5.5, hp = 1000.0)
         e.step()
-        assertEquals(980.0, en.hp, 1e-9)
+        assertEquals(975.0, en.hp, 1e-9)
     }
 
     @Test fun onlyABossHurtsAPilotWhichIsDownedAndRespawns() {

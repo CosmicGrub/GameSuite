@@ -16,11 +16,15 @@ enum class TargetPriority { FIRST, LAST, WEAKEST, STRONGEST, CLOSEST }
  * The five bot roles (the Aegis shield is a Core upgrade, not a bot). Numbers are `BALANCE.md` section 1.
  * [range1] is a fraction of the arena width, [rate1] shots per second.
  */
-enum class BotType(val id: String, val cost: Int, val power1: Double, val range1: Double, val rate1: Double) {
+enum class BotType(
+    val id: String, val cost: Int, val power1: Double, val range1: Double, val rate1: Double,
+    /** Power multiplier per level (the Lobber's is lower: its splash already scales with the crowd). */
+    val powerGrowth: Double = 1.4
+) {
     PICKET("picket", 60, 12.0, 0.20, 2.0),
-    LOBBER("lobber", 110, 60.0, 0.34, 0.45),
+    LOBBER("lobber", 110, 36.0, 0.34, 0.45, 1.12),
     HAZE("haze", 90, 3.5, 0.42, 6.0),
-    SKIFF("skiff", 170, 20.0, 0.16, 3.0),
+    SKIFF("skiff", 170, 25.0, 0.16, 3.0),
     TENDER("tender", 80, 0.0, 0.18, 0.0);
 
     /** Skiffs fly the rim and need no build node. */
@@ -36,8 +40,8 @@ object BotStats {
     const val MAX_LEVEL = 5
     val UPGRADE_FACTORS = doubleArrayOf(0.7, 1.05, 1.6, 2.4)
 
-    /** Lobber splash radius (0.045 W) and the blind spot around it (0.08 W), in world units. */
-    const val SPLASH_U = 0.045 * BbArena.W
+    /** Lobber splash radius (0.03 W) and the blind spot around it (0.08 W), in world units. */
+    const val SPLASH_U = 0.03 * BbArena.W
     const val BLIND_U = 0.08 * BbArena.W
     const val ARMOUR_FACTOR = 0.75
     const val FREEZE_SECONDS = 0.5
@@ -45,10 +49,10 @@ object BotStats {
     const val SELL_UNDO_SECONDS = 3.0
     const val SKIFF_SPEED = 0.22 * BbArena.W
 
-    private val tenderSlow = doubleArrayOf(0.30, 0.38, 0.46, 0.53, 0.60)
-    private val tenderFreezeEvery = doubleArrayOf(6.0, 5.4, 4.8, 4.1, 3.5)
+    private val tenderSlow = doubleArrayOf(0.45, 0.57, 0.69, 0.80, 0.90)
+    private val tenderFreezeEvery = doubleArrayOf(4.2, 3.8, 3.4, 2.9, 2.5)
 
-    fun power(t: BotType, level: Int): Double = t.power1 * 1.4.pow(level - 1)
+    fun power(t: BotType, level: Int): Double = t.power1 * t.powerGrowth.pow(level - 1)
     fun rangeFraction(t: BotType, level: Int): Double = t.range1 * (1 + 0.08 * (level - 1))
     fun rangeU(t: BotType, level: Int): Double = rangeFraction(t, level) * BbArena.W
     fun rate(t: BotType, level: Int): Double = t.rate1 * (1 + 0.10 * (level - 1))
@@ -82,7 +86,7 @@ enum class EnemyType(
     PLATER("plater", 120.0, 0.045, 35, 18, 2),
     SPLITTER("splitter", 60.0, 0.058, 25, 10, 1),
     COURIER("courier", 80.0, 0.10, 60, 25, 0),
-    BEHEMOTH("behemoth", 1500.0, 0.03, 600, 250, 10),
+    BEHEMOTH("behemoth", 1500.0, 0.03, 600, 250, 5),
     BIT("bit", 22.0, 0.058, 5, 2, 1);
 
     /** World units per second at map pace 1.0. */
@@ -97,8 +101,8 @@ enum class Tier(
 ) {
     CADET("cadet", 4, 1.25, 0.8, 0.9, 0, 20, 1.0),
     CAPTAIN("captain", 5, 1.0, 1.0, 1.0, 0, 30, 1.0),
-    HERO("hero", 5, 1.0, 1.25, 1.05, 5, 40, 1.0),
-    INSANITY("insanity", 8, 0.85, 1.6, 1.15, 3, 40, 1.1),
+    HERO("hero", 5, 1.0, 1.1, 1.03, 5, 40, 1.0),
+    INSANITY("insanity", 7, 0.85, 1.15, 1.06, 3, 40, 1.1),
     ENDLESS("endless", 5, 1.0, 1.0, 1.0, 5, 0, 1.0);
 
     val startScrap: Int get() = (200 * cash).roundToInt()
@@ -138,11 +142,24 @@ object BbRules {
     const val MIN_GIFT = 10
     const val UPGRADE_REBATE_PERCENT = 10
     val COOP_HP = doubleArrayOf(1.0, 1.2, 1.4, 1.6)
-    const val HP_GROWTH = 1.11
+    /** Enemy HP growth per wave (early game, waves 2 to 30). */
+    const val HP_GROWTH = 1.15
+
+    /** (last wave of the segment, growth per wave): steep to the Captain goal, a plateau to the Hero goal, steep again for Endless. */
+    private val HP_GROWTH_SEGMENTS = listOf(30 to HP_GROWTH, 40 to 1.01, Int.MAX_VALUE to 1.07)
     const val SKIFF_CAP_PER_PLAYER = 3
 
     fun waveCount(w: Int): Int = minOf(90, 20 + 3 * (w - 1))
-    fun hpGrowth(w: Int): Double = HP_GROWTH.pow(w - 1)
+    fun hpGrowth(w: Int): Double {
+        var r = 1.0
+        var from = 1
+        for ((end, g) in HP_GROWTH_SEGMENTS) {
+            if (w <= from) break
+            r *= g.pow(minOf(w, end) - from)
+            from = end
+        }
+        return r
+    }
     fun clearScrap(w: Int): Int = 20 + 5 * w
     fun clearScore(w: Int): Int = 100 + 10 * w
     fun isBossWave(w: Int): Boolean = w > 0 && w % 10 == 0
