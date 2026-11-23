@@ -48,7 +48,6 @@ SudokuScreen.kt=10
 TapRaceScreen.kt=1
 TicTacToeScreen.kt=3
 TileGameScreen.kt=11
-TowerDefenceScreen.kt=10
 ToySoccerScreen.kt=2
 ToyTennisScreen.kt=1
 TugOfWarScreen.kt=1
