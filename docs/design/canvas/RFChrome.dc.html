@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GameChrome v2 states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0D1A}
+*{box-sizing:border-box}
+.sb{width:2150px;height:920px;background:#0B0D1A;position:relative;font:400 14px/1.4 Inter,sans-serif;color:#F3F1EA;overflow:hidden}
+.cap{position:absolute;top:10px;height:28px;padding:0 14px;border-radius:14px;background:#1C2138;border:1px solid #2E3558;font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;color:#F3F1EA}
+.pw{position:absolute;top:48px;width:312px;height:675px;border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px #2E3558}
+.ph{width:390px;height:844px;transform:scale(.8);transform-origin:0 0;background:radial-gradient(120% 60% at 50% 0%,#1B2050 0%,#0B0D1A 60%);position:relative;overflow:hidden;display:flex;flex-direction:column}
+h1,h2,h3{font-family:Sora,sans-serif;margin:0;letter-spacing:-.02em}
+.mut{color:#9AA0B8}
+.sm{font-size:12px}
+.tb{padding:52px 20px 0;display:flex;align-items:center;justify-content:space-between}
+.ib{width:44px;height:44px;border-radius:22px;background:#1C2138;display:flex;align-items:center;justify-content:center;color:#F3F1EA}
+.pl{display:flex;align-items:center;gap:12px;padding:0 20px;height:64px}
+.av{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font:700 16px Sora}
+.nm{font:600 15px Sora}
+.clk{margin-left:auto;height:44px;min-width:96px;border-radius:14px;background:#141829;border:1px solid #232943;display:flex;align-items:center;justify-content:center;gap:6px;font:600 20px Sora;font-variant-numeric:tabular-nums}
+.clk.on{background:#F3F1EA;color:#0B0D1A;border-color:#F3F1EA}
+.clk.fz{background:#141829;border:1.5px dashed #7C84A6;color:#C9CDE0}
+.bw{padding:0 16px;position:relative}
+.bw svg.b{display:block;border-radius:16px;box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.mv{margin:6px 20px 0;height:42px;border-radius:21px;background:#141829;border:1px solid #232943;display:flex;align-items:center;padding:0 16px;gap:10px;font-size:13px;color:#C9CDE0}
+.dock{display:flex;padding:0 14px 34px}
+.act{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;font:500 12px Inter;color:#C9CDE0}
+.act span{width:56px;height:56px;border-radius:28px;background:#1C2138;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px #2E3558;color:#F3F1EA}
+.scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(8,10,22,.66)}
+.rib{position:absolute;left:0;right:0;height:44px;background:#FFB547;color:#1A1203;display:flex;align-items:center;justify-content:center;gap:10px;font:700 16px Sora;letter-spacing:.02em;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#141829;border-radius:28px 28px 0 0;border-top:1px solid #2E3558;padding:10px 16px 28px;display:flex;flex-direction:column;gap:8px}
+.grab{width:44px;height:5px;border-radius:3px;background:#3A4270;align-self:center;margin-bottom:4px}
+.row{height:56px;border-radius:18px;background:#1C2138;border:1px solid #2E3558;display:flex;align-items:center;gap:12px;padding:0 18px;font:600 16px Sora;color:#F3F1EA}
+.row.pri{background:#FFB547;border-color:#FFB547;color:#1A1203;justify-content:center}
+.mk{position:absolute;width:26px;height:26px;border-radius:13px;background:#FF6B7A;color:#2A050A;font:700 13px/26px Inter;text-align:center;z-index:9;box-shadow:0 0 0 3px rgba(11,13,26,.7)}
+.ar{position:absolute;top:372px;width:106px;text-align:center;font:600 12px Inter;color:#9AA0B8}
+.nt{position:absolute;top:738px;width:384px;display:flex;flex-direction:column;gap:7px}
+.nr{display:flex;gap:9px;font:400 12.5px/1.35 Inter;color:#C9CDE0}
+.nr b{color:#F3F1EA;font-weight:600}
+.nd{width:20px;height:20px;border-radius:10px;background:#FF6B7A;color:#2A050A;font:700 11px/20px Inter;text-align:center;flex:none;margin-top:1px}
+.ef{font:700 11px Sora;font-style:normal;border:1px solid #5A6394;border-radius:6px;padding:0 5px;margin-left:4px;color:#F3F1EA}
+</style>
+</helmet>
+<div class="sb">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<pattern id="chk" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="#6C75C4"/><rect x="1" y="0" width="1" height="1" fill="#2B3160"/><rect x="0" y="1" width="1" height="1" fill="#2B3160"/></pattern>
+<g id="dw"><circle cx=".5" cy=".5" r=".38" fill="#F3F1EA" stroke="#14183A" stroke-width=".03"/><circle cx=".5" cy=".5" r=".24" fill="none" stroke="#B9BED6" stroke-width=".03"/></g>
+<g id="do"><circle cx=".5" cy=".5" r=".38" fill="#14183A" stroke="#C9CDE0" stroke-width=".03"/><circle cx=".5" cy=".5" r=".24" fill="none" stroke="#4A5280" stroke-width=".03"/></g>
+<g id="pcs">
+<use href="#do" transform="translate(1,0)"/><use href="#do" transform="translate(5,0)"/><use href="#do" transform="translate(0,1)"/><use href="#do" transform="translate(4,1)"/><use href="#do" transform="translate(6,1)"/><use href="#do" transform="translate(7,2)"/><use href="#do" transform="translate(2,3)"/><use href="#do" transform="translate(4,3)"/>
+<use href="#dw" transform="translate(1,6)"/><use href="#dw" transform="translate(3,6)"/><use href="#dw" transform="translate(7,6)"/><use href="#dw" transform="translate(0,5)"/><use href="#dw" transform="translate(2,5)"/><use href="#dw" transform="translate(6,5)"/><use href="#dw" transform="translate(4,5)"/><use href="#dw" transform="translate(5,4)"/><use href="#dw" transform="translate(2,7)"/>
+</g>
+<g id="bd"><rect width="8" height="8" fill="url(#chk)"/><rect x="3" y="2" width="1" height="1" fill="#FFB547" opacity=".35"/><rect x="4" y="3" width="1" height="1" fill="#FFB547" opacity=".35"/><use href="#pcs"/></g>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+<symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4l14 5-14 5"/></symbol>
+<symbol id="i-draw" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1.1.9-1.1 1.8M12 17h.01"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</defs></svg>
+
+<span class="cap" style="left:60px">1 Normal play</span><span class="cap" style="left:490px">2 Menu open, paused</span><span class="cap" style="left:920px">3 Help sheet</span><span class="cap" style="left:1350px">4 Leave confirmation</span><span class="cap" style="left:1780px">5 Why not toast</span>
+
+<span class="ar" style="left:378px">tap Menu</span><span class="ar" style="left:808px">How to play</span><span class="ar" style="left:1238px">Got it, then Menu</span><span class="ar" style="left:1668px">Keep playing, tap illegal</span>
+<svg width="2150" height="920" style="position:absolute;left:0;top:0;pointer-events:none" aria-hidden="true" fill="none" stroke="#5A6394" stroke-width="2" stroke-linecap="round"><path d="M386 400h88M468 394l8 6-8 6"/><path d="M816 400h88M898 394l8 6-8 6"/><path d="M1246 400h88M1328 394l8 6-8 6"/><path d="M1676 400h88M1758 394l8 6-8 6"/></svg>
+
+<!-- 1 Normal play -->
+<div class="pw" style="left:60px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Menu"><use href="#i-menu"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Checkers</h2><div class="mut sm">Move 23 · Medium</div></div><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="How to play"><use href="#i-help"/></svg></div></div>
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div class="nm">Computer</div><div class="mut sm">8 pieces</div></div><div class="clk">8:41</div></div>
+<div class="bw"><svg class="b" width="358" height="358" viewBox="0 0 8 8" role="img" aria-label="Checkers board, your move"><use href="#bd"/></svg></div>
+<div class="pl" style="margin-top:4px"><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><div><div class="nm">Sam <span style="font:600 11px Inter;color:#0B0D1A;background:#FFB547;border-radius:8px;padding:2px 7px;margin-left:4px;vertical-align:2px">Your turn</span></div><div class="mut sm">9 pieces</div></div><div class="clk on">9:42</div></div>
+<div class="mv"><span style="color:#FFB547;font-weight:600">22.</span> 11-15 <span class="mut">·</span> 23-19 <span class="mut">·</span> <b style="color:#F3F1EA">15-24</b></div>
+<div style="flex:1"></div>
+<div class="dock">
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-undo"/></svg></span>Undo</div>
+<div class="act"><span style="background:#FFB547;box-shadow:none;color:#1A1203"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-hint"/></svg></span>Hint</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-flag"/></svg></span>Resign</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-draw"/></svg></span>Draw</div>
+</div>
+<div class="mk" style="right:16px;top:644px">1</div>
+<div class="mk" style="right:124px;top:538px">2</div>
+<div class="mk" style="right:10px;top:46px">3</div>
+</div></div>
+
+<!-- 2 Menu open, paused -->
+<div class="pw" style="left:490px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Menu"><use href="#i-menu"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Checkers</h2><div class="mut sm">Move 23 · Medium</div></div><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="How to play"><use href="#i-help"/></svg></div></div>
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div class="nm">Computer</div><div class="mut sm">8 pieces</div></div><div class="clk fz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>8:41</div></div>
+<div class="bw"><svg class="b" width="358" height="358" viewBox="0 0 8 8" role="img" aria-label="Checkers board, paused"><use href="#bd"/></svg></div>
+<div class="pl" style="margin-top:4px"><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><div><div class="nm">Sam</div><div class="mut sm">9 pieces</div></div><div class="clk fz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>9:42</div></div>
+<div class="scrim"></div>
+<div class="rib" style="top:325px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>Paused · clocks stopped</div>
+<div class="sheet" style="height:252px">
+<div class="grab"></div>
+<div class="row pri">Resume</div>
+<div style="display:flex;gap:8px"><div class="row" style="flex:1;padding:0 14px;font-size:15px">How to play</div><div class="row" style="flex:1;padding:0 14px;font-size:15px">Settings</div></div>
+<div class="row" style="justify-content:center;color:#FF8A96;border-color:#5A3A4A">Save and leave</div>
+</div>
+<div class="mk" style="left:12px;top:328px">4</div>
+<div class="mk" style="right:132px;top:538px">5</div>
+<div class="mk" style="right:8px;top:602px">6</div>
+</div></div>
+
+<!-- 3 Help sheet -->
+<div class="pw" style="left:920px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Menu"><use href="#i-menu"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Checkers</h2><div class="mut sm">Move 23 · Medium</div></div><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="How to play"><use href="#i-help"/></svg></div></div>
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div class="nm">Computer</div><div class="mut sm">8 pieces</div></div><div class="clk fz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>8:41</div></div>
+<div class="scrim"></div>
+<div class="sheet" style="top:176px;border-radius:28px 28px 0 0;padding:0;gap:0">
+<div class="grab" style="margin:10px auto 6px"></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 22px;height:52px"><h2 style="font-size:22px">How to play</h2><div class="ib" style="background:#1C2138"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Close"><use href="#i-x"/></svg></div></div>
+<div style="margin:0 16px;height:34px;border-radius:12px;background:#2A2113;border:1px solid #6B5320;display:flex;align-items:center;gap:8px;padding:0 12px;font:600 13px Inter;color:#FFD08A"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>Paused while you read</div>
+<div style="flex:1;overflow:hidden;padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:14px;background:#1C2138;border-radius:18px;padding:14px;align-items:center"><svg width="84" height="84" viewBox="0 0 3 3" style="flex:none;border-radius:12px" aria-hidden="true"><rect width="3" height="3" fill="url(#chk)"/><use href="#dw" transform="translate(0,2)"/><circle cx="1.5" cy="1.5" r=".13" fill="#FFB547"/><path d="M.9 2.1L1.35 1.65" stroke="#FFB547" stroke-width=".08" stroke-linecap="round"/><circle cx="2.5" cy="1.5" r=".13" fill="#FFB547" opacity="0"/></svg><div><div style="font:600 16px Sora">1. Step forward</div><div style="font-size:15px;color:#C9CDE0">Move one dark square diagonally toward your opponent.</div></div></div>
+<div style="display:flex;gap:14px;background:#1C2138;border-radius:18px;padding:14px;align-items:center"><svg width="84" height="84" viewBox="0 0 3 3" style="flex:none;border-radius:12px" aria-hidden="true"><rect width="3" height="3" fill="url(#chk)"/><use href="#dw" transform="translate(0,2)"/><use href="#do" transform="translate(1,1)"/><circle cx="2.5" cy=".5" r=".13" fill="#4ADE9B"/><path d="M.8 2.2L2.2 .8" stroke="#4ADE9B" stroke-width=".07" stroke-dasharray=".14 .12" stroke-linecap="round"/></svg><div><div style="font:600 16px Sora">2. Jump to capture</div><div style="font-size:15px;color:#C9CDE0">Hop over an enemy piece. If you can jump, you must.</div></div></div>
+<div style="display:flex;gap:14px;background:#1C2138;border-radius:18px;padding:14px;align-items:center"><svg width="84" height="84" viewBox="0 0 3 3" style="flex:none;border-radius:12px" aria-hidden="true"><rect width="3" height="3" fill="url(#chk)"/><use href="#dw" transform="translate(1,0)"/><path d="M1.2 .3l.15.2.15-.2.15.2.15-.2v.35h-.6z" fill="#FFB547" transform="translate(0,-.05)"/></svg><div><div style="font:600 16px Sora">3. Crown a king</div><div style="font-size:15px;color:#C9CDE0">Reach the far row. Kings move both ways.</div></div></div>
+<div style="background:#1C2138;border-radius:18px;padding:14px;height:80px"><div style="font:600 16px Sora">4. Win the game</div></div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:116px;background:linear-gradient(180deg,rgba(20,24,41,0) 0%,#141829 46%);padding:44px 16px 28px"><div class="row pri" style="height:56px;border-radius:28px">Got it</div></div>
+</div>
+<div class="mk" style="right:22px;top:786px">7</div>
+<div class="mk" style="left:6px;top:262px">8</div>
+</div></div>
+
+<!-- 4 Leave confirmation -->
+<div class="pw" style="left:1350px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Menu"><use href="#i-menu"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Checkers</h2><div class="mut sm">Move 23 · Medium</div></div><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="How to play"><use href="#i-help"/></svg></div></div>
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div class="nm">Computer</div><div class="mut sm">8 pieces</div></div><div class="clk fz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>8:41</div></div>
+<div class="bw"><svg class="b" width="358" height="358" viewBox="0 0 8 8" role="img" aria-label="Checkers board, paused"><use href="#bd"/></svg></div>
+<div class="pl" style="margin-top:4px"><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><div><div class="nm">Sam</div><div class="mut sm">9 pieces</div></div><div class="clk fz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><use href="#i-pause"/></svg>9:42</div></div>
+<div class="scrim" style="background:rgba(8,10,22,.8)"></div>
+<div style="position:absolute;left:24px;right:24px;top:236px;background:#1C2138;border:1px solid #3A4270;border-radius:28px;padding:26px 22px 20px;box-shadow:0 30px 60px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:10px">
+<div style="width:52px;height:52px;border-radius:26px;background:#2A2113;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFB547" stroke-width="2.2" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>
+<h2 style="font-size:23px">Leave this game?</h2>
+<div style="font-size:15px;color:#C9CDE0">We keep your spot at move 23. Pick it up any time from Continue on Home.</div>
+<div class="row pri" style="margin-top:8px;border-radius:28px">Save and leave</div>
+<div class="row" style="justify-content:center;border-radius:28px">Keep playing</div>
+<div style="height:48px;display:flex;align-items:center;justify-content:center;font:600 14px Inter;color:#FF8A96">Leave without saving</div>
+</div>
+<div class="mk" style="left:14px;top:430px">9</div>
+<div class="mk" style="left:14px;top:610px">10</div>
+</div></div>
+
+<!-- 5 Why not toast -->
+<div class="pw" style="left:1780px"><div class="ph">
+<div class="tb"><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="Menu"><use href="#i-menu"/></svg></div><div style="text-align:center"><h2 style="font-size:17px">Checkers</h2><div class="mut sm">Move 23 · Medium</div></div><div class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-label="How to play"><use href="#i-help"/></svg></div></div>
+<div class="pl" style="margin-top:8px"><div class="av" style="background:#2E3558">C</div><div><div class="nm">Computer</div><div class="mut sm">8 pieces</div></div><div class="clk">8:41</div></div>
+<div class="bw"><svg class="b" width="358" height="358" viewBox="0 0 8 8" role="img" aria-label="Checkers board, you must capture"><use href="#bd"/>
+<circle cx="2.5" cy="5.5" r=".46" fill="none" stroke="#FFB547" stroke-width=".08"/>
+<circle cx="3.5" cy="4.5" r=".4" fill="none" stroke="#FF6B7A" stroke-width=".07"/><path d="M3.3 4.3l.4.4M3.7 4.3l-.4.4" stroke="#FF6B7A" stroke-width=".08" stroke-linecap="round"/>
+<circle cx="5.5" cy="4.5" r=".6" fill="#4ADE9B" opacity=".18"/><circle cx="5.5" cy="4.5" r=".5" fill="none" stroke="#4ADE9B" stroke-width=".07"/>
+<circle cx="3.5" cy="2.5" r=".2" fill="#4ADE9B"/><path d="M5.2 4.2L3.8 2.8" stroke="#4ADE9B" stroke-width=".06" stroke-dasharray=".12 .1" stroke-linecap="round"/></svg></div>
+<div class="pl" style="margin-top:4px"><div class="av" style="background:linear-gradient(145deg,#8B7CFF,#3B2F9E)">S</div><div><div class="nm">Sam <span style="font:600 11px Inter;color:#0B0D1A;background:#FFB547;border-radius:8px;padding:2px 7px;margin-left:4px;vertical-align:2px">Your turn</span></div><div class="mut sm">9 pieces</div></div><div class="clk on">9:41</div></div>
+<div class="mv"><span style="color:#FFB547;font-weight:600">22.</span> 11-15 <span class="mut">·</span> 23-19 <span class="mut">·</span> <b style="color:#F3F1EA">15-24</b></div>
+<div style="position:absolute;left:16px;right:16px;top:632px;background:#1C2138;border:1px solid #3A4270;border-left:5px solid #FF6B7A;border-radius:18px;padding:12px 14px 14px;box-shadow:0 14px 30px rgba(0,0,0,.5)" role="status" aria-live="polite">
+<div style="display:flex;gap:12px;align-items:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF8A96" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/></svg><div style="flex:1;font:600 15px Sora;line-height:1.3">You have to capture. Jump with the glowing piece.</div><div style="height:44px;min-width:76px;padding:0 14px;border-radius:22px;background:#FFB547;color:#1A1203;display:flex;align-items:center;justify-content:center;font:700 14px Sora">Show me</div></div>
+<div style="margin-top:10px;height:4px;border-radius:2px;background:#2E3558"><div style="width:62%;height:4px;border-radius:2px;background:#FF8A96"></div></div>
+</div>
+<div style="flex:1"></div>
+<div class="dock" style="position:relative">
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-undo"/></svg></span>Undo</div>
+<div class="act"><span style="background:#FFB547;box-shadow:none;color:#1A1203"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-hint"/></svg></span>Hint</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-flag"/></svg></span>Resign</div>
+<div class="act"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><use href="#i-draw"/></svg></span>Draw</div>
+</div>
+<div class="mk" style="left:2px;top:622px">11</div>
+<div class="mk" style="left:244px;top:326px">12</div>
+<div class="mk" style="right:2px;top:622px">13</div>
+</div></div>
+
+<!-- notes -->
+<div class="nt" style="left:26px">
+<div class="nr"><i class="nd">1</i><div><b>Action dock.</b> Four labelled 56 dp buttons; Undo and Hint leave the overflow. G1 a11y avg 1.64, checkers 9 sp literal at CheckersScreen.kt:1185.<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">2</i><div><b>Clock is chrome-owned.</b> Ivory chip marks the side to move, tabular digits. One owner means one pause point. chess clock runs behind dialogs.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">3</i><div><b>Help gets its own 44 dp button</b> beside Menu, so the how-to sheet is one tap, not a menu hunt.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:456px">
+<div class="nr"><i class="nd">4</i><div><b>Paused ribbon, full width.</b> overlayOpen pauses any Game. airhockey resumes on menu close (AirHockeyScreen.kt:373-377); speed has empty pause().<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">5</i><div><b>Frozen clocks</b> show a pause glyph and a dashed border, not colour alone. Time stays at 9:42 until Resume.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">6</i><div><b>Resume is the only filled row.</b> Back gesture also resumes. Save and leave sits last, away from thumb slips.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:886px">
+<div class="nr"><i class="nd">7</i><div><b>Got it is pinned</b> above the gesture bar with a fade, never below the fold at large text. taprace coach plus help need the overlay hook (top fix 2).<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">8</i><div><b>Steps are 15 sp and scale</b> with text size. The clipped fourth card shows the sheet scrolls. Opening help pauses; Got it resumes.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:1316px">
+<div class="nr"><i class="nd">9</i><div><b>Save and leave is primary.</b> The write runs in a non-cancellable scope: casual screens lose personal bests today (7 of 8 use a cancellable LaunchedEffect).<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">10</i><div><b>Destructive option is last</b> and quiet: a coral text button, 48 dp tall, never the default focus.<i class="ef">S</i></div></div>
+</div>
+<div class="nt" style="left:1746px">
+<div class="nr"><i class="nd">11</i><div><b>Toast names the rule and the fix.</b> Engine emits a message id, screen localises it (finding 1; checkers has 34 English literals to extract).<i class="ef">M</i></div></div>
+<div class="nr"><i class="nd">12</i><div><b>Shapes, not just colour.</b> Illegal target: coral ring with a cross. Legal piece: mint glow, dashed path. Reduced Motion: no pulse.<i class="ef">S</i></div></div>
+<div class="nr"><i class="nd">13</i><div><b>Polite live region.</b> Read once, 4 s, with an invalid haptic tick. speed has no live-region announcements for opponent plays today.<i class="ef">S</i></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2150,"height":920}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

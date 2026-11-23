@@ -743,10 +743,12 @@ private fun TrayCanvas(
 ) {
     val w = level.width
     val h = level.height
-    val pulse = if (reduced) 0.6f else rememberInfiniteTransition(label = "sb-pulse").animateFloat(
+    // A State, read only inside the Canvas draw lambda below: reading `.value` here would
+    // recompose this whole composable every frame of the pulse.
+    val pulseState = if (reduced) null else rememberInfiniteTransition(label = "sb-pulse").animateFloat(
         initialValue = 0.3f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "sb-pulse-a"
-    ).value
+    )
     val dens = LocalDensity.current
     val threshold = with(dens) { 22.dp.toPx() }
     val glyph = if (colorblind) 0.95f else 0.62f
@@ -801,7 +803,7 @@ private fun TrayCanvas(
             drawCircle(Brush.radialGradient(listOf(Color(0xFF2A2118), Color(0xFF4A3B2A)), c, u * 0.42f), u * 0.4f, c)
             drawCircle(col.copy(alpha = 0.9f), u * 0.4f, c, style = Stroke(u * 0.06f))
             if (!occupied) drawSeatGlyph(i % 6, c, u * 0.17f)
-            else drawCircle(Color.White.copy(alpha = 0.25f + 0.45f * pulse), u * 0.47f, c, style = Stroke(u * 0.06f))
+            else drawCircle(Color.White.copy(alpha = 0.25f + 0.45f * (pulseState?.value ?: 0.6f)), u * 0.47f, c, style = Stroke(u * 0.06f))
         }
         // posts
         for (cell in level.walls) {
@@ -823,7 +825,7 @@ private fun TrayCanvas(
             val arrow = Path().apply {
                 moveTo(tip.x, tip.y); lineTo(back.x + side.x, back.y + side.y); lineTo(back.x - side.x, back.y - side.y); close()
             }
-            drawPath(arrow, Color(0xFFFFD21F).copy(alpha = 0.55f + 0.4f * pulse))
+            drawPath(arrow, Color(0xFFFFD21F).copy(alpha = 0.55f + 0.4f * (pulseState?.value ?: 0.6f)))
             drawPath(arrow, Color(0xFF6B4E00), style = Stroke(u * 0.03f))
         }
         // balls, drawn in a stable order; a ball on its slot gets a ring

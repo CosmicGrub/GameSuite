@@ -114,7 +114,7 @@ data class WordGuessState(
 class WordGuessGame(
     private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() },
     private val pickSecret: (Random) -> String = { WordGuessAnswerList.randomAnswer(it) },
-    private val isValidGuess: (String) -> Boolean = { WordDictionary.isValidWord(it) }
+    private val isValidGuess: (String) -> Boolean = { WordDictionary.isValidWord(it) || WordGuessAnswerList.isAnswer(it) }
 ) : GameModule, ResumableGame {
     override val gameId = "word-guess"
     override val displayName = "Word Guess"
@@ -313,6 +313,7 @@ class WordGuessGame(
 
     /** Called from the finished-round panel's "New Word" button — keeps the running tally. */
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

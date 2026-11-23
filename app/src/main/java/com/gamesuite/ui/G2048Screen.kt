@@ -104,6 +104,8 @@ import com.gamesuite.uikit.ChangeSetupButton
 import com.gamesuite.uikit.GameChrome
 import com.gamesuite.uikit.GameChromeEndInset
 import com.gamesuite.uikit.fitBoard
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlin.math.PI
 import kotlin.math.abs
@@ -262,7 +264,7 @@ fun G2048Screen(
     // An unassisted score that beats the stored best is saved as it happens, so leaving never loses it.
     LaunchedEffect(s.score, s.assisted, sizeId) {
         if (!s.assisted && s.score > 0 && s.score > (storedBest[sizeId] ?: 0)) {
-            statsStore.recordScore(sizeId, s.score)
+            withContext(NonCancellable) { statsStore.recordScore(sizeId, s.score) }
         }
     }
 

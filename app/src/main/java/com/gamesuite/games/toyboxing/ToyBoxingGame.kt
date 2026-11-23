@@ -291,8 +291,29 @@ class ToyBoxingGame(
         commit(force = true)
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    /** Wall-clock reading when paused (null while running). The fight, the computer and input all read [now], so a pause freezes the bout. */
+    private var pausedAt: Long? = null
+
+    /** The game clock: frozen while paused. */
+    private fun now(): Long = pausedAt ?: clock()
+
+    @Synchronized
+    override fun pause() {
+        if (pausedAt != null || state.value == null || matchOver.value || phase == BoxingPhase.OVER) return
+        if (isNetworked) return // the host's clock is the shared clock; a guest cannot pause it
+        advanceTo(clock())
+        pausedAt = clock()
+    }
+
+    /** Resumes without fast-forwarding: the paused time is dropped, and any wall-clock computer plan slides with it. */
+    @Synchronized
+    override fun resume() {
+        val at = pausedAt ?: return
+        pausedAt = null
+        val d = clock() - at
+        lastSim = clock()
+        for (i in assistThinkAt.indices) if (assistThinkAt[i] != 0L) assistThinkAt[i] += d
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -314,6 +335,7 @@ class ToyBoxingGame(
 
     @Synchronized
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         if (isNetworked) {
             if (opponentLeft.value || state.value?.over != true) return
@@ -333,6 +355,7 @@ class ToyBoxingGame(
         over = false
         winnerPlayerId = null
         simT = 0L
+        pausedAt = null
         lastSim = clock()
         count = 0; downSeat = -1
         hintAction.value = null
@@ -366,7 +389,7 @@ class ToyBoxingGame(
     @Synchronized
     fun play(seat: Int, action: BoxingAction): BoxingReject {
         val s = state.value ?: return BoxingReject.NOT_PLAYING
-        if (matchOver.value || s.over) return BoxingReject.NOT_PLAYING
+        if (matchOver.value || s.over || pausedAt != null) return BoxingReject.NOT_PLAYING
         if (isNetworked) {
             if (seat != context.localPlayerIndex || opponentLeft.value) return BoxingReject.NOT_YOUR_SEAT
             if (!isHost) {
@@ -391,7 +414,7 @@ class ToyBoxingGame(
         if (seat !in 0..1) return BoxingReject.NOT_YOUR_SEAT
         if (phase == BoxingPhase.OVER) return BoxingReject.NOT_PLAYING
         if (assist) return applyAssist(seat, action)
-        advanceTo(clock())
+        advanceTo(now())
         if (phase == BoxingPhase.OVER) return BoxingReject.NOT_PLAYING
         if (phase == BoxingPhase.COUNTDOWN || phase == BoxingPhase.BREAK) return BoxingReject.NOT_STARTED
         val me = f[seat]
@@ -452,8 +475,8 @@ class ToyBoxingGame(
     @Synchronized
     fun tick(): Boolean {
         if (isNetworked && !isHost) return false
-        if (state.value == null || matchOver.value) return false
-        val changed = if (assist) assistTick(clock()) else advanceTo(clock())
+        if (state.value == null || matchOver.value || pausedAt != null) return false
+        val changed = if (assist) assistTick(now()) else advanceTo(now())
         if (changed) commit(force = false)
         return changed
     }
@@ -1031,7 +1054,7 @@ class ToyBoxingGame(
         difficulty = CpuDifficulty.entries.firstOrNull { it.name == s.difficulty } ?: difficulty
         sessionWins.value = s.sessionWins; sessionDraws.value = s.sessionDraws
         eventSerial = s.eventSerial
-        simT = 0L; lastSim = clock(); count = 0; downSeat = -1
+        simT = 0L; lastSim = now(); count = 0; downSeat = -1
         nextAct.fill(0L); seenAttack.fill(-1L); reactDone.fill(-1L); assistThinkAt.fill(0L)
         hintAction.value = null
         if (s.assist) {

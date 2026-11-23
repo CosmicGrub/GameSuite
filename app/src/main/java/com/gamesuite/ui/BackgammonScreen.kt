@@ -65,8 +65,10 @@ import com.gamesuite.games.backgammon.BackgammonResultKind
 import com.gamesuite.games.backgammon.BackgammonRules
 import com.gamesuite.games.backgammon.BackgammonState
 import com.gamesuite.games.cards.CardSounds
-import com.gamesuite.haptics.HapticSignal
-import com.gamesuite.haptics.rememberHaptics
+import com.gamesuite.haptics.BackgammonHapticCues
+import com.gamesuite.haptics.ChangeTracker
+import com.gamesuite.haptics.HapticRules
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalGameSpeed
 import com.gamesuite.settings.LocalReducedMotion
@@ -107,7 +109,6 @@ fun BackgammonScreen(
     val context by sessionManager.activeContext.collectAsState()
     val androidContext = LocalContext.current
     val sounds = remember { CardSounds.get(androidContext) }
-    val haptics = rememberHaptics()
     val state by game.state
     val hint by game.hintMove
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
@@ -146,21 +147,36 @@ fun BackgammonScreen(
 
     val s = state ?: return
 
-    // A move (not a restore or an undo) gets a haptic tick and a sound; a hit is stronger.
+    // HAPTICS (see BackgammonHapticCues): a roll rattles and ticks when the dice settle; a move is
+    // NORMAL_ACTION (hit = STRONG, bear-off = LIGHT_TICK); the end of the game follows the last move.
+    // Every trigger compares against what the previous state looked like, so a resume, an undo and
+    // an arena series stay silent. Sounds are unchanged.
+    val sequencer = rememberHapticSequencer()
+    val isBotSeats = s.players.map { it.isBot }
+    val hapticsAllowed = HapticRules.shouldPlay(sessionManager.arenaActive, isBotSeats)
+    val moveTracker = remember { ChangeTracker<Int>() }
     LaunchedEffect(s.moveSeq) {
+        val previousSeq = moveTracker.update(s.moveSeq)
         val move = s.lastMove
-        if (s.moveSeq > 0 && move != null) {
-            haptics(if (move.hit) HapticSignal.STRONG_ACTION else HapticSignal.LIGHT_TICK)
+        if (previousSeq != null && s.moveSeq > previousSeq && move != null) {
+            if (hapticsAllowed) sequencer(BackgammonHapticCues.forMove(move.hit, move.bearsOff))
             sounds.playTap()
         }
     }
-    LaunchedEffect(s.dice) {
-        if (s.dice.isNotEmpty()) haptics(HapticSignal.NORMAL_ACTION)
+    val rollTracker = remember { ChangeTracker<BackgammonHapticCues.RollKey>() }
+    LaunchedEffect(s.dice, s.openingDice, s.openingTies, s.currentPlayerIndex) {
+        val key = BackgammonHapticCues.RollKey(s.dice, s.openingDice, s.openingTies, s.currentPlayerIndex)
+        if (BackgammonHapticCues.isNewRoll(rollTracker.update(key), key) && hapticsAllowed) {
+            sequencer(BackgammonHapticCues.forRoll())
+        }
     }
+    val overTracker = remember { ChangeTracker<Boolean>() }
     LaunchedEffect(s.phase == BackgammonPhase.OVER) {
-        if (s.phase == BackgammonPhase.OVER) {
-            val winner = s.players.firstOrNull { it.playerId == s.winnerPlayerId }
-            haptics(if (winner != null && !winner.isBot) HapticSignal.CELEBRATION else HapticSignal.NORMAL_ACTION)
+        val over = s.phase == BackgammonPhase.OVER
+        val wasOver = overTracker.update(over)
+        if (over && wasOver == false && hapticsAllowed) {
+            val winnerIndex = s.players.indexOfFirst { it.playerId == s.winnerPlayerId }
+            sequencer(BackgammonHapticCues.forGameEnd(HapticRules.outcomeFor(winnerIndex, isBotSeats, null)))
         }
     }
     LaunchedEffect(s.moveSeq, s.currentPlayerIndex, s.phase) { selectedFrom = null }

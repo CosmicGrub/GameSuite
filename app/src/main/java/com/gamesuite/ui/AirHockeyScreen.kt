@@ -279,18 +279,9 @@ fun AirHockeyScreen(
     }
 
     // The physics frame loop — runs continuously while this screen is composed and the match isn't over.
-    LaunchedEffect(state.matchOver) {
-        if (state.matchOver) return@LaunchedEffect
-        var lastFrameNanos = 0L
-        while (!game.state.value.matchOver) {
-            withFrameNanos { nanos ->
-                if (lastFrameNanos != 0L) {
-                    val dt = (nanos - lastFrameNanos) / 1_000_000_000f
-                    game.tick(dt)
-                }
-                lastFrameNanos = nanos
-            }
-        }
+    // Shared frame clock: lifecycle-gated (stops on ON_STOP), first frame after a restart is dt 0.
+    com.gamesuite.uikit.rememberGameFrameClock(running = !state.matchOver) { dt ->
+        if (dt > 0f && !game.state.value.matchOver) game.tick(dt)
     }
 
     if (state.matchOver) {
@@ -367,15 +358,7 @@ fun AirHockeyScreen(
             onMatchEnded()
         },
         leaveTitle = "Leave this match?",
-        leaveBody = "This match is still in progress. Leaving now won't count it as a win or a loss.",
-        // The menu's content is composed only while it is open, so this effect pauses the puck
-        // exactly for as long as the menu is showing.
-        extraItems = { _ ->
-            DisposableEffect(Unit) {
-                game.pause()
-                onDispose { game.resume() }
-            }
-        }
+        leaveBody = "This match is still in progress. Leaving now won't count it as a win or a loss."
     ) {
     AdaptiveTwoPane(
         foldState = LocalFoldState.current,

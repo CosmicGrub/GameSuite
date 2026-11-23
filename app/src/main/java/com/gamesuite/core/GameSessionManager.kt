@@ -156,7 +156,7 @@ class GameSessionManager : ViewModel() {
                 route = saveKey(route, ctx),
                 label = module.displayName,
                 savedAtMillis = System.currentTimeMillis(),
-                savedAtEpochDay = java.time.LocalDate.now().toEpochDay(),
+                savedAtEpochDay = DailySeed.todayEpochDay(),
                 snapshot = snapshot,
                 navRoute = route,
                 launch = SavedLaunch(

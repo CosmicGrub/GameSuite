@@ -18,6 +18,8 @@ import com.gamesuite.games.ludo.ChineseLudoHubSpecs
 import com.gamesuite.games.president.PresidentSevensHubSpecs
 import com.gamesuite.games.speed.SpeedMatchingHubSpecs
 import com.gamesuite.games.spider.SpiderHanafudaHubSpecs
+import com.gamesuite.games.botbastion.BotBastionHubSpecs
+import com.gamesuite.games.gemcascade.GemCascadeHubSpecs
 import com.gamesuite.games.slideclimb.SlideClimbHubSpecs
 import com.gamesuite.games.drawguess.DrawGuessHubSpecs
 import com.gamesuite.games.echopads.EchoPadsHubSpecs
@@ -449,7 +451,7 @@ object GameHubSpecs {
         puzzle("edge-match", "Edge Match", "Rotate tiles until every edge matches."),
         puzzle("mastermind", "Mastermind", "Crack the hidden colour code.", "Today's code"),
         solo("breakout", "Breakout", "Bounce the ball and clear the wall.", HubFamily.ARCADE_PUZZLE, resumable = false),
-        solo("tower-defence", "Tower Defence", "Build towers and stop the waves.", HubFamily.ARCADE_PUZZLE, resumable = false),
+        com.gamesuite.games.towerdefence.TowerDefenceHubSpecs.towerDefence,
         GameHubSpec(
             gameId = "air-hockey", title = "Air Hockey", tagline = "Fast two-player table hockey.",
             family = HubFamily.ARCADE_PUZZLE, resumable = false,
@@ -615,6 +617,8 @@ object GameHubSpecs {
         ChineseLudoHubSpecs.chineseCheckers,
         ChineseLudoHubSpecs.ludo,
         SlideClimbHubSpecs.slideClimb,
+        GemCascadeHubSpecs.gemCascade,
+        BotBastionHubSpecs.botBastion,
         twoSeat("shogi", "Shogi", "Japanese chess: captured pieces join your side.", extraOptions = listOf(HubOption.Choice(
             key = "pieces", label = "Piece style", default = "kanji",
             help = "Kanji is the traditional look. Symbols draws arrows showing how each piece moves, so no kanji reading is needed.",

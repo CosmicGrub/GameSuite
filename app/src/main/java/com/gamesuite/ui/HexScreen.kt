@@ -57,7 +57,10 @@ import com.gamesuite.games.hex.HexBoardSizes
 import com.gamesuite.games.hex.HexGame
 import com.gamesuite.games.hex.HexPlaceResult
 import com.gamesuite.games.hex.HexState
+import com.gamesuite.haptics.HapticRules
 import com.gamesuite.haptics.HapticSignal
+import com.gamesuite.haptics.HexHapticCues
+import com.gamesuite.haptics.rememberHapticSequencer
 import com.gamesuite.haptics.rememberHaptics
 import com.gamesuite.settings.LocalColorblindMode
 import com.gamesuite.settings.LocalGameSpeed
@@ -169,12 +172,14 @@ fun HexScreen(
         return
     }
 
+    val sequencer = rememberHapticSequencer()
+    val hapticsAllowed = HapticRules.shouldPlay(sessionManager.arenaActive, s.players.map { it.isBot })
     var previousStones by remember { mutableIntStateOf(-1) }
     var previousSwapped by remember { mutableStateOf(false) }
     LaunchedEffect(s.stones, s.swapped) {
         if ((previousStones >= 0 && s.stones > previousStones) || (s.swapped && !previousSwapped)) {
             playSfx(SfxKind.SOLID_THUNK)
-            haptics(HapticSignal.NORMAL_ACTION)
+            if (hapticsAllowed) sequencer(HexHapticCues.forPlace())
         }
         previousStones = s.stones
         previousSwapped = s.swapped
@@ -183,8 +188,9 @@ fun HexScreen(
         (!isNetworked || s.players.getOrNull(localSeat)?.playerId == s.winnerPlayerId)
     LaunchedEffect(s.boardOver, s.winnerPlayerId) {
         if (!s.boardOver) return@LaunchedEffect
-        if (humanWon) { playSfx(SfxKind.SUCCESS_CHIME); haptics(HapticSignal.CELEBRATION) }
-        else { playSfx(SfxKind.INVALID_BUZZ); haptics(HapticSignal.FAILURE) }
+        if (humanWon) playSfx(SfxKind.SUCCESS_CHIME) else playSfx(SfxKind.INVALID_BUZZ)
+        // Chain connected: SUCCESS pulse then CELEBRATION; a loss is FAILURE (starts after the placement tick).
+        if (hapticsAllowed) sequencer(HexHapticCues.forBoardEnd(humanWon))
     }
 
     val sideNames = listOf(stringResource(R.string.hex_red), stringResource(R.string.hex_blue))

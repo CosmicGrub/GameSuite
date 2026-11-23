@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Gem Cascade (hubKey names); shared texts such as Play and Classic already exist elsewhere -->
+    <string name="hub_gem_cascade">Cascada de Gemas</string>
+    <string name="hub_match_gems_chain_cascades_and_reach_the_goals">Combina gemas, encadena cascadas y alcanza los objetivos.</string>
+    <string name="hub_daily_challenge">Desafío diario</string>
+    <string name="hub_game_type">Tipo de juego</string>
+    <string name="hub_pick_how_you_want_to_play">Elige cómo quieres jugar.</string>
+    <string name="hub_level_up_until_no_moves_are_left">Sube de nivel hasta que no queden movimientos.</string>
+    <string name="hub_zen">Zen</string>
+    <string name="hub_relax_no_timer_and_no_ending">Relájate: sin cronómetro y sin final.</string>
+    <string name="hub_lightning">Relámpago</string>
+    <string name="hub_beat_the_clock_combos_add_time">Gana al reloj: los combos suman tiempo.</string>
+    <string name="hub_quest">Misión</string>
+    <string name="hub_puzzle_levels_with_goals_and_obstacles">Niveles de puzle con objetivos y obstáculos.</string>
+    <string name="hub_twist">Giro</string>
+    <string name="hub_turn_2_by_2_blocks_to_make_matches">Gira bloques de 2 por 2 para hacer combinaciones.</string>
+    <string name="hub_mine">Mina</string>
+    <string name="hub_dig_down_to_bring_treasure_to_the_bottom">Cava hacia abajo para llevar el tesoro al fondo.</string>
+    <string name="hub_butterflies">Mariposas</string>
+    <string name="hub_guide_butterflies_to_the_top_and_stop_the_spider_0d5c38">Guía a las mariposas hasta arriba y detén a las arañas.</string>
+    <string name="hub_countdown">Cuenta atrás</string>
+    <string name="hub_defuse_the_bombs_before_they_go_off">Desactiva las bombas antes de que exploten.</string>
+    <string name="hub_quest_level">Nivel de misión</string>
+    <string name="hub_which_puzzle_level_to_play">Qué nivel de puzle jugar.</string>
+    <string name="hub_bigger_boards_have_more_gems">Los tableros grandes tienen más gemas.</string>
+    <string name="hub_6_by_6">6 por 6</string>
+    <string name="hub_7_by_7">7 por 7</string>
+    <string name="hub_8_by_8">8 por 8</string>
+    <string name="hub_9_by_9">9 por 9</string>
+    <string name="hub_10_by_10">10 por 10</string>
+    <string name="hub_one_switch_mode">Modo de un pulsador</string>
+    <string name="hub_the_board_scans_by_itself_so_one_button_can_play">El tablero se recorre solo para jugar con un solo botón.</string>
+</resources>

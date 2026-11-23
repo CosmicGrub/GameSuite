@@ -222,4 +222,43 @@ object EchoPadGrid {
         }
         return -1
     }
+
+    /**
+     * Like [padAt] but forgiving about the dead gap between pads: a touch in the gap goes to the nearest pad (the
+     * lower index on an exact tie), as long as it is within three quarters of a gap of that pad's edge. Anything
+     * farther out, or outside the area, is -1. Fast play next to the gap is no longer lost.
+     */
+    fun nearestPad(x: Float, y: Float, w: Float, h: Float, columns: Int = 2): Int {
+        if (x < 0f || y < 0f || x > w || y > h) return -1
+        val exact = padAt(x, y, w, h, columns)
+        if (exact >= 0) return exact
+        val slack = min(w, h) * GAP * 0.75f
+        var best = -1
+        var bestD = Float.MAX_VALUE
+        for (i in 0 until EchoPads.COUNT) {
+            val r = rect(i, w, h, columns)
+            val dx = maxOf(r[0] - x, 0f, x - r[2])
+            val dy = maxOf(r[1] - y, 0f, y - r[3])
+            val d = kotlin.math.sqrt(dx * dx + dy * dy)
+            if (d < bestD - 1e-4f) { bestD = d; best = i }
+        }
+        return if (best >= 0 && bestD <= slack) best else -1
+    }
+}
+
+/**
+ * The cue each game event gets, kept apart from the screen so the audio design is testable: a free retry must sound
+ * different from, and softer than, the miss buzz (a player who only listens must tell "try again" from "out").
+ */
+object EchoCues {
+    enum class Sound { NONE, TONE_PAD, SUCCESS, SOFT_RETRY, MISS_BUZZ, WIN }
+
+    fun soundFor(kind: EchoEventKind, multi: Boolean): Sound = when (kind) {
+        EchoEventKind.PAD_SHOWN -> Sound.TONE_PAD
+        EchoEventKind.SEQUENCE_OK -> Sound.SUCCESS
+        EchoEventKind.RETRY -> Sound.SOFT_RETRY
+        EchoEventKind.MISS -> Sound.MISS_BUZZ
+        EchoEventKind.MATCH_OVER -> if (multi) Sound.WIN else Sound.NONE
+        else -> Sound.NONE
+    }
 }
