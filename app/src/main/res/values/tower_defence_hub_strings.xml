@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of Tower Defence (hubKey names) -->
+    <string name="hub_map">Map</string>
+    <string name="hub_castle_siege_maps_let_you_build_anywhere_classic_5fb0d9">Castle Siege maps let you build anywhere. Classic maps keep their fixed tower spots.</string>
+    <string name="hub_castle_pass">Castle Pass</string>
+    <string name="hub_an_open_meadow_with_a_pond_and_one_entrance">An open meadow with a pond and one entrance.</string>
+    <string name="hub_river_bend">River Bend</string>
+    <string name="hub_a_river_with_a_bridge_and_a_muddy_ford_two_entra_d1501a">A river with a bridge and a muddy ford. Two entrances.</string>
+    <string name="hub_twin_gates">Twin Gates</string>
+    <string name="hub_a_long_wall_with_two_gaps_two_entrances">A long wall with two gaps. Two entrances.</string>
+    <string name="hub_classic_switchback">Classic Switchback</string>
+    <string name="hub_the_original_fixed_lane_map">The original fixed-lane map.</string>
+    <string name="hub_classic_spiral_keep">Classic Spiral Keep</string>
+    <string name="hub_the_original_spiral_map">The original spiral map.</string>
+    <string name="hub_classic_zigzag_gauntlet">Classic Zigzag Gauntlet</string>
+    <string name="hub_the_original_zigzag_map">The original zigzag map.</string>
+    <string name="hub_theme">Theme</string>
+    <string name="hub_only_changes_how_it_looks_never_how_it_plays">Only changes how it looks, never how it plays.</string>
+    <string name="hub_castle_siege">Castle Siege</string>
+    <string name="hub_medieval_pass_archers_and_mages">Medieval pass, archers and mages.</string>
+    <string name="hub_space_station">Space Station</string>
+    <string name="hub_drone_attack_on_an_orbital_station">Drone attack on an orbital station.</string>
+    <string name="hub_toy_room">Toy Room</string>
+    <string name="hub_soft_cartoon_toys_in_a_child_room">Soft cartoon toys in a child room.</string>
+    <string name="hub_gentle_mode">Gentle mode</string>
+    <string name="hub_softer_waves_extra_gold_and_a_sturdier_castle">Softer waves, extra gold and a sturdier castle.</string>
+</resources>

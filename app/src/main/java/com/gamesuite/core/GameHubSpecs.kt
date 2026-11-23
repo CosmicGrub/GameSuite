@@ -451,7 +451,7 @@ object GameHubSpecs {
         puzzle("edge-match", "Edge Match", "Rotate tiles until every edge matches."),
         puzzle("mastermind", "Mastermind", "Crack the hidden colour code.", "Today's code"),
         solo("breakout", "Breakout", "Bounce the ball and clear the wall.", HubFamily.ARCADE_PUZZLE, resumable = false),
-        solo("tower-defence", "Tower Defence", "Build towers and stop the waves.", HubFamily.ARCADE_PUZZLE, resumable = false),
+        com.gamesuite.games.towerdefence.TowerDefenceHubSpecs.towerDefence,
         GameHubSpec(
             gameId = "air-hockey", title = "Air Hockey", tagline = "Fast two-player table hockey.",
             family = HubFamily.ARCADE_PUZZLE, resumable = false,
