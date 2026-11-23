@@ -19,9 +19,11 @@ class BotStatsTest {
     }
 
     @Test fun lobberHazeSkiffPowerAndDps() {
-        near(230.5, BotStats.power(BotType.LOBBER, 5)); near(145.2, BotStats.dps(BotType.LOBBER, 5), 0.3)
+        // Tuned 2026-11-22 (BALANCE.md "Tuned values"): Lobber 36 power growing x1.12 per level, Skiff 25 power.
+        listOf(36.0, 40.3, 45.1, 50.5, 56.6).forEachIndexed { i, p -> near(p, BotStats.power(BotType.LOBBER, i + 1)) }
+        near(35.7, BotStats.dps(BotType.LOBBER, 5), 0.3)
         near(13.4, BotStats.power(BotType.HAZE, 5)); near(112.9, BotStats.dps(BotType.HAZE, 5), 0.3)
-        near(76.8, BotStats.power(BotType.SKIFF, 5)); near(322.7, BotStats.dps(BotType.SKIFF, 5), 0.5)
+        near(96.0, BotStats.power(BotType.SKIFF, 5)); near(403.4, BotStats.dps(BotType.SKIFF, 5), 0.5)
         near(44.9, BotStats.rangeFraction(BotType.LOBBER, 5) * 100, 0.05)
         near(55.4, BotStats.rangeFraction(BotType.HAZE, 5) * 100, 0.1)
     }
@@ -43,8 +45,8 @@ class BotStatsTest {
     }
 
     @Test fun tenderTable() {
-        assertEquals(listOf(0.30, 0.38, 0.46, 0.53, 0.60), (1..5).map { BotStats.tenderSlow(it) })
-        assertEquals(listOf(6.0, 5.4, 4.8, 4.1, 3.5), (1..5).map { BotStats.tenderFreezeEvery(it) })
+        assertEquals(listOf(0.45, 0.57, 0.69, 0.80, 0.90), (1..5).map { BotStats.tenderSlow(it) })
+        assertEquals(listOf(4.2, 3.8, 3.4, 2.9, 2.5), (1..5).map { BotStats.tenderFreezeEvery(it) })
         near(23.8, BotStats.rangeFraction(BotType.TENDER, 5) * 100, 0.05)
     }
 
@@ -91,7 +93,7 @@ class BotStatsTest {
 /** T2: movement along lanes, pace, slows and freezes. */
 class LaneMovementTest {
     private val trav = mapOf(
-        "hearth" to 30.0, "twin" to 23.0, "pebble" to 30.0, "cross" to 16.0, "wake" to 44.0, "rift" to 30.0,
+        "hearth" to 33.0, "twin" to 23.0, "pebble" to 30.0, "cross" to 16.0, "wake" to 44.0, "rift" to 30.0,
         "furnace" to 30.0, "pinwheel" to 22.0, "hourglass" to 23.0, "tidal" to 16.0, "lantern" to 30.0, "last" to 25.0
     )
 
@@ -155,14 +157,14 @@ class LaneMovementTest {
         e.place(0, BotType.TENDER, 0)
         val en = e.put(EnemyType.DRIFTER, 4.3, hp = 1e9)
         e.step()
-        assertEquals(0.30, en.slow, 1e-9)
+        assertEquals(0.45, en.slow, 1e-9)
         assertEquals(BotStats.FREEZE_SECONDS, en.freeze, 1e-9)
         val d0 = en.dist
         e.step()
         assertEquals("frozen enemies do not move", d0, en.dist, 1e-12)
         e.run(0.6)
         assertTrue(en.dist > d0)
-        val speed = EnemyType.DRIFTER.speedU * 0.7 // slowed
+        val speed = EnemyType.DRIFTER.speedU * 0.55 // slowed by 45%
         val before = en.dist
         e.step()
         assertEquals(speed * BbEngine.STEP, en.dist - before, 1e-6)
@@ -173,7 +175,7 @@ class LaneMovementTest {
         e.place(0, BotType.TENDER, 0)
         val boss = e.put(EnemyType.BEHEMOTH, 4.3)
         e.step()
-        assertEquals(0.15, boss.slow, 1e-9)
+        assertEquals(0.225, boss.slow, 1e-9)
         assertEquals(0.0, boss.freeze, 1e-9)
     }
 }
@@ -236,13 +238,13 @@ class DamageModelTest {
     @Test fun lobberSplashHitsNeighboursButNotFarOnes() {
         val e = engine().rich()
         e.place(0, BotType.LOBBER, 3)
-        val a = e.put(EnemyType.DRIFTER, 7.3, hp = 1000.0)
+        val a = e.put(EnemyType.DRIFTER, 7.45, hp = 1000.0)
         val b = e.put(EnemyType.DRIFTER, 7.8, hp = 1000.0)
-        val c = e.put(EnemyType.DRIFTER, 6.9, hp = 1000.0)
+        val c = e.put(EnemyType.DRIFTER, 7.1, hp = 1000.0)
         e.step()
-        assertEquals(940.0, b.hp, 1e-9)
-        assertEquals("0.5 u from the impact is inside the 0.72 u splash", 940.0, a.hp, 1e-9)
-        assertEquals("0.9 u away is outside it", 1000.0, c.hp, 1e-9)
+        assertEquals(964.0, b.hp, 1e-9)
+        assertEquals("0.35 u from the impact is inside the 0.48 u splash", 964.0, a.hp, 1e-9)
+        assertEquals("0.7 u away is outside it", 1000.0, c.hp, 1e-9)
     }
 
     @Test fun lobberCannotHitWhatIsBesideIt() {
@@ -276,7 +278,7 @@ class DamageModelTest {
             return p.hp
         }
         assertEquals(1000.0 - 12.0 * 0.75, hpAfter(BotType.PICKET), 1e-9)
-        assertEquals(1000.0 - 60.0, hpAfter(BotType.LOBBER), 1e-9)
+        assertEquals(1000.0 - 36.0, hpAfter(BotType.LOBBER), 1e-9)
         assertEquals(1000.0 - 20.0, hpAfter(BotType.SKIFF.takeIf { false } ?: BotType.PICKET).let { 1000.0 - 20.0 }, 1e-9)
     }
 
@@ -287,16 +289,16 @@ class DamageModelTest {
         val p = e.put(EnemyType.PLATER, 0.0, hp = 1000.0)
         sk.x = 1.0; sk.y = 4.0
         e.step()
-        assertEquals(980.0, p.hp, 1e-9)
+        assertEquals(975.0, p.hp, 1e-9)
     }
 
     @Test fun aSplitterBreaksIntoTwoBitsAndACourierDropsASpecial() {
         val e = engine().rich()
         e.place(0, BotType.LOBBER, 3)
-        e.put(EnemyType.SPLITTER, 7.0, hp = 60.0)
+        e.put(EnemyType.SPLITTER, 7.0, hp = 30.0)
         e.step()
         assertEquals(2, e.enemies.count { it.type == EnemyType.BIT })
-        assertEquals(22.0, e.enemies.first { it.type == EnemyType.BIT }.hp, 1e-9)
+        assertEquals("a Bit keeps its parent's share of the hp scale", 11.0, e.enemies.first { it.type == EnemyType.BIT }.hp, 1e-9)
 
         val e2 = engine().rich()
         e2.place(0, BotType.LOBBER, 3)
@@ -388,9 +390,10 @@ class CoreAndShieldTest {
         assertEquals(4, leak(Tier.CADET, EnemyType.DRIFTER))
         assertEquals(5, leak(Tier.CAPTAIN, EnemyType.DRIFTER))
         assertEquals(5, leak(Tier.HERO, EnemyType.DRIFTER))
-        assertEquals(8, leak(Tier.INSANITY, EnemyType.DRIFTER))
+        assertEquals(7, leak(Tier.INSANITY, EnemyType.DRIFTER))
         assertEquals(10, leak(Tier.CAPTAIN, EnemyType.PLATER))
-        assertEquals(50, leak(Tier.CAPTAIN, EnemyType.BEHEMOTH))
+        assertEquals(25, leak(Tier.CAPTAIN, EnemyType.BEHEMOTH))
+        assertEquals(35, leak(Tier.INSANITY, EnemyType.BEHEMOTH))
         assertEquals(0, leak(Tier.CAPTAIN, EnemyType.COURIER))
     }
 
