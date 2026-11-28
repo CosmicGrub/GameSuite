@@ -55,6 +55,6 @@ object PropertyTycoonSnapshotCodec {
         null
     }
 
-    /** Stub: refuses every snapshot until the validation above exists. */
-    fun validate(snapshot: PropertyTycoonSnapshot, roster: List<PlayerInfo>): TycoonState? = null
+    /** The state to continue from, or null when any check above fails (see [PtValidate]). */
+    fun validate(snapshot: PropertyTycoonSnapshot, roster: List<PlayerInfo>): TycoonState? = PtValidate.check(snapshot, roster)
 }

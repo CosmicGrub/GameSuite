@@ -109,7 +109,8 @@ object PropertyTycoonHubSpecs {
         help = "Players may swap tiles and pearls."
     )
 
-    private val common = listOf(length, startPearls, handicap, handicapBoost, auctions, jackpot, doubleStipend, rentFreeSandbar, trades)
+    /** Auctions and trades ship with v1 (PtRelease): their toggles stay defined but are NOT offered until the engine honours them. */
+    private val common = listOf(length, startPearls, handicap, handicapBoost, jackpot, doubleStipend, rentFreeSandbar)
 
     val propertyTycoon: GameHubSpec = GameHubSpec(
         gameId = "property-tycoon", title = "Property Tycoon",

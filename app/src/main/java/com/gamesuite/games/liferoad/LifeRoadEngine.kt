@@ -12,7 +12,7 @@ interface LifeRoadEngine {
     fun graph(size: RoadSize): RoadGraph
 
     /** A fresh table in phase START_FORK with every seat on the Start Gate. [players].size must be 2..6. */
-    fun newGame(config: LifeRoadConfig, players: List<PlayerInfo>): LifeRoadState
+    fun newGame(config: LifeRoadConfig, players: List<PlayerInfo>, opener: Int = 0): LifeRoadState
 
     /** Every action [seat] may take right now (empty when it is not their turn or the game is over). */
     fun legalActions(state: LifeRoadState, seat: Int): List<LifeRoadAction>
@@ -50,6 +50,22 @@ object LifeRoadScoring {
         val life = p.memories * LifeRoadRules.MEMORY_VALUE + p.familyPegs * LifeRoadRules.FAMILY_VALUE
         return ScoreCard(seat, lines, lines.sumOf { it.amount }, life)
     }
+
+    /** Every seat's card with competition-ranked places (section 2.14 tie-breaks). */
+    fun cards(state: LifeRoadState): List<ScoreCard> {
+        val cards = state.players.indices.map { card(state, it) }
+        fun key(c: ScoreCard): List<Int> {
+            val p = state.players[c.seat]
+            val retire = if (p.retireOrder > 0) p.retireOrder else 1000
+            return listOf(c.total, c.lifePoints, -(p.loans + p.freshStarts), -retire)
+        }
+        val keys = cards.associate { it.seat to key(it) }
+        fun cmp(a: List<Int>, b: List<Int>): Int {
+            for (i in a.indices) if (a[i] != b[i]) return a[i].compareTo(b[i])
+            return 0
+        }
+        return cards.map { c -> c.copy(place = 1 + cards.count { o -> cmp(keys.getValue(o.seat), keys.getValue(c.seat)) > 0 }) }
+    }
 }
 
 /** The head-start seat option of the Hub: "none" / "" / unknown for nobody, "all", or "1".."6" (1-based). */
@@ -59,66 +75,5 @@ object LifeRoadHandicap {
         if (v.isEmpty() || v == "none") return emptySet()
         if (v == "all") return (0 until seats).toSet()
         return v.split(',').mapNotNull { it.trim().toIntOrNull() }.map { it - 1 }.filter { it in 0 until seats }.toSet()
-    }
-}
-
-/**
- * The scaffold engine: compiles, returns safe values, implements nothing. Every [apply] is refused with
- * [LifeRoadReject.NOT_IMPLEMENTED] so a screen wired to it cannot corrupt a game. Replace in phase P1.
- */
-class StubLifeRoadEngine : LifeRoadEngine {
-    override fun graph(size: RoadSize): RoadGraph = LifeRoadBoard.build(size)
-
-    override fun newGame(config: LifeRoadConfig, players: List<PlayerInfo>): LifeRoadState {
-        require(players.size in 2..6) { "Life Road needs 2 to 6 seats" }
-        val startCash = if (config.junior) LifeRoadRules.JUNIOR_START_CASH else LifeRoadRules.START_CASH
-        val seats = players.mapIndexed { i, info ->
-            val head = i in config.headStartSeats
-            val lucky = (if (config.junior) 1 else 0) +
-                when {
-                    !head -> 0
-                    config.headStart == HeadStart.SMALL -> LifeRoadRules.SMALL_HEAD_LUCKY
-                    config.headStart == HeadStart.BIG -> LifeRoadRules.BIG_HEAD_LUCKY
-                    else -> 0
-                }
-            PlayerState(
-                seat = i, playerId = info.playerId, displayName = info.displayName, isBot = info.isBot,
-                nodeId = LifeRoadBoardSpec.START_ID,
-                cash = startCash + if (head && config.headStart == HeadStart.BIG) LifeRoadRules.BIG_HEAD_COINS else 0,
-                luckyCoins = lucky
-            )
-        }
-        return LifeRoadState(
-            config = config, players = seats, currentSeat = 0, phase = Phase.START_FORK, pending = PendingState(),
-            // TODO(P2): shuffle the decks from RngStream.DECK; the stub leaves them in table order.
-            decks = DeckState(
-                jobs = List(5) { tier -> LifeRoadContent.jobs.filter { it.tier == tier + 1 }.map { it.id } },
-                events = LifeRoadContent.events.map { it.id },
-                family = LifeRoadContent.familyCards.map { it.id },
-                houseStock = LifeRoadContent.houses.map { it.id }
-            ),
-            cursors = RngCursors()
-        )
-    }
-
-    override fun legalActions(state: LifeRoadState, seat: Int): List<LifeRoadAction> = emptyList()
-
-    override fun explain(state: LifeRoadState, seat: Int, action: LifeRoadAction): LifeRoadReject =
-        when {
-            state.over -> LifeRoadReject.GAME_OVER
-            seat != state.currentSeat -> LifeRoadReject.NOT_YOUR_TURN
-            else -> LifeRoadReject.NOT_IMPLEMENTED
-        }
-
-    override fun apply(state: LifeRoadState, seat: Int, action: LifeRoadAction): LifeRoadStep =
-        LifeRoadStep(state, emptyList(), explain(state, seat, action))
-
-    override fun botAction(state: LifeRoadState, level: CpuDifficulty): LifeRoadAction = LifeRoadAction.Acknowledge
-
-    override fun scoreCards(state: LifeRoadState): List<ScoreCard> {
-        val cards = state.players.indices.map { LifeRoadScoring.card(state, it) }
-        // TODO(P1): section 2.14 tie-breaks. The stub ranks by total only.
-        val ranked = cards.sortedByDescending { it.total }
-        return cards.map { c -> c.copy(place = ranked.indexOfFirst { it.total == c.total } + 1) }
     }
 }

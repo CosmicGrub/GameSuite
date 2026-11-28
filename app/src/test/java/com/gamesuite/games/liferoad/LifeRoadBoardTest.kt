@@ -1,76 +1,100 @@
 package com.gamesuite.games.liferoad
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * SCAFFOLD: LifeRoadBoardTest is a stub. Every test is @Ignore'd with a reason until its phase lands (docs section 3.10, 3.8).
- * Remove the @Ignore of a test in the same change that makes it pass; never delete a name without updating the doc table.
- */
 class LifeRoadBoardTest {
-    @Ignore("scaffold: not implemented yet")
+    private fun routes(g: RoadGraph): List<List<String>> {
+        val out = ArrayList<List<String>>()
+        fun walk(id: String, path: List<String>) {
+            val n = g.node(id)!!
+            val p = path + id
+            if (n.next.isEmpty()) out += p else n.next.forEach { walk(it, p) }
+        }
+        walk(g.startId, emptyList())
+        return out
+    }
+
     @Test fun everySizeBuildsAConnectedGraph() {
-        // Quick, Standard and Long graphs reach both retire nodes from the start
-        // TODO
+        for (size in RoadSize.values()) {
+            val g = LifeRoadBoard.build(size)
+            assertEquals(setOf("RC", "RG"), routes(g).map { it.last() }.toSet())
+        }
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun segmentPatternLengthsMatchTheSpec() {
-        // Every pattern string has the length in the segment table
-        // TODO
+        val expect = mapOf(
+            "LRN" to listOf(5, 8, 10), "WRK" to listOf(4, 6, 8), "TA" to listOf(6, 12, 20), "RISK" to listOf(4, 7, 10),
+            "SAFE" to listOf(5, 9, 15), "TB" to listOf(6, 12, 22), "FAM" to listOf(5, 8, 13), "FREE" to listOf(5, 8, 13),
+            "TC" to listOf(5, 12, 22), "COZY" to listOf(3, 5, 8), "GRAND" to listOf(3, 5, 8)
+        )
+        for (seg in LifeRoadBoardSpec.SEGMENTS) {
+            val e = expect.getValue(seg.id)
+            assertEquals(seg.id, e[0], seg.quick.length)
+            assertEquals(seg.id, e[1], seg.standard.length)
+            assertEquals(seg.id, e[2], seg.long.length)
+        }
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun nodeCountsMatchTheSpec() {
-        // Total, shortest-route and longest-route square counts match section 2.16
-        // TODO
+        assertEquals(58, LifeRoadBoard.build(RoadSize.QUICK).nodes.size)
+        assertEquals(98, LifeRoadBoard.build(RoadSize.STANDARD).nodes.size)
+        assertEquals(148, LifeRoadBoard.build(RoadSize.LONG).nodes.size)
+        val std = routes(LifeRoadBoard.build(RoadSize.STANDARD)).map { it.size }
+        assertEquals(16, std.size)
+        assertTrue("min ${std.min()} max ${std.max()}", std.min() >= 66 && std.max() <= 72)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun everyNodeIsReachableAndHasNoDeadEnd() {
-        // No orphan nodes; every non-retire node has an exit
-        // TODO
+        for (size in RoadSize.values()) {
+            val g = LifeRoadBoard.build(size)
+            assertEquals(g.nodes.size, routes(g).flatten().toSet().size)
+            assertTrue(g.nodes.filter { it.kind != NodeKind.RETIRE }.all { it.next.isNotEmpty() })
+        }
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun forksHaveExactlyTwoBranches() {
-        // S0, F2, F3 and F4 each have two exits
-        // TODO
+        val g = LifeRoadBoard.build(RoadSize.STANDARD)
+        for (id in LifeRoadBoardSpec.FORK_IDS) assertEquals(id, 2, g.node(id)!!.next.size)
+        assertEquals(listOf("LRN.0", "WRK.0"), g.node("S0")!!.next)
+        assertEquals(listOf("COZY.0", "GRAND.0"), g.node("F4")!!.next)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun graphIsAcyclic() {
-        // The road only moves forward
-        // TODO
+        for (size in RoadSize.values()) assertTrue(LifeRoadBoard.build(size).problems().none { it.startsWith("cycle") })
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun onlyCliffNodesAreBold() {
-        // The bold flag is set on RISK nodes and nowhere else
-        // TODO
+        for (n in LifeRoadBoard.build(RoadSize.LONG).nodes) assertEquals(n.id, n.segment == "RISK", n.bold)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun everyKindCodeParses() {
-        // All pattern characters map to a NodeKind
-        // TODO
+        for (seg in LifeRoadBoardSpec.SEGMENTS) for (size in RoadSize.values()) for (c in seg.pattern(size)) assertTrue("$c", NodeKind.fromCode(c) != null)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun payStopCountsStayInTargetBands() {
-        // Each route has the pay stops listed in the scale table
-        // TODO
+        val bands = mapOf(RoadSize.QUICK to (5..8), RoadSize.STANDARD to (8..12), RoadSize.LONG to (13..19))
+        for ((size, band) in bands) {
+            val g = LifeRoadBoard.build(size)
+            for (r in routes(g)) {
+                val pays = r.count { g.node(it)!!.kind == NodeKind.PAY }
+                assertTrue("$size $pays", pays in band)
+            }
+        }
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun retireNodesAreTerminal() {
-        // RC and RG have no exits
-        // TODO
+        val g = LifeRoadBoard.build(RoadSize.QUICK)
+        assertTrue(g.node("RC")!!.next.isEmpty() && g.node("RG")!!.next.isEmpty())
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun graphProblemsIsEmptyForAllSizes() {
-        // RoadGraph.problems() reports nothing for the shipped boards
-        // TODO
+        for (size in RoadSize.values()) assertEquals(emptyList<String>(), LifeRoadBoard.build(size).problems())
+    }
+
+    @Test fun problemsReportsABrokenGraph() {
+        val bad = RoadGraph(RoadSize.QUICK, listOf(PathNode("S0", NodeKind.START, "S0", 0, false, listOf("S0"))))
+        assertTrue(bad.problems().isNotEmpty())
     }
 }

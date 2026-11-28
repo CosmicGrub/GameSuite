@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text (coach_territory_wars_s1..s5 and _fact) and first-run tips (tip_territory_wars_1..3) of Territory Wars -->
+    <string name="coach_territory_wars_s1">The map is dealt at random. Place your opening armies, then take turns: reinforce, attack, and fortify once.</string>
+    <string name="coach_territory_wars_s2">To attack, tap a territory of yours with 2 or more armies, then a neighbouring enemy. Higher dice win; ties go to the defender.</string>
+    <string name="coach_territory_wars_s3">Hold every territory of a region to earn its bonus armies each turn. Conquer at least one territory in a turn to draw a card.</string>
+    <string name="coach_territory_wars_s4">Three cards of one symbol, or one of each, make a set you can turn in for armies. Hold five cards and you must turn one in.</string>
+    <string name="coach_territory_wars_s5">Reach the capture target, eliminate everyone, or hold the most land when the round limit ends. Same device only, and computers can fill empty seats.</string>
+    <string name="coach_territory_wars_fact">Dice games of conquest are a family of strategy games that grew from the nineteenth-century tabletop war games.</string>
+    <string name="tip_territory_wars_1">Tap your territory, then a neighbouring enemy, and roll to attack.</string>
+    <string name="tip_territory_wars_2">Holding a whole region pays bonus armies every turn.</string>
+    <string name="tip_territory_wars_3">Keep your armies together: one strong stack beats many thin ones.</string>
+</resources>

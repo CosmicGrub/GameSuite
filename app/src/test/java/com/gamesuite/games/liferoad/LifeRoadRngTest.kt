@@ -1,46 +1,45 @@
 package com.gamesuite.games.liferoad
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * SCAFFOLD: LifeRoadRngTest is a stub. Every test is @Ignore'd with a reason until its phase lands (docs section 3.10, 3.8).
- * Remove the @Ignore of a test in the same change that makes it pass; never delete a name without updating the doc table.
- */
 class LifeRoadRngTest {
-    @Ignore("scaffold: not implemented yet")
     @Test fun sameSeedProducesSameSpinSequence() {
-        // Two engines with one seed spin identical sequences
-        // TODO
+        assertEquals((0L until 50L).map { LifeRoadRng.spin(7, it) }, (0L until 50L).map { LifeRoadRng.spin(7, it) })
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun differentSeedsProduceDifferentSequences() {
-        // Different seeds diverge within 20 spins
-        // TODO
+        assertNotEquals((0L until 20L).map { LifeRoadRng.spin(7, it) }, (0L until 20L).map { LifeRoadRng.spin(8, it) })
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun spinsAreAlwaysBetweenOneAndTen() {
-        // 100k draws all fall in 1..10
-        // TODO
+        for (i in 0L until 100_000L) assertTrue(LifeRoadRng.spin(3, i) in 1..10)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun spinDistributionIsRoughlyUniform() {
-        // Each face is within 1 percentage point of 10% over 200k draws
-        // TODO
+        val counts = IntArray(11)
+        val n = 200_000
+        for (i in 0 until n) counts[LifeRoadRng.spin(11, i.toLong())]++
+        for (f in 1..10) assertTrue("face $f ${counts[f]}", Math.abs(counts[f] / n.toDouble() - 0.1) < 0.01)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun streamsAreIndependent() {
-        // Drawing deck or bot numbers never moves the spin cursor
-        // TODO
+        val a = LifeRoadRng.spin(5, 3)
+        LifeRoadRng.below(5, RngStream.DECK, 3, 100); LifeRoadRng.below(5, RngStream.BOT, 3, 100)
+        assertEquals(a, LifeRoadRng.spin(5, 3))
+        assertNotEquals(LifeRoadRng.raw(5, RngStream.SPIN, 0), LifeRoadRng.raw(5, RngStream.DECK, 0))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreFromCursorsContinuesTheSequence() {
-        // A state saved at cursor N continues exactly like the uninterrupted run
-        // TODO
+        val s = LRT.act(LRT.start(3, LRT.config(seed = 21)), LifeRoadAction.Spin)
+        val text = LifeRoadSnapshots.encode(s, SessionExtras(emptyMap(), 0))!!
+        val (b, _) = LifeRoadSnapshots.decode(text, LRT.roster(3))!!
+        assertEquals(s.cursors, b.cursors)
+        // the next spin of the restored table equals the next spin of the original
+        val next = LRT.engine.legalActions(s, s.currentSeat).firstOrNull()
+        assertTrue(next != null)
+        assertEquals(LifeRoadRng.spin(21, s.cursors.spin), LifeRoadRng.spin(21, b.cursors.spin))
     }
 }

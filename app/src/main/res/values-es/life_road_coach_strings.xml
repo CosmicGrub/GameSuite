@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda (coach_life_road_s1..s5 y _fact) y consejos (tip_life_road_1..3) de Ruta de Vida -->
+    <string name="coach_life_road_s1">Por turnos, toca Girar. Tu ficha avanza esas casillas por un largo camino desde la salida hasta la jubilación.</string>
+    <string name="coach_life_road_s2">En una bifurcación eliges tu camino. Estudiar cuesta monedas ahora y abre los mejores trabajos; Trabajar gana desde ya. Las paradas de pago te dan tu sueldo al pasar.</string>
+    <string name="coach_life_road_s3">Compra casas, amplía tu familia y reúne recuerdos. Cada familiar vale 30 y cada recuerdo 20. Las tiendas de cobertura te protegen de un tipo de contratiempo.</string>
+    <string name="coach_life_road_s4">¿Te faltan monedas? Pides 50 y debes 60, y un nuevo comienzo cuesta 40 puntos, así que pide con cuidado. Una moneda de la suerte te deja girar otra vez, una sola vez.</string>
+    <string name="coach_life_road_s5">Llega a una casilla de jubilación para parar; quien se jubila antes recibe un bono y tus casas se venden con una tirada de mercado. Gana quien tenga más monedas, casas y recuerdos. Solo en este dispositivo, y la CPU puede ocupar los asientos vacíos.</string>
+    <string name="coach_life_road_fact">Los juegos de camino donde se recorre una sola ruta sinuosa a lo largo de toda una vida son favoritos de las familias desde hace más de un siglo.</string>
+    <string name="tip_life_road_1">Toca Girar para recorrer el camino. Las paradas de pago te dan tu sueldo al pasar.</string>
+    <string name="tip_life_road_2">En una bifurcación, elige tu camino. Estudiar cuesta monedas ahora y paga más después.</string>
+    <string name="tip_life_road_3">La familia y los recuerdos también dan puntos. Jubílate con más para ganar.</string>
+</resources>

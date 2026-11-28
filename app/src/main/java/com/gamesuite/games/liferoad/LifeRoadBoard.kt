@@ -58,15 +58,40 @@ object LifeRoadBoardSpec {
 }
 
 object LifeRoadBoard {
-    /**
-     * The board of [size] built from [LifeRoadBoardSpec] (algorithm in section 2.16).
-     * TODO(P1): the scaffold returns only a Start Gate joined to a retire square so callers compile and tests can be enabled one by one.
-     */
-    fun build(size: RoadSize): RoadGraph = RoadGraph(
-        size,
-        listOf(
-            PathNode(LifeRoadBoardSpec.START_ID, NodeKind.START, "S0", 0, false, listOf(LifeRoadBoardSpec.COZY_RETIRE_ID)),
-            PathNode(LifeRoadBoardSpec.COZY_RETIRE_ID, NodeKind.RETIRE, "RC", 0, false, emptyList())
-        )
-    )
+    private val cache: Map<RoadSize, RoadGraph> by lazy { RoadSize.values().associateWith { build(it) } }
+
+    /** The shared immutable board of [size] (built once). */
+    fun of(size: RoadSize): RoadGraph = cache.getValue(size)
+
+    /** The board of [size] built from [LifeRoadBoardSpec] (algorithm in section 2.16). */
+    fun build(size: RoadSize): RoadGraph {
+        val nodes = LinkedHashMap<String, PathNode>()
+        val nexts = HashMap<String, MutableList<String>>()
+        val last = HashMap<String, String>()
+        fun add(id: String, kind: NodeKind, seg: String, idx: Int, bold: Boolean) {
+            nodes[id] = PathNode(id, kind, seg, idx, bold, emptyList())
+            nexts[id] = ArrayList()
+        }
+        add(LifeRoadBoardSpec.START_ID, NodeKind.START, "S0", 0, false)
+        for (f in listOf("F2", "F3", "F4")) add(f, NodeKind.FORK, f, 0, false)
+        add(LifeRoadBoardSpec.COZY_RETIRE_ID, NodeKind.RETIRE, "RC", 0, false)
+        add(LifeRoadBoardSpec.GRAND_RETIRE_ID, NodeKind.RETIRE, "RG", 0, false)
+        for (seg in LifeRoadBoardSpec.SEGMENTS) {
+            val pat = seg.pattern(size)
+            for (i in pat.indices) {
+                val kind = NodeKind.fromCode(pat[i]) ?: error("bad kind ${pat[i]}")
+                add("${seg.id}.$i", kind, seg.id, i, seg.bold)
+                if (i > 0) nexts.getValue("${seg.id}.${i - 1}").add("${seg.id}.$i")
+            }
+            last[seg.id] = "${seg.id}.${pat.length - 1}"
+        }
+        fun resolve(ref: String): String {
+            val k = ref.indexOf(':')
+            if (k < 0) return ref
+            val seg = ref.substring(0, k)
+            return if (ref.substring(k + 1) == "end") last.getValue(seg) else "$seg.${ref.substring(k + 1)}"
+        }
+        for ((a, b) in LifeRoadBoardSpec.EDGES) nexts.getValue(resolve(a)).add(resolve(b))
+        return RoadGraph(size, nodes.values.map { it.copy(next = nexts.getValue(it.id)) })
+    }
 }

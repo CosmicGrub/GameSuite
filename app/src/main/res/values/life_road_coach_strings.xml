@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Coach card text (coach_life_road_s1..s5 and _fact) and first-run tips (tip_life_road_1..3) of Life Road -->
+    <string name="coach_life_road_s1">Take turns tapping Spin. Your piece walks that many squares along one long road from the Start Gate to retirement.</string>
+    <string name="coach_life_road_s2">At a fork you choose your road. Learn costs coins now and opens the best jobs; Work earns right away. Pay stops pay your salary when you pass them.</string>
+    <string name="coach_life_road_s3">Buy homes, grow your family and collect memories. Each family member is worth 30 and each memory 20. Cover shops protect you from one kind of setback.</string>
+    <string name="coach_life_road_s4">Short of coins? You borrow 50 and owe 60, and a fresh start costs 40 points, so borrow with care. A lucky coin lets you spin again once.</string>
+    <string name="coach_life_road_s5">Reach a retirement square to stop; earlier retirees get a bonus and your homes sell with a market roll. The most coins, homes and memories wins. Same device only, and CPUs can fill empty seats.</string>
+    <string name="coach_life_road_fact">Road games where players follow one winding path through a whole lifetime have been family favourites for well over a century.</string>
+    <string name="tip_life_road_1">Tap Spin to walk the road. Pay stops pay your salary when you pass them.</string>
+    <string name="tip_life_road_2">At a fork, pick your road. Learn costs coins now and pays more later.</string>
+    <string name="tip_life_road_3">Family and memories are worth points too. Retire with the most to win.</string>
+</resources>

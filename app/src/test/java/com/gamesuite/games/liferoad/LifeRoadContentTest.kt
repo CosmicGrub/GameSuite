@@ -1,46 +1,48 @@
 package com.gamesuite.games.liferoad
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * SCAFFOLD: LifeRoadContentTest is a stub. Every test is @Ignore'd with a reason until its phase lands (docs section 3.10, 3.8).
- * Remove the @Ignore of a test in the same change that makes it pass; never delete a name without updating the doc table.
- */
 class LifeRoadContentTest {
-    @Ignore("scaffold: not implemented yet")
     @Test fun thereAreThirtyThreeJobsInFiveTiers() {
-        // 6, 8, 7, 6, 6
-        // TODO
+        assertEquals(33, LifeRoadContent.jobs.size)
+        assertEquals(listOf(6, 8, 7, 6, 6), (1..5).map { t -> LifeRoadContent.jobs.count { it.tier == t } })
+        assertTrue(LifeRoadContent.jobs.all { it.needsDegree == (it.tier >= 4) })
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun salariesStayInTheirTierBands() {
-        // Tier 1 20-26 up to tier 5 90-115
-        // TODO
+        val bands = mapOf(1 to 20..26, 2 to 30..40, 3 to 45..58, 4 to 70..88, 5 to 90..115)
+        for (j in LifeRoadContent.jobs) assertTrue(j.id, j.salary in bands.getValue(j.tier))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun homePricesAscendAndIdsAreUnique() {
-        // 12 homes from 80 to 520
-        // TODO
+        val prices = LifeRoadContent.houses.map { it.price }
+        assertEquals(12, prices.size)
+        assertEquals(prices.sorted(), prices)
+        assertEquals(80, prices.first()); assertEquals(520, prices.last())
+        assertEquals(12, LifeRoadContent.houses.map { it.id }.toSet().size)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun everyCoverCategoryHasSetbackCards() {
-        // Home 5, care 4, income 3
-        // TODO
+        val by = LifeRoadContent.events.groupBy { it.cover }
+        assertEquals(5, by[CoverKind.HOME]!!.size)
+        assertEquals(4, by[CoverKind.CARE]!!.size)
+        assertEquals(3, by[CoverKind.INCOME]!!.size)
     }
 
-    @Ignore("scaffold: not implemented yet")
+    private fun swing(c: EventCardDef) = c.effects.filter { it.kind == EffectKind.COINS || it.kind == EffectKind.SPIN_COINS }
+        .sumOf { if (it.kind == EffectKind.SPIN_COINS) it.amount * 10 else it.amount }
+
     @Test fun noCardSwingsMoreThanFiftyCoins() {
-        // Largest single swing is 50 (the raffle at a spin of 10)
-        // TODO
+        for (c in LifeRoadContent.events) assertTrue(c.id, Math.abs(swing(c)) <= 50)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun deckExpectedCoinValueIsSlightlyPositive() {
-        // Mean coin delta of the 64 cards between 0 and +8
-        // TODO
+        val mean = LifeRoadContent.events.sumOf { c ->
+            c.effects.filter { it.kind == EffectKind.COINS || it.kind == EffectKind.SPIN_COINS }
+                .sumOf { if (it.kind == EffectKind.SPIN_COINS) it.amount * 5.5 else it.amount.toDouble() }
+        } / 64.0
+        assertTrue("mean $mean", mean in 0.0..8.0)
     }
 }

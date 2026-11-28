@@ -7,6 +7,7 @@ import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerScore
+import com.gamesuite.core.PausableGame
 import com.gamesuite.core.ResumableGame
 import com.gamesuite.settings.CpuDifficulty
 
@@ -20,14 +21,11 @@ import com.gamesuite.settings.CpuDifficulty
  *
  * Randomness: only [LifeRoadRng] with the seed in the config. [seedSource] picks a fresh seed per board; tests pass
  * a constant. Undo is not offered (a spin is chance, so taking it back would only allow a re-spin).
- *
- * SCAFFOLD: with [StubLifeRoadEngine] every [perform] is refused and no CPU step changes the state. The wrapper is
- * the final shape; only the engine behind it is a stub.
  */
 class LifeRoadGame(
-    private val engine: LifeRoadEngine = StubLifeRoadEngine(),
+    private val engine: LifeRoadEngine = StandardLifeRoadEngine(),
     private val seedSource: () -> Long = { System.nanoTime() }
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, PausableGame {
     override val gameId = "life-road"
     override val displayName = "Life Road"
     override val category = GameCategory.BOARD
@@ -38,6 +36,13 @@ class LifeRoadGame(
     val state = mutableStateOf<LifeRoadState?>(null)
     val sessionWins = mutableStateOf<Map<String, Int>>(emptyMap())
     val matchOver = mutableStateOf(false)
+
+    /** What the last accepted action did (for the screen's hops, sounds and announcements) and a serial that only grows. */
+    val lastEvents = mutableStateOf<List<LifeRoadEvent>>(emptyList())
+    val eventSerial = mutableStateOf(0)
+
+    val paused = mutableStateOf(false)
+    override val isPaused: Boolean get() = paused.value
 
     /** Rules for the NEXT board (the Hub's options). The seed is replaced per board unless [fixedSeed] is set. */
     var config: LifeRoadConfig = LifeRoadConfig()
@@ -87,15 +92,16 @@ class LifeRoadGame(
         val n = context.players.size
         val seed = fixedSeed ?: seedSource()
         matchOver.value = false
-        val fresh = engine.newGame(config.copy(seed = seed), context.players)
         val opener = nextStartingSeat % n
-        // The opener is the seat that spins first once everyone has chosen their start road.
-        state.value = fresh.copy(currentSeat = opener)
+        // The opener chooses first and spins first once everyone has chosen their start road.
+        state.value = engine.newGame(config.copy(seed = seed), context.players, opener)
+        lastEvents.value = emptyList()
+        eventSerial.value = eventSerial.value + 1
         nextStartingSeat = (nextStartingSeat + 1) % n
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    override fun pause() { paused.value = true }
+    override fun resume() { paused.value = false }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -120,6 +126,7 @@ class LifeRoadGame(
 
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         startMatch()
     }
 
@@ -143,6 +150,8 @@ class LifeRoadGame(
         val result = engine.apply(s, s.currentSeat, action)
         if (!result.accepted) return false
         state.value = result.state
+        lastEvents.value = result.events
+        eventSerial.value = eventSerial.value + 1
         if (result.state.over && !s.over) {
             val wins = sessionWins.value.toMutableMap()
             for (seat in result.state.winnerSeats) {
@@ -171,6 +180,7 @@ class LifeRoadGame(
     override fun restore(snapshot: String): Boolean {
         val (restored, extras) = LifeRoadSnapshots.decode(snapshot, context.players) ?: return false
         matchOver.value = false
+        lastEvents.value = emptyList()
         state.value = restored
         config = restored.config
         sessionWins.value = extras.sessionWins

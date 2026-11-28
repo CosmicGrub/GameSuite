@@ -162,14 +162,17 @@ data class PlayerState(
     val bankrupt: Boolean = false,
     val bankruptRound: Int = 0,
     val rentCollected: Int = 0,
-    val rentPaid: Int = 0
+    val rentPaid: Int = 0,
+    /** Ids of the free-pass cards held ([freePassCards] always equals their number). */
+    val passCardIds: List<String> = emptyList()
 )
 
 /** Ownership of one tile. [buildings] is 0..4 cabins, 5 = resort (only PROPERTY tiles ever have buildings). */
 @Serializable
 data class Holding(val tile: Int, val owner: Int, val buildings: Int = 0, val pledged: Boolean = false)
 
-enum class DebtReason { RENT, TAX, CARD, FINE, REPAIRS, PLEDGE_INTEREST, TRADE }
+/** [RIVALS] is a card that pays every rival: [DebtState.amount] is the whole sum, split evenly when it settles. */
+enum class DebtReason { RENT, TAX, CARD, FINE, REPAIRS, PLEDGE_INTEREST, TRADE, RIVALS }
 
 /** A payment the debtor cannot cover from cash yet. [creditor] is a seat, or -1 for the bank. */
 @Serializable
@@ -248,6 +251,10 @@ data class TycoonState(
     val dice1: Int = 0,
     val dice2: Int = 0,
     val extraRollPending: Boolean = false,
+    /** True after leaving the Sandbar by fine or card: this turn's doubles give no extra roll. */
+    val noExtraRoll: Boolean = false,
+    /** Squares still to walk once a forced-fine debt settles (0 = none). */
+    val pendingMove: Int = 0,
     val landedTile: Int = -1,
     val pendingCardId: String? = null,
     val tideDraw: List<String> = emptyList(),

@@ -23,14 +23,15 @@ private data class PlayerDto(
     val raises: Int = 0, val homes: List<HomeDto> = emptyList(), val familyPegs: Int = 0,
     val milestonesClaimed: List<String> = emptyList(), val cardMemories: Int = 0, val covers: List<String> = emptyList(),
     val luckyCoins: Int = 0, val nextPay: String = "NORMAL", val freshStarts: Int = 0, val retired: Boolean = false,
-    val retireOrder: Int = 0, val lane: String? = null, val turnsTaken: Int = 0, val stepsMoved: Int = 0
+    val retireOrder: Int = 0, val lane: String? = null, val turnsTaken: Int = 0, val stepsMoved: Int = 0,
+    val branch: String? = null
 )
 
 @Serializable
 private data class PendingDto(
     val spin: Int = 0, val stepsLeft: Int = 0, val forkNodeId: String? = null, val offerIds: List<String> = emptyList(),
     val mustPick: Boolean = false, val cardId: String? = null, val cardIsFamily: Boolean = false,
-    val needsSpin: Boolean = false, val settleIndex: Int = 0
+    val needsSpin: Boolean = false, val settleIndex: Int = 0, val noLanding: Boolean = false
 )
 
 @Serializable
@@ -45,6 +46,7 @@ private data class LifeRoadSnapshot(
     val cursorSpin: Long, val cursorDeck: Long, val cursorBot: Long,
     val turnNumber: Int, val retiredCount: Int, val luckyUsedThisTurn: Boolean, val lastSpin: Int, val spinSerial: Int,
     val extraTurn: Boolean,
+    val extraQueued: Boolean = false, val openerSeat: Int = 0,
     val sessionWins: Map<String, Int> = emptyMap(), val nextStartingSeat: Int = 0
 )
 
@@ -68,17 +70,18 @@ internal object LifeRoadSnapshots {
                     p.seat, p.playerId, p.displayName, p.isBot, p.nodeId, p.cash, p.loans, p.jobId, p.degree, p.raises,
                     p.homes.map { HomeDto(it.houseId, it.paid, it.soldFor) }, p.familyPegs, p.milestonesClaimed,
                     p.cardMemories, p.covers.map { it.name }.sorted(), p.luckyCoins, p.nextPay.name, p.freshStarts,
-                    p.retired, p.retireOrder, p.lane?.name, p.turnsTaken, p.stepsMoved
+                    p.retired, p.retireOrder, p.lane?.name, p.turnsTaken, p.stepsMoved, p.branch
                 )
             },
             currentSeat = state.currentSeat, phase = state.phase.name,
             pending = state.pending.let {
-                PendingDto(it.spin, it.stepsLeft, it.forkNodeId, it.offerIds, it.mustPick, it.cardId, it.cardIsFamily, it.needsSpin, it.settleIndex)
+                PendingDto(it.spin, it.stepsLeft, it.forkNodeId, it.offerIds, it.mustPick, it.cardId, it.cardIsFamily, it.needsSpin, it.settleIndex, it.noLanding)
             },
             decks = DecksDto(state.decks.jobs, state.decks.events, state.decks.family, state.decks.houseStock),
             cursorSpin = state.cursors.spin, cursorDeck = state.cursors.deck, cursorBot = state.cursors.bot,
             turnNumber = state.turnNumber, retiredCount = state.retiredCount, luckyUsedThisTurn = state.luckyUsedThisTurn,
             lastSpin = state.lastSpin, spinSerial = state.spinSerial, extraTurn = state.extraTurn,
+            extraQueued = state.extraQueued, openerSeat = state.openerSeat,
             sessionWins = extras.sessionWins, nextStartingSeat = extras.nextStartingSeat
         )
         return json.encodeToString(LifeRoadSnapshot.serializer(), snap)
@@ -135,20 +138,24 @@ internal object LifeRoadSnapshots {
                     nextPay = NextPay.values().firstOrNull { it.name == p.nextPay } ?: return null,
                     freshStarts = p.freshStarts, retired = p.retired, retireOrder = p.retireOrder,
                     lane = p.lane?.let { name -> RetireLane.values().firstOrNull { it.name == name } ?: return null },
-                    turnsTaken = p.turnsTaken, stepsMoved = p.stepsMoved
+                    turnsTaken = p.turnsTaken, stepsMoved = p.stepsMoved, branch = p.branch
                 )
             }
             val state = LifeRoadState(
                 config = LifeRoadConfig(size, variant, head, s.headStartSeats.filter { it in 0 until n }.toSet(), s.catchUp, s.seed, level),
                 players = players, currentSeat = s.currentSeat, phase = phase,
                 pending = s.pending.let {
-                    PendingState(it.spin, it.stepsLeft, it.forkNodeId, it.offerIds, it.mustPick, it.cardId, it.cardIsFamily, it.needsSpin, it.settleIndex)
+                    PendingState(it.spin, it.stepsLeft, it.forkNodeId, it.offerIds, it.mustPick, it.cardId, it.cardIsFamily, it.needsSpin, it.settleIndex, it.noLanding)
                 },
                 decks = DeckState(s.decks.jobs, s.decks.events, s.decks.family, s.decks.houseStock),
                 cursors = RngCursors(s.cursorSpin, s.cursorDeck, s.cursorBot),
                 turnNumber = s.turnNumber, retiredCount = s.retiredCount, luckyUsedThisTurn = s.luckyUsedThisTurn,
-                lastSpin = s.lastSpin, spinSerial = s.spinSerial, extraTurn = s.extraTurn
+                lastSpin = s.lastSpin, spinSerial = s.spinSerial, extraTurn = s.extraTurn,
+                extraQueued = s.extraQueued, openerSeat = s.openerSeat
             )
+            if (s.openerSeat !in 0 until n) return null
+            if (!LifeRoadValidation.ok(state)) return null
+            if (s.sessionWins.any { (k, v) -> v < 0 || roster.none { r -> r.playerId == k } }) return null
             state to SessionExtras(s.sessionWins, s.nextStartingSeat)
         } catch (_: Exception) {
             null

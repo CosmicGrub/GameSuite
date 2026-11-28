@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto de la tarjeta de ayuda (coach_territory_wars_s1..s5 y _fact) y consejos (tip_territory_wars_1..3) de Guerra de Territorios -->
+    <string name="coach_territory_wars_s1">El mapa se reparte al azar. Coloca tus ejércitos iniciales y luego, por turnos: refuerza, ataca y fortifica una vez.</string>
+    <string name="coach_territory_wars_s2">Para atacar, toca un territorio tuyo con 2 o más ejércitos y luego un enemigo vecino. Ganan los dados más altos; los empates son del defensor.</string>
+    <string name="coach_territory_wars_s3">Si tienes todos los territorios de una región, recibes sus ejércitos de bonificación cada turno. Conquista al menos un territorio en tu turno para robar una carta.</string>
+    <string name="coach_territory_wars_s4">Tres cartas del mismo símbolo, o una de cada, forman un conjunto que puedes canjear por ejércitos. Con cinco cartas estás obligado a canjear.</string>
+    <string name="coach_territory_wars_s5">Alcanza el objetivo de conquista, elimina a todos o ten más tierras cuando termine el límite de rondas. Solo en este dispositivo, y la CPU puede ocupar los asientos vacíos.</string>
+    <string name="coach_territory_wars_fact">Los juegos de dados de conquista son una familia de juegos de estrategia que nació de los juegos de guerra de mesa del siglo XIX.</string>
+    <string name="tip_territory_wars_1">Toca tu territorio, luego un enemigo vecino y tira los dados para atacar.</string>
+    <string name="tip_territory_wars_2">Tener una región completa da ejércitos de bonificación cada turno.</string>
+    <string name="tip_territory_wars_3">Mantén tus ejércitos juntos: una pila fuerte vence a muchas débiles.</string>
+</resources>

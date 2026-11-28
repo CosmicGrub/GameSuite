@@ -5,6 +5,8 @@ import com.gamesuite.core.GameCategory
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
+import com.gamesuite.core.LaunchPolicy
+import com.gamesuite.core.PausableGame
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerScore
 import com.gamesuite.core.ResumableGame
@@ -16,18 +18,17 @@ import com.gamesuite.settings.CpuDifficulty
  * Play money ("pearls") only. Audience ADULTS (see [PropertyTycoonHubSpecs]).
  *
  * This is the house-pattern wrapper (compare SlideClimbGame): it owns the Compose state the screen reads, drives the
- * [engine] and [bot], and saves / restores through [PropertyTycoonSnapshotCodec]. With the stub engine every command
- * is refused, so nothing moves; that keeps the module compiling until phase P0 lands the rules.
+ * [engine] and [bot], and saves / restores through [PropertyTycoonSnapshotCodec].
  *
  * Options (set before [startMatch]; a restored save carries its own): [length], [houseRules], [startCashOverride],
- * [handicapSeat] / [handicapPercent], [seed] (null = a fresh random game) and [difficulty].
+ * [handicapSeat] / [handicapPercent], [seed] (null = a fresh random game), [firstSeat] (null = drawn from the seed) and [difficulty].
  *
  * THE DICE come only from [TycoonState.rngState] (see [PtRng]); undo is not offered (a roll is chance).
  */
 class PropertyTycoonGame(
-    private val engine: PropertyTycoonEngine = StubPropertyTycoonEngine,
-    private val bot: PropertyTycoonBot = StubPropertyTycoonBot
-) : GameModule, ResumableGame {
+    private val engine: PropertyTycoonEngine = StandardPropertyTycoonEngine,
+    private val bot: PropertyTycoonBot = StandardPropertyTycoonBot
+) : GameModule, ResumableGame, PausableGame {
     override val gameId = "property-tycoon"
     override val displayName = "Property Tycoon"
     override val category = GameCategory.BOARD
@@ -39,6 +40,13 @@ class PropertyTycoonGame(
     val sessionWins = mutableStateOf<Map<String, Int>>(emptyMap())
     val matchOver = mutableStateOf(false)
 
+    /** What the last accepted command did (for hops, sounds and announcements) and a serial that grows with every change. */
+    val lastEvents = mutableStateOf<List<PtEvent>>(emptyList())
+    val changeSerial = mutableStateOf(0)
+
+    val paused = mutableStateOf(false)
+    override val isPaused: Boolean get() = paused.value
+
     /** Rules for the NEXT game (the Hub's options). */
     var length: GameLength = GameLength.STANDARD
     var houseRules: HouseRules = HouseRules()
@@ -46,6 +54,7 @@ class PropertyTycoonGame(
     var handicapSeat: Int = -1
     var handicapPercent: Int = 0
     var seed: Long? = null
+    var firstSeat: Int? = null
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
 
     private lateinit var context: GameContext
@@ -66,6 +75,8 @@ class PropertyTycoonGame(
 
     // --- Queries -----------------------------------------------------------------------------
 
+    fun seatToAct(s: TycoonState): Int = engine.seatToAct(s)
+
     /** True when a person (not the computer) is the seat to act on [s]. */
     fun isHumanToAct(s: TycoonState): Boolean =
         !matchOver.value && !s.over && !s.players[engine.seatToAct(s)].isBot
@@ -78,6 +89,13 @@ class PropertyTycoonGame(
         return engine.explain(s, seat, command)
     }
 
+    fun legalCommands(seat: Int): List<PtCommand> {
+        val s = state.value ?: return emptyList()
+        return engine.legalCommands(s, seat)
+    }
+
+    fun rentFor(tile: Int, diceTotal: Int): Int = state.value?.let { engine.rentFor(it, tile, diceTotal) } ?: 0
+
     fun netWorth(seat: Int): Int = state.value?.let { engine.netWorth(it, seat) } ?: 0
 
     // --- Lifecycle ---------------------------------------------------------------------------
@@ -89,15 +107,36 @@ class PropertyTycoonGame(
             houseRules = houseRules, handicapSeat = handicapSeat, handicapPercent = handicapPercent
         )
         matchOver.value = false
-        state.value = engine.newGame(config, context.players)
+        val fresh = engine.newGame(config, context.players)
+        val opener = firstSeat?.takeIf { it in context.players.indices }
+        state.value = if (opener != null) fresh.copy(currentSeat = opener) else fresh
+        lastEvents.value = emptyList()
+        changeSerial.value = changeSerial.value + 1
+        nextStartingSeat = (nextStartingSeat + 1) % context.players.size
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    override fun pause() { paused.value = true }
+    override fun resume() { paused.value = false }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
         onMatchEnd?.invoke(result)
+    }
+
+    /** Leaves the session. A finished game is scored; leaving mid-game ends with no result (the caller uses [abortMatch] for that). */
+    fun leaveSession() {
+        if (matchOver.value) return
+        val s = state.value
+        if (s != null && s.over) endMatch(buildResult(s)) else endMatch(GameResult(wasAborted = true))
+    }
+
+    /** Starts another game of the session (the same table and rules, a fresh seed). */
+    fun playAgain() {
+        if (matchOver.value) return
+        if (!LaunchPolicy.requestNewRound()) return
+        seed = null
+        firstSeat = nextStartingSeat
+        startMatch()
     }
 
     /** Applies a person's command. True when the engine accepted it. */
@@ -107,6 +146,12 @@ class PropertyTycoonGame(
         val result = engine.apply(s, seat, command)
         if (!result.accepted) return false
         state.value = result.state
+        lastEvents.value = result.events
+        changeSerial.value = changeSerial.value + 1
+        if (result.state.over && !s.over) {
+            val winnerId = result.state.players.getOrNull(result.state.winnerSeat)?.playerId
+            if (winnerId != null) sessionWins.value = sessionWins.value + (winnerId to ((sessionWins.value[winnerId] ?: 0) + 1))
+        }
         return true
     }
 
@@ -118,7 +163,7 @@ class PropertyTycoonGame(
         command(seat, bot.decide(s, seat, difficulty, engine))
     }
 
-    /** Ranked result of the finished (or abandoned-with-a-leader) game: the winner first, then by net worth. */
+    /** Ranked result of the finished game: the winner first, then by net worth. */
     fun buildResult(s: TycoonState): GameResult {
         val winner = engine.winner(s)
         return GameResult(
@@ -150,6 +195,7 @@ class PropertyTycoonGame(
         val valid = PropertyTycoonSnapshotCodec.validate(snap, context.players) ?: return false
         matchOver.value = false
         state.value = valid
+        lastEvents.value = emptyList()
         sessionWins.value = snap.sessionWins
         nextStartingSeat = snap.nextStartingSeat
         difficulty = CpuDifficulty.values().firstOrNull { it.name == snap.difficulty } ?: difficulty

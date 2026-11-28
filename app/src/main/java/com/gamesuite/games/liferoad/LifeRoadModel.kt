@@ -103,9 +103,47 @@ class RoadGraph(val size: RoadSize, val nodes: List<PathNode>) {
 
     /**
      * Human-readable defects: unreachable nodes, dead ends, forks without two exits, cycles.
-     * TODO(P1): implement the checks of LifeRoadBoardTest; the scaffold reports nothing.
      */
-    fun problems(): List<String> = emptyList()
+    fun problems(): List<String> {
+        val out = ArrayList<String>()
+        for (n in nodes) {
+            if (n.kind == NodeKind.RETIRE && n.next.isNotEmpty()) out += "retire ${n.id} has exits"
+            if (n.kind != NodeKind.RETIRE && n.next.isEmpty()) out += "dead end ${n.id}"
+            if (n.next.size > 2) out += "${n.id} has more than two exits"
+            if (n.kind == NodeKind.FORK && n.next.size != 2) out += "fork ${n.id} needs two exits"
+            for (x in n.next) if (!contains(x)) out += "${n.id} links to missing $x"
+        }
+        val seen = HashSet<String>()
+        val stack = ArrayDeque<String>()
+        if (contains(startId)) stack.addLast(startId)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!seen.add(id)) continue
+            node(id)?.next?.forEach { stack.addLast(it) }
+        }
+        for (n in nodes) if (n.id !in seen) out += "unreachable ${n.id}"
+        // cycle check: iterative colouring
+        val colour = HashMap<String, Int>()
+        for (n in nodes) {
+            if (colour[n.id] != null) continue
+            val path = ArrayDeque<Pair<String, Int>>()
+            path.addLast(n.id to 0); colour[n.id] = 1
+            while (path.isNotEmpty()) {
+                val (id, i) = path.removeLast()
+                val nx = node(id)?.next ?: emptyList()
+                if (i < nx.size) {
+                    path.addLast(id to i + 1)
+                    val c = nx[i]
+                    when (colour[c]) {
+                        1 -> out += "cycle through $c"
+                        null -> { colour[c] = 1; path.addLast(c to 0) }
+                        else -> {}
+                    }
+                } else colour[id] = 2
+            }
+        }
+        return out
+    }
 }
 
 // ---------------------------------------------------------------- content definitions
@@ -210,7 +248,9 @@ data class PlayerState(
     val lane: RetireLane? = null,
     val turnsTaken: Int = 0,
     /** Squares walked so far; the catch-up boost compares this across players. */
-    val stepsMoved: Int = 0
+    val stepsMoved: Int = 0,
+    /** The exit chosen at the fork the piece stands on (or is about to reach); consumed by the next step. */
+    val branch: String? = null
 ) {
     val memories: Int get() = minOf(LifeRoadRules.MEMORY_CAP, milestonesClaimed.size + cardMemories)
 }
@@ -241,7 +281,9 @@ data class PendingState(
     val cardId: String? = null,
     val cardIsFamily: Boolean = false,
     val needsSpin: Boolean = false,
-    val settleIndex: Int = 0
+    val settleIndex: Int = 0,
+    /** True while a card move is under way (the chain rule: the square reached does not resolve). */
+    val noLanding: Boolean = false
 )
 
 /** The shuffled decks. Orders are host-only secrets in a networked game (section 3.7). */
@@ -275,6 +317,10 @@ data class LifeRoadState(
     val spinSerial: Int = 0,
     /** True while the seat on turn is taking an extra turn from a card (no catch-up boost on extra turns). */
     val extraTurn: Boolean = false,
+    /** A card granted another turn after this one. */
+    val extraQueued: Boolean = false,
+    /** The seat that chose first at the start fork and spins first. */
+    val openerSeat: Int = 0,
     val over: Boolean = false,
     /** Seats that share the win (empty until [over]). More than one only after every tie-break ties. */
     val winnerSeats: List<Int> = emptyList()

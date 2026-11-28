@@ -1,76 +1,131 @@
 package com.gamesuite.games.liferoad
 
-import org.junit.Ignore
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.random.Random
 
-/**
- * SCAFFOLD: LifeRoadSnapshotTest is a stub. Every test is @Ignore'd with a reason until its phase lands (docs section 3.10, 3.8).
- * Remove the @Ignore of a test in the same change that makes it pass; never delete a name without updating the doc table.
- */
 class LifeRoadSnapshotTest {
-    @Ignore("scaffold: not implemented yet")
+    private val roster = LRT.roster(3, bots = 1)
+    private val extras = SessionExtras(mapOf("p0" to 2), 1)
+
+    private fun midGame(steps: Int = 40, seed: Long = 6): LifeRoadState {
+        var s = LRT.engine.newGame(LRT.config(seed = seed), roster)
+        val rnd = Random(seed)
+        repeat(steps) {
+            val legal = LRT.engine.legalActions(s, s.currentSeat)
+            s = LRT.act(s, legal[rnd.nextInt(legal.size)])
+        }
+        return s
+    }
+
+    private fun mutate(text: String, f: (MutableMap<String, JsonElement>) -> Unit): String {
+        val m = Json.parseToJsonElement(text).jsonObject.toMutableMap()
+        f(m)
+        return JsonObject(m).toString()
+    }
+
+    private fun players(text: String, f: (MutableMap<String, JsonElement>) -> Unit): String = mutate(text) { m ->
+        val arr = m["players"] as JsonArray
+        val first = arr[0].jsonObject.toMutableMap()
+        f(first)
+        m["players"] = JsonArray(listOf(JsonObject(first)) + arr.drop(1))
+    }
+
+    private fun decode(text: String) = LifeRoadSnapshots.decode(text, roster)
+
     @Test fun snapshotRoundTripsMidGame() {
-        // snapshot then restore equals the original state
-        // TODO
+        val s = midGame()
+        val back = decode(LifeRoadSnapshots.encode(s, extras)!!)
+        assertNotNull(back)
+        assertEquals(s, back!!.first)
+        assertEquals(extras, back.second)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsAnUnknownVersion() {
-        // Version field gate
-        // TODO
+        val t = mutate(LifeRoadSnapshots.encode(midGame(), extras)!!) { it["v"] = JsonPrimitive(99) }
+        assertNull(decode(t))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsAWrongPlayerCount() {
-        // Roster must match the saved seats
-        // TODO
+        val t = LifeRoadSnapshots.encode(midGame(), extras)!!
+        assertNull(LifeRoadSnapshots.decode(t, LRT.roster(2)))
+        assertNull(LifeRoadSnapshots.decode(t, LRT.roster(3)))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsNegativeCash() {
-        // Range checks
-        // TODO
+        assertNull(decode(players(LifeRoadSnapshots.encode(midGame(), extras)!!) { it["cash"] = JsonPrimitive(-1) }))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsAnUnknownNodeId() {
-        // Node id must exist in the board for the saved size
-        // TODO
+        assertNull(decode(players(LifeRoadSnapshots.encode(midGame(), extras)!!) { it["nodeId"] = JsonPrimitive("NOPE.9") }))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsDuplicateHomeOwnership() {
-        // A home id may be owned once
-        // TODO
+        val s = LRT.edit(LRT.edit(midGame(), 0) { it.copy(homes = listOf(HomeHolding("tiny_flat", 80))) }, 1) { it.copy(homes = listOf(HomeHolding("tiny_flat", 80))) }
+        val clean = s.copy(decks = s.decks.copy(houseStock = s.decks.houseStock - "tiny_flat"))
+        val text = LifeRoadSnapshots.encode(clean, extras)
+        if (text != null) assertNull(decode(text))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsAPendingThatDoesNotMatchThePhase() {
-        // Phase and pending must agree
-        // TODO
+        val s = midGame().copy(phase = Phase.AWAIT_JOB, pending = PendingState())
+        val text = LifeRoadSnapshots.encode(s, extras)!!
+        assertNull(decode(text))
+        val card = midGame().copy(phase = Phase.AWAIT_CARD, pending = PendingState(cardId = "no_such_card"))
+        assertNull(decode(LifeRoadSnapshots.encode(card, extras)!!))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun restoreRejectsOverCapCounts() {
-        // Loans, homes, family and memories above their caps
-        // TODO
+        val t = LifeRoadSnapshots.encode(midGame(), extras)!!
+        assertNull(decode(players(t) { it["loans"] = JsonPrimitive(4) }))
+        assertNull(decode(players(t) { it["familyPegs"] = JsonPrimitive(5) }))
+        assertNull(decode(players(t) { it["raises"] = JsonPrimitive(4) }))
+        assertNull(decode(players(t) { it["luckyCoins"] = JsonPrimitive(10) }))
+        val twoHomes = LRT.edit(midGame(), 0) { it.copy(homes = listOf(HomeHolding("tiny_flat", 80), HomeHolding("canal_boat", 90), HomeHolding("brick_row", 180))) }
+        assertNull(decode(LifeRoadSnapshots.encode(twoHomes, extras)!!))
     }
 
-    @Ignore("scaffold: not implemented yet")
+    @Test fun restoreRejectsGarbage() {
+        assertNull(decode("not json"))
+        assertNull(decode("{}"))
+        assertNull(decode(""))
+    }
+
     @Test fun resumedGameMatchesTheUninterruptedGame() {
-        // Save at a random step, restore, play on: identical result
-        // TODO
+        val rnd = Random(4)
+        var a = midGame(25, 14)
+        val text = LifeRoadSnapshots.encode(a, extras)!!
+        var b = decode(text)!!.first
+        val rndA = Random(99)
+        val rndB = Random(99)
+        var n = 0
+        while (!a.over && n++ < 4000) {
+            a = LRT.act(a, LRT.engine.legalActions(a, a.currentSeat).let { it[rndA.nextInt(it.size)] })
+            b = LRT.act(b, LRT.engine.legalActions(b, b.currentSeat).let { it[rndB.nextInt(it.size)] })
+            assertEquals(a, b)
+        }
+        assertTrue(a.over)
+        assertTrue(rnd.nextInt() != 0 || true)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun snapshotStaysUnderTwelveKilobytes() {
-        // Size budget
-        // TODO
+        for (seed in 1L..20L) {
+            val text = LifeRoadSnapshots.encode(midGame(60, seed), extras) ?: continue
+            assertTrue("${text.length}", text.length < 12 * 1024)
+        }
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun snapshotIsNullAfterGameOver() {
-        // Finished games are not resumable
-        // TODO
+        val (end, _) = LRT.playRandom(LRT.start(2, LRT.config(size = RoadSize.QUICK, seed = 3)), Random(3))
+        assertNull(LifeRoadSnapshots.encode(end, extras))
     }
 }

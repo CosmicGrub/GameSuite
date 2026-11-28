@@ -145,7 +145,9 @@ data class TerritoryWarsConfig(
     /** The war ends on points after this many rounds; 0 = no cap. */
     val roundCap: Int = 18,
     /** Seed of the whole war: deal, deck order and dice streams are derived from it. */
-    val seed: Long = 0L
+    val seed: Long = 0L,
+    /** The seat that places first and takes the first turn (the Hub's "who moves first"). */
+    val firstSeat: Int = 0
 )
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -228,7 +230,9 @@ data class TerritoryWarsState(
     val conquests: Int,
     val event: TerritoryWarsEvent?,
     /** Only ever grows; keys the screen's animations. */
-    val eventSerial: Int
+    val eventSerial: Int,
+    /** Territories conquered since the current round began (feeds the stalemate guard). */
+    val conquestsThisRound: Int = 0
 ) {
     val seats: Int get() = players.size
 

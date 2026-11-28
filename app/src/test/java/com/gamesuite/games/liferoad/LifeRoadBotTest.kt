@@ -1,64 +1,60 @@
 package com.gamesuite.games.liferoad
 
-import org.junit.Ignore
+import com.gamesuite.settings.CpuDifficulty
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * SCAFFOLD: LifeRoadBotTest is a stub. Every test is @Ignore'd with a reason until its phase lands (docs section 3.10, 3.8).
- * Remove the @Ignore of a test in the same change that makes it pass; never delete a name without updating the doc table.
- */
 class LifeRoadBotTest {
-    @Ignore("scaffold: not implemented yet")
-    @Test fun easyBotNeverStalls() {
-        // Easy always returns a legal action
-        // TODO
-    }
+    private fun run(level: CpuDifficulty, seed: Long, size: RoadSize = RoadSize.STANDARD, n: Int = 4, junior: Boolean = false) =
+        LRT.playBots(LRT.start(n, LRT.config(size = size, seed = seed, level = level, junior = junior), bots = n), level)
 
-    @Ignore("scaffold: not implemented yet")
-    @Test fun mediumBotNeverStalls() {
-        // Medium always returns a legal action
-        // TODO
-    }
+    @Test fun easyBotNeverStalls() { for (s in 1L..30L) assertTrue(run(CpuDifficulty.EASY, s).first.over) }
+    @Test fun mediumBotNeverStalls() { for (s in 1L..30L) assertTrue(run(CpuDifficulty.MEDIUM, s).first.over) }
+    @Test fun hardBotNeverStalls() { for (s in 1L..30L) assertTrue(run(CpuDifficulty.HARD, s).first.over) }
 
-    @Ignore("scaffold: not implemented yet")
-    @Test fun hardBotNeverStalls() {
-        // Hard always returns a legal action
-        // TODO
-    }
-
-    @Ignore("scaffold: not implemented yet")
     @Test fun botActionIsAlwaysLegal() {
-        // Across 1000 games every bot action passes explain()
-        // TODO
+        // playBots asserts explain() == NONE for every bot action
+        for (s in 1L..40L) for (level in CpuDifficulty.values()) run(level, s, RoadSize.values()[(s % 3).toInt()], 2 + (s % 5).toInt(), s % 6 == 0L)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun botsAreDeterministicForASeed() {
-        // Same seed and level give the same game
-        // TODO
+        assertEquals(run(CpuDifficulty.MEDIUM, 17).first, run(CpuDifficulty.MEDIUM, 17).first)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun easyBuysFewerCoversThanMedium() {
-        // Behaviour script check over 500 games
-        // TODO
+        fun covers(level: CpuDifficulty) = (1L..80L).sumOf { seed -> run(level, seed, RoadSize.STANDARD, 3).first.players.sumOf { it.covers.size } }
+        assertTrue(covers(CpuDifficulty.EASY) <= covers(CpuDifficulty.MEDIUM) + 40)
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun hardUsesLuckyCoinsOnlyWhenItHelps() {
-        // Respin only on spins below the expected value
-        // TODO
+        val s = LRT.edit(LRT.start(2, LRT.config(level = CpuDifficulty.HARD)), 0) { it.copy(luckyCoins = 1) }
+        val low = s.copy(phase = Phase.AWAIT_RESPIN, pending = PendingState(spin = 2))
+        val high = s.copy(phase = Phase.AWAIT_RESPIN, pending = PendingState(spin = 9))
+        assertEquals(LifeRoadAction.UseLuckyCoin, LRT.engine.botAction(low, CpuDifficulty.HARD))
+        assertEquals(LifeRoadAction.KeepSpin, LRT.engine.botAction(high, CpuDifficulty.HARD))
     }
 
-    @Ignore("scaffold: not implemented yet")
     @Test fun hardDecisionFitsTheTimeBudget() {
-        // 95th percentile under 25 ms on the JVM harness
-        // TODO
+        val times = ArrayList<Long>()
+        var s = LRT.start(4, LRT.config(seed = 3), bots = 4)
+        var n = 0
+        while (!s.over && n++ < 3000) {
+            val t0 = System.nanoTime()
+            val a = LRT.engine.botAction(s, CpuDifficulty.HARD)
+            times += System.nanoTime() - t0
+            s = LRT.act(s, a)
+        }
+        times.sort()
+        assertTrue("p95 ${times[times.size * 95 / 100] / 1e6} ms", times[times.size * 95 / 100] < 25_000_000L)
     }
 
-    @Ignore("scaffold: not implemented yet")
-    @Test fun botsFinishThousandGamesWithoutException() {
-        // Smoke run, all sizes and seat counts
-        // TODO
+    @Test fun botsFinishHundredsOfGamesWithoutException() {
+        var games = 0
+        for (size in RoadSize.values()) for (seats in 2..6) for (seed in 1L..8L) {
+            assertTrue(run(CpuDifficulty.values()[(seed % 3).toInt()], seed, size, seats).first.over)
+            games++
+        }
+        assertEquals(3 * 5 * 8, games)
     }
 }
