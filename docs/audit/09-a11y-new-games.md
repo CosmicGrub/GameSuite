@@ -33,6 +33,15 @@ owner lightens Skiff (for example towards #FF4DA0) or changes the button treatme
 Gem Cascade tile colours are not in this audit's reach (drawn from `GemCascadeArt`); the board uses shapes plus colour,
 see the colour-blind notes in its integration-notes.
 
+## Slide and Climb (`SlideClimbScreen`, added 2026-11-28 second pass)
+
+Static read only, unverified. Seat chips `heightIn(min = 56.dp)` with merged descriptions; dice button 128 dp, disabled state exposed
+via `disabled()`; keep/spare round buttons 72 dp with `contentDescription`; board cells up to 84 dp. Seats are colour plus shape.
+Reduced motion is read (`LocalReducedMotion`): pulse is frozen and confetti bursts are skipped. No hard-coded English
+literals found (`Text("...")` / `contentDescription = "..."` grep is empty). The seat chip shows a literal gear glyph as text; it is
+merged into the chip's description, so TalkBack does not read it separately. No findings, no code change. Contrast of tile and
+seat colours not computed (not in reach of a static read).
+
 ## Open
 - Decide the Skiff colour (finding above), then raise the test floor to 4.5. Gem Cascade 9-10 column cell size (finding 2).
 - Re-audit Sweet Trail, Trail Together, Flick Rink, Pie Detective, Stack Zoo, Find It Frenzy, Egg Garden, Bump and Run when screens exist.
