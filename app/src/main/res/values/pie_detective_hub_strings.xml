@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of pie_detective (hubKey names). Texts that already exist elsewhere are not repeated. -->
+    <string name="hub_pie_detective">Pie Detective</string>
+    <string name="hub_find_the_pie_thief_before_it_reaches_the_back_ga_f0b573">Find the pie thief before it reaches the back gate!</string>
+    <string name="hub_solve_it_with_the_sidekick">Solve it with the Sidekick</string>
+    <string name="hub_you_and_1_to_3_friendly_sidekicks_hunt_the_pie_t_6381a0">You and 1 to 3 friendly Sidekicks hunt the pie thief together.</string>
+    <string name="hub_two_to_four_detectives_pass_the_device_around_si_f49c32">Two to four detectives pass the device around. Sidekicks can fill empty seats.</string>
+    <string name="hub_case_size">Case size</string>
+    <string name="hub_how_many_animals_are_in_the_lineup_how_many_clue_3ce0ea">How many animals are in the lineup, how many clues you can ask for and how fast the thief sneaks.</string>
+    <string name="hub_little_case">Little case</string>
+    <string name="hub_eight_animals_four_clues_and_a_slow_thief_great_1a8222">Eight animals, four clues and a slow thief: great for the youngest detectives.</string>
+    <string name="hub_medium_case">Medium case</string>
+    <string name="hub_ten_animals_five_clues_a_good_mix_for_most_famil_e5dec8">Ten animals, five clues. A good mix for most families.</string>
+    <string name="hub_big_case">Big case</string>
+    <string name="hub_twelve_animals_six_clues_and_a_quick_thief_for_p_a8f2c5">Twelve animals, six clues and a quick thief for practised detectives.</string>
+    <string name="hub_sidekicks">Sidekicks</string>
+    <string name="hub_sidekicks_take_their_own_turns_so_a_small_team_a_18c51d">Sidekicks take their own turns, so a small team always has a full table.</string>
+    <string name="hub_sidekick_level">Sidekick level</string>
+    <string name="hub_sidekick_hints">Sidekick hints</string>
+    <string name="hub_a_soft_glow_on_a_helpful_clue_the_sidekick_hint_83a08e">A soft glow on a helpful clue. The Sidekick hint button always works, even when this is off.</string>
+    <string name="hub_sidekick_flips_for_us">Sidekick flips for us</string>
+    <string name="hub_after_a_clue_is_shown_the_sidekick_turns_over_th_58bda0">After a clue is shown, the Sidekick turns over the animals that do not match, so you only choose, peek and tell.</string>
+    <string name="hub_lucky_peek_for">Lucky peek for</string>
+    <string name="hub_give_one_player_a_lucky_peek_in_each_case_after_69f56a">Give one player a Lucky peek in each case: after it, the thief does not sneak that turn.</string>
+    <string name="hub_turn_the_lens_for_the_far_player">Turn the lens for the far player</string>
+    <string name="hub_a_player_sitting_opposite_sees_the_lens_and_trai_eb2a6c">A player sitting opposite sees the lens and trait buttons the right way up. Switch off for one person holding the device.</string>
+</resources>

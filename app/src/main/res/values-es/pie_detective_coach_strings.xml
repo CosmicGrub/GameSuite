@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pie Detective coach card and first-run tips (tips must equal GameTips literals) -->
+    <string name="coach_pie_detective_s1">Alguien se llevó la tarta del puesto y se escabulle por el camino del mercado hasta la puerta trasera. El ladrón es uno de los animales de la fila.</string>
+    <string name="coach_pie_detective_s2">En tu turno, elige una pista que buscar: sombrero, gafas, bufanda, bolsa, botas o pajarita. Luego mantén pulsada la lupa mágica para ver la respuesta.</string>
+    <string name="coach_pie_detective_s3">Cuéntales a tus amigos lo que viste con tus palabras y toca Enseñar a todos. Juntos, toca cada animal que no coincide con la pista para descartarlo.</string>
+    <string name="coach_pie_detective_s4">Después de cada pista, el ladrón puede dar un salto hacia la puerta trasera. Cuantas menos pistas necesiten, más estrellas ganarán. Un ayudante puede dar pistas o jugar un turno.</string>
+    <string name="coach_pie_detective_s5">Cuando quede un solo animal, o estés seguro, toca ¡Atrapar! y luego al ladrón. Todos ganan o lo intentan otra vez juntos.</string>
+    <string name="coach_pie_detective_fact">Una lupa funciona porque el cristal curvo desvía la luz y así lo pequeño se ve más grande.</string>
+    <string name="tip_pie_detective_1">Elige una pista, mantén pulsada la lupa mágica y cuéntales a tus amigos lo que viste.</string>
+    <string name="tip_pie_detective_2">Toca cada animal que no coincide con la pista. No son el ladrón.</string>
+    <string name="tip_pie_detective_3">¿Atascado? Toca la pista del ayudante. Atrapa al ladrón antes de que llegue a la puerta trasera.</string>
+</resources>

@@ -5,6 +5,8 @@ import com.gamesuite.core.GameCategory
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
+import com.gamesuite.core.LaunchPolicy
+import com.gamesuite.core.PausableGame
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerScore
 import com.gamesuite.core.ResumableGame
@@ -23,7 +25,7 @@ import kotlin.random.Random
 class PieDetectiveGame(
     private val random: Random = Random.Default,
     internal val engine: PieEngine = PieEngineImpl()
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, PausableGame {
     override val gameId = "pie-detective"
     override val displayName = "Pie Detective"
     override val category = GameCategory.PUZZLE
@@ -33,6 +35,8 @@ class PieDetectiveGame(
 
     val state = mutableStateOf<PieState?>(null)
     val matchOver = mutableStateOf(false)
+
+    override val isPaused: Boolean get() = engine.isPaused
 
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
     var band: PieBand = PieBand.MEDIUM
@@ -112,6 +116,8 @@ class PieDetectiveGame(
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        // A kid whose time is up cannot begin a new round in place (the shell shows the time-up screen instead).
+        if (!LaunchPolicy.requestNewRound()) return
         configure()
         engine.startBook(random.nextLong())
         commit()

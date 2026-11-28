@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pie Detective coach card and first-run tips (tips must equal GameTips literals) -->
+    <string name="coach_pie_detective_s1">Someone took the pie from the pie stall and is sneaking along the market lane to the back gate. The thief is one of the animals in the lineup.</string>
+    <string name="coach_pie_detective_s2">On your turn, pick a clue to look for: a hat, glasses, a scarf, a bag, boots or a bow tie. Then hold the magic lens to peek at the answer.</string>
+    <string name="coach_pie_detective_s3">Tell your friends what you saw in your own words, then tap Show everyone. Together, tap every animal that does not match the clue to clear it.</string>
+    <string name="coach_pie_detective_s4">After each clue the thief may sneak a hop closer to the back gate. The fewer clues you need, the more stars you earn. A Sidekick can give hints or take a turn.</string>
+    <string name="coach_pie_detective_s5">When only one animal is left, or you are sure, tap Catch! and then the thief. Everyone wins or tries again together.</string>
+    <string name="coach_pie_detective_fact">A magnifying glass works because curved glass bends light, so a small thing looks bigger.</string>
+    <string name="tip_pie_detective_1">Pick a clue, hold the magic lens to peek, then tell your friends what you saw.</string>
+    <string name="tip_pie_detective_2">Tap every animal that does not match the clue. They are not the thief.</string>
+    <string name="tip_pie_detective_3">Stuck? Tap the Sidekick hint. Catch the thief before it reaches the back gate.</string>
+</resources>

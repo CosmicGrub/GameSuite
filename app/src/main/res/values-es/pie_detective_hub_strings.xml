@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Game Hub texts of pie_detective (hubKey names). Texts that already exist elsewhere are not repeated. -->
+    <string name="hub_pie_detective">Detective de Tartas</string>
+    <string name="hub_find_the_pie_thief_before_it_reaches_the_back_ga_f0b573">¡Encuentra al ladrón de la tarta antes de que llegue a la puerta trasera!</string>
+    <string name="hub_solve_it_with_the_sidekick">Resuélvelo con el ayudante</string>
+    <string name="hub_you_and_1_to_3_friendly_sidekicks_hunt_the_pie_t_6381a0">Tú y de 1 a 3 ayudantes simpáticos buscan juntos al ladrón de la tarta.</string>
+    <string name="hub_two_to_four_detectives_pass_the_device_around_si_f49c32">De dos a cuatro detectives se pasan el dispositivo. Los ayudantes pueden ocupar los asientos vacíos.</string>
+    <string name="hub_case_size">Tamaño del caso</string>
+    <string name="hub_how_many_animals_are_in_the_lineup_how_many_clue_3ce0ea">Cuántos animales hay en la fila, cuántas pistas puedes pedir y lo rápido que se escabulle el ladrón.</string>
+    <string name="hub_little_case">Caso pequeño</string>
+    <string name="hub_eight_animals_four_clues_and_a_slow_thief_great_1a8222">Ocho animales, cuatro pistas y un ladrón lento: ideal para los detectives más pequeños.</string>
+    <string name="hub_medium_case">Caso mediano</string>
+    <string name="hub_ten_animals_five_clues_a_good_mix_for_most_famil_e5dec8">Diez animales, cinco pistas. Una buena mezcla para la mayoría de las familias.</string>
+    <string name="hub_big_case">Caso grande</string>
+    <string name="hub_twelve_animals_six_clues_and_a_quick_thief_for_p_a8f2c5">Doce animales, seis pistas y un ladrón rápido para detectives con práctica.</string>
+    <string name="hub_sidekicks">Ayudantes</string>
+    <string name="hub_sidekicks_take_their_own_turns_so_a_small_team_a_18c51d">Los ayudantes juegan sus propios turnos, así que un equipo pequeño siempre tiene la mesa completa.</string>
+    <string name="hub_sidekick_level">Nivel de los ayudantes</string>
+    <string name="hub_sidekick_hints">Pistas del ayudante</string>
+    <string name="hub_a_soft_glow_on_a_helpful_clue_the_sidekick_hint_83a08e">Un brillo suave sobre una pista útil. El botón de pista del ayudante siempre funciona, aunque esto esté desactivado.</string>
+    <string name="hub_sidekick_flips_for_us">El ayudante descarta por nosotros</string>
+    <string name="hub_after_a_clue_is_shown_the_sidekick_turns_over_th_58bda0">Cuando se muestra una pista, el ayudante da la vuelta a los animales que no coinciden, así que solo eliges, miras y cuentas.</string>
+    <string name="hub_lucky_peek_for">Mirada con suerte para</string>
+    <string name="hub_give_one_player_a_lucky_peek_in_each_case_after_69f56a">Da a un jugador una mirada con suerte en cada caso: después, el ladrón no se mueve ese turno.</string>
+    <string name="hub_turn_the_lens_for_the_far_player">Girar la lupa para el jugador del otro lado</string>
+    <string name="hub_a_player_sitting_opposite_sees_the_lens_and_trai_eb2a6c">Un jugador sentado enfrente ve la lupa y los botones de pistas al derecho. Desactívalo si una sola persona sostiene el dispositivo.</string>
+</resources>

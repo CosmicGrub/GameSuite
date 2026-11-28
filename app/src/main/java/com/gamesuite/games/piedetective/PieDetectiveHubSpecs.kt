@@ -82,6 +82,21 @@ object PieDetectiveHubSpecs {
 
     val all: List<GameHubSpec> = listOf(spec)
 
+    /** The menu glyph (paste into `GameCatalog`): a magnifying glass, available on every supported Android version. */
+    const val GLYPH = "🔍"
+
+    /**
+     * The first-run tips (paste into `GameTips.tips`). The English literals equal `tip_pie_detective_1..3` in
+     * `pie_detective_coach_strings.xml` (no apostrophes, so no escaping).
+     */
+    val tips: Map<String, List<String>> = mapOf(
+        "pie-detective" to listOf(
+            "Pick a clue, hold the magic lens to peek, then tell your friends what you saw.",
+            "Tap every animal that does not match the clue. They are not the thief.",
+            "Stuck? Tap the Sidekick hint. Catch the thief before it reaches the back gate."
+        )
+    )
+
     /** The proposed identity colours (light, dark) for `GameThemes.accents`; the spec test checks contrast and uniqueness. */
     val accents: Map<String, Pair<Long, Long>> = mapOf(
         "pie-detective" to (0xFF8A2F5BL to 0xFFF2A6C8L)

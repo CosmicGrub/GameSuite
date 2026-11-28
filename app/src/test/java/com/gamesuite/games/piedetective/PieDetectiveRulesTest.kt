@@ -1,52 +1,91 @@
 package com.gamesuite.games.piedetective
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Scaffold stubs: Cast and rules tables of docs/design/kids-games/pie-detective.md sections 2.5, 2.6 and 2.9.
- * Every test is @Ignore until its feature lands, so the gate stays green. ID = row in the design doc section 3.9.
- */
+/** Cast and rules tables of docs/design/kids-games/pie-detective.md sections 2.5, 2.6 and 2.9 (tests P01-P07). */
 class PieDetectiveRulesTest {
-    @Ignore("scaffold: P01 not implemented yet")
     @Test
     fun castHasTwelveSuspectsWithUniqueIdsAndNames() {
-        // TODO(P01): implement per docs/design/kids-games/pie-detective.md section 3.9
+        assertEquals(12, PieCast.all.size)
+        assertEquals(12, PieCast.all.map { it.id }.toSet().size)
+        assertEquals(12, PieCast.all.map { it.speciesId }.toSet().size)
+        assertEquals(12, PieCast.all.map { it.furColour }.toSet().size)
+        for (s in PieCast.all) {
+            assertEquals(6, s.vector.length)
+            assertTrue(s.vector.all { it == '0' || it == '1' })
+        }
+        assertEquals(null, PieCast.byId("fox"))
+        assertEquals("duck", PieCast.byId("duck")!!.id)
     }
 
-    @Ignore("scaffold: P02 not implemented yet")
     @Test
     fun firstFourTraitsAreUniqueAcrossTheCast() {
-        // TODO(P02): implement per docs/design/kids-games/pie-detective.md section 3.9
+        val firstFour = PieCast.all.map { it.vector.take(4) }
+        assertEquals(12, firstFour.toSet().size)
+        for (unused in listOf("0000", "0111", "1110", "1111")) assertTrue(unused !in firstFour)
     }
 
-    @Ignore("scaffold: P03 not implemented yet")
     @Test
     fun traitTotalsMatchTheDesignTable() {
-        // TODO(P03): implement per docs/design/kids-games/pie-detective.md section 3.9
+        val totals = PieTrait.entries.map { t -> PieCast.all.count { it.has(t) } }
+        assertEquals(listOf(6, 5, 5, 6, 6, 6), totals)
     }
 
-    @Ignore("scaffold: P04 not implemented yet")
     @Test
     fun bandParamsMatchTheDesignTable() {
-        // TODO(P04): implement per docs/design/kids-games/pie-detective.md section 3.9
+        val l = PieRules.band(PieBand.LITTLE)
+        assertEquals(listOf(8, 4, 4, 2), listOf(l.lineup, l.traits, l.dashCards, l.cases))
+        assertTrue(l.hintsDefault && l.autoFlipDefault); assertEquals(55, l.secondsPerTurn)
+        val m = PieRules.band(PieBand.MEDIUM)
+        assertEquals(listOf(10, 5, 5, 3), listOf(m.lineup, m.traits, m.dashCards, m.cases))
+        assertTrue(m.hintsDefault && !m.autoFlipDefault); assertEquals(45, m.secondsPerTurn)
+        val b = PieRules.band(PieBand.BIG)
+        assertEquals(listOf(12, 6, 6, 3), listOf(b.lineup, b.traits, b.dashCards, b.cases))
+        assertTrue(!b.hintsDefault && !b.autoFlipDefault); assertEquals(50, b.secondsPerTurn)
+        assertEquals(PieTrait.entries.take(4), PieRules.traitsOf(PieBand.LITTLE))
+        assertEquals(PieTrait.entries, PieRules.traitsOf(PieBand.BIG))
+        assertEquals(PieBand.MEDIUM, PieBand.fromId("nonsense"))
+        // minutes estimate stays inside the 8 to 15 minute target of design doc 3.1
+        for (band in PieBand.entries) assertTrue(PieRules.estimatedMinutes(band, 4.6, 2) in 8.0..15.0)
     }
 
-    @Ignore("scaffold: P05 not implemented yet")
     @Test
     fun laneHasThreeHopsAndWrongCatchCostsTwo() {
-        // TODO(P05): implement per docs/design/kids-games/pie-detective.md section 3.9
+        assertEquals(3, PieRules.LANE_HOPS)
+        assertEquals(2, PieRules.WRONG_CATCH_HOPS)
+        assertEquals(listOf("stall", "fountain", "bridge", "gate"), PieRules.lanePlaces)
+        assertEquals(PieRules.LANE_HOPS + 1, PieRules.lanePlaces.size)
+        assertEquals(3, PieRules.starsForCatch(0)); assertEquals(3, PieRules.starsForCatch(1)); assertEquals(2, PieRules.starsForCatch(2))
+        assertEquals(12, PieRules.SNEAK_DECK)
+        for (band in PieBand.entries) {
+            val deck = PieDealer.deck(5L, 0, band)
+            assertEquals(12, deck.size)
+            assertEquals(PieRules.band(band).dashCards, deck.count { it })
+        }
     }
 
-    @Ignore("scaffold: P06 not implemented yet")
     @Test
     fun bookWinThresholdIsHalfRoundedUp() {
-        // TODO(P06): implement per docs/design/kids-games/pie-detective.md section 3.9
+        assertEquals(1, PieRules.bookWinThreshold(2))
+        assertEquals(2, PieRules.bookWinThreshold(3))
+        assertEquals(1, PieRules.bookWinThreshold(1))
     }
 
-    @Ignore("scaffold: P07 not implemented yet")
     @Test
     fun handicapParseAcceptsNoneAndP1ToP4AndRejectsGarbage() {
-        // TODO(P07): implement per docs/design/kids-games/pie-detective.md section 3.9
+        assertEquals(listOf(0, 0, 0), PieHandicap.parse("none", 3))
+        assertEquals(listOf(0, 0), PieHandicap.parse(null, 2))
+        assertEquals(listOf(1, 0), PieHandicap.parse("p1", 2))
+        assertEquals(listOf(0, 0, 1, 0), PieHandicap.parse("P3", 4))
+        assertEquals(listOf(0, 0), PieHandicap.parse("p4", 2)) // seat 4 does not exist at a 2-seat table
+        assertEquals(listOf(0, 0), PieHandicap.parse("p5", 2))
+        assertEquals(listOf(0, 0), PieHandicap.parse("lots", 2))
+        assertEquals(listOf(0, 1, 2), PieHandicap.parse("0,1,9", 3))
+        assertEquals(listOf(0, 0, 0), PieHandicap.parse("1,x,2", 3))
+        assertEquals(listOf(0, 0), PieHandicap.parse("p".repeat(100), 2))
+        assertEquals(2, PieHandicap.parse("p1", 1).size) // seat count is clamped to 2..4
+        assertEquals(4, PieHandicap.parse("p1", 9).size)
     }
 }

@@ -72,6 +72,9 @@ interface PieEngine {
     fun pause()
     fun resume()
 
+    /** True between [pause] and [resume]. */
+    val isPaused: Boolean
+
     /** Book tally. */
     val session: PieSession
 
@@ -93,6 +96,8 @@ class PieEngineImpl : PieEngine {
     private var seats: List<PieSeat> = emptyList()
     private var started = false
     private var paused = false
+
+    override val isPaused: Boolean get() = paused
 
     // book
     private var bookSeed = 0L

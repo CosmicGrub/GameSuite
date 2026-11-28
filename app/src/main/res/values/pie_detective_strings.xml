@@ -1,20 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Pie Detective strings. Keys equal docs/design/kids-games/pie-detective.md section 2.11. -->
+    <!-- Pie Detective game texts (original). Keys pie_detective_* -->
     <string name="pie_detective_title">Pie Detective</string>
     <string name="pie_detective_tagline">Find the pie thief before it reaches the back gate!</string>
     <string name="pie_detective_teaches">Careful looking, yes and no reasoning, and ruling things out as a team.</string>
     <string name="pie_detective_help_title">Pie Detective</string>
-    <string name="pie_detective_help_text">Someone took the pie and is sneaking to the back gate! Take turns choosing a clue to look for: a hat, glasses, a scarf, a bag and more. Hold the magic lens to peek at the answer, tell your friends, then show everyone. Tap every animal that does not match: they cannot be the thief. After each peek the thief may sneak a step closer. When only one animal is left, tap Catch! We catch the thief together or we try again together.</string>
+    <string name="pie_detective_help_text">Someone took the pie and is sneaking to the back gate! Take turns choosing a clue to look for: a hat, glasses, a scarf, a bag and more. Hold the magic lens to peek at the answer, tell your friends, then show everyone. Tap every animal that does not match: they cannot be the thief. When you know who it is, tap Catch! Catch the thief together before it reaches the gate.</string>
     <string name="pie_detective_seat_sidekick_tag">(Sidekick)</string>
     <string name="pie_detective_sidekick_name">Sidekick</string>
-    <string name="pie_detective_band_little">Little case</string>
-    <string name="pie_detective_band_medium">Medium case</string>
-    <string name="pie_detective_band_big">Big case</string>
     <string name="pie_detective_case_title">Case %1$d of %2$d</string>
     <string name="pie_detective_status_pass_to">Pass to %1$s</string>
     <string name="pie_detective_status_choose">%1$s, what shall we look for?</string>
     <string name="pie_detective_status_hold_lens">Hold the lens to peek</string>
+    <string name="pie_detective_status_tap_lens">Tap the lens to peek</string>
     <string name="pie_detective_status_tell">Tell your friends what you saw</string>
     <string name="pie_detective_status_show_hint">Now show everyone</string>
     <string name="pie_detective_status_flip">Tap the animals that do not match</string>
@@ -33,7 +31,7 @@
     <string name="pie_detective_status_book_won">We did it!</string>
     <string name="pie_detective_status_book_won_sub">Case book solved. Great detectives!</string>
     <string name="pie_detective_status_book_lost">Try again together</string>
-    <string name="pie_detective_status_book_lost_sub">Let\'s open a new case book.</string>
+    <string name="pie_detective_status_book_lost_sub">Let us open a new case book.</string>
     <string name="pie_detective_action_ready">I\'m ready</string>
     <string name="pie_detective_action_peek">Peek</string>
     <string name="pie_detective_action_show">Show everyone</string>
@@ -43,6 +41,9 @@
     <string name="pie_detective_action_next_case">Next case</string>
     <string name="pie_detective_action_play_again">Play again</string>
     <string name="pie_detective_action_finish">Finished</string>
+    <string name="pie_detective_action_help">How to play</string>
+    <string name="pie_detective_action_cancel">Back</string>
+    <string name="pie_detective_action_close">Got it</string>
     <string name="pie_detective_answer_yes">Yes!</string>
     <string name="pie_detective_answer_no">No</string>
     <string name="pie_detective_place_stall">Pie stall</string>
@@ -56,6 +57,9 @@
     <string name="pie_detective_trait_bag">Bag</string>
     <string name="pie_detective_trait_boots">Boots</string>
     <string name="pie_detective_trait_bow">Bow tie</string>
+    <string name="pie_detective_trait_asked">%1$s, already asked: %2$s</string>
+    <string name="pie_detective_trait_free">%1$s. Ask about this clue.</string>
+    <string name="pie_detective_trait_hint_glow">%1$s, the Sidekick suggests this clue</string>
     <string name="pie_detective_clue_hat_yes">The thief has a hat</string>
     <string name="pie_detective_clue_hat_no">The thief has no hat</string>
     <string name="pie_detective_clue_glasses_yes">The thief has glasses</string>
@@ -81,15 +85,28 @@
     <string name="pie_detective_suspect_duck">Dilly Duck</string>
     <string name="pie_detective_suspect_squirrel">Sunny Squirrel</string>
     <string name="pie_detective_suspect_desc">%1$s, with %2$s</string>
+    <string name="pie_detective_suspect_desc_none">%1$s, with no accessories</string>
     <string name="pie_detective_suspect_cleared">%1$s is cleared</string>
+    <string name="pie_detective_suspect_tap_flip">Tap to clear this animal</string>
+    <string name="pie_detective_suspect_tap_catch">Tap to catch this animal</string>
     <string name="pie_detective_notebook_desc">Notebook: %1$d clues found</string>
+    <string name="pie_detective_notebook_empty">No clues yet</string>
     <string name="pie_detective_notebook_yes">%1$s: yes</string>
     <string name="pie_detective_notebook_no">%1$s: no</string>
+    <string name="pie_detective_lens_desc">Magic lens for %1$s. Tap to peek, tap again to hide.</string>
+    <string name="pie_detective_lens_open">Showing the answer</string>
+    <string name="pie_detective_lens_closed">Hidden</string>
+    <string name="pie_detective_lens_hold">Hold</string>
+    <string name="pie_detective_lucky_on">Lucky peek on: the thief will not sneak this turn</string>
+    <string name="pie_detective_lucky_off">Lucky peek off</string>
+    <string name="pie_detective_reveal_desc">The thief was %1$s.</string>
+    <string name="pie_detective_stars_desc">%1$d stars</string>
     <string name="pie_detective_score_title">Case book report</string>
     <string name="pie_detective_score_solved">Cases solved: %1$d of %2$d</string>
     <string name="pie_detective_score_stars">Stars: %1$d</string>
     <string name="pie_detective_score_lucky">Lucky peeks used: %1$d</string>
     <string name="pie_detective_score_hops">Thief hops in the last case: %1$d</string>
+    <string name="pie_detective_tutorial_title">How to play</string>
     <string name="pie_detective_tutorial_1">Oh no! Someone took the pie and is sneaking to the back gate.</string>
     <string name="pie_detective_tutorial_2">The thief is one of these animals. We must find out who!</string>
     <string name="pie_detective_tutorial_3">Choose a clue to look for: a hat, glasses, a scarf or a bag.</string>
