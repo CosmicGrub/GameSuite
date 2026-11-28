@@ -75,6 +75,7 @@ object TdRules {
     /** Tuned so a first-wave runner needs roughly 33 s on an unobstructed ~26 tile route. */
     const val BASE_ENEMY_SPEED = 0.85f
     const val ENEMY_SPEED_PER_WAVE = 0.03f
+    const val MAX_ENEMY_SPEED = 1.8f
     const val SPAWN_INTERVAL = 0.8f
 
     val TOTAL_WAVES: Int get() = TowerDefenceGame.TOTAL_WAVES
@@ -143,7 +144,8 @@ object TdRules {
     }
 
     fun waveBaseHp(wave: Int): Float = BASE_ENEMY_HP + ENEMY_HP_PER_WAVE * (wave - 1)
-    fun waveBaseSpeed(wave: Int): Float = BASE_ENEMY_SPEED + ENEMY_SPEED_PER_WAVE * (wave - 1)
+    /** Capped so an Endless run stays playable: the cap is first reached at wave 32 (the campaign ends at 10). */
+    fun waveBaseSpeed(wave: Int): Float = (BASE_ENEMY_SPEED + ENEMY_SPEED_PER_WAVE * (wave - 1)).coerceAtMost(MAX_ENEMY_SPEED)
 }
 
 /** Difficulty numbers of the open maps and Classic alike (Gentle is a fourth, Tower Defence only tier). */
@@ -170,7 +172,20 @@ object TdWaves {
         listOf(TdEnemyKind.RUNNER to 10, TdEnemyKind.BRUTE to 6, TdEnemyKind.FLYER to 6, TdEnemyKind.BOSS to 1)
     )
 
-    fun groups(wave: Int): List<Pair<TdEnemyKind, Int>> = TABLE[(wave - 1).coerceIn(0, TABLE.lastIndex)]
+    /**
+     * The groups of [wave]. Waves 1 to 10 are the authored table. Past 10 (Endless only) the table
+     * repeats, each lap bigger: every group grows by 10 percent per wave past 10, and a boss lap
+     * (waves 15, 20, 25 ...) brings one more boss every ten waves.
+     */
+    fun groups(wave: Int): List<Pair<TdEnemyKind, Int>> {
+        val w = wave.coerceAtLeast(1)
+        if (w <= TABLE.size) return TABLE[w - 1]
+        val row = TABLE[(w - 1) % TABLE.size]
+        val grow = 1f + 0.10f * (w - TABLE.size)
+        return row.map { (kind, n) ->
+            if (kind == TdEnemyKind.BOSS) kind to (1 + (w - 1) / TABLE.size) else kind to (n * grow).roundToInt().coerceAtLeast(1)
+        }
+    }
 
     /**
      * The spawn order of one wave: groups are interleaved round-robin so runners, brutes and flyers

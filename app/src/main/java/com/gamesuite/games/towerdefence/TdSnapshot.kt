@@ -17,6 +17,7 @@ object TdSnapshot {
     const val VERSION = 1
     private const val MAX_TOWERS = 80
     private const val MAX_GOLD = 1_000_000
+    const val MAX_ENDLESS_WAVE = 999
 
     @Serializable
     data class TowerS(
@@ -34,7 +35,11 @@ object TdSnapshot {
         val castle: Int,
         val castleMax: Int,
         val gold: Int,
-        val towers: List<TowerS>
+        val towers: List<TowerS>,
+        /** [TdMode] name; saves from before modes existed decode as CAMPAIGN. */
+        val mode: String = "CAMPAIGN",
+        /** Daily only: the UTC day number (0 otherwise). */
+        val day: Long = 0L
     )
 
     private val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
@@ -58,7 +63,14 @@ object TdSnapshot {
         if (d.version != VERSION) return false
         val terrain = TdMaps.byId(d.mapId) ?: return false
         if (CpuDifficulty.entries.none { it.name == d.difficulty }) return false
-        if (d.wave !in 1..TowerDefenceGame.TOTAL_WAVES) return false
+        val mode = TdMode.entries.firstOrNull { it.name == d.mode } ?: return false
+        val maxWave = if (mode == TdMode.ENDLESS) MAX_ENDLESS_WAVE else TowerDefenceGame.TOTAL_WAVES
+        if (d.wave !in 1..maxWave) return false
+        if (mode == TdMode.DAILY) {
+            // A Daily save is only valid for the map, tier and castle that day's plan dictates.
+            if (d.day <= 0L) return false
+            if (TdDaily.plan(d.day, 1).mapId != d.mapId || d.gentle || d.difficulty != "MEDIUM") return false
+        } else if (d.day != 0L) return false
         val expectedMax = (TowerDefenceGame.STARTING_LIVES * (if (d.gentle) TowerDefenceGame.GENTLE.castleMultiplier else 1f)).toInt()
         if (d.castleMax != expectedMax || d.castle !in 1..d.castleMax) return false
         if (d.gold !in 0..MAX_GOLD) return false

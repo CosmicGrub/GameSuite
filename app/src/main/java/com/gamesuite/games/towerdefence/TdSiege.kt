@@ -16,6 +16,7 @@ internal class TdIds {
     var enemy = 0
     var tower = 0
     var projectile = 0
+    var patch = 0
     var event = 0L
 }
 
@@ -49,6 +50,7 @@ internal object TdSiege {
         var result: TowerDefenceRunResult? = null
         var death: TowerDefenceEnemyDeathEvent? = s.lastEnemyDeath
         var castleHit = s.lastCastleHit
+        var patches = s.firePatches
 
         // Support auras: gold bonus is global, rate/range bonuses are local (best aura wins, no stacking).
         val auras = ArrayList<Aura>()
@@ -94,15 +96,15 @@ internal object TdSiege {
             enemies = list
         }
 
-        // Phase 2: status timers, movement, leaks.
+        // Phase 2: fire patches, status timers, movement, leaks.
         val moved = ArrayList<TowerDefenceEnemy>(enemies.size)
+        val burning = patches
         for (e in enemies) {
             val spec = TdRules.enemy(e.kind)
             var hp = e.hp
-            var burn = e.burnRemaining
-            if (burn > 0f) {
-                hp -= TdRules.BURN_DPS * minOf(dt, burn)
-                burn = (burn - dt).coerceAtLeast(0f)
+            // Ground fire: a walker standing in any patch takes the burn once per step (patches do not stack).
+            if (!spec.flying && burning.isNotEmpty() && burning.any { dist(it.pos, e.pos) <= it.radius }) {
+                hp -= TdRules.BURN_DPS * dt
                 if (hp <= 0f) {
                     gold += reward(e)
                     ids.event++
@@ -137,12 +139,15 @@ internal object TdSiege {
             }
             moved.add(
                 e.copy(
-                    pos = pos, distanceTraveled = e.distanceTraveled + travel, hp = hp, burnRemaining = burn,
+                    pos = pos, distanceTraveled = e.distanceTraveled + travel, hp = hp,
                     stunRemaining = stun, slowRemaining = slowLeft, slow = if (slowLeft > 0f) e.slow else 0f
                 )
             )
         }
         enemies = moved
+        if (patches.isNotEmpty()) {
+            patches = patches.mapNotNull { if (it.remaining - dt > 0f) it.copy(remaining = it.remaining - dt) else null }
+        }
         if (castle <= 0) {
             castle = 0
             result = TowerDefenceRunResult.LOST
@@ -212,7 +217,6 @@ internal object TdSiege {
                 if (p.stunSeconds > 0f && !spec.stunImmune && direct) {
                     next = next.copy(stunRemaining = maxOf(next.stunRemaining, p.stunSeconds))
                 }
-                if (p.burnSeconds > 0f) next = next.copy(burnRemaining = maxOf(next.burnRemaining, p.burnSeconds))
                 if (next.hp <= 0f) {
                     gold += reward(next)
                     ids.event++
@@ -233,6 +237,7 @@ internal object TdSiege {
                             .filter { !TdRules.enemy(it.kind).flying && dist(it.pos, centre) <= p.splash }
                             .map { it.id }
                         for (v in victims) hurt(v, p, false, 0f, v == target.id)
+                        if (p.burnSeconds > 0f) patches = TdFire.ignite(patches, centre, p.splash, p.burnSeconds, ids)
                     } else {
                         hurt(target.id, p, p.role == TdRole.BOLT, p.bossBonus, true)
                     }
@@ -247,7 +252,7 @@ internal object TdSiege {
 
         // Phase 5: wave cleared.
         if (result == null && pending.isEmpty() && enemies.isEmpty() && inter <= 0f) {
-            if (wave >= s.totalWaves) {
+            if (s.mode != TdMode.ENDLESS && wave >= s.totalWaves) {
                 result = TowerDefenceRunResult.WON
             } else {
                 wave += 1
@@ -259,7 +264,7 @@ internal object TdSiege {
             lives = castle, gold = gold, enemies = enemies, towers = towers, projectiles = projectiles,
             pendingSpawns = pending, enemiesRemainingToSpawn = pending.size, spawnCooldown = spawnCooldown,
             interWaveCooldown = inter, waveNumber = wave, runResult = result,
-            lastEnemyDeath = death, lastCastleHit = castleHit
+            lastEnemyDeath = death, lastCastleHit = castleHit, firePatches = patches
         )
     }
 
@@ -361,5 +366,25 @@ internal object TdSiege {
         val tryY = pos.y + dy * travel
         if (walkable(t, occ, TdGrid.cellOf(nx, tryY))) ny = tryY
         return Offset(nx, ny)
+    }
+}
+
+/** Ground fire bookkeeping: a new patch merges into one already burning within half a tile (refreshed, never stacked), and the field holds at most [MAX_PATCHES]. */
+internal object TdFire {
+    const val MAX_PATCHES = 24
+    private const val MERGE_DISTANCE = 0.5f
+
+    fun ignite(
+        patches: List<TowerDefenceGame.TdFirePatch>, at: Offset, splashRadius: Float, seconds: Float, ids: TdIds
+    ): List<TowerDefenceGame.TdFirePatch> {
+        val radius = splashRadius * 0.8f
+        val dx = { p: TowerDefenceGame.TdFirePatch -> val x = p.pos.x - at.x; val y = p.pos.y - at.y; sqrt(x * x + y * y) }
+        val near = patches.firstOrNull { dx(it) <= MERGE_DISTANCE }
+        val out = if (near != null) {
+            patches.map { if (it.id == near.id) it.copy(remaining = maxOf(it.remaining, seconds), radius = maxOf(it.radius, radius)) else it }
+        } else {
+            patches + TowerDefenceGame.TdFirePatch(id = ids.patch++, pos = at, radius = radius, remaining = seconds)
+        }
+        return if (out.size > MAX_PATCHES) out.sortedByDescending { it.remaining }.take(MAX_PATCHES) else out
     }
 }

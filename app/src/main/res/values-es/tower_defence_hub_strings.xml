@@ -25,4 +25,15 @@
     <string name="hub_soft_cartoon_toys_in_a_child_room">Juguetes suaves y de dibujos en un cuarto infantil.</string>
     <string name="hub_gentle_mode">Modo suave</string>
     <string name="hub_softer_waves_extra_gold_and_a_sturdier_castle">Oleadas más suaves, más oro y un castillo más resistente.</string>
+    <string name="hub_mode">Modo</string>
+    <string name="hub_campaign_is_ten_waves_endless_goes_on_until_the_61de93">La campaña son diez oleadas. El modo sin fin sigue hasta que cae el castillo. El diario es un asedio compartido cada día.</string>
+    <string name="hub_campaign">Campaña</string>
+    <string name="hub_ten_waves_on_the_map_you_pick">Diez oleadas en el mapa que elijas.</string>
+    <string name="hub_keep_going_your_score_is_the_wave_you_reach">Sigue adelante. Tu puntuación es la oleada que alcances.</string>
+    <string name="hub_daily_siege">Asedio diario</string>
+    <string name="hub_the_map_and_twist_of_the_day_the_same_for_everyo_c247ee">El mapa y la variante del día, iguales para todos.</string>
+    <string name="hub_roman_frontier">Frontera romana</string>
+    <string name="hub_a_legion_fort_on_a_dusty_frontier_road">Un fuerte de legión en un polvoriento camino fronterizo.</string>
+    <string name="hub_cherry_ridge">Cresta del cerezo</string>
+    <string name="hub_a_mountain_keep_among_cherry_blossom_at_dusk">Una fortaleza de montaña entre cerezos en flor al anochecer.</string>
 </resources>

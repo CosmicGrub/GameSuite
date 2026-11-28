@@ -131,10 +131,10 @@
     <string name="coach_breakout_s3">Catch falling power-ups for help, and do not let the ball fall past the paddle.</string>
     <string name="coach_breakout_s4">Clear every brick to finish the level.</string>
     <string name="coach_breakout_fact">Atari released Breakout in 1976 as a one-player cousin of Pong. It inspired many later brick-breaking games.</string>
-    <string name="coach_tower_defence_s1">Enemies march along a path in waves. Do not let them reach the exit.</string>
-    <string name="coach_tower_defence_s2">Spend your coins to build towers beside the path.</string>
-    <string name="coach_tower_defence_s3">Different towers have different range, speed and damage, so mix them.</string>
-    <string name="coach_tower_defence_s4">Defeating enemies earns more coins. Survive every wave to win.</string>
+    <string name="coach_tower_defence_s1">Enemies attack from the left and march to your castle on the right. Do not let them reach the gate.</string>
+    <string name="coach_tower_defence_s2">Spend gold on towers. Build anywhere you like, as long as enemies keep a way to the gate.</string>
+    <string name="coach_tower_defence_s3">Bolt is fast, Blast splashes the ground, Control slows and Support boosts. At level 3 pick a path.</string>
+    <string name="coach_tower_defence_s4">Tap a tower to upgrade, sell, move or change its targeting. Survive every wave to win.</string>
     <string name="coach_tower_defence_fact">Tower defence became hugely popular in the late 2000s, partly through fan-made maps for Warcraft III and through browser and phone games. Its core idea is placement: where a tower stands matters as much as which tower it is.</string>
     <string name="coach_air_hockey_s1">Drag your mallet to hit the puck across the table.</string>
     <string name="coach_air_hockey_s2">Aim to knock the puck into your opponent\'s goal at the far end.</string>

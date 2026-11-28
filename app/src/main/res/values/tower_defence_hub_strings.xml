@@ -25,4 +25,15 @@
     <string name="hub_soft_cartoon_toys_in_a_child_room">Soft cartoon toys in a child room.</string>
     <string name="hub_gentle_mode">Gentle mode</string>
     <string name="hub_softer_waves_extra_gold_and_a_sturdier_castle">Softer waves, extra gold and a sturdier castle.</string>
+    <string name="hub_mode">Mode</string>
+    <string name="hub_campaign_is_ten_waves_endless_goes_on_until_the_61de93">Campaign is ten waves. Endless goes on until the castle falls. Daily is one shared siege per day.</string>
+    <string name="hub_campaign">Campaign</string>
+    <string name="hub_ten_waves_on_the_map_you_pick">Ten waves on the map you pick.</string>
+    <string name="hub_keep_going_your_score_is_the_wave_you_reach">Keep going. Your score is the wave you reach.</string>
+    <string name="hub_daily_siege">Daily siege</string>
+    <string name="hub_the_map_and_twist_of_the_day_the_same_for_everyo_c247ee">The map and twist of the day, the same for everyone.</string>
+    <string name="hub_roman_frontier">Roman Frontier</string>
+    <string name="hub_a_legion_fort_on_a_dusty_frontier_road">A legion fort on a dusty frontier road.</string>
+    <string name="hub_cherry_ridge">Cherry Ridge</string>
+    <string name="hub_a_mountain_keep_among_cherry_blossom_at_dusk">A mountain keep among cherry blossom at dusk.</string>
 </resources>

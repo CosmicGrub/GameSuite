@@ -49,7 +49,7 @@
     <string name="td_branch_blast_a">Explosión amplia</string>
     <string name="td_branch_blast_a_desc">Mayor radio de explosión.</string>
     <string name="td_branch_blast_b">Proyectiles ardientes</string>
-    <string name="td_branch_blast_b_desc">Prende fuego a los enemigos.</string>
+    <string name="td_branch_blast_b_desc">Deja suelo en llamas que daña a los que caminan.</string>
     <string name="td_branch_control_a">Ralentización profunda</string>
     <string name="td_branch_control_a_desc">Ralentiza mucho más. Los jefes resisten la mitad.</string>
     <string name="td_branch_control_b">Aturdimiento en cadena</string>

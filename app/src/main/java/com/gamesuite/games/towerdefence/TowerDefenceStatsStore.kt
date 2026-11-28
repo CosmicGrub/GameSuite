@@ -58,15 +58,18 @@ class TowerDefenceStatsStore(private val context: Context) {
      * another read/write can't compare against a stale value — same reasoning
      * BreakoutStatsStore.recordScore documents for its own transaction.
      */
-    suspend fun recordWave(levelId: String, difficulty: CpuDifficulty, waveReached: Int, gentle: Boolean = false): Boolean {
-        val key = keyFor(levelId, difficulty, gentle)
+    suspend fun recordWave(levelId: String, difficulty: CpuDifficulty, waveReached: Int, gentle: Boolean = false): Boolean =
+        recordBest(keyFor(levelId, difficulty, gentle), waveReached)
+
+    /** Records [value] under any [TdStatsKeys] key (Endless wave, Daily score); true if it beats the stored best. */
+    suspend fun recordBest(key: String, waveReached: Int): Boolean {
         var isNewBest = false
         context.towerDefenceStatsDataStore.edit { prefs ->
             val current = decode(prefs[Keys.BEST_WAVES_JSON])
             val existing = current[key]
             isNewBest = existing == null || waveReached > existing
             if (isNewBest) {
-                prefs[Keys.BEST_WAVES_JSON] = Json.encodeToString(current + (key to waveReached))
+                prefs[Keys.BEST_WAVES_JSON] = Json.encodeToString(TdStatsKeys.pruneDaily(current + (key to waveReached), com.gamesuite.core.DailySeed.todayEpochDay()))
             }
         }
         return isNewBest
@@ -89,10 +92,39 @@ class TowerDefenceStatsStore(private val context: Context) {
  */
 object TdStatsKeys {
     private val KEY = Regex("^[a-z0-9][a-z0-9-]*:(EASY|MEDIUM|HARD|GENTLE)$")
+    private val ENDLESS_KEY = Regex("^[a-z0-9][a-z0-9-]*:ENDLESS$")
+    private val DAILY_KEY = Regex("^daily-[0-9]{1,7}:DAILY$")
 
     fun key(levelId: String, difficulty: CpuDifficulty, gentle: Boolean = false): String =
         if (gentle) "$levelId:GENTLE" else "$levelId:${difficulty.name}"
 
+    /** Endless best (the wave reached) per map, whatever the tier. */
+    fun endlessKey(levelId: String): String = "$levelId:ENDLESS"
+
+    /** One day's Daily best score ([TdDaily.score]). */
+    fun dailyKey(epochDay: Long): String = "${TdDaily.statsId(epochDay)}:DAILY"
+
+    /** The day number inside a [dailyKey], or null for any other key. */
+    fun dailyDayOf(key: String): Long? = if (DAILY_KEY.matches(key)) key.removePrefix("daily-").substringBefore(':').toLongOrNull() else null
+
+    /** The key a finished run files under, by mode. */
+    fun keyFor(mode: TdMode, levelId: String, difficulty: CpuDifficulty, gentle: Boolean, dailyDay: Long): String = when (mode) {
+        TdMode.CAMPAIGN -> key(levelId, difficulty, gentle)
+        TdMode.ENDLESS -> endlessKey(levelId)
+        TdMode.DAILY -> dailyKey(dailyDay)
+    }
+
     fun sanitize(raw: Map<String, Int>): Map<String, Int> =
-        raw.filter { (k, v) -> KEY.matches(k) && v in 1..TowerDefenceGame.TOTAL_WAVES }
+        raw.filter { (k, v) ->
+            when {
+                KEY.matches(k) -> v in 1..TowerDefenceGame.TOTAL_WAVES
+                ENDLESS_KEY.matches(k) -> v in 1..TdSnapshot.MAX_ENDLESS_WAVE
+                DAILY_KEY.matches(k) -> v in 100..(TowerDefenceGame.TOTAL_WAVES * 100 + 99)
+                else -> false
+            }
+        }
+
+    /** Drops Daily entries more than [keepDays] before [today], so the blob never grows without bound. */
+    fun pruneDaily(raw: Map<String, Int>, today: Long, keepDays: Int = 30): Map<String, Int> =
+        raw.filter { (k, _) -> dailyDayOf(k)?.let { it >= today - keepDays } ?: true }
 }

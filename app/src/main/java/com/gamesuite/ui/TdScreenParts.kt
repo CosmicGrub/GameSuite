@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -37,7 +40,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntSize
+import com.gamesuite.games.towerdefence.TdGrid
+import com.gamesuite.games.towerdefence.TdLayoutMath
+import com.gamesuite.games.towerdefence.TdMode
+import com.gamesuite.games.towerdefence.TowerDefenceGame
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -204,8 +221,14 @@ internal fun TdPillButton(
 /** One of the four tower cards: silhouette, themed name and cost; dimmed (with words) when unaffordable. */
 @Composable
 internal fun TdTowerCard(
-    skin: TdSkin, role: TdRole, gold: Int, selected: Boolean, colorblind: Boolean, highlighted: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
+    skin: TdSkin, role: TdRole, gold: Int, selected: Boolean, colorblind: Boolean, highlighted: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
+    /** Drag from the card onto the field: called with the finger in ROOT coordinates; [onDragEnd] on release, [onDragCancel] if the system cancels. */
+    onDragMove: ((Offset) -> Unit)? = null, onDragEnd: (() -> Unit)? = null, onDragCancel: (() -> Unit)? = null
 ) {
+    var cardRoot by remember { mutableStateOf(Offset.Zero) }
+    val moveState = rememberUpdatedState(onDragMove)
+    val endState = rememberUpdatedState(onDragEnd)
+    val cancelState = rememberUpdatedState(onDragCancel)
     val name = stringResource(skin.towerNames.getValue(role))
     val cost = TdRules.baseCost(role)
     val affordable = gold >= cost
@@ -218,6 +241,16 @@ internal fun TdTowerCard(
             .clip(RoundedCornerShape(12.dp))
             .background(skin.panel.copy(alpha = if (affordable) 0.95f else 0.6f))
             .border(if (selected || highlighted) 3.dp else 1.dp, if (selected || highlighted) skin.accent else skin.panelText.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .onGloballyPositioned { cardRoot = it.positionInRoot() }
+            .pointerInput(onDragMove != null) {
+                if (onDragMove == null) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { p -> moveState.value?.invoke(cardRoot + p) },
+                    onDrag = { change, _ -> change.consume(); moveState.value?.invoke(cardRoot + change.position) },
+                    onDragEnd = { endState.value?.invoke() },
+                    onDragCancel = { cancelState.value?.invoke() }
+                )
+            }
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = desc }
             .padding(horizontal = 6.dp, vertical = 4.dp),
@@ -370,7 +403,9 @@ internal fun TdPausedScrim(onResume: () -> Unit, modifier: Modifier = Modifier) 
 @Composable
 internal fun TdResultOverlay(
     skin: TdSkin, won: Boolean, waveReached: Int, totalWaves: Int, castle: Int, castleMax: Int, bestWave: Int?, isNewBest: Boolean,
-    reducedMotion: Boolean, onPlayAgain: () -> Unit, onBackToMenu: () -> Unit, modifier: Modifier = Modifier
+    reducedMotion: Boolean, onPlayAgain: () -> Unit, onBackToMenu: () -> Unit, modifier: Modifier = Modifier,
+    /** Endless shows the wave reached as the score; Daily shows its score ([bestWave] is then the best score). */
+    mode: TdMode = TdMode.CAMPAIGN, dailyScore: Int = 0
 ) {
     val fade = remember { Animatable(if (reducedMotion) 1f else 0f) }
     LaunchedEffect(Unit) { if (fade.value < 1f) fade.animateTo(1f, animationSpec = tween(durationMillis = 250)) }
@@ -384,14 +419,26 @@ internal fun TdResultOverlay(
         ) {
             Column(modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    if (won) stringResource(R.string.td_victory) else if (skin.kidFirst) stringResource(R.string.td_defeat_kid) else stringResource(R.string.td_defeat),
+                    when {
+                        won -> stringResource(R.string.td_victory)
+                        mode == TdMode.ENDLESS -> stringResource(R.string.td_endless_over)
+                        skin.kidFirst -> stringResource(R.string.td_defeat_kid)
+                        else -> stringResource(R.string.td_defeat)
+                    },
                     style = MaterialTheme.typography.headlineSmall, color = skin.panelText, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.td_reached, waveReached, totalWaves), color = skin.panelText)
+                Text(
+                    if (mode == TdMode.ENDLESS) stringResource(R.string.td_endless_reached, waveReached) else stringResource(R.string.td_reached, waveReached, totalWaves),
+                    color = skin.panelText
+                )
+                if (mode == TdMode.DAILY) Text(stringResource(R.string.td_daily_score, dailyScore), color = skin.panelText, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.td_castle_left, castle, castleMax), color = skin.panelText.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
                 if (isNewBest) Text(stringResource(R.string.td_new_best), color = skin.accent, fontWeight = FontWeight.Bold)
-                else if (bestWave != null) Text(stringResource(R.string.td_best, bestWave), color = skin.panelText.copy(alpha = 0.75f))
+                else if (bestWave != null) Text(
+                    if (mode == TdMode.DAILY) stringResource(R.string.td_best_score, bestWave) else stringResource(R.string.td_best, bestWave),
+                    color = skin.panelText.copy(alpha = 0.75f)
+                )
             }
             Spacer(Modifier.height(16.dp))
             TdPillButton(stringResource(R.string.td_play_again), skin, onPlayAgain, primary = true)
@@ -447,7 +494,8 @@ internal fun TdSetupDialog(
     skin: TdSkin, mapId: String, themeId: TdThemeId, tierIndex: Int, themeLocked: Boolean,
     oneSwitch: Boolean, showRoute: Boolean,
     onMap: (String) -> Unit, onTheme: (TdThemeId) -> Unit, onTier: (Int) -> Unit,
-    onOneSwitch: (Boolean) -> Unit, onShowRoute: (Boolean) -> Unit, onDismiss: () -> Unit
+    onOneSwitch: (Boolean) -> Unit, onShowRoute: (Boolean) -> Unit, onDismiss: () -> Unit,
+    freePlacement: Boolean = false, onFreePlacement: (Boolean) -> Unit = {}, modeLocked: Boolean = false
 ) {
     val openIds = listOf("castle-pass", "river-bend", "twin-gates")
     val classicIds = listOf("switchback", "spiral", "gauntlet")
@@ -456,18 +504,35 @@ internal fun TdSetupDialog(
         title = { Text(stringResource(R.string.td_setup_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(R.string.td_group_open), style = MaterialTheme.typography.labelLarge)
-                TdChipRow(openIds.map { stringResource(tdMapNameRes(it)) }, openIds.indexOf(mapId), skin, { onMap(openIds[it]) }, Modifier.fillMaxWidth())
-                Text(stringResource(R.string.td_group_classic), style = MaterialTheme.typography.labelLarge)
-                TdChipRow(classicIds.map { stringResource(tdMapNameRes(it)) }, classicIds.indexOf(mapId), skin, { onMap(classicIds[it]) }, Modifier.fillMaxWidth())
+                if (modeLocked) {
+                    Text(stringResource(R.string.td_mode_locked_note), style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text(stringResource(R.string.td_group_open), style = MaterialTheme.typography.labelLarge)
+                    TdChipRow(openIds.map { stringResource(tdMapNameRes(it)) }, openIds.indexOf(mapId), skin, { onMap(openIds[it]) }, Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.td_group_classic), style = MaterialTheme.typography.labelLarge)
+                    TdChipRow(classicIds.map { stringResource(tdMapNameRes(it)) }, classicIds.indexOf(mapId), skin, { onMap(classicIds[it]) }, Modifier.fillMaxWidth())
+                }
                 Text(stringResource(R.string.td_theme_label), style = MaterialTheme.typography.labelLarge)
-                TdChipRow(TdSkins.ALL.map { stringResource(it.nameRes) }, TdSkins.ALL.indexOfFirst { it.id == themeId }, skin, { onTheme(TdSkins.ALL[it].id) }, Modifier.fillMaxWidth(), enabled = !themeLocked)
+                // Five skins: two rows of chips so the names stay readable.
+                val skins = TdSkins.ALL
+                val selectedSkin = skins.indexOfFirst { it.id == themeId }
+                TdChipRow(skins.take(3).map { stringResource(it.nameRes) }, if (selectedSkin in 0..2) selectedSkin else -1, skin, { onTheme(skins[it].id) }, Modifier.fillMaxWidth(), enabled = !themeLocked)
+                TdChipRow(skins.drop(3).map { stringResource(it.nameRes) }, if (selectedSkin >= 3) selectedSkin - 3 else -1, skin, { onTheme(skins[it + 3].id) }, Modifier.fillMaxWidth(0.66f), enabled = !themeLocked)
                 if (themeLocked) Text(stringResource(R.string.td_theme_locked_wave), style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(R.string.td_tier_label), style = MaterialTheme.typography.labelLarge)
-                TdChipRow(
-                    listOf(R.string.td_tier_gentle, R.string.td_tier_easy, R.string.td_tier_medium, R.string.td_tier_hard).map { stringResource(it) },
-                    tierIndex, skin, onTier, Modifier.fillMaxWidth()
-                )
+                if (!modeLocked) {
+                    Text(stringResource(R.string.td_tier_label), style = MaterialTheme.typography.labelLarge)
+                    TdChipRow(
+                        listOf(R.string.td_tier_gentle, R.string.td_tier_easy, R.string.td_tier_medium, R.string.td_tier_hard).map { stringResource(it) },
+                        tierIndex, skin, onTier, Modifier.fillMaxWidth()
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.td_snap_off))
+                        Text(stringResource(R.string.td_snap_off_help), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = freePlacement, onCheckedChange = onFreePlacement)
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.td_show_route))
@@ -481,8 +546,67 @@ internal fun TdSetupDialog(
                     }
                     Switch(checked = oneSwitch, onCheckedChange = onOneSwitch)
                 }
+                Text(stringResource(R.string.td_key_help), style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.td_done)) } }
     )
+}
+
+/**
+ * The portrait map overview: the whole field in a strip, the visible part outlined. Tap or drag to move
+ * the view ([onScrollTo] gets a scroll offset in px). Reads the game state and the scroll position only
+ * inside its draw lambda, so it never recomposes per frame.
+ */
+@Composable
+internal fun TdMinimap(
+    skin: TdSkin, game: TowerDefenceGame, terrain: ImageBitmap?, scroll: ScrollState, viewportWpx: Float, zoom: Float,
+    onScrollTo: (Float) -> Unit, modifier: Modifier = Modifier
+) {
+    val desc = stringResource(R.string.td_minimap_desc)
+    val jump = rememberUpdatedState(onScrollTo)
+    var sizePx by remember { mutableStateOf(IntSize.Zero) }
+    fun tapTo(x: Float) {
+        if (sizePx.width > 0) jump.value(TdLayoutMath.scrollForMinimapTap(x / sizePx.width, viewportWpx, zoom))
+    }
+    Canvas(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .onGloballyPositioned { sizePx = it.size }
+            .semantics { contentDescription = desc }
+            .pointerInput(viewportWpx, zoom) { detectTapGestures { p -> tapTo(p.x) } }
+            .pointerInput(viewportWpx, zoom) { detectDragGestures { change, _ -> change.consume(); tapTo(change.position.x) } }
+    ) {
+        drawRect(skin.panel.copy(alpha = 0.92f), size = size)
+        if (terrain != null) drawImage(terrain, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
+        val s = game.state.value
+        val ux = size.width / TdGrid.TILES_X
+        val uy = size.height / TdGrid.TILES_Y
+        for (t in s.towers) {
+            val c = TdGrid.towerCentre(t.cx, t.cy)
+            drawRect(Color.White, Offset(c.x * ux - 2.5f, c.y * uy - 2.5f), androidx.compose.ui.geometry.Size(5f, 5f))
+        }
+        for (e in s.enemies) drawCircle(Color(0xFFFF6B6B), 2.4f, Offset(e.pos.x * ux, e.pos.y * uy))
+        val left = TdLayoutMath.viewportLeftFraction(scroll.value.toFloat(), viewportWpx, zoom) * size.width
+        val w = TdLayoutMath.visibleFraction(zoom) * size.width
+        drawRect(skin.accent, Offset(left, 1f), androidx.compose.ui.geometry.Size(w, size.height - 2f), style = Stroke(width = 3f))
+    }
+}
+
+/** The castle chip pinned to the right edge of a scrolled map while the castle is off screen; tap to show it. */
+@Composable
+internal fun TdCastleChip(skin: TdSkin, castle: Int, castleMax: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val desc = stringResource(R.string.td_castle_pinned_desc, castle, castleMax)
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp))
+            .background(skin.panel.copy(alpha = 0.92f))
+            .clickable(onClickLabel = desc, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = desc }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(stringResource(R.string.td_castle_pinned, castle, castleMax), color = skin.panelText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    }
 }

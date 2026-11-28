@@ -25,7 +25,7 @@ import kotlin.math.sin
  */
 enum class TdMotion { OFF, CALM, STANDARD }
 
-enum class TdAmbientType { CLOUD, FLAG, GRASS, BIRDS, TORCH, STAR, COMET, BEACON, BALL, MOTE, GLOW }
+enum class TdAmbientType { CLOUD, FLAG, GRASS, BIRDS, TORCH, STAR, COMET, BEACON, BALL, MOTE, GLOW, PETAL }
 
 /** One ambient element. Coordinates are fractions of the area it lives in (0..1). */
 data class TdAmbientElement(val type: TdAmbientType, val x: Float, val y: Float, val speed: Float, val phase: Float, val size: Float)
@@ -58,6 +58,11 @@ object TdAmbient {
                 TdAmbientType.COMET to if (calm) 0 else 1,
                 TdAmbientType.BEACON to 4
             )
+            TdAmbientKind.PETALS -> mapOf(
+                TdAmbientType.CLOUD to if (calm) 2 else 3,
+                TdAmbientType.PETAL to if (calm) 8 else 18,
+                TdAmbientType.TORCH to 2
+            )
             TdAmbientKind.NURSERY -> mapOf(
                 TdAmbientType.BALL to if (calm) 0 else 1,
                 TdAmbientType.MOTE to if (calm) 6 else 12,
@@ -88,6 +93,7 @@ object TdAmbient {
                     TdAmbientType.BALL -> TdAmbientElement(type, 0f, 0.7f, 1f, phase * 3f, 1f)
                     TdAmbientType.MOTE -> TdAmbientElement(type, x, y, 0.01f + 0.02f * speed, phase, 0.5f + rnd.next())
                     TdAmbientType.GLOW -> TdAmbientElement(type, 0.06f, 0.9f, 0.4f, phase, 1f)
+                    TdAmbientType.PETAL -> TdAmbientElement(type, x, y, 0.025f + 0.03f * speed, phase, 0.6f + 0.8f * rnd.next())
                 }
                 out.add(e)
             }
@@ -232,6 +238,15 @@ object TdAmbient {
                     val x = ((e.x + (if (frozen) 0f else t * e.speed)) % 1f) * board.width
                     val y = (e.y + 0.03f * sin(t * 0.7f + e.phase)) * board.height
                     drawCircle(Color.White.copy(alpha = 0.35f), 1.5f + 1.5f * e.size, Offset(x, y))
+                }
+                TdAmbientType.PETAL -> {
+                    // Falling blossom petals: slow fall, a gentle side sway; frozen petals hang where the plan put them.
+                    val fall = if (frozen) 0f else t * e.speed
+                    val y = ((e.y + fall) % 1f) * board.height
+                    val x = (e.x + (if (frozen) 0f else 0.03f * sin(t * 0.9f + e.phase))) * board.width
+                    val r = 1.6f + 1.6f * e.size
+                    drawCircle(Color(0xFFF4A6B8).copy(alpha = 0.6f), r, Offset(x, y))
+                    drawCircle(Color(0xFFFFD6E0).copy(alpha = 0.5f), r * 0.55f, Offset(x + r * 0.5f, y - r * 0.3f))
                 }
                 TdAmbientType.BALL -> {
                     val p = crossing(t, 15f, 6f, e.phase)

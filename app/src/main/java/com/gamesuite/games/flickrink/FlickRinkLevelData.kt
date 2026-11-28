@@ -25,4 +25,14 @@ internal object FlickRinkLevelData {
 {"id":"rink13","name":"Bank Shot","band":"big","par":16,"seed":1013,"fish":[[300,380],[300,230],[300,130]],"walls":[[110,500,490,500]],"posts":[[110,300,24],[490,300,24]],"gates":[],"sliders":[],"slow":[],"puddles":[]}
 {"id":"rink14","name":"Champion Rink","band":"big","par":18,"seed":1014,"fish":[[120,560],[500,360],[300,120]],"walls":[[0,650,230,650],[370,650,600,650],[200,230,600,230]],"posts":[[300,540,26],[120,380,24]],"gates":[{"id":"g1","seg":[230,650,370,650],"pad":[530,740,32]}],"sliders":[{"id":"s1","a":[0,450,300,450],"b":[300,450,600,450]},{"id":"s2","a":[300,330,450,330],"b":[150,330,300,330]}],"slow":[[300,380,160,60]],"puddles":[[480,560,36],[130,250,34]]}
 """.trimIndent()
+
+    /** The 6 bullseye boards: same schema, a `target` instead of fish; the launch line is always y = 860. */
+    val BOARDS_JSONL: String = """
+{"id":"tgt01","name":"Wide Open","band":"little","par":0,"seed":2001,"target":[300,240],"fish":[],"walls":[],"posts":[],"gates":[],"sliders":[],"slow":[],"puddles":[]}
+{"id":"tgt02","name":"Two Posts","band":"little","par":0,"seed":2002,"target":[300,240],"fish":[],"walls":[],"posts":[[210,520,26],[390,520,26]],"gates":[],"sliders":[],"slow":[],"puddles":[]}
+{"id":"tgt03","name":"Side Wall","band":"medium","par":0,"seed":2003,"target":[300,240],"fish":[],"walls":[[0,560,360,560]],"posts":[],"gates":[],"sliders":[],"slow":[],"puddles":[]}
+{"id":"tgt04","name":"Snow Lane","band":"medium","par":0,"seed":2004,"target":[300,220],"fish":[],"walls":[],"posts":[],"gates":[],"sliders":[],"slow":[[40,420,520,120]],"puddles":[]}
+{"id":"tgt05","name":"Sliding Door","band":"big","par":0,"seed":2005,"target":[300,240],"fish":[],"walls":[],"posts":[],"gates":[],"sliders":[{"id":"s1","a":[0,540,300,540],"b":[300,540,600,540]}],"slow":[],"puddles":[]}
+{"id":"tgt06","name":"Gate Keeper","band":"big","par":0,"seed":2006,"target":[300,240],"fish":[],"walls":[[0,540,240,540],[360,540,600,540]],"posts":[],"gates":[{"id":"g1","seg":[240,540,360,540],"pad":[110,700,34]}],"sliders":[],"slow":[],"puddles":[]}
+""".trimIndent()
 }
