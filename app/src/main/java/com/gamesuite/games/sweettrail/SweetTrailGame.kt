@@ -82,7 +82,7 @@ private val sweetTrailJson = Json { ignoreUnknownKeys = true }
 class SweetTrailGame(
     private val random: Random = Random.Default,
     private val engine: SweetTrailEngine = StandardSweetTrailEngine()
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, com.gamesuite.core.PausableGame {
     override val gameId = "sweet-trail"
     override val displayName = "Sweet Trail"
     override val category = GameCategory.BOARD
@@ -96,6 +96,7 @@ class SweetTrailGame(
 
     /** True between [pause] and [resume]: the computer takes no step (the screen's bot loop restarts on resume). */
     val paused = mutableStateOf(false)
+    override val isPaused: Boolean get() = paused.value
 
     /** Rules for the NEXT board (the Hub's options). */
     var length: TrailLength = TrailLength.STANDARD
@@ -212,6 +213,7 @@ class SweetTrailGame(
     }
 
     fun playAgain() {
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         if (matchOver.value) return
         startMatch()
     }

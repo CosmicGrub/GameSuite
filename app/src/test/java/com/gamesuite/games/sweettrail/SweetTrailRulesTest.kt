@@ -111,7 +111,7 @@ class SweetTrailRulesTest {
         val p2 = stBoard(rules = SweetTrailRules(TrailLength.LONG)).at(46, 0).drawn(single(TrailColour.GRAPE))
         assertEquals(50, p2.positions[0])
         assertEquals(listOf(1, 0), p2.stuck)
-        assertEquals(46, long.positions[0])
+        assertEquals(41, long.positions[0]) // the long trail has no double cards: a double draw moves one square of the colour
     }
 
     @Test fun aStuckSeatSkipsItsDrawThenIsFree() {

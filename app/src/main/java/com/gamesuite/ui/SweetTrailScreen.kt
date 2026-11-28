@@ -427,9 +427,9 @@ fun SweetTrailScreen(
     }
 
     // a State, never .value here: it is read only inside draw / graphicsLayer lambdas, so the pulse never recomposes the screen
-    val pulse: State<Float> = if (reduced) remember { mutableStateOf(0.7f) } else rememberInfiniteTransition(label = "sweet-trail-pulse").animateFloat(
+    val pulse: State<Float> = if (reduced) remember { mutableStateOf(0.7f) } else rememberInfiniteTransition().animateFloat(
         initialValue = 0.3f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "sweet-trail-pulse-a"
+        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse)
     )
     // what the words, chips and winner panel show: the state the board has finished animating
     val v = if (animating) (shownState ?: s) else s
@@ -726,7 +726,7 @@ private fun SweetTrailChip(
         Spacer(Modifier.width(6.dp))
         Column {
             Text(name, color = theme.text, fontWeight = if (isTurn) FontWeight.Bold else FontWeight.Normal, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-            Text("$square", color = theme.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Text(square.toString(), color = theme.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
         }
         if (wish) {
             Spacer(Modifier.width(6.dp))

@@ -132,3 +132,12 @@ nothing to show until the entry exists.
 Then play it once on a device: portrait, landscape and a tablet; Reduced Motion on and off; TalkBack on; a 4 seat
 game with one wish seat; Short, Standard and Long; Gooey Puddle off. This team never ran the screen on a device or an
 emulator (owner's rule), so the screen is compiled and unit-tested for its strings and sources but not seen.
+
+## 9. Status (2026-11-22, finish pass on branch session/ws-sweet-trail)
+
+DONE: merged session/wave-3 (clean, no conflicts); compiles; `playAgain()` now calls `LaunchPolicy.requestNewRound()`;
+`SweetTrailGame` implements `PausableGame`; fixed one stale test expectation (LONG has no double cards) and removed two
+English animation labels from the screen (EnglishLiteralRatchetTest back to 0 for SweetTrailScreen.kt).
+Targeted tests: `com.gamesuite.games.sweettrail.*`, `EnglishLiteralRatchetTest`, `HubLocalizationTest` (see commit message for counts).
+
+OPEN: registration in the shared files (sections 1-6, coordinator); never played on a device (owner rule: no installs).
