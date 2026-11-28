@@ -14,8 +14,7 @@ export JAVA_HOME="${JAVA_HOME:-/c/Users/Obliv/AppData/Local/Programs/Microsoft/j
 export PATH="$JAVA_HOME/bin:$PATH:/c/Users/Obliv/.cargo/bin"
 PRIMARY="/z/GameSuite-wt-game-kit"
 BASE="session/wave-3"
-LOG_DIR="$PRIMARY/docs/handoff"
-LOGFILE="$LOG_DIR/INTEGRATOR-LOG.md"
+LOGFILE="/z/GameSuite-testq/INTEGRATOR-LOG.md"   # outside the repo on purpose (a tracked log made every run skip as "dirty")
 RUNLOCK="/tmp/gs-integrate.lock"
 GRADLE_LOCK="/tmp/gs-gradle.lock"
 # Branches this script may integrate (add new ones to docs/handoff/INTEGRATE-BRANCHES.txt, one per line).
@@ -68,6 +67,7 @@ while IFS= read -r br; do
   git rev-parse --verify -q "refs/heads/$br" >/dev/null || { say "$br: no such branch"; continue; }
   ahead=$(git rev-list --count "$BASE..$br")
   [ "$ahead" -eq 0 ] && { say "$br: nothing new"; continue; }
+  git log -1 --format=%s "$br" | grep -q "^WIP" && { say "$br: tip is an unverified WIP commit; skipping"; continue; }
   # skip branches whose only extra commit is the paused WIP snapshot (unverified)
   if [ "$ahead" -eq 1 ] && git log -1 --format=%s "$br" | grep -q "NOT compiled or verified together"; then
     say "$br: only a paused WIP snapshot; skipping"; continue
@@ -113,7 +113,6 @@ push_green() {  # $@ = branches merged
     mkdir -p /z/GameSuite-testq; echo "$tests tests, $classes classes" > "/z/GameSuite-testq/green-$gsha"
     for b in "$@"; do git push origin "$b" >/dev/null 2>&1 || true; done
     note "GREEN and pushed: merged [$*]; classes=$classes tests=$tests failures=0 errors=0"
-    git add "$LOGFILE" && git commit -q -m "Integrator log: merged $* after green gate" -- "$LOGFILE" 2>/dev/null && git push origin "$BASE" >/dev/null 2>&1
   else
     note "gate green but push failed (see /tmp/gs-push.out); merges kept locally"
   fi
