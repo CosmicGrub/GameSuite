@@ -19,7 +19,10 @@ object BumpRunEvent {
 }
 
 enum class BumpRunReject {
-    NONE, OVER, NOT_YOUR_TURN, DRAW_FIRST, DECIDE_FIRST, CANNOT_MOVE, EXACT_ROLL, OWN_PAWN, SHIELDED, NO_DO_OVER, MOVES_AVAILABLE
+    NONE, OVER, NOT_YOUR_TURN, DRAW_FIRST, DECIDE_FIRST, CANNOT_MOVE, EXACT_ROLL, OWN_PAWN, SHIELDED, NO_DO_OVER, MOVES_AVAILABLE,
+
+    /** An accepted action is still being shown by the screen (see [BumpRunGame.holdInputUntilSettled]). */
+    BUSY
 }
 
 /** The turn phases. AWAIT_CHOICE with an empty legal list means "no move": do-over or pass. */
@@ -77,7 +80,13 @@ data class BumpRunState(
     val bumpsMade: List<Int> = emptyList(),
     val bumpsTaken: List<Int> = emptyList(),
     val turnsTaken: Int = 0,
-    val winnerPlayerIds: List<String> = emptyList()
+    val winnerPlayerIds: List<String> = emptyList(),
+    /** The board seed (shuffle and reshuffles); [reshuffles] counts the reshuffles so far. */
+    val seed: Long = 0,
+    val reshuffles: Int = 0,
+    /** The card the last event is about (-1 none) and, for a spring pad, the progress the pawn stood on before the pad hop (-1 none). */
+    val eventCard: Int = -1,
+    val eventPadFrom: Int = -1
 ) {
     val over: Boolean get() = phase == BumpPhase.OVER
 }

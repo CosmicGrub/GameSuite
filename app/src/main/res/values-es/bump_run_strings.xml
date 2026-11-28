@@ -23,9 +23,6 @@
     <string name="bump_run_state_lane">en el carril, paso %1$d de %2$d</string>
     <string name="bump_run_state_home">en la Casa</string>
     <string name="bump_run_state_shielded">con escudo</string>
-    <string name="bump_run_square_label">Casilla %1$d</string>
-    <string name="bump_run_square_exit_label">Casilla %1$d, casilla de salida de %2$s</string>
-    <string name="bump_run_square_pad_label">Casilla %1$d, trampolín</string>
     <string name="bump_run_leave_title">¿Salir de este juego?</string>
     <string name="bump_run_leave_body">La partida sigue en marcha. Si sales ahora, no cuenta como victoria ni derrota.</string>
 
@@ -89,7 +86,6 @@
     <string name="bump_run_ann_win_team">¡%1$s ganan como equipo!</string>
 
     <!-- Why lines -->
-    <string name="bump_run_why_wait">Todavía no es tu turno.</string>
     <string name="bump_run_why_cpu">El ordenador está jugando su turno.</string>
     <string name="bump_run_why_draw_first">Primero saca una carta.</string>
     <string name="bump_run_why_cannot_move">Esa ficha no puede moverse con esta carta.</string>
@@ -121,9 +117,9 @@
     <string name="coach_bump_run_fact">Los juegos de carrera y empujón descienden del Pachisi, un antiguo juego de la India que aún se juega hoy.</string>
 
     <!-- Tips -->
-    <string name="draft_tip_bump_run_1">Toca el montón de cartas y luego una ficha para moverla.</string>
-    <string name="draft_tip_bump_run_2">Caer sobre un rival lo manda a su Nido. ¡Cuidado con las fichas justo detrás de ti!</string>
-    <string name="draft_tip_bump_run_3">Una estrella en la carta puede sacar una ficha del Nido.</string>
+    <string name="tip_bump_run_1">Toca el montón de cartas y luego una ficha para moverla.</string>
+    <string name="tip_bump_run_2">Caer sobre un rival lo manda a su Nido. ¡Cuidado con las fichas justo detrás de ti!</string>
+    <string name="tip_bump_run_3">Una estrella en la carta puede sacar una ficha del Nido.</string>
 
     <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
     <string name="hub_bump_and_run">Choca y Corre</string>

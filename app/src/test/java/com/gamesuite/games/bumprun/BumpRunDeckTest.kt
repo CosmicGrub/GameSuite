@@ -1,37 +1,63 @@
 package com.gamesuite.games.bumprun
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.random.Random
 
-/**
- * Bump and Run: scaffold stubs. Every test of the test plan in docs/design/boardgames/bump-run.md is listed here by name,
- * ignored until its phase lands (Phase 0). Un-ignore a test only together with the code it proves.
- */
 class BumpRunDeckTest {
-    @Ignore("scaffold: Phase 0")
-    @Test fun deckHasFiftyFourCards() {}
+    private val cards = BumpRunDeck.cards()
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun compositionMatchesTheDocTable() {}
+    @Test fun deckHasFiftyFourCards() = assertEquals(54, cards.size)
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun starredCardsAreHopOneHopSixAndFreeExit() {}
+    @Test fun compositionMatchesTheDocTable() {
+        assertEquals(37, cards.count { it.kind == BumpCardKind.HOP })
+        assertEquals(156, cards.filter { it.kind == BumpCardKind.HOP }.sumOf { it.value })
+        assertEquals(4, cards.count { it.kind == BumpCardKind.SWAP })
+        assertEquals(3, cards.count { it.kind == BumpCardKind.CHASE })
+        assertEquals(4, cards.count { it.kind == BumpCardKind.FREE_EXIT })
+        assertEquals(3, cards.count { it.kind == BumpCardKind.AGAIN })
+        assertEquals(3, cards.count { it.kind == BumpCardKind.SHIELD })
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun fourteenCardsCanBringAPawnOut() {}
+    @Test fun starredCardsAreHopOneHopSixAndFreeExit() {
+        assertTrue(cards.filter { it.exits }.all { it.kind == BumpCardKind.FREE_EXIT || (it.kind == BumpCardKind.HOP && it.value in listOf(1, 6)) })
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun cardIdsAreDenseAndUnique() {}
+    @Test fun fourteenCardsCanBringAPawnOut() = assertEquals(14, cards.count { it.exits })
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun shuffleIsDeterministicForASeed() {}
+    @Test fun cardIdsAreDenseAndUnique() {
+        assertEquals((0 until 54).toList(), cards.map { it.id })
+        assertNull(BumpRunDeck.byId(54))
+        assertNull(BumpRunDeck.byId(-1))
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun shuffleIsAPermutationOfAllCards() {}
+    @Test fun shuffleIsDeterministicForASeed() {
+        assertEquals(brBoard(seed = 42).pile, brBoard(seed = 42).pile)
+        assertTrue(brBoard(seed = 42).pile != brBoard(seed = 43).pile)
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun reshuffleKeepsEveryCardExactlyOnce() {}
+    @Test fun shuffleIsAPermutationOfAllCards() = assertEquals((0 until 54).toSet(), brBoard(seed = 9).pile.toSet())
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun cardInPlayIsNeverInPileOrDiscard() {}
+    @Test fun reshuffleKeepsEveryCardExactlyOnce() {
+        val s = brBoard().let { it.copy(pile = emptyList(), discard = it.pile) }
+        val d = bumpEngine.draw(s)
+        assertTrue(d.eventReshuffled)
+        assertEquals(1, d.reshuffles)
+        assertEquals(emptyList<String>(), bumpEngine.validate(d))
+        assertEquals((0 until 54).toSet(), (d.pile + d.discard + listOfNotNull(d.card)).toSet())
+    }
+
+    @Test fun cardInPlayIsNeverInPileOrDiscard() {
+        var s = brBoard(seed = 5)
+        val r = Random(3)
+        repeat(300) {
+            if (s.over) return
+            s = if (s.phase == BumpPhase.AWAIT_DRAW) bumpEngine.draw(s) else bumpEngine.legalMoves(s).let { m ->
+                bumpEngine.play(s, if (m.isEmpty()) BumpMove(-1, BumpMoveKind.PASS) else m[r.nextInt(m.size)])
+            }
+            s.card?.let { assertTrue(it !in s.pile && it !in s.discard) }
+        }
+    }
 }

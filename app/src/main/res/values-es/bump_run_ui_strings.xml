@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Choca y Corre: textos extra de la pantalla. TODO native review: Spanish written by the author, not yet read by a native speaker. -->
+    <string name="bump_run_why_decide">Juega primero tu carta.</string>
+    <string name="bump_run_why_moves">Tienes una jugada.</string>
+    <string name="bump_run_why_no_do_over">No te quedan repeticiones.</string>
+    <string name="bump_run_chip_of">de %1$s</string>
+    <string name="bump_run_chip_home">Mover la ficha %1$d a la Casa</string>
+    <string name="bump_run_chip_step">Mover la ficha %1$d hacia delante %2$d casillas</string>
+    <string name="bump_run_chip_exit">Sacar la ficha %1$d del Nido</string>
+    <string name="bump_run_chip_chase">La ficha %1$d persigue al siguiente rival y lo empuja</string>
+    <string name="bump_run_chip_swap">La ficha %1$d cambia de sitio con la ficha %3$d de %2$s</string>
+    <string name="bump_run_chip_shield">Proteger la ficha %1$d</string>
+</resources>

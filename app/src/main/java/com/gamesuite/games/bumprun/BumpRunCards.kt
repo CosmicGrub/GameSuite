@@ -30,8 +30,12 @@ object BumpRunDeck {
         Triple(BumpCardKind.SHIELD, 0, 3)
     )
 
+    private val all: List<BumpCard> by lazy { build() }
+
     /** Every card, in id order (index == id). */
-    fun cards(): List<BumpCard> {
+    fun cards(): List<BumpCard> = all
+
+    private fun build(): List<BumpCard> {
         val out = ArrayList<BumpCard>(SIZE)
         for ((kind, value, copies) in COMPOSITION) {
             val exits = kind == BumpCardKind.FREE_EXIT || (kind == BumpCardKind.HOP && (value == 1 || value == 6))
@@ -40,5 +44,5 @@ object BumpRunDeck {
         return out
     }
 
-    fun byId(id: Int): BumpCard? = cards().getOrNull(id)
+    fun byId(id: Int): BumpCard? = all.getOrNull(id)
 }

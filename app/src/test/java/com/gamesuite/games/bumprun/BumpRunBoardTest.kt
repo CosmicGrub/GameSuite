@@ -1,37 +1,59 @@
 package com.gamesuite.games.bumprun
 
-import org.junit.Ignore
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Bump and Run: scaffold stubs. Every test of the test plan in docs/design/boardgames/bump-run.md is listed here by name,
- * ignored until its phase lands (Phase 0). Un-ignore a test only together with the code it proves.
- */
 class BumpRunBoardTest {
-    @Ignore("scaffold: Phase 0")
-    @Test fun ringHasThirtySixSquaresAndFourExits() {}
+    @Test fun ringHasThirtySixSquaresAndFourExits() {
+        assertEquals(36, BumpRunBoard.LOOP)
+        assertEquals(4, BumpRunBoard.EXIT_SQUARES.toSet().size)
+        assertTrue(BumpRunBoard.EXIT_SQUARES.all { it in 0 until 36 })
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun exitAndLaneEntrySquaresAreAdjacent() {}
+    @Test fun exitAndLaneEntrySquaresAreAdjacent() {
+        for (i in 0..3) assertEquals((BumpRunBoard.LANE_ENTRY_SQUARES[i] + 1) % 36, BumpRunBoard.EXIT_SQUARES[i])
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun padsNeverCoincideWithExitsOrLaneEntries() {}
+    @Test fun padsNeverCoincideWithExitsOrLaneEntries() {
+        assertTrue(BumpRunBoard.PADS.none { it in BumpRunBoard.EXIT_SQUARES || it in BumpRunBoard.LANE_ENTRY_SQUARES })
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun squareOfAndProgressOnAreInverse() {}
+    @Test fun squareOfAndProgressOnAreInverse() {
+        for (side in 0..3) for (p in 0 until 36) assertEquals(p, BumpRunBoard.progressOn(side, BumpRunBoard.squareOf(side, p)!!))
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun progressAfterFullLapEndsOnTheLaneEntry() {}
+    @Test fun progressAfterAFullLapEndsOnTheLaneEntry() {
+        for (side in 0..3) assertEquals(BumpRunBoard.LANE_ENTRY_SQUARES[side], BumpRunBoard.squareOf(side, 35))
+        for (p in listOf(-1, 36, 37, 38, 39)) assertNull(BumpRunBoard.squareOf(0, p))
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun padHopNeverCrossesTheLaneEntry() {}
+    @Test fun padHopNeverCrossesTheLaneEntry() {
+        for (side in 0..3) for (p in 0 until 36) {
+            if (BumpRunBoard.squareOf(side, p) in BumpRunBoard.PADS) assertTrue("side $side progress $p", p + BumpRunBoard.PAD_HOP <= 35)
+        }
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun sidesForTwoSeatsAreOpposite() {}
+    @Test fun sidesForTwoSeatsAreOpposite() {
+        assertEquals(listOf(0, 2), BumpRunBoard.sidesFor(2))
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun sidesForThreeAndFourSeats() {}
+    @Test fun sidesForThreeAndFourSeats() {
+        assertEquals(listOf(0, 1, 2), BumpRunBoard.sidesFor(3))
+        assertEquals(listOf(0, 1, 2, 3), BumpRunBoard.sidesFor(4))
+    }
 
-    @Ignore("scaffold: Phase 0")
-    @Test fun twoPlayerPartnersSitOppositeInTeamMode() {}
+    @Test fun teamsOnlyExistWithFourSeatsAndPartnersSitOpposite() {
+        val s = brBoard(seats = 4, teams = true)
+        assertEquals(listOf(0, 1, 0, 1), s.players.map { it.teamId })
+        assertFalse(brBoard(seats = 2, teams = true).rules.teams)
+    }
+
+    @Test fun lengthsAndUnknownIdsFallBackToQuick() {
+        assertEquals(listOf(2, 3, 4), BumpLength.values().map { it.pawns })
+        assertEquals(BumpLength.QUICK, BumpLength.fromId("nonsense"))
+        assertEquals(BumpLength.QUICK, BumpLength.fromId(null))
+    }
 }

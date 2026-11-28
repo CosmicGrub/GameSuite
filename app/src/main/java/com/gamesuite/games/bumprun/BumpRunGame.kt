@@ -5,6 +5,7 @@ import com.gamesuite.core.GameCategory
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
+import com.gamesuite.core.PausableGame
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerInfo
 import com.gamesuite.core.PlayerScore
@@ -16,6 +17,8 @@ import kotlin.random.Random
 
 @Serializable
 private data class BumpRunSnapshot(
+    /** Absent in older saves (read as 1); a higher version than this build understands is refused. */
+    val version: Int = 1,
     val length: String,
     val pads: Boolean,
     val autoPlay: Boolean,
@@ -45,7 +48,10 @@ private data class BumpRunSnapshot(
     val sessionWins: Map<String, Int>,
     val nextStartingPlayerIndex: Int,
     val difficulty: String,
-    val boardSeed: Long = 0
+    val boardSeed: Long = 0,
+    val reshuffles: Int = 0,
+    val eventCard: Int = -1,
+    val eventPadFrom: Int = -1
 )
 
 @Serializable
@@ -62,17 +68,15 @@ private val bumpRunJson = Json { ignoreUnknownKeys = true }
  * [helperSeats]. All chance comes from the engine's board seed, drawn once per board from [random]
  * (or [fixedSeed] in tests).
  *
- * Snapshot validation. [snapshotProblems] checks the roster, array sizes and ranges, the phase and event names and
- * that pile + discard + card are exactly the 54 card ids. STILL TO DO in Phase 2 (each needs a test in
- * BumpRunSnapshotTest): no two pawns on one ring square, no two of a seat in one lane square; shields only on ring
- * pawns; AWAIT_CHOICE needs a card in play and AWAIT_DRAW none; the card in play is consistent with the engine's
- * legal moves; teams only with 4 seats and teamId = seat % 2; winnerPlayerIds are exactly the seats (team) whose
- * pawns are all Home iff phase is OVER; doOvers in 0..3; counters non-negative; sides equal BumpRunBoard.sidesFor(n).
+ * Snapshot validation: [snapshotProblems] checks the version, the roster and the array shapes, then rebuilds the
+ * state and asks [BumpRunEngine.validate] (one pawn per ring square and per own lane square, shields only on ring
+ * pawns, card coverage, phase and card consistency, teams only with four seats, winner equals the finished side,
+ * do-overs 0..3, counters, sides). Any doubt returns false and the Hub starts a fresh board.
  */
 class BumpRunGame(
     private val random: Random = Random.Default,
-    private val engine: BumpRunEngine = StubBumpRunEngine()
-) : GameModule, ResumableGame {
+    private val engine: BumpRunEngine = StandardBumpRunEngine()
+) : GameModule, ResumableGame, PausableGame {
     override val gameId = "bump-run"
     override val displayName = "Bump and Run"
     override val category = GameCategory.BOARD
@@ -92,6 +96,22 @@ class BumpRunGame(
     var helperSeats: Set<Int> = emptySet()
     var difficulty: CpuDifficulty = CpuDifficulty.MEDIUM
     var firstOpenerIndex: Int = 0
+
+    /** True between [pause] and [resume]: the computer takes no step (the screen's loop restarts on resume). */
+    val paused = mutableStateOf(false)
+    override val isPaused: Boolean get() = paused.value
+
+    /**
+     * The screen sets this so a second tap that arrives before it has recomposed is refused ([BumpRunReject.BUSY]) until
+     * it calls [settled]. Off by default so headless play (tests) is never held up.
+     */
+    var holdInputUntilSettled: Boolean = false
+    private var inFlight = false
+
+    /** The screen finished showing the last accepted action. */
+    fun settled() {
+        inFlight = false
+    }
 
     /** Tests only: the board seed to use instead of one drawn from [random]. */
     var fixedSeed: Long? = null
@@ -131,6 +151,7 @@ class BumpRunGame(
         val s = state.value ?: return BumpRunReject.OVER
         return when {
             matchOver.value || s.over -> BumpRunReject.OVER
+            holdInputUntilSettled && inFlight -> BumpRunReject.BUSY
             !isMyTurn(s) -> BumpRunReject.NOT_YOUR_TURN
             else -> engine.explainDraw(s)
         }
@@ -140,6 +161,7 @@ class BumpRunGame(
         val s = state.value ?: return BumpRunReject.OVER
         return when {
             matchOver.value || s.over -> BumpRunReject.OVER
+            holdInputUntilSettled && inFlight -> BumpRunReject.BUSY
             !isMyTurn(s) -> BumpRunReject.NOT_YOUR_TURN
             else -> engine.explainMove(s, move)
         }
@@ -149,6 +171,7 @@ class BumpRunGame(
         val s = state.value ?: return BumpRunReject.OVER
         return when {
             matchOver.value || s.over -> BumpRunReject.OVER
+            holdInputUntilSettled && inFlight -> BumpRunReject.BUSY
             !isMyTurn(s) -> BumpRunReject.NOT_YOUR_TURN
             s.phase != BumpPhase.AWAIT_CHOICE -> BumpRunReject.DRAW_FIRST
             s.doOvers[s.currentPlayerIndex] <= 0 -> BumpRunReject.NO_DO_OVER
@@ -164,14 +187,20 @@ class BumpRunGame(
         val seed = fixedSeed ?: random.nextLong()
         boardSeed = seed
         matchOver.value = false
+        inFlight = false
         val starter = nextStartingPlayerIndex % n
         val rules = BumpRunRules(length, pads, autoPlay, teams && n == 4)
         state.value = engine.newBoard(players, rules, seed, helperSeats.filter { it in 0 until n }.toSet(), starter)
         nextStartingPlayerIndex = (nextStartingPlayerIndex + 1) % n
     }
 
-    override fun pause() {}
-    override fun resume() {}
+    override fun pause() {
+        paused.value = true
+    }
+
+    override fun resume() {
+        paused.value = false
+    }
 
     override fun endMatch(result: GameResult) {
         matchOver.value = true
@@ -196,6 +225,7 @@ class BumpRunGame(
 
     fun playAgain() {
         if (matchOver.value) return
+        if (!com.gamesuite.core.LaunchPolicy.requestNewRound()) return
         startMatch()
     }
 
@@ -225,6 +255,7 @@ class BumpRunGame(
     private fun commit(after: BumpRunState): Boolean {
         val before = state.value
         state.value = after
+        inFlight = true
         if (before != null && !before.over && after.over) {
             var wins = sessionWins.value
             for (id in after.winnerPlayerIds) wins = wins + (id to (wins[id] ?: 0) + 1)
@@ -278,38 +309,40 @@ class BumpRunGame(
                 eventReshuffled = s.eventReshuffled, turnSerial = s.turnSerial, bumpsMade = s.bumpsMade,
                 bumpsTaken = s.bumpsTaken, turnsTaken = s.turnsTaken, winnerPlayerIds = s.winnerPlayerIds,
                 sessionWins = sessionWins.value, nextStartingPlayerIndex = nextStartingPlayerIndex,
-                difficulty = difficulty.name, boardSeed = boardSeed
+                difficulty = difficulty.name, boardSeed = s.seed, reshuffles = s.reshuffles,
+                eventCard = s.eventCard, eventPadFrom = s.eventPadFrom
             )
         )
     }
 
+    private fun stateOf(snap: BumpRunSnapshot): BumpRunState = BumpRunState(
+        rules = BumpRunRules(BumpLength.fromId(snap.length), snap.pads, snap.autoPlay, snap.teams),
+        players = snap.players.map { BumpRunPlayer(it.playerId, it.displayName, it.isBot, it.teamId) },
+        sides = snap.sides, pawns = snap.pawns, shields = snap.shields, doOvers = snap.doOvers,
+        currentPlayerIndex = snap.currentPlayerIndex,
+        phase = BumpPhase.values().first { it.name == snap.phase },
+        pile = snap.pile, discard = snap.discard, card = snap.card,
+        event = snap.event, eventSeat = snap.eventSeat, eventPawn = snap.eventPawn,
+        eventFrom = snap.eventFrom, eventTo = snap.eventTo, eventVictim = snap.eventVictim,
+        eventReshuffled = snap.eventReshuffled, turnSerial = snap.turnSerial, bumpsMade = snap.bumpsMade,
+        bumpsTaken = snap.bumpsTaken, turnsTaken = snap.turnsTaken, winnerPlayerIds = snap.winnerPlayerIds,
+        seed = snap.boardSeed, reshuffles = snap.reshuffles, eventCard = snap.eventCard, eventPadFrom = snap.eventPadFrom
+    )
+
     private fun snapshotProblems(snap: BumpRunSnapshot, roster: List<PlayerInfo>): List<String> {
         val out = ArrayList<String>()
         val n = roster.size
-        val length = BumpLength.values().firstOrNull { it.id == snap.length }
-        if (length == null) out += "length"
-        val per = length?.pawns ?: 0
+        if (snap.version !in 1..BUMP_RUN_SNAPSHOT_VERSION) return listOf("version")
+        if (BumpLength.values().none { it.id == snap.length }) return listOf("length")
         if (snap.players.size != n ||
             snap.players.indices.any { snap.players[it].playerId != roster[it].playerId || snap.players[it].isBot != roster[it].isBot }
-        ) out += "roster"
-        if (snap.sides != BumpRunBoard.sidesFor(n)) out += "sides"
-        if (snap.pawns.size != n * per || snap.pawns.any { it !in BumpRunBoard.NEST..BumpRunBoard.HOME }) out += "pawns"
-        if (snap.shields.size != n * per) out += "shields"
-        if (snap.doOvers.size != n || snap.doOvers.any { it !in 0..3 }) out += "doOvers"
-        if (snap.bumpsMade.size != n || snap.bumpsTaken.size != n ||
-            snap.bumpsMade.any { it < 0 } || snap.bumpsTaken.any { it < 0 }
-        ) out += "stats"
-        if (snap.currentPlayerIndex !in 0 until n || snap.nextStartingPlayerIndex !in 0 until n) out += "seat"
-        if (snap.eventSeat != null && snap.eventSeat !in 0 until n) out += "eventSeat"
-        if (BumpPhase.values().none { it.name == snap.phase }) out += "phase"
-        if (snap.event !in BumpRunEvent.ALL) out += "event"
-        val cards = snap.pile + snap.discard + listOfNotNull(snap.card)
-        if (cards.size != BumpRunDeck.SIZE || cards.toSet() != (0 until BumpRunDeck.SIZE).toSet()) out += "cards"
+        ) return listOf("roster")
+        if (snap.nextStartingPlayerIndex !in 0 until n) out += "starter"
+        if (BumpPhase.values().none { it.name == snap.phase }) return out + "phase"
         if (snap.sessionWins.any { (id, w) -> w < 0 || roster.none { it.playerId == id } }) out += "sessionWins"
-        if ((snap.phase == BumpPhase.OVER.name) != snap.winnerPlayerIds.isNotEmpty()) out += "winner"
         if (snap.winnerPlayerIds.any { id -> roster.none { it.playerId == id } }) out += "winnerId"
-        if (snap.turnSerial < 0 || snap.turnsTaken < 0) out += "serials"
-        return out
+        if (out.isNotEmpty()) return out
+        return engine.validate(stateOf(snap))
     }
 
     private fun decodeSnapshot(text: String): BumpRunSnapshot? {
@@ -333,18 +366,8 @@ class BumpRunGame(
     override fun restore(snapshot: String): Boolean {
         val snap = decodeSnapshot(snapshot) ?: return false
         matchOver.value = false
-        state.value = BumpRunState(
-            rules = BumpRunRules(BumpLength.fromId(snap.length), snap.pads, snap.autoPlay, snap.teams),
-            players = snap.players.map { BumpRunPlayer(it.playerId, it.displayName, it.isBot, it.teamId) },
-            sides = snap.sides, pawns = snap.pawns, shields = snap.shields, doOvers = snap.doOvers,
-            currentPlayerIndex = snap.currentPlayerIndex,
-            phase = BumpPhase.values().first { it.name == snap.phase },
-            pile = snap.pile, discard = snap.discard, card = snap.card,
-            event = snap.event, eventSeat = snap.eventSeat, eventPawn = snap.eventPawn,
-            eventFrom = snap.eventFrom, eventTo = snap.eventTo, eventVictim = snap.eventVictim,
-            eventReshuffled = snap.eventReshuffled, turnSerial = snap.turnSerial, bumpsMade = snap.bumpsMade,
-            bumpsTaken = snap.bumpsTaken, turnsTaken = snap.turnsTaken, winnerPlayerIds = snap.winnerPlayerIds
-        )
+        inFlight = false
+        state.value = stateOf(snap)
         sessionWins.value = snap.sessionWins
         nextStartingPlayerIndex = snap.nextStartingPlayerIndex
         boardSeed = snap.boardSeed
@@ -356,6 +379,9 @@ class BumpRunGame(
         return true
     }
 }
+
+/** Saved-table schema version (1 = this shape); a newer one than this build understands is refused. */
+internal const val BUMP_RUN_SNAPSHOT_VERSION = 1
 
 /** Helper-pack extra of the Hub: "none" / "" / unknown for nobody, "all", or "1".."4" for that player (1-based). */
 fun parseBumpRunHelper(value: String?, seats: Int): Set<Int> {

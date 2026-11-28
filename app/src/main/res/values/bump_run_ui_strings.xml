@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bump and Run: extra screen strings (move buttons, extra reasons). -->
+    <string name="bump_run_why_decide">Play your card first.</string>
+    <string name="bump_run_why_moves">You have a move to play.</string>
+    <string name="bump_run_why_no_do_over">You have no do-overs left.</string>
+    <string name="bump_run_chip_of">of %1$s</string>
+    <string name="bump_run_chip_home">Move pawn %1$d Home</string>
+    <string name="bump_run_chip_step">Move pawn %1$d forward %2$d squares</string>
+    <string name="bump_run_chip_exit">Bring pawn %1$d out of the Nest</string>
+    <string name="bump_run_chip_chase">Pawn %1$d chases the next rival and bumps it</string>
+    <string name="bump_run_chip_swap">Pawn %1$d swaps places with pawn %3$d of %2$s</string>
+    <string name="bump_run_chip_shield">Shield pawn %1$d</string>
+</resources>

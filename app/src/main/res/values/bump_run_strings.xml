@@ -23,9 +23,6 @@
     <string name="bump_run_state_lane">in the lane, step %1$d of %2$d</string>
     <string name="bump_run_state_home">Home</string>
     <string name="bump_run_state_shielded">shielded</string>
-    <string name="bump_run_square_label">Square %1$d</string>
-    <string name="bump_run_square_exit_label">Square %1$d, exit square for %2$s</string>
-    <string name="bump_run_square_pad_label">Square %1$d, spring pad</string>
     <string name="bump_run_leave_title">Leave this game?</string>
     <string name="bump_run_leave_body">The game is still going. Leaving now does not count as a win or a loss.</string>
 
@@ -89,7 +86,6 @@
     <string name="bump_run_ann_win_team">%1$s win as a team!</string>
 
     <!-- Why lines -->
-    <string name="bump_run_why_wait">It is not your turn yet.</string>
     <string name="bump_run_why_cpu">The computer is taking its turn.</string>
     <string name="bump_run_why_draw_first">Draw a card first.</string>
     <string name="bump_run_why_cannot_move">That pawn cannot move with this card.</string>
@@ -121,9 +117,9 @@
     <string name="coach_bump_run_fact">Race-and-bump games descend from Pachisi, an ancient Indian game still played today.</string>
 
     <!-- Tips -->
-    <string name="draft_tip_bump_run_1">Tap the card pile, then tap a pawn to move it.</string>
-    <string name="draft_tip_bump_run_2">Landing on a rival bumps it home. Watch for pawns just behind you!</string>
-    <string name="draft_tip_bump_run_3">A star on a card can bring a pawn out of the Nest.</string>
+    <string name="tip_bump_run_1">Tap the card pile, then tap a pawn to move it.</string>
+    <string name="tip_bump_run_2">Landing on a rival bumps it home. Watch for pawns just behind you!</string>
+    <string name="tip_bump_run_3">A star on a card can bring a pawn out of the Nest.</string>
 
     <!-- Game Hub (hubKey names; entries marked reused already exist in another strings file and are not repeated) -->
     <string name="hub_bump_and_run">Bump and Run</string>
