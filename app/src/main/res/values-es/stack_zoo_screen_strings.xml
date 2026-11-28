@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stack Zoo screen texts added with the Compose screen (stack_zoo_*) -->
+    <string name="stack_zoo_put_back">Devolverlo</string>
+    <string name="stack_zoo_drop">Soltar</string>
+    <string name="stack_zoo_cd_help">Cómo se juega</string>
+    <string name="stack_zoo_cd_shelf">Animales para elegir</string>
+    <string name="stack_zoo_cd_world">El tronco tambaleante con la torre. %1$s. %2$s</string>
+    <string name="stack_zoo_cd_picked">%1$s elegido. Tócalo otra vez para devolverlo.</string>
+    <string name="stack_zoo_score_row">%1$s: %2$d apilados, %3$d por colocar</string>
+    <string name="stack_zoo_helper_thinking">%1$s está pensando</string>
+    <string name="stack_zoo_tower_progress">Torre %1$d de %2$d</string>
+</resources>

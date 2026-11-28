@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stack Zoo screen texts added with the Compose screen (stack_zoo_*) -->
+    <string name="stack_zoo_put_back">Put it back</string>
+    <string name="stack_zoo_drop">Let go</string>
+    <string name="stack_zoo_cd_help">How to play</string>
+    <string name="stack_zoo_cd_shelf">Animals to pick from</string>
+    <string name="stack_zoo_cd_world">The wobbly log with the tower. %1$s. %2$s</string>
+    <string name="stack_zoo_cd_picked">%1$s picked. Tap it again to put it back.</string>
+    <string name="stack_zoo_score_row">%1$s: %2$d stacked, %3$d left</string>
+    <string name="stack_zoo_helper_thinking">%1$s is thinking</string>
+    <string name="stack_zoo_tower_progress">Tower %1$d of %2$d</string>
+</resources>

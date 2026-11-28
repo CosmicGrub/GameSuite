@@ -5,6 +5,8 @@ import com.gamesuite.core.GameCategory
 import com.gamesuite.core.GameContext
 import com.gamesuite.core.GameModule
 import com.gamesuite.core.GameResult
+import com.gamesuite.core.LaunchPolicy
+import com.gamesuite.core.PausableGame
 import com.gamesuite.core.PlayMode
 import com.gamesuite.core.PlayerScore
 import com.gamesuite.core.ResumableGame
@@ -20,8 +22,8 @@ import kotlinx.serialization.json.Json
  * conversion, Compose state, result and resume. Set the option vars before [init].
  */
 class StackZooGame(
-    internal val engine: StackZooEngine = StubStackZooEngine()
-) : GameModule, ResumableGame {
+    internal val engine: StackZooEngine = ZooEngine()
+) : GameModule, ResumableGame, PausableGame {
     override val gameId = "stack-zoo"
     override val displayName = "Stack Zoo"
     override val category = GameCategory.ARCADE
@@ -31,6 +33,8 @@ class StackZooGame(
 
     val state = mutableStateOf(ZooState.EMPTY)
     val matchOver = mutableStateOf(false)
+
+    override val isPaused: Boolean get() = state.value.paused
 
     var mode: ZooMode = ZooMode.COOP_TOWER
     var goal: ZooGoal = ZooGoal.MEDIUM
@@ -108,6 +112,15 @@ class StackZooGame(
         return ok
     }
 
+    /** Drag back to the shelf: the chosen animal returns and no turn is used. */
+    @Synchronized
+    fun unchoose(): Boolean {
+        if (matchOver.value) return false
+        val ok = engine.unchoose()
+        commit()
+        return ok
+    }
+
     /** The assist's preview of where a drag at ([xQ], [angleQ]) would land (no state change). */
     @Synchronized
     fun assisted(xQ: Int, angleQ: Int): ZooPlacement = engine.assisted(xQ, angleQ)
@@ -134,10 +147,20 @@ class StackZooGame(
         return true
     }
 
+    /** A copy of the engine state for a helper to think about on a worker thread (null when it is not a turn to choose). */
+    @Synchronized
+    fun helperSave(): ZooSave? = if (matchOver.value) null else engine.toSave()
+
+    /** The seats as the engine knows them (for [ZooHelper.plan]). */
+    @Synchronized
+    fun helperSeats(): List<ZooSeat> = seats()
+
     /** Another game with the same seats (the session tally stays with the shell). */
     @Synchronized
     fun playAgain() {
         if (matchOver.value) return
+        // A kid whose time is up cannot begin a new round in place (the shell shows the time-up screen instead).
+        if (!LaunchPolicy.requestNewRound()) return
         carry = 0.0
         engine.playAgain()
         commit()
@@ -151,7 +174,7 @@ class StackZooGame(
         if (matchOver.value) return
         val s = state.value
         val stacked = s.seats.map { it.stacked }
-        val anyStacked = s.bodies.any { !it.fallen }
+        val anyStacked = s.standing > 0
         val left = s.seats.map { it.handCount }
         val best = left.minOrNull() ?: 0
         endMatch(
@@ -212,7 +235,7 @@ object StackZooSaveCodec {
         null
     }
 
-    /** TODO(stack-zoo): the full rules are in the [ZooSave] KDoc. This stub only checks versions and seat count. */
+    /** Full validation lives in [ZooSaveValidator] (ranges, ids, unique pieces, bounded counters); the roster must match too. */
     internal fun validate(save: ZooSave, seats: List<ZooSeat>): Boolean =
-        save.version == 1 && save.physicsVersion == ZooPhysics.PHYSICS_VERSION && save.playerIds.size == seats.size
+        ZooSaveValidator.validate(save, seats.size) && save.playerIds == seats.map { it.playerId }
 }
