@@ -382,7 +382,7 @@ class TdFollowUpsTest {
     fun theSideColumnIsClamped() {
         assertEquals(TdLayoutMath.SIDE_COLUMN_MIN, TdLayoutMath.sideColumnWidth(720f), 0f)
         assertEquals(TdLayoutMath.SIDE_COLUMN_MAX, TdLayoutMath.sideColumnWidth(3000f), 0f)
-        assertEquals(1280f * 0.32f, TdLayoutMath.sideColumnWidth(1280f), 0.01f)
+        assertEquals(1000f * 0.32f, TdLayoutMath.sideColumnWidth(1000f), 0.01f)
     }
 
     @Test
