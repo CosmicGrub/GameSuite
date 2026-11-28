@@ -33,6 +33,15 @@ object DailySeed {
         nowMillis: Long = System.currentTimeMillis()
     ): Long = forDay(gameId, tier, epochDay(nowMillis, zone))
 
+    /**
+     * Gives each difficulty tier of a daily its own seed. [seed] is the day's seed as handed to a
+     * game's `startMatch(dailySeed)` (the same for every tier); the result differs per [tier] (a
+     * difficulty ordinal, or any stable per-configuration number) and stays the same for the same
+     * day, game and tier on every device. A null [seed] (a normal, non-daily board) stays null.
+     */
+    fun forTier(seed: Long?, tier: Int): Long? =
+        if (seed == null) null else mix(seed xor ((tier + 1).toLong() * 0x2545F4914F6CDD1DL))
+
     /** Pure form: the seed for an explicit day number. */
     fun forDay(gameId: String, tier: Int, epochDay: Long): Long {
         var h = fnv1a(gameId)

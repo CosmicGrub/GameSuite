@@ -82,7 +82,7 @@ private val KNOWN_FORMATS = listOf(TennisFormat.POINTS7, TennisFormat.POINTS11, 
 class ToyTennisGame(
     private val random: Random = Random.Default,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, com.gamesuite.core.PausableGame {
     override val gameId = "toy-tennis"
     override val displayName = "Toy Tennis"
     override val category = GameCategory.ARCADE
@@ -188,6 +188,7 @@ class ToyTennisGame(
     }
 
     @Synchronized
+    override val isPaused: Boolean get() = paused
     override fun pause() { paused = true }
 
     @Synchronized

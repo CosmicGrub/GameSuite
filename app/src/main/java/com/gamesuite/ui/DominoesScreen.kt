@@ -747,7 +747,7 @@ fun DominoesScreen(
                         }
 
                         Spacer(Modifier.height(12.dp))
-                        Text("Chain", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.p2_chain), style = MaterialTheme.typography.titleSmall)
 
                         // The chain slot. Tile size comes from THIS slot's measured width, never an
                         // outer scope: fitBoard keeps about eight tiles in view and never returns a
@@ -869,7 +869,7 @@ fun DominoesScreen(
                                         }
                                     },
                                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-                                ) { Text("Play on Left") }
+                                ) { Text(stringResource(R.string.p2_play_on_left)) }
                                 Button(
                                     enabled = canAct && matchesRight,
                                     onClick = {
@@ -880,19 +880,19 @@ fun DominoesScreen(
                                         }
                                     },
                                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-                                ) { Text("Play on Right") }
+                                ) { Text(stringResource(R.string.p2_play_on_right)) }
                             }
                             if (canAct && !canPlayNow && s.boneyardSize > 0) {
                                 Button(
                                     onClick = { game.drawFromBoneyard(activePlayerIndex) },
                                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-                                ) { Text("Draw a tile") }
+                                ) { Text(stringResource(R.string.p2_draw_tile)) }
                             }
                             if (canAct && !canPlayNow && s.boneyardSize == 0) {
                                 Button(
                                     onClick = { game.pass(activePlayerIndex) },
                                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-                                ) { Text("Pass") }
+                                ) { Text(stringResource(R.string.p2_pass)) }
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -935,7 +935,7 @@ fun DominoesScreen(
                                 Button(
                                     onClick = { revealedSeat = activePlayerIndex },
                                     modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-                                ) { Text("Show my hand") }
+                                ) { Text(stringResource(R.string.p2_show_hand)) }
                             }
                         } else {
                             // The hand slot. Each tile sits in a touch box at least 48dp wide, sized
@@ -1194,7 +1194,7 @@ private fun DominoesUndoRow(canUndo: Boolean, onUndo: () -> Unit) {
             onClick = onUndo,
             enabled = canUndo,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Undo") }
+        ) { Text(stringResource(R.string.p2_undo)) }
     }
 }
 
@@ -1437,7 +1437,7 @@ private fun DominoHandResultPanel(
             onClick = onPlayAgain,
             enabled = canPlayAgain,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Play Again") }
+        ) { Text(stringResource(R.string.p2_play_again)) }
         Spacer(Modifier.height(8.dp))
         ChangeSetupButton(
             onLeave = onBackToMenu,
@@ -1447,7 +1447,7 @@ private fun DominoHandResultPanel(
         OutlinedButton(
             onClick = onBackToMenu,
             modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Back to Menu") }
+        ) { Text(stringResource(R.string.p2_back_to_menu)) }
     }
 }
 

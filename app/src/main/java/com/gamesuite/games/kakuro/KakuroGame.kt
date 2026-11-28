@@ -641,7 +641,7 @@ class KakuroGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
      * why it is separate from [beginPuzzle].
      */
     fun generate(tier: CpuDifficulty, dailySeed: Long?): KakuroPuzzle {
-        val random = dailySeed?.let { Random(it) } ?: Random.Default
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, tier.ordinal)?.let { Random(it) } ?: Random.Default
         return generatePuzzle(tier, random)
     }
 

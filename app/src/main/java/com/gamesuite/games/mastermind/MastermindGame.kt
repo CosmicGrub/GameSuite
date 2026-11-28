@@ -350,7 +350,7 @@ class MastermindGame(private val nowMillis: () -> Long = { SystemClock.elapsedRe
         hintCode.value = null
         resultHandled.value = false
         activeDailySeed.value = dailySeed
-        val random = if (dailySeed != null) Random(dailySeed) else Random
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, difficulty.ordinal)?.let { Random(it) } ?: Random
         roundNumber.value += 1
         state.value = MastermindState(
             positions = positions,

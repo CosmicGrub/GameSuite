@@ -1253,14 +1253,14 @@ private fun ChessControlsRow(
             modifier = Modifier
                 .heightIn(min = 48.dp)
                 .semantics { if (!canUndo) stateDescription = "Nothing to undo yet" }
-        ) { Text("Undo") }
+        ) { Text(stringResource(R.string.p2_undo)) }
         OutlinedButton(
             onClick = onHint,
             enabled = canHint,
             modifier = Modifier
                 .heightIn(min = 48.dp)
                 .semantics { if (!canHint) stateDescription = "No hint available: not your turn" }
-        ) { Text("Hint") }
+        ) { Text(stringResource(R.string.p2_hint)) }
     }
 }
 
@@ -1323,7 +1323,7 @@ private fun ChessResultPanel(
             Button(
                 onClick = onPlayAgain,
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            ) { Text("Play Again") }
+            ) { Text(stringResource(R.string.p2_play_again)) }
         }
         Spacer(Modifier.height(8.dp))
         ChangeSetupButton(
@@ -1334,7 +1334,7 @@ private fun ChessResultPanel(
         OutlinedButton(
             onClick = onLeave,
             modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-        ) { Text("Back to Menu") }
+        ) { Text(stringResource(R.string.p2_back_to_menu)) }
     }
 }
 
@@ -1553,7 +1553,7 @@ private fun CapturedPieceTray(board: List<Piece?>, pieceStyle: ChessPieceStyle, 
     val materialDiff = remember(board) { materialAdvantageForWhite(board) }
     Column(modifier = modifier.fillMaxWidth(0.9f)) {
         // Header for the two short row labels below; each row carries its own full description.
-        Text("Captured by", style = MaterialTheme.typography.labelSmall, modifier = Modifier.clearAndSetSemantics {})
+        Text(stringResource(R.string.p2_captured_by), style = MaterialTheme.typography.labelSmall, modifier = Modifier.clearAndSetSemantics {})
         CapturedRow("White", whiteCaptured, PieceColor.BLACK, pieceStyle)
         CapturedRow("Black", blackCaptured, PieceColor.WHITE, pieceStyle)
         val diffText = when {
@@ -1632,7 +1632,7 @@ private fun PositionBalanceBar(balance: Int, modifier: Modifier = Modifier) {
             .fillMaxWidth(0.75f)
             .clearAndSetSemantics { contentDescription = balanceDescription(balance) }
     ) {
-        Text("Position Balance", style = MaterialTheme.typography.labelSmall)
+        Text(stringResource(R.string.p2_position_balance), style = MaterialTheme.typography.labelSmall)
         Spacer(Modifier.height(3.dp))
         Box(
             Modifier

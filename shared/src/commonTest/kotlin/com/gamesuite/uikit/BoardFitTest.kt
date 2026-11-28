@@ -130,3 +130,97 @@ class BoardFitTest {
         assertFailsWith<IllegalArgumentException> { fitBoard(100f, 100f, columns = 3, minCellPx = 50f, maxCellPx = 10f) }
     }
 }
+
+/** P6: non-square cells and the hit-slop helpers. */
+class BoardFitNonSquareTest {
+    @Test
+    fun `default aspect is exactly the old square behaviour`() {
+        val a = fitBoard(300f, 500f, columns = 7, rows = 6, minCellPx = 20f, maxCellPx = 80f)
+        val b = fitBoard(300f, 500f, columns = 7, rows = 6, minCellPx = 20f, maxCellPx = 80f, cellAspect = 1f)
+        assertEquals(a, b)
+        assertEquals(a.cellPx, a.cellWidthPx)
+    }
+
+    @Test
+    fun `wide cells never overflow either axis`() {
+        for (aspect in listOf(0.5f, 0.866f, 1f, 1.5f, 2f)) {
+            for ((w, h) in listOf(344f to 620f, 829f to 690f, 200f to 200f, 2000f to 700f)) {
+                val f = fitBoard(w, h, columns = 9, rows = 5, cellAspect = aspect)
+                assertTrue(f.boardWidthPx <= w + 0.001f, "width aspect=$aspect ${w}x$h")
+                assertTrue(f.boardHeightPx <= h + 0.001f, "height aspect=$aspect ${w}x$h")
+                assertEquals(f.cellPx * aspect, f.cellWidthPx, 0.0001f)
+            }
+        }
+    }
+
+    @Test
+    fun `width limited board uses the aspect`() {
+        // 4 columns twice as wide as tall in 400x1000: width bound 400/(4*2) = 50, height bound 200.
+        val f = fitBoard(400f, 1000f, columns = 4, rows = 5, cellAspect = 2f)
+        assertEquals(50f, f.cellPx, 0.001f)
+        assertEquals(100f, f.cellWidthPx, 0.001f)
+        assertEquals(400f, f.boardWidthPx, 0.001f)
+        assertEquals(250f, f.boardHeightPx, 0.001f)
+    }
+
+    @Test
+    fun `max and min constrain the shorter side`() {
+        val wide = fitBoard(2000f, 2000f, columns = 4, rows = 4, maxCellPx = 40f, cellAspect = 2f)
+        assertEquals(40f, wide.cellPx, 0.001f)       // height is the short side
+        assertEquals(80f, wide.cellWidthPx, 0.001f)
+        val tall = fitBoard(2000f, 2000f, columns = 4, rows = 4, maxCellPx = 40f, cellAspect = 0.5f)
+        assertEquals(80f, tall.cellPx, 0.001f)       // width (40) is the short side
+        assertEquals(40f, tall.cellWidthPx, 0.001f)
+        assertFalse(fitBoard(100f, 100f, columns = 4, rows = 4, minCellPx = 20f, cellAspect = 2f).meetsMinimum)
+        assertTrue(fitBoard(400f, 400f, columns = 4, rows = 4, minCellPx = 20f, cellAspect = 2f).meetsMinimum)
+    }
+
+    @Test
+    fun `rejects a non-positive aspect`() {
+        assertFailsWith<IllegalArgumentException> { fitBoard(100f, 100f, columns = 3, cellAspect = 0f) }
+        assertFailsWith<IllegalArgumentException> { fitBoard(100f, 100f, columns = 3, cellAspect = -1f) }
+    }
+
+    @Test
+    fun `hit slop grows small cells to the minimum target and leaves big ones alone`() {
+        val small = fitBoard(280f, 280f, columns = 8)       // 35 px cells
+        val slop = small.hitSlopPx(48f)
+        assertEquals(6.5f, slop.horizontalPx, 0.001f)
+        assertEquals(6.5f, slop.verticalPx, 0.001f)
+        assertFalse(slop.isNone)
+        val big = fitBoard(800f, 800f, columns = 8)         // 100 px cells
+        assertTrue(big.hitSlopPx(48f).isNone)
+    }
+
+    @Test
+    fun `hit slop is per axis for non-square cells`() {
+        val f = fitBoard(400f, 400f, columns = 10, rows = 10, cellAspect = 0.5f)
+        val s = f.hitSlopPx(48f)
+        assertEquals((48f - f.cellWidthPx) / 2f, s.horizontalPx, 0.001f)
+        assertEquals((48f - f.cellPx) / 2f, s.verticalPx, 0.001f)
+    }
+
+    @Test
+    fun `hit test accepts a near miss inside the slop and rejects beyond it`() {
+        val xs = floatArrayOf(20f, 60f, 100f)
+        val ys = floatArrayOf(20f, 20f, 20f)
+        val slop = HitSlop(10f, 10f)
+        // A 20 px peg (half 10): a touch 16 px from the centre misses without slop and lands with it.
+        assertEquals(-1, hitTestWithSlop(76f, 20f, floatArrayOf(60f), floatArrayOf(20f), 10f, 10f, HitSlop(0f, 0f)))
+        assertEquals(0, hitTestWithSlop(76f, 20f, floatArrayOf(60f), floatArrayOf(20f), 10f, 10f, slop))
+        // Beyond half + slop is still a miss.
+        assertEquals(-1, hitTestWithSlop(81f, 20f, floatArrayOf(60f), floatArrayOf(20f), 10f, 10f, slop))
+        // A touch on a centre picks that target even when neighbours' grown rects overlap it.
+        assertEquals(1, hitTestWithSlop(60f, 20f, xs, ys, 10f, 10f, HitSlop(25f, 25f)))
+        // Between two pegs the nearer one wins.
+        assertEquals(1, hitTestWithSlop(41f, 20f, xs, ys, 10f, 10f, HitSlop(25f, 25f)))
+        assertEquals(0, hitTestWithSlop(39f, 20f, xs, ys, 10f, 10f, HitSlop(25f, 25f)))
+    }
+
+    @Test
+    fun `hit test rejects mismatched arrays`() {
+        assertFailsWith<IllegalArgumentException> {
+            hitTestWithSlop(0f, 0f, floatArrayOf(1f), floatArrayOf(), 1f, 1f, HitSlop(0f, 0f))
+        }
+    }
+}

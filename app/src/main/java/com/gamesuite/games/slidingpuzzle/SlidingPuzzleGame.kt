@@ -593,7 +593,7 @@ class SlidingPuzzleGame(private val nowMillis: () -> Long = { SystemClock.elapse
      * from the clock itself.
      */
     private fun generatePuzzle(size: Int, scrambleMoves: Int, dailySeed: Long? = null): SlidingPuzzleState {
-        val random = if (dailySeed != null) Random(dailySeed) else Random
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, difficulty.ordinal)?.let { Random(it) } ?: Random
         var tiles = scramble(size, scrambleMoves, random)
         // Belt-and-suspenders: with a scramble count this high, landing back
         // on the solved board is not a practical concern, but never ship a

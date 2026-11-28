@@ -879,7 +879,7 @@ class EdgeMatchGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
      * astronomically unlikely.
      */
     private fun generatePuzzle(size: Int, colorCount: Int, geometry: EdgeMatchGeometry, dailySeed: Long?): List<EdgeMatchTile> {
-        val random = if (dailySeed != null) Random(dailySeed) else Random
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, size * 100 + colorCount * 4 + geometry.ordinal)?.let { Random(it) } ?: Random
         repeat(MAX_GENERATION_ATTEMPTS) {
             val solved = when (geometry) {
                 EdgeMatchGeometry.SQUARE -> generateSolvedGrid(size, colorCount, random)

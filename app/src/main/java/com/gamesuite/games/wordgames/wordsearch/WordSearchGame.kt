@@ -330,7 +330,7 @@ class WordSearchGame(
     }
 
     private fun generatePuzzle(params: TierParams, seed: Long? = null): WordSearchState {
-        val rng: Random = if (seed != null) Random(seed) else Random.Default
+        val rng: Random = com.gamesuite.core.DailySeed.forTier(seed, difficulty.ordinal)?.let { Random(it) } ?: Random.Default
         val kid = kidModeProvider()
         val gridSize = params.gridSize
         val grid = Array(gridSize) { CharArray(gridSize) { ' ' } }

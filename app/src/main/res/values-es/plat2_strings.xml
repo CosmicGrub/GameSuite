@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared platform leftovers (ws-plat2): common game-screen actions moved out of Kotlin literals. -->
+    <string name="p2_undo">Deshacer</string>
+    <string name="p2_hint">Pista</string>
+    <string name="p2_play_again">Jugar otra vez</string>
+    <string name="p2_back_to_menu">Volver al menú</string>
+    <string name="p2_back_to_menu_lc">Volver al menú</string>
+    <string name="p2_leave_game">Salir de la partida</string>
+    <string name="p2_pass">Pasar</string>
+    <string name="p2_draw_tile">Robar una ficha</string>
+    <string name="p2_play_on_left">Jugar a la izquierda</string>
+    <string name="p2_play_on_right">Jugar a la derecha</string>
+    <string name="p2_show_hand">Mostrar mi mano</string>
+    <string name="p2_chain">Cadena</string>
+    <string name="p2_captured_by">Capturadas por</string>
+    <string name="p2_position_balance">Balance de la posición</string>
+    <string name="p2_motion">"Movimiento: "</string>
+    <string name="p2_ah_p2_first_to">" : %1$s (primero a %2$d)"</string>
+    <string name="p2_ah_cpu_first_to">" %1$s (primero a %2$d)"</string>
+</resources>

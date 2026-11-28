@@ -474,7 +474,7 @@ fun ConnectFourScreen(
                         onClick = { game.leaveSession() },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                         modifier = Modifier.heightIn(min = 48.dp)
-                    ) { Text("Leave game") }
+                    ) { Text(stringResource(R.string.p2_leave_game)) }
                 }
             }
 
@@ -772,10 +772,10 @@ private fun ControlsRow(
     val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onUndo, enabled = canUndo, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Undo")
+            Text(stringResource(R.string.p2_undo))
         }
         OutlinedButton(onClick = onHint, enabled = canHint, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Hint")
+            Text(stringResource(R.string.p2_hint))
         }
     }
 }
@@ -1054,7 +1054,7 @@ private fun ResultPanel(
                     modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.boardFrame, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Play Again", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.p2_play_again), textAlign = TextAlign.Center) }
                 ChangeSetupButton(
                     onLeave = onBackToMenu,
                     modifier = Modifier,
@@ -1065,7 +1065,7 @@ private fun ResultPanel(
                     modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Back to Menu", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.p2_back_to_menu), textAlign = TextAlign.Center) }
             }
         }
     }

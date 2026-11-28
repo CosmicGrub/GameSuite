@@ -1085,7 +1085,7 @@ private fun TicTacToeControlsRow(
                 .heightIn(min = 48.dp)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .semantics { contentDescription = if (canUndo) "Undo" else "Undo, nothing to take back" }
-        ) { Text("Undo") }
+        ) { Text(stringResource(R.string.p2_undo)) }
         OutlinedButton(
             onClick = onHint,
             enabled = canHint,
@@ -1093,7 +1093,7 @@ private fun TicTacToeControlsRow(
                 .heightIn(min = 48.dp)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .semantics { contentDescription = if (canHint) "Hint" else "Hint, unavailable: $hintUnavailableReason" }
-        ) { Text("Hint") }
+        ) { Text(stringResource(R.string.p2_hint)) }
     }
 }
 
@@ -1123,7 +1123,7 @@ private fun RoundOverPanel(
                 enabled = canPlayAgain,
                 modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
             ) {
-                Text("Play Again")
+                Text(stringResource(R.string.p2_play_again))
             }
             Spacer(modifier = Modifier.height(8.dp))
             ChangeSetupButton(
@@ -1135,7 +1135,7 @@ private fun RoundOverPanel(
                 onClick = onBackToMenu,
                 modifier = Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand)
             ) {
-                Text("Back to Menu")
+                Text(stringResource(R.string.p2_back_to_menu))
             }
         }
     }

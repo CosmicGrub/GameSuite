@@ -379,7 +379,7 @@ class SudokuGame(private val nowMillis: () -> Long = { SystemClock.elapsedRealti
 
     /** See this class's KDoc / MinesweeperGame.startMatch(dailySeed)'s KDoc for what this is for. */
     fun startMatch(dailySeed: Long?) {
-        val random = dailySeed?.let { Random(it) } ?: Random.Default
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, difficulty.ordinal)?.let { Random(it) } ?: Random.Default
         currentDailySeed = dailySeed
         val (solved, puzzle) = generateOrFallback(difficulty, random)
 

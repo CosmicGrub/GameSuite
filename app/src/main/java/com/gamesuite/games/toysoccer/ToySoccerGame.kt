@@ -139,7 +139,7 @@ private val soccerJson = Json { ignoreUnknownKeys = true }
 class ToySoccerGame(
     private val random: Random = Random.Default,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, com.gamesuite.core.PausableGame {
     override val gameId = "toy-soccer"
     override val displayName = "Toy Soccer"
     override val category = GameCategory.ARCADE
@@ -253,6 +253,7 @@ class ToySoccerGame(
     }
 
     @Synchronized
+    override val isPaused: Boolean get() = paused
     override fun pause() { paused = true }
 
     @Synchronized

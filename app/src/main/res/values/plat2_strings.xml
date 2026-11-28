@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared platform leftovers (ws-plat2): common game-screen actions moved out of Kotlin literals. -->
+    <string name="p2_undo">Undo</string>
+    <string name="p2_hint">Hint</string>
+    <string name="p2_play_again">Play Again</string>
+    <string name="p2_back_to_menu">Back to Menu</string>
+    <string name="p2_back_to_menu_lc">Back to menu</string>
+    <string name="p2_leave_game">Leave game</string>
+    <string name="p2_pass">Pass</string>
+    <string name="p2_draw_tile">Draw a tile</string>
+    <string name="p2_play_on_left">Play on Left</string>
+    <string name="p2_play_on_right">Play on Right</string>
+    <string name="p2_show_hand">Show my hand</string>
+    <string name="p2_chain">Chain</string>
+    <string name="p2_captured_by">Captured by</string>
+    <string name="p2_position_balance">Position Balance</string>
+    <string name="p2_motion">"Motion: "</string>
+    <string name="p2_ah_p2_first_to">" : %1$s (first to %2$d)"</string>
+    <string name="p2_ah_cpu_first_to">" %1$s (first to %2$d)"</string>
+</resources>

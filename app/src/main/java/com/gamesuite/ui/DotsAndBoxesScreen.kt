@@ -453,7 +453,7 @@ fun DotsAndBoxesScreen(
                         onClick = leaveAction,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                         modifier = Modifier.heightIn(min = 48.dp)
-                    ) { Text("Back to Menu") }
+                    ) { Text(stringResource(R.string.p2_back_to_menu)) }
                 }
             }
             val boardSlot: @Composable (Modifier) -> Unit = { slotModifier ->
@@ -1288,13 +1288,13 @@ private fun ResultPanel(
                     enabled = playAgainEnabled,
                     modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Play Again", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.p2_play_again), textAlign = TextAlign.Center) }
                 ChangeSetupButton(onLeave = onBackToMenu, modifier = Modifier)
                 OutlinedButton(
                     onClick = onBackToMenu,
                     modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("Back to Menu", textAlign = TextAlign.Center) }
+                ) { Text(stringResource(R.string.p2_back_to_menu), textAlign = TextAlign.Center) }
             }
         }
     }

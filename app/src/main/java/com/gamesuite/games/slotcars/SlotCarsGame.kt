@@ -74,7 +74,7 @@ private val slotJson = Json { ignoreUnknownKeys = true }
 class SlotCarsGame(
     private val random: Random = Random.Default,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
-) : GameModule, ResumableGame {
+) : GameModule, ResumableGame, com.gamesuite.core.PausableGame {
     override val gameId = "slot-cars"
     override val displayName = "Slot Cars"
     override val category = GameCategory.ARCADE
@@ -175,6 +175,7 @@ class SlotCarsGame(
         if (isNetworked) broadcast()
     }
 
+    override val isPaused: Boolean get() = paused
     @Synchronized override fun pause() { paused = true }
     @Synchronized override fun resume() { paused = false; lastMs = -1 }
 

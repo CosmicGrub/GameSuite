@@ -206,11 +206,9 @@ fun ToySoccerScreen(
     LaunchedEffect(gameSpeed) { game.cpuReactionScale = gameSpeed.delayScale.toDouble() }
 
     // The frame loop: the table advances by the real time since the last frame.
-    LaunchedEffect(game) {
-        while (true) {
-            androidx.compose.runtime.withFrameNanos { game.advance() }
-        }
-    }
+    // Shared frame clock: lifecycle-gated (stops on ON_STOP, fresh baseline on return) and idle once
+    // the match is over. The engine keeps its own fixed-step clock; overlays pause it via PausableGame.
+    com.gamesuite.uikit.rememberGameFrameClock(running = !game.matchOver.value) { game.advance() }
 
     val activeCtx = context
     val isNetworked = activeCtx?.activeMode == PlayMode.LOCAL_AD_HOC || activeCtx?.activeMode == PlayMode.ONLINE

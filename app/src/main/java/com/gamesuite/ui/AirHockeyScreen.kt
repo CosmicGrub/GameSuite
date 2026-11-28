@@ -33,6 +33,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamesuite.R
@@ -63,6 +65,7 @@ import com.gamesuite.ui.effects.rememberCameraShake
 import com.gamesuite.ui.effects.rememberParticleBurst
 import com.gamesuite.ui.effects.specularSweep
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 import kotlinx.coroutines.launch
@@ -125,7 +128,17 @@ fun AirHockeyScreen(
     // Gates every new "juice" effect below (trail rendering, shockwave rings, camera-shake,
     // goal particles, scoreboard punch) — same pattern every screen in this pass uses.
     val enhanced = LocalEnhancedAnimations.current && !reducedMotion
-    val state by game.state
+    // The engine publishes a fresh state object every frame. Reading it here in the body would
+    // recompose the whole screen 60 times a second, so the body only reads slow-moving slices
+    // (derived, so they change rarely) and the Canvas / layout lambdas read the live value.
+    val stateHolder = game.state
+    val goalEvent by remember(stateHolder) { derivedStateOf { stateHolder.value.goalEvent } }
+    val lastPaddleImpact by remember(stateHolder) { derivedStateOf { stateHolder.value.lastPaddleImpact } }
+    val lastWallBounce by remember(stateHolder) { derivedStateOf { stateHolder.value.lastWallBounce } }
+    val matchOver by remember(stateHolder) { derivedStateOf { stateHolder.value.matchOver } }
+    val winnerIsPlayer by remember(stateHolder) { derivedStateOf { stateHolder.value.winnerIsPlayer } }
+    val playerScore by remember(stateHolder) { derivedStateOf { stateHolder.value.playerScore } }
+    val cpuScore by remember(stateHolder) { derivedStateOf { stateHolder.value.cpuScore } }
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     // Drives both the header/instruction copy below and which half-drags route to the top
     // paddle (see the Canvas's pointerInput) — see AirHockeyGame's topPaddleIsBot for the
@@ -164,8 +177,8 @@ fun AirHockeyScreen(
 
     // Goal sound/haptic/scoring reaction — keyed on the event's own seq (not just score totals)
     // so every goal, including a same-score-shape rematch, fires its own reaction exactly once.
-    LaunchedEffect(state.goalEvent?.seq) {
-        val event = state.goalEvent ?: return@LaunchedEffect
+    LaunchedEffect(goalEvent?.seq) {
+        val event = goalEvent ?: return@LaunchedEffect
         airHockeySounds.playGoal()
         when {
             event.matchOver && (event.scoredByPlayer || isPassAndPlay) -> haptics(HapticSignal.CELEBRATION)
@@ -177,8 +190,8 @@ fun AirHockeyScreen(
     // Paddle-contact sound/haptic — amplitude-scaled off the real impact speed tick() already
     // computes (AirHockeyGame.PaddleCollisionResult.impactSpeed), replacing what used to be
     // total silence + no haptic on every paddle hit in this game.
-    LaunchedEffect(state.lastPaddleImpact?.seq) {
-        val impact = state.lastPaddleImpact ?: return@LaunchedEffect
+    LaunchedEffect(lastPaddleImpact?.seq) {
+        val impact = lastPaddleImpact ?: return@LaunchedEffect
         val speedFrac = (impact.speed / AirHockeyGame.MAX_SPEED).coerceIn(0f, 1f)
         airHockeySounds.playPaddleHit(speedFrac)
         haptics(
@@ -192,16 +205,16 @@ fun AirHockeyScreen(
 
     // Wall/board bounce sound — the other previously-silent event; a thinner, higher, single
     // (not layered) cue since a board tap is a much smaller event than a mallet strike.
-    LaunchedEffect(state.lastWallBounce?.seq) {
-        if (state.lastWallBounce != null) airHockeySounds.playWallBounce()
+    LaunchedEffect(lastWallBounce?.seq) {
+        if (lastWallBounce != null) airHockeySounds.playWallBounce()
     }
 
     // Paddle-impact shockwave rings: a genuine radial pulse spawned on real contact (below,
     // keyed on the same event as the sound/haptic above), then aged/culled every frame by a
     // second, steady-state loop — see ShockwaveRing's KDoc.
     var shockwaveRings by remember { mutableStateOf(listOf<ShockwaveRing>()) }
-    LaunchedEffect(state.lastPaddleImpact?.seq) {
-        val impact = state.lastPaddleImpact ?: return@LaunchedEffect
+    LaunchedEffect(lastPaddleImpact?.seq) {
+        val impact = lastPaddleImpact ?: return@LaunchedEffect
         if (!enhanced) return@LaunchedEffect
         val speedFrac = (impact.speed / AirHockeyGame.MAX_SPEED).coerceIn(0f, 1f)
         shockwaveRings = shockwaveRings + ShockwaveRing(impact.seq, impact.position, speedFrac)
@@ -232,8 +245,8 @@ fun AirHockeyScreen(
     val cameraShake = rememberCameraShake()
     val flashAlpha = remember { Animatable(0f) }
     val goalParticleBurst = rememberParticleBurst()
-    LaunchedEffect(state.goalEvent?.seq) {
-        val event = state.goalEvent ?: return@LaunchedEffect
+    LaunchedEffect(goalEvent?.seq) {
+        val event = goalEvent ?: return@LaunchedEffect
         if (!enhanced) return@LaunchedEffect
 
         flashAlpha.snapTo(1f)
@@ -280,11 +293,11 @@ fun AirHockeyScreen(
 
     // The physics frame loop — runs continuously while this screen is composed and the match isn't over.
     // Shared frame clock: lifecycle-gated (stops on ON_STOP), first frame after a restart is dt 0.
-    com.gamesuite.uikit.rememberGameFrameClock(running = !state.matchOver) { dt ->
+    com.gamesuite.uikit.rememberGameFrameClock(running = !matchOver) { dt ->
         if (dt > 0f && !game.state.value.matchOver) game.tick(dt)
     }
 
-    if (state.matchOver) {
+    if (matchOver) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -292,15 +305,15 @@ fun AirHockeyScreen(
         ) {
             Text(
                 if (isPassAndPlay) {
-                    if (state.winnerIsPlayer) "$p1Name wins! ${state.playerScore}-${state.cpuScore}" else "$p2Name wins! ${state.cpuScore}-${state.playerScore}"
-                } else if (state.winnerIsPlayer) "You win! ${state.playerScore}-${state.cpuScore}" else "$cpuName wins ${state.cpuScore}-${state.playerScore}",
+                    if (winnerIsPlayer) "$p1Name wins! $playerScore-$cpuScore" else "$p2Name wins! $cpuScore-$playerScore"
+                } else if (winnerIsPlayer) "You win! $playerScore-$cpuScore" else "$cpuName wins $cpuScore-$playerScore",
                 style = MaterialTheme.typography.headlineSmall
             )
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = onMatchEnded,
                 modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            ) { Text("Back to menu") }
+            ) { Text(stringResource(R.string.p2_back_to_menu_lc)) }
             Spacer(Modifier.height(8.dp))
             com.gamesuite.uikit.ChangeSetupButton(
                 onLeave = onMatchEnded,
@@ -348,7 +361,7 @@ fun AirHockeyScreen(
             "(difficulty comes from the game setup or Settings). In pass and play, Player 1 drags the bottom half " +
             "and Player 2 drags the top half at the same time.\n\n" +
             "Opening this menu freezes the puck. Leaving mid-match doesn't count as a win or a loss.",
-        matchInProgress = !state.matchOver,
+        matchInProgress = !matchOver,
         // Same exit the finished-match panel's "Back to menu" button uses.
         onLeave = onMatchEnded,
         // Air Hockey has no finished sub-units (one match = one result), so leaving is a pure
@@ -370,16 +383,16 @@ fun AirHockeyScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isPassAndPlay) {
                         Text("$p1Name: ", style = MaterialTheme.typography.titleMedium)
-                        ScorePunch(state.playerScore, MaterialTheme.typography.titleMedium, enhanced)
+                        ScorePunch(playerScore, MaterialTheme.typography.titleMedium, enhanced)
                         Text(" — ", style = MaterialTheme.typography.titleMedium)
-                        ScorePunch(state.cpuScore, MaterialTheme.typography.titleMedium, enhanced)
-                        Text(" : $p2Name (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
+                        ScorePunch(cpuScore, MaterialTheme.typography.titleMedium, enhanced)
+                        Text(stringResource(R.string.p2_ah_p2_first_to, p2Name, game.matchTarget), style = MaterialTheme.typography.titleMedium)
                     } else {
                         Text("$youName ", style = MaterialTheme.typography.titleMedium)
-                        ScorePunch(state.playerScore, MaterialTheme.typography.titleMedium, enhanced)
+                        ScorePunch(playerScore, MaterialTheme.typography.titleMedium, enhanced)
                         Text(" — ", style = MaterialTheme.typography.titleMedium)
-                        ScorePunch(state.cpuScore, MaterialTheme.typography.titleMedium, enhanced)
-                        Text(" $cpuName (first to ${game.matchTarget})", style = MaterialTheme.typography.titleMedium)
+                        ScorePunch(cpuScore, MaterialTheme.typography.titleMedium, enhanced)
+                        Text(stringResource(R.string.p2_ah_cpu_first_to, cpuName, game.matchTarget), style = MaterialTheme.typography.titleMedium)
                     }
                 }
                 if (!isPassAndPlay) {
@@ -389,7 +402,7 @@ fun AirHockeyScreen(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Motion: ", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.p2_motion), style = MaterialTheme.typography.labelSmall)
                     MotionTierLabel("Standard", motionTier == AirHockeyMotionTier.STANDARD) {
                         prefsScope.launch { prefsStore.setMotionTier(AirHockeyMotionTier.STANDARD) }
                     }
@@ -457,6 +470,9 @@ fun AirHockeyScreen(
                                 }
                             }
                     ) {
+                        // Live per-frame state is read HERE (draw phase) so a new engine state
+                        // invalidates this Canvas only, never the surrounding composition.
+                        val state = game.state.value
                         val w = size.width
                         val h = size.height
 
@@ -612,10 +628,15 @@ fun AirHockeyScreen(
                         val puckDiameterDp = boardSizeDp * (AirHockeyGame.BALL_RADIUS * 2f)
                         Box(
                             modifier = Modifier
-                                .offset(
-                                    x = boardSizeDp * state.ballPos.x - puckDiameterDp / 2f,
-                                    y = boardSizeDp * state.ballPos.y - puckDiameterDp / 2f
-                                )
+                                .offset {
+                                    // Layout-phase read: follows the puck without recomposing.
+                                    val ball = game.state.value.ballPos
+                                    val d = puckDiameterDp.roundToPx() / 2f
+                                    IntOffset(
+                                        (boardSizeDp.toPx() * ball.x - d).roundToInt(),
+                                        (boardSizeDp.toPx() * ball.y - d).roundToInt()
+                                    )
+                                }
                                 .size(puckDiameterDp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.06f))

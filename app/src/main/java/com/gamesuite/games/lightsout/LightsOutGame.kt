@@ -344,7 +344,7 @@ class LightsOutGame(private val nowMillis: () -> Long = { SystemClock.elapsedRea
 
     /** See this class's KDoc / MinesweeperGame.startMatch(dailySeed)'s KDoc for what this is for. */
     fun startMatch(dailySeed: Long?) {
-        val random = dailySeed?.let { Random(it) } ?: Random.Default
+        val random = com.gamesuite.core.DailySeed.forTier(dailySeed, difficulty.ordinal)?.let { Random(it) } ?: Random.Default
         currentDailySeed = dailySeed
         isDailyBoard.value = dailySeed != null
         // A new board starts a new undo history and a clean assist count: undo never reaches back into the previous board.

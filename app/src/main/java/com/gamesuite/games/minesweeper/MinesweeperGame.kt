@@ -604,7 +604,7 @@ class MinesweeperGame(private val nowMillis: () -> Long = { SystemClock.elapsedR
 
         var working = s
         if (!minesPlaced) {
-            val random = currentDailySeed?.let { Random(it) } ?: Random
+            val random = com.gamesuite.core.DailySeed.forTier(currentDailySeed, difficulty.ordinal)?.let { Random(it) } ?: Random
             working = placeMines(working, avoidIndex = index, random = random)
             minesPlaced = true
         }

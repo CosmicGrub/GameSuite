@@ -556,7 +556,7 @@ private fun ReversiControlsRow(
     val colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onUndo, enabled = canUndo, colors = colors, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Undo")
+            Text(stringResource(R.string.p2_undo))
         }
         OutlinedButton(
             onClick = onHint,
@@ -566,7 +566,7 @@ private fun ReversiControlsRow(
                 .heightIn(min = 48.dp)
                 .semantics { contentDescription = if (canHint) "Hint" else "Hint unavailable, $hintUnavailableReason" }
         ) {
-            Text("Hint")
+            Text(stringResource(R.string.p2_hint))
         }
     }
 }
@@ -709,12 +709,12 @@ private fun FinishedPanel(
                     onClick = { game.playAgain() },
                     enabled = canPlayAgain,
                     modifier = Modifier.heightIn(min = 48.dp)
-                ) { Text("Play Again") }
+                ) { Text(stringResource(R.string.p2_play_again)) }
                 ChangeSetupButton(onLeave = { game.leaveSession() })
                 OutlinedButton(
                     onClick = { game.leaveSession() },
                     modifier = Modifier.heightIn(min = 48.dp)
-                ) { Text("Back to Menu") }
+                ) { Text(stringResource(R.string.p2_back_to_menu)) }
             }
         }
     }
