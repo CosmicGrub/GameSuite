@@ -495,7 +495,7 @@ private fun Arena(
             }
             drawBbFx(fx, now, scale, reduced)
         }
-        val box = min(48f, width.value / BbArena.W.toFloat() * 1.15f).dp
+        val box = bbNodeTapBoxDp(width.value, BbArena.W).dp
         val nodes = engine.map.nodes
         for ((i, n) in nodes.withIndex()) {
             val bot = engine.botAtNode(i)
